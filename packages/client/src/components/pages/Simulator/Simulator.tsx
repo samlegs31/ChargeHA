@@ -295,8 +295,11 @@ function ActionRow(
 
 function homeBatteryPowerDataset(results: SimResult[]) {
   return {
-    label: "Home Battery (W, + discharge / - charge)",
-    data: results.map((r) => r.batteryW),
+    // Display-only: batteryW is +discharge/-charge (matches gridPowerW's
+    // import-positive convention). Flipped here so the chart reads
+    // +charge/-discharge, which is not how the engine interprets the value.
+    label: "Home Battery (W, + charge / - discharge)",
+    data: results.map((r) => -r.batteryW),
     borderColor: "#a855f7",
     borderWidth: 1,
     pointRadius: 0,
@@ -623,6 +626,7 @@ function HomeBatterySection(
           step={0.5}
           min={0}
           max={20}
+          help="The inverter's charge/discharge power limit — how fast the battery can charge or discharge, independent of its capacity."
         />
         <NumInput
           label="Start SoC %"
@@ -735,6 +739,7 @@ function NumInput({
   step,
   min,
   max,
+  help,
 }: {
   label: string;
   value: number;
@@ -742,6 +747,7 @@ function NumInput({
   step?: number;
   min?: number;
   max?: number;
+  help?: string;
 }) {
   const [draft, setDraft] = useState(String(value));
 
@@ -750,7 +756,16 @@ function NumInput({
 
   return (
     <div className={styles.control}>
-      <label>{label}</label>
+      <label>
+        {label}
+        {help && (
+          <Tooltip content={help}>
+            <Text size="1" color="gray" style={{ cursor: "help" }}>
+              &#9432;
+            </Text>
+          </Tooltip>
+        )}
+      </label>
       <input
         type="number"
         value={draft}
