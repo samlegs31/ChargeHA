@@ -40,6 +40,11 @@ export interface SimulationOptions {
   ev2CapacityKwh: number;
   ampDebounceThreshold?: number;
   ampDebounceSettleMinutes?: number;
+  batteryCapacityKwh: number;
+  batteryMaxRateKw: number;
+  batteryStartSoc: number;
+  batteryPriorityEnabled: boolean;
+  batteryPriorityLimit: number;
 }
 
 // ---- Results ----
@@ -69,6 +74,8 @@ export interface SimResult {
   homeW: number;
   gridW: number;
   excessW: number;
+  batteryW: number;
+  batterySoc: number;
   vehicles: VehicleResult[];
 }
 

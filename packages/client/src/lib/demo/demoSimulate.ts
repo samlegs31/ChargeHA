@@ -91,6 +91,11 @@ const simOptions = (profile: DayProfile): SimulationOptions => ({
   ev1CapacityKwh: DEMO_VEHICLES[0].capacityKwh,
   // Unused at vehicleCount 1 (the engine slices to SIM_V1) but type-required.
   ev2CapacityKwh: DEMO_VEHICLES[0].capacityKwh,
+  batteryCapacityKwh: 0,
+  batteryMaxRateKw: 5,
+  batteryStartSoc: 50,
+  batteryPriorityEnabled: false,
+  batteryPriorityLimit: 20,
 });
 
 interface ChargingVehicle {

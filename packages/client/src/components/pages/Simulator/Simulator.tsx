@@ -51,6 +51,11 @@ interface SimConfig {
   ev2Start: number;
   ev1CapacityKwh: number;
   ev2CapacityKwh: number;
+  batteryCapacityKwh: number;
+  batteryMaxRateKw: number;
+  batteryStartSoc: number;
+  batteryPriorityEnabled: boolean;
+  batteryPriorityLimit: number;
 }
 
 const DEFAULTS: SimConfig = {
@@ -71,6 +76,11 @@ const DEFAULTS: SimConfig = {
   ev2Start: 60,
   ev1CapacityKwh: 75,
   ev2CapacityKwh: 75,
+  batteryCapacityKwh: 0,
+  batteryMaxRateKw: 5,
+  batteryStartSoc: 50,
+  batteryPriorityEnabled: false,
+  batteryPriorityLimit: 20,
 };
 
 const VOLTAGE = 230;
@@ -84,6 +94,7 @@ function renderSimCharts(
     chartJs,
     results,
     vehicleCount,
+    showHomeBattery,
     powerChartRef,
     batteryChartRef,
     powerChartInstance,
@@ -92,6 +103,7 @@ function renderSimCharts(
     chartJs: ChartJs;
     results: SimResult[];
     vehicleCount: number;
+    showHomeBattery: boolean;
     powerChartRef: React.RefObject<HTMLCanvasElement>;
     batteryChartRef: React.RefObject<HTMLCanvasElement>;
     powerChartInstance: ChartInstanceRef;
@@ -106,7 +118,12 @@ function renderSimCharts(
   if (powerCtx) {
     powerChartInstance.current = new ChartCtor(powerCtx, {
       type: "line",
-      data: buildPowerChartData(chartJs, results, vehicleNames),
+      data: buildPowerChartData(
+        chartJs,
+        results,
+        vehicleNames,
+        showHomeBattery,
+      ),
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -125,7 +142,7 @@ function renderSimCharts(
   if (battCtx) {
     batteryChartInstance.current = new ChartCtor(battCtx, {
       type: "line",
-      data: buildBatteryChartData(results, vehicleNames),
+      data: buildBatteryChartData(results, vehicleNames, showHomeBattery),
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -192,6 +209,31 @@ async function runAndCollect(
   }
 }
 
+function useRenderSimCharts(
+  { output, vehicleCount, batteryCapacityKwh, chartJsRef, ...refs }: {
+    output: SimulationOutput | null;
+    vehicleCount: number;
+    batteryCapacityKwh: number;
+    chartJsRef: React.MutableRefObject<ChartJs | null>;
+    powerChartRef: React.RefObject<HTMLCanvasElement>;
+    batteryChartRef: React.RefObject<HTMLCanvasElement>;
+    powerChartInstance: ChartInstanceRef;
+    batteryChartInstance: ChartInstanceRef;
+  },
+) {
+  // Render charts after React has mounted the canvas elements
+  useEffect(() => {
+    if (!output || !chartJsRef.current) return;
+    renderSimCharts({
+      chartJs: chartJsRef.current,
+      results: output.results,
+      vehicleCount,
+      showHomeBattery: batteryCapacityKwh > 0,
+      ...refs,
+    });
+  }, [output, vehicleCount, batteryCapacityKwh]);
+}
+
 function useChartRefs() {
   const powerChartRef = useRef<HTMLCanvasElement>(null);
   const batteryChartRef = useRef<HTMLCanvasElement>(null);
@@ -251,10 +293,37 @@ function ActionRow(
   );
 }
 
+function homeBatteryPowerDataset(results: SimResult[]) {
+  return {
+    // Display-only: batteryW is +discharge/-charge (matches gridPowerW's
+    // import-positive convention). Flipped here so the chart reads
+    // +charge/-discharge, which is not how the engine interprets the value.
+    label: "Home Battery (W, + charge / - discharge)",
+    data: results.map((r) => -r.batteryW),
+    borderColor: "#a855f7",
+    borderWidth: 1,
+    pointRadius: 0,
+    borderDash: [2, 2],
+  };
+}
+
+function homeBatterySocDataset(results: SimResult[]) {
+  return {
+    label: "Home Battery %",
+    data: results.map((r) => r.batterySoc),
+    borderColor: "#a855f7",
+    backgroundColor: "rgba(168,85,247,0.1)",
+    fill: true,
+    pointRadius: 0,
+    borderWidth: 2,
+  };
+}
+
 function buildPowerChartData(
   _chartJs: ChartJs,
   results: SimResult[],
   vehicleNames: string[],
+  showHomeBattery: boolean,
 ) {
   const labels = results.map((r) => r.time);
   const VEHICLE_COLORS = ["#8b5cf6", "#06b6d4"];
@@ -297,25 +366,33 @@ function buildPowerChartData(
         pointRadius: 0,
         borderDash: [4, 2],
       },
+      ...(showHomeBattery ? [homeBatteryPowerDataset(results)] : []),
     ],
   };
 }
 
-function buildBatteryChartData(results: SimResult[], vehicleNames: string[]) {
+function buildBatteryChartData(
+  results: SimResult[],
+  vehicleNames: string[],
+  showHomeBattery: boolean,
+) {
   const labels = results.map((r) => r.time);
   const BATTERY_COLORS = ["#10b981", "#0891b2"];
   const BATTERY_BG = ["rgba(16,185,129,0.1)", "rgba(8,145,178,0.1)"];
   return {
     labels,
-    datasets: vehicleNames.map((name, i) => ({
-      label: `${name} Battery %`,
-      data: results.map((r) => r.vehicles[i]?.batteryLevel ?? 0),
-      borderColor: BATTERY_COLORS[i],
-      backgroundColor: BATTERY_BG[i],
-      fill: true,
-      pointRadius: 0,
-      borderWidth: 2,
-    })),
+    datasets: [
+      ...vehicleNames.map((name, i) => ({
+        label: `${name} Battery %`,
+        data: results.map((r) => r.vehicles[i]?.batteryLevel ?? 0),
+        borderColor: BATTERY_COLORS[i],
+        backgroundColor: BATTERY_BG[i],
+        fill: true,
+        pointRadius: 0,
+        borderWidth: 2,
+      })),
+      ...(showHomeBattery ? [homeBatterySocDataset(results)] : []),
+    ],
   };
 }
 
@@ -360,27 +437,16 @@ export function Simulator() {
     handleRun({ seed: Math.floor(Math.random() * 10000) });
   }, [handleRun]);
 
-  const renderCharts = useCallback(
-    (chartJs: ChartJs, results: SimResult[], vehicleCount: number) => {
-      renderSimCharts({
-        chartJs,
-        results,
-        vehicleCount,
-        powerChartRef,
-        batteryChartRef,
-        powerChartInstance,
-        batteryChartInstance,
-      });
-    },
-    [],
-  );
-
-  // Render charts after React has mounted the canvas elements
-  useEffect(() => {
-    if (output && chartJsRef.current) {
-      renderCharts(chartJsRef.current, output.results, config.vehicleCount);
-    }
-  }, [output, config.vehicleCount, renderCharts]);
+  useRenderSimCharts({
+    output,
+    vehicleCount: config.vehicleCount,
+    batteryCapacityKwh: config.batteryCapacityKwh,
+    chartJsRef,
+    powerChartRef,
+    batteryChartRef,
+    powerChartInstance,
+    batteryChartInstance,
+  });
 
   const noteLines = output ? buildNoteLines(config) : null;
 
@@ -535,6 +601,67 @@ function VehiclesSection(
   );
 }
 
+function HomeBatterySection(
+  { config, set }: {
+    config: SimConfig;
+    set: <K extends keyof SimConfig>(key: K, value: SimConfig[K]) => void;
+  },
+) {
+  return (
+    <>
+      <div className={styles.sectionLabel}>Home Battery</div>
+      <div className={styles.controls}>
+        <NumInput
+          label="Capacity (kWh)"
+          value={config.batteryCapacityKwh}
+          onChange={(v) => set("batteryCapacityKwh", v)}
+          step={1}
+          min={0}
+          max={50}
+        />
+        <NumInput
+          label="Max Rate (kW)"
+          value={config.batteryMaxRateKw}
+          onChange={(v) => set("batteryMaxRateKw", v)}
+          step={0.5}
+          min={0}
+          max={20}
+          help="The inverter's charge/discharge power limit — how fast the battery can charge or discharge, independent of its capacity."
+        />
+        <NumInput
+          label="Start SoC %"
+          value={config.batteryStartSoc}
+          onChange={(v) => set("batteryStartSoc", v)}
+          step={5}
+          min={0}
+          max={100}
+        />
+        <div className={styles.control}>
+          <label>Battery Priority</label>
+          <select
+            value={config.batteryPriorityEnabled ? "on" : "off"}
+            onChange={(e) =>
+              set("batteryPriorityEnabled", e.target.value === "on")}
+          >
+            <option value="off">Off</option>
+            <option value="on">On</option>
+          </select>
+        </div>
+        {config.batteryPriorityEnabled && (
+          <NumInput
+            label="Priority Limit %"
+            value={config.batteryPriorityLimit}
+            onChange={(v) => set("batteryPriorityLimit", v)}
+            step={5}
+            min={0}
+            max={100}
+          />
+        )}
+      </div>
+    </>
+  );
+}
+
 function SimControls({
   config,
   set,
@@ -600,6 +727,7 @@ function SimControls({
 
       <SolarProfileSection config={config} set={set} />
       <VehiclesSection config={config} set={set} />
+      <HomeBatterySection config={config} set={set} />
     </>
   );
 }
@@ -611,6 +739,7 @@ function NumInput({
   step,
   min,
   max,
+  help,
 }: {
   label: string;
   value: number;
@@ -618,6 +747,7 @@ function NumInput({
   step?: number;
   min?: number;
   max?: number;
+  help?: string;
 }) {
   const [draft, setDraft] = useState(String(value));
 
@@ -626,7 +756,16 @@ function NumInput({
 
   return (
     <div className={styles.control}>
-      <label>{label}</label>
+      <label>
+        {label}
+        {help && (
+          <Tooltip content={help}>
+            <Text size="1" color="gray" style={{ cursor: "help" }}>
+              &#9432;
+            </Text>
+          </Tooltip>
+        )}
+      </label>
       <input
         type="number"
         value={draft}
