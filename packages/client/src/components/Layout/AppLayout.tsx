@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { IconButton, Switch, Text, Tooltip } from "@radix-ui/themes";
+import { IconButton, Text, Tooltip } from "@radix-ui/themes";
 import {
   BarChart3,
   Calendar,
@@ -7,10 +7,8 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  Moon,
   ScrollText,
   Settings,
-  Sun,
   X,
   Zap,
 } from "lucide-react";
@@ -28,8 +26,6 @@ export type Page =
 
 interface AppLayoutProps {
   children: ReactNode;
-  appearance: "light" | "dark";
-  onToggleAppearance: () => void;
   activePage: Page;
   onNavigate: (page: Page) => void;
   authMode?: string;
@@ -94,9 +90,7 @@ function MobileMenu(
 export function AppLayout(
   {
     children,
-    appearance,
-    onToggleAppearance,
-    activePage,
+        activePage,
     onNavigate,
     authMode,
     onLogout,
@@ -140,12 +134,6 @@ export function AppLayout(
         </nav>
         <div className={styles.status}>
           <ConnectionBadge />
-          {appearance === "dark" ? <Moon size={14} /> : <Sun size={14} />}
-          <Switch
-            size="1"
-            checked={appearance === "dark"}
-            onCheckedChange={onToggleAppearance}
-          />
           {authMode && authMode !== "none" && onLogout && (
             <span className={styles.statusLogout}>
               <Tooltip content="Log out">

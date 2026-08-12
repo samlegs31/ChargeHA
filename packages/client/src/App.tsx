@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Theme } from "@radix-ui/themes";
 import { trpc } from "./trpc.ts";
@@ -14,7 +14,6 @@ import { AppLayout } from "./components/Layout/AppLayout.tsx";
 import { renderPage } from "./components/PageSwitch.tsx";
 import { ToastProvider } from "./hooks/useToast.tsx";
 import { ToastContainer } from "./components/Toast/Toast.tsx";
-import { useStoredState } from "./lib/storage.ts";
 
 // Only load devtools in development — lazy import keeps them out of production bundles
 const viteMeta = import.meta as ImportMeta & { env?: { DEV?: boolean } };
@@ -25,8 +24,6 @@ const devtoolsLoader = () =>
 const ReactQueryDevtools = viteMeta.env?.DEV
   ? lazy(devtoolsLoader)
   : () => null;
-
-type Appearance = "light" | "dark";
 
 /** Redirects to wizard on first run. Rendered inside AuthGate so it only queries when authenticated. */
 function FirstRunRedirect() {
@@ -67,8 +64,6 @@ function renderRoute(
   const page = route.type === "app" ? route.page : "dashboard";
   return (
     <AppLayout
-      appearance={layout.appearance}
-      onToggleAppearance={layout.onToggleAppearance}
       activePage={page}
       onNavigate={layout.onNavigate}
       authMode={layout.authMode}
@@ -80,16 +75,28 @@ function renderRoute(
 }
 
 function AppContent() {
-  const prefersDark =
-    globalThis.matchMedia("(prefers-color-scheme: dark)").matches;
-  const systemDefault: Appearance = prefersDark ? "dark" : "light";
-  const [appearance, setAppearance] = useStoredState<Appearance>(
-    "theme",
-    systemDefault,
+  const [appearance, setAppearance] = useState<"light" | "dark">(() =>
+    globalThis.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light"
   );
-  const toggleAppearance = useCallback(() => {
-    setAppearance(appearance === "dark" ? "light" : "dark");
-  }, [appearance, setAppearance]);
+
+  useEffect(() => {
+    const media = globalThis.matchMedia("(prefers-color-scheme: dark)");
+
+    const updateAppearance = (event: MediaQueryListEvent) => {
+      setAppearance(event.matches ? "dark" : "light");
+    };
+
+    // Synchronise aussi au montage
+    setAppearance(media.matches ? "dark" : "light");
+
+    media.addEventListener("change", updateAppearance);
+
+    return () => {
+      media.removeEventListener("change", updateAppearance);
+    };
+  }, []);
   const { route, navigate } = useRouter();
   const navToPage = useCallback(
     (page: Page) => navigate({ type: "app", page }),
@@ -105,8 +112,6 @@ function AppContent() {
               <RealtimeSync />
               <FirstRunRedirect />
               {renderRoute(route, navigate, {
-                appearance,
-                onToggleAppearance: toggleAppearance,
                 onNavigate: navToPage,
                 authMode,
                 onLogout,
