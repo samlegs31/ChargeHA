@@ -43,10 +43,29 @@ const REASON_COLORS: Record<string, "blue" | "orange"> = {
 /** User-friendly label formatters per reason. */
 const REASON_LABELS: Record<string, (detail: string) => string> = {
   schedule: (detail) => {
-    const match = detail.match(/schedule (\d{2}:\d{2}-\d{2}:\d{2})/);
-    return match
-      ? `Charging on schedule (${match[1]})`
-      : "Charging on schedule";
+    const targetMatch = detail.match(/target reached \([^)]*>= (\d+)%\)/);
+    if (targetMatch) {
+      return `HC target reached · ${targetMatch[1]}%`;
+    }
+
+    const startMatch = detail.match(
+      /Start charging at (\d+)A \(schedule (\d{2}:\d{2})-(\d{2}:\d{2})\)/,
+    );
+    if (startMatch) {
+      return `Off-peak charging active · ${startMatch[1]}A · until ${startMatch[3]}`;
+    }
+
+    const scheduleMatch = detail.match(/schedule (\d{2}:\d{2})-(\d{2}:\d{2})/);
+    if (scheduleMatch) {
+      return `Off-peak charging active · until ${scheduleMatch[2]}`;
+    }
+
+    const ampsMatch = detail.match(/Adjust to (\d+)A \(schedule\)/);
+    if (ampsMatch) {
+      return `Off-peak charging active · ${ampsMatch[1]}A`;
+    }
+
+    return "Off-peak charging active";
   },
   blockout: () => "Blockout schedule active",
   grace_period: (detail) => {

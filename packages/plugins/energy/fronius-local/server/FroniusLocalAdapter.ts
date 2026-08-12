@@ -154,30 +154,43 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
   }
 
   private async fetch(path: string): Promise<Response> {
-    try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
-        signal: AbortSignal.timeout(10000),
-      });
+    const attempts = 2;
 
-      if (!response.ok) {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const response = await fetch(`${this.baseUrl}${path}`, {
+          signal: AbortSignal.timeout(10000),
+        });
+
+        if (!response.ok) {
+          throw new FroniusConnectionError(
+            `Fronius returned HTTP ${response.status} for ${path}`,
+          );
+        }
+
+        return response;
+      } catch (error) {
+        if (
+          error instanceof FroniusConnectionError ||
+          error instanceof FroniusParseError
+        ) {
+          throw error;
+        }
+
+        if (attempt < attempts) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          continue;
+        }
+
         throw new FroniusConnectionError(
-          `Fronius returned HTTP ${response.status} for ${path}`,
+          `Failed to fetch ${path} from Fronius at ${this.host}`,
+          error instanceof Error ? error : undefined,
         );
       }
-
-      return response;
-    } catch (error) {
-      if (
-        error instanceof FroniusConnectionError ||
-        error instanceof FroniusParseError
-      ) {
-        throw error;
-      }
-
-      throw new FroniusConnectionError(
-        `Failed to fetch ${path} from Fronius at ${this.host}`,
-        error instanceof Error ? error : undefined,
-      );
     }
+
+    throw new FroniusConnectionError(
+      `Failed to fetch ${path} from Fronius at ${this.host}`,
+    );
   }
 }

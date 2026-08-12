@@ -30,13 +30,13 @@ function FlowConnector(
   { active, color, direction, powerW, className, gridRow }: {
     active: boolean;
     color: string;
-    direction: "right" | "left" | "down";
+    direction: "right" | "left" | "down" | "up";
     powerW: number;
     className?: string;
     gridRow?: number;
   },
 ) {
-  const vertical = direction === "down";
+  const vertical = direction === "down" || direction === "up";
   const durationS = flowDurationS(powerW);
   const orientationClass = vertical ? styles.connectorVertical : "";
   const dotClass = vertical ? styles.dotVertical : styles.dot;
@@ -56,7 +56,10 @@ function FlowConnector(
             style={{
               animationDuration: `${durationS}s`,
               animationDelay: `${(-durationS / DOT_COUNT) * i}s`,
-              animationDirection: direction === "left" ? "reverse" : "normal",
+              animationDirection:
+                direction === "left" || direction === "up"
+                  ? "reverse"
+                  : "normal",
             }}
           />
         ))}
@@ -198,6 +201,13 @@ export function EnergyFlowDiagram(
   const solarActive = solarW > 10;
   const gridActive = Math.abs(gridW) > 10;
   const batteryActive = Math.abs(batteryW) > 10;
+  // batteryPowerW convention: positive = discharge, negative = charge.
+  const batteryDischarging = batteryW > 10;
+  const batteryStatus = batteryW > 10
+    ? "Discharging"
+    : batteryW < -10
+    ? "Charging"
+    : "Idle";
   const baseRow = hasBattery ? 3 : 2;
   const gridColor = isExporting
     ? "var(--color-grid-export)"
@@ -251,6 +261,16 @@ export function EnergyFlowDiagram(
       </FlowNode>
 
       {hasBattery && (
+        <FlowConnector
+          className={styles.homeToBattery}
+          active={batteryActive}
+          color="var(--color-battery)"
+          direction={batteryDischarging ? "up" : "down"}
+          powerW={batteryW}
+        />
+      )}
+
+      {hasBattery && (
         <FlowNode
           icon={<Battery size={24} />}
           label="Battery"
@@ -262,6 +282,11 @@ export function EnergyFlowDiagram(
             data?.batterySoc !== undefined && (
             <div className={styles.socText}>
               {Math.round(data.batterySoc)}%
+            </div>
+          )}
+          {!loading && (
+            <div className={styles.batteryStatus}>
+              {batteryStatus}
             </div>
           )}
         </FlowNode>
