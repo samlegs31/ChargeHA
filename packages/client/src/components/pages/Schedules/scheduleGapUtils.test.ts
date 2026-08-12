@@ -41,18 +41,18 @@ describe("scheduleGapUtils", () => {
       expect(timeToSlot("00:00")).toBe(0);
     });
 
-    it("converts 06:00 to slot 24", () => {
-      expect(timeToSlot("06:00")).toBe(24);
+    it("converts 06:00 to slot 36", () => {
+      expect(timeToSlot("06:00")).toBe(36);
     });
 
-    it("converts 23:45 to slot 95", () => {
-      expect(timeToSlot("23:45")).toBe(95);
+    it("converts 23:50 to slot 143", () => {
+      expect(timeToSlot("23:50")).toBe(143);
     });
 
-    it("rounds down to nearest quarter", () => {
-      expect(timeToSlot("06:07")).toBe(24);
-      expect(timeToSlot("06:14")).toBe(24);
-      expect(timeToSlot("06:15")).toBe(25);
+    it("rounds down to nearest 10 minutes", () => {
+      expect(timeToSlot("06:07")).toBe(36);
+      expect(timeToSlot("06:09")).toBe(36);
+      expect(timeToSlot("06:10")).toBe(37);
     });
   });
 
@@ -61,21 +61,21 @@ describe("scheduleGapUtils", () => {
       expect(slotToTime(0)).toBe("00:00");
     });
 
-    it("converts slot 24 to 06:00", () => {
-      expect(slotToTime(24)).toBe("06:00");
+    it("converts slot 36 to 06:00", () => {
+      expect(slotToTime(36)).toBe("06:00");
     });
 
-    it("converts slot 95 to 23:45", () => {
-      expect(slotToTime(95)).toBe("23:45");
+    it("converts slot 143 to 23:50", () => {
+      expect(slotToTime(143)).toBe("23:50");
     });
 
-    it("wraps around past 96 slots", () => {
+    it("wraps around past 144 slots", () => {
       expect(slotToTime(SLOTS)).toBe("00:00");
-      expect(slotToTime(SLOTS + 4)).toBe("01:00");
+      expect(slotToTime(SLOTS + 6)).toBe("01:00");
     });
 
     it("handles negative slots by wrapping", () => {
-      expect(slotToTime(-1)).toBe("23:45");
+      expect(slotToTime(-1)).toBe("23:50");
     });
   });
 
@@ -96,10 +96,10 @@ describe("scheduleGapUtils", () => {
       it("finds the gap when one charge schedule occupies early morning", () => {
         const schedules = [makeCharge("v1", "00:00", "06:00")];
         const result = findNextGap(schedules, "charge", "v1");
-        // Gap is 06:00-00:00 (18 hours = 72 slots), capped at 6 hours
+        // Gap is 06:00-00:00 (18 hours = 108 slots), capped at 6 hours
         expect(result.startTime).toBe("06:00");
         expect(timeToSlot(result.endTime) - timeToSlot(result.startTime)).toBe(
-          24,
+          36,
         ); // 6 hours cap
       });
 
@@ -189,7 +189,7 @@ describe("scheduleGapUtils", () => {
         const length = endSlot > startSlot
           ? endSlot - startSlot
           : SLOTS - startSlot + endSlot;
-        expect(length).toBe(24); // 6 hours = 24 quarter-hour slots
+        expect(length).toBe(36); // 6 hours = 36 ten-minute slots
       });
     });
   });

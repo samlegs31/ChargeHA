@@ -34,18 +34,20 @@ describe("TimePicker", () => {
       expect(options[23]).toHaveTextContent("23");
     });
 
-    it("renders minute options in 15-min intervals", () => {
+    it("renders minute options in 10-min intervals", () => {
       renderWithProviders(
         <TimePicker value="00:00" onChange={vi.fn()} />,
       );
 
       const minuteSelect = screen.getAllByRole("combobox")[1];
       const options = minuteSelect.querySelectorAll("option");
-      expect(options).toHaveLength(4);
+      expect(options).toHaveLength(6);
       expect(options[0]).toHaveTextContent("00");
-      expect(options[1]).toHaveTextContent("15");
-      expect(options[2]).toHaveTextContent("30");
-      expect(options[3]).toHaveTextContent("45");
+      expect(options[1]).toHaveTextContent("10");
+      expect(options[2]).toHaveTextContent("20");
+      expect(options[3]).toHaveTextContent("30");
+      expect(options[4]).toHaveTextContent("40");
+      expect(options[5]).toHaveTextContent("50");
     });
   });
 
@@ -69,9 +71,9 @@ describe("TimePicker", () => {
       );
 
       const minuteSelect = screen.getAllByRole("combobox")[1];
-      await userEvent.selectOptions(minuteSelect, "45");
+      await userEvent.selectOptions(minuteSelect, "40");
 
-      expect(onChange).toHaveBeenCalledWith("09:45");
+      expect(onChange).toHaveBeenCalledWith("09:40");
     });
   });
 });

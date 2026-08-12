@@ -2,19 +2,19 @@ import type { Schedule, ScheduleType } from "@chargeha/shared";
 
 // ---- Gap-finding helpers ----
 
-/** 96 quarter-hour slots per day (00:00 = slot 0, 23:45 = slot 95) */
-export const SLOTS = 96;
-export const MAX_GAP_SLOTS = 24; // 6 hours cap
+/** 144 ten-minute slots per day (00:00 = slot 0, 23:50 = slot 143) */
+export const SLOTS = 144;
+export const MAX_GAP_SLOTS = 36; // 6 hours cap
 
 export function timeToSlot(time: string): number {
   const [h, m] = time.split(":").map(Number);
-  return h * 4 + Math.floor(m / 15);
+  return h * 6 + Math.floor(m / 10);
 }
 
 export function slotToTime(slot: number): string {
   const s = ((slot % SLOTS) + SLOTS) % SLOTS;
-  const h = Math.floor(s / 4);
-  const m = (s % 4) * 15;
+  const h = Math.floor(s / 6);
+  const m = (s % 6) * 10;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 

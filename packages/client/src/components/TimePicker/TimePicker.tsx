@@ -2,7 +2,7 @@ import { Text } from "@radix-ui/themes";
 import styles from "./TimePicker.module.css";
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
-const MINUTES = [0, 15, 30, 45];
+const MINUTES = [0, 10, 20, 30, 40, 50];
 
 interface TimePickerProps {
   value: string; // "HH:MM"
