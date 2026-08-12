@@ -267,7 +267,7 @@ export function runSimulation(
     const vehicles: EngineVehicleInput[] = vehicleConfigs.map((vc) => ({
       id: vc.id,
       name: vc.name,
-      mode: "auto" as const,
+      mode: opts.vehicleMode,
       priority: vc.priority,
       state: vehicleStates.get(vc.id) ?? null,
       isHome: true,

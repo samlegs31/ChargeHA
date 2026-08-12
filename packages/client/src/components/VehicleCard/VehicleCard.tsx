@@ -47,6 +47,7 @@ interface VehicleCardProps {
 const MODE_LABELS: Record<VehicleMode, string> = {
   auto: "Auto",
   charge_now: "Charge Now",
+  vacation: "Vacation",
   stop: "Stopped",
 };
 
@@ -82,10 +83,11 @@ function StatusIcon({ state }: { state: VehicleChargeState }) {
 const MODE_BUTTONS: {
   value: VehicleMode;
   label: string;
-  color: "red" | "blue" | "green";
+  color: "red" | "blue" | "green" | "orange";
 }[] = [
   { value: "stop", label: "STOP", color: "red" },
   { value: "auto", label: "AUTO", color: "blue" },
+  { value: "vacation", label: "VACATION", color: "orange" },
   { value: "charge_now", label: "CHARGE NOW", color: "green" },
 ];
 

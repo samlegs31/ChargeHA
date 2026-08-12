@@ -35,6 +35,7 @@ function loadChartJs(): Promise<ChartJs> {
 
 interface SimConfig {
   seed: number;
+  vehicleMode: "auto" | "vacation";
   vehicleCount: number;
   waterfall: boolean;
   minGenKw: string;
@@ -60,6 +61,7 @@ interface SimConfig {
 
 const DEFAULTS: SimConfig = {
   seed: DEFAULT_SOLAR_CONFIG.seed,
+  vehicleMode: "auto",
   vehicleCount: 2,
   waterfall: false,
   minGenKw: "1",
@@ -560,6 +562,17 @@ function VehiclesSection(
     <>
       <div className={styles.sectionLabel}>Vehicles</div>
       <div className={styles.controls}>
+        <div className={styles.control}>
+          <label>Mode</label>
+          <select
+            value={config.vehicleMode}
+            onChange={(e) =>
+              set("vehicleMode", e.target.value as "auto" | "vacation")}
+          >
+            <option value="auto">Auto</option>
+            <option value="vacation">Vacation</option>
+          </select>
+        </div>
         <NumInput
           label="EV 1 Start %"
           value={config.ev1Start}

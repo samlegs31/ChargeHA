@@ -9,7 +9,7 @@ import { loadDemoSeries } from "./demoSeriesLoader.ts";
 import { OFFPEAK_RATE, PEAK_RATE } from "./demoTariff.ts";
 import { loadPersisted, savePersisted } from "./demoPersistence.ts";
 
-export type DemoVehicleMode = "auto" | "charge_now" | "stop";
+export type DemoVehicleMode = "auto" | "charge_now" | "vacation" | "stop";
 
 export interface DemoVehicle {
   id: string;

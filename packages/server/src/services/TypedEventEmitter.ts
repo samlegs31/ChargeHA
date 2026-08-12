@@ -31,7 +31,7 @@ export interface EventMap {
   vehicle_mode_changed: {
     vehicleId: string;
     vehicleName: string;
-    mode: "auto" | "charge_now" | "stop";
+    mode: "auto" | "charge_now" | "vacation" | "stop";
   };
   vehicle_error: {
     vehicleId: string;

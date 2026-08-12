@@ -110,6 +110,7 @@ export type DecisionReason =
   | "schedule"
   | "blockout"
   | "charge_now"
+  | "vacation"
   | "mode_stop"
   | "battery_priority"
   | "grace_period"

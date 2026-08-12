@@ -101,6 +101,16 @@ export class ControllerEngine {
       case "charge_now":
         return { ...this.decideChargeNowMode(state), checks: [...checks] };
 
+      case "vacation":
+        return this.decideVacationMode(
+          state,
+          config,
+          energy,
+          timestamp,
+          checks,
+          vehicle.id,
+        );
+
       case "auto":
         return this.decideAutoMode(
           vehicle,
@@ -236,6 +246,71 @@ export class ControllerEngine {
       reason: "charge_now",
       detail: `Already charging at ${amps}A (charge_now)`,
       targetAmps: amps,
+    };
+  }
+
+  // ---- Vacation mode ----
+
+  private decideVacationMode(
+    state: VehicleChargeState,
+    config: ControllerConfig,
+    energy: EnergyData | null,
+    timestamp: number,
+    outerChecks: DecisionCheck[],
+    vehicleId: string,
+  ): VehicleDecision {
+    const cs = this.getControlState(vehicleId);
+    const allChecks = [...outerChecks];
+
+    // Home battery keeps priority when battery priority is enabled.
+    const battery = this.evaluateBatteryPriority(state, config, energy);
+    allChecks.push(...battery.checks);
+    if (battery.decision) {
+      return {
+        ...battery.decision,
+        reason: "vacation",
+        checks: allChecks,
+      };
+    }
+
+    // Vacation always means:
+    // - solar surplus only
+    // - never intentionally supplement from the grid
+    // - solar tracking active even if normal Auto solar tracking is disabled
+    const vacationConfig: ControllerConfig = {
+      ...config,
+      solarTrackingEnabled: true,
+      solarTrackingMode: "solar_only",
+      solarReference: "excess",
+    };
+
+    const solar = this.evaluateSolarTracking(
+      state,
+      vacationConfig,
+      energy,
+      timestamp,
+      cs,
+    );
+    allChecks.push(...solar.checks);
+
+    if (solar.decision) {
+      if (solar.stateUpdates) Object.assign(cs, solar.stateUpdates);
+      return {
+        ...solar.decision,
+        reason: "vacation",
+        checks: allChecks,
+      };
+    }
+
+    return {
+      action: state.isCharging ? "stop" : "none",
+      reason: "vacation",
+      detail: state.isCharging
+        ? "Stop — vacation mode, no usable solar surplus"
+        : "Vacation — waiting for solar surplus",
+      targetAmps: null,
+      checks: allChecks,
+      suspendable: !state.isCharging,
     };
   }
 

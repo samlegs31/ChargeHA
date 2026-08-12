@@ -23,9 +23,10 @@ const dayOfWeekSchema: z.ZodEnum<
 ]);
 export type DayOfWeekZ = z.infer<typeof dayOfWeekSchema>;
 
-const vehicleModeSchema: z.ZodEnum<["auto", "charge_now", "stop"]> = z.enum([
+const vehicleModeSchema: z.ZodEnum<["auto", "charge_now", "vacation", "stop"]> = z.enum([
   "auto",
   "charge_now",
+  "vacation",
   "stop",
 ]);
 export type VehicleModeZ = z.infer<typeof vehicleModeSchema>;

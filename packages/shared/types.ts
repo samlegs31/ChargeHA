@@ -26,7 +26,7 @@ export interface CumulativeEnergyData {
 
 // ---- Vehicle Mode ----
 
-export type VehicleMode = "auto" | "charge_now" | "stop";
+export type VehicleMode = "auto" | "charge_now" | "vacation" | "stop";
 
 export type VehicleCommand = "start" | "stop" | "wake";
 

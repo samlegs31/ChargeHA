@@ -318,7 +318,7 @@ function locationSuffix(home: boolean | null): string {
 
 function modeNotification(
   vehicleName: string,
-  mode: "auto" | "charge_now" | "stop",
+  mode: "auto" | "charge_now" | "vacation" | "stop",
 ): { title: string; message: string } {
   switch (mode) {
     case "charge_now":
@@ -326,6 +326,12 @@ function modeNotification(
         title: "Charge Now Activated",
         message:
           `${vehicleName} will charge at full rate until unplugged. Schedules and solar tracking are bypassed.`,
+      };
+    case "vacation":
+      return {
+        title: "Vacation Mode Activated",
+        message:
+          `${vehicleName} will remain plugged in and charge only from available solar surplus. Grid supplementation is disabled.`,
       };
     case "stop":
       return {

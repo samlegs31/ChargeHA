@@ -29,7 +29,7 @@ interface SolarSimulationProps {
   schedules: Schedule[];
 }
 
-type VehicleMode = "auto" | "charge_now" | "stop";
+type VehicleMode = "auto" | "charge_now" | "vacation" | "stop";
 type SetOverride = (
   id: string,
   key: "batteryLevel" | "mode",
@@ -191,6 +191,7 @@ function VehicleSimRow(
           <Select.Trigger variant="ghost" style={{ minWidth: 100 }} />
           <Select.Content>
             <Select.Item value="auto">Auto</Select.Item>
+            <Select.Item value="vacation">Vacation</Select.Item>
             <Select.Item value="charge_now">Charge Now</Select.Item>
             <Select.Item value="stop">Stop</Select.Item>
           </Select.Content>
