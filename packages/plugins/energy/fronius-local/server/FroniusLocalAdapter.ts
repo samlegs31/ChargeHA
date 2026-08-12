@@ -42,14 +42,17 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
         `${this.baseUrl}/solar_api/v1/GetPowerFlowRealtimeData.fcgi`,
         { signal: AbortSignal.timeout(5000) },
       );
+
       if (!response.ok) {
         throw new FroniusConnectionError(
           `Fronius returned HTTP ${response.status}`,
         );
       }
+
       this.logger.info(`Connected to inverter at ${this.host}`);
     } catch (error) {
       if (error instanceof FroniusConnectionError) throw error;
+
       throw new FroniusConnectionError(
         `Cannot reach Fronius inverter at ${this.host}`,
         error instanceof Error ? error : undefined,
@@ -70,11 +73,42 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
     ]);
 
     const json = await powerFlowRes.json();
-    const site = json?.Body?.Data?.Site;
+
+    const data = json?.Body?.Data;
+    const site = data?.Site;
+    const inverters = data?.Inverters;
+
     if (!site) {
       throw new FroniusParseError(
         "Missing Body.Data.Site in PowerFlow response",
       );
+    }
+
+    /*
+     * Fronius exposes the battery SOC inside the inverter data:
+     *
+     * Body.Data.Inverters["1"].SOC
+     *
+     * It is NOT located at Body.Data.Site.SOC.
+     *
+     * Take the first inverter returned by the Fronius API.
+     */
+    let batterySoc: number | null = null;
+
+    if (inverters && typeof inverters === "object") {
+      const firstInverterId = Object.keys(inverters)[0];
+
+      if (firstInverterId) {
+        const inverter = inverters[firstInverterId];
+
+        if (
+          inverter &&
+          typeof inverter.SOC === "number" &&
+          Number.isFinite(inverter.SOC)
+        ) {
+          batterySoc = inverter.SOC;
+        }
+      }
     }
 
     const meterJson = await meterRes.json();
@@ -86,7 +120,7 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
       gridPowerW: site.P_Grid ?? 0,
       homeConsumptionW: Math.abs(site.P_Load ?? 0),
       batteryPowerW: site.P_Akku ?? null,
-      batterySoc: site.SOC ?? null,
+      batterySoc,
       gridVoltageV,
       lastUpdated: new Date().toISOString(),
     };
@@ -96,9 +130,11 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
     const response = await this.fetch(
       "/solar_api/v1/GetInverterInfo.cgi",
     );
+
     const json = await response.json();
 
     const inverters = json?.Body?.Data;
+
     if (!inverters) {
       throw new FroniusParseError(
         "Missing Body.Data in InverterInfo response",
@@ -122,11 +158,13 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
       const response = await fetch(`${this.baseUrl}${path}`, {
         signal: AbortSignal.timeout(10000),
       });
+
       if (!response.ok) {
         throw new FroniusConnectionError(
           `Fronius returned HTTP ${response.status} for ${path}`,
         );
       }
+
       return response;
     } catch (error) {
       if (
@@ -135,6 +173,7 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
       ) {
         throw error;
       }
+
       throw new FroniusConnectionError(
         `Failed to fetch ${path} from Fronius at ${this.host}`,
         error instanceof Error ? error : undefined,

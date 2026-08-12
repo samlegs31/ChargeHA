@@ -24,3 +24,7 @@ devtools/output/
 
 
 .scratch/
+
+# Local backups
+backups/
+*.bak
