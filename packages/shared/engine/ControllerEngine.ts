@@ -92,7 +92,41 @@ export class ControllerEngine {
       );
     }
     const state = vehicle.state;
-    const checks = [...precondition.checks, DecisionChecks.mode(vehicle.mode)];
+    const checks = [...precondition.checks];
+
+    // Global priority 1: blockout schedules override every charging mode.
+    const blockout = this.evaluateBlockout(
+      state,
+      config,
+      schedules,
+      now,
+    );
+    checks.push(...blockout.checks);
+    if (blockout.decision) {
+      const cs = this.getControlState(vehicle.id);
+      if (blockout.stateUpdates) Object.assign(cs, blockout.stateUpdates);
+      return { ...blockout.decision, checks };
+    }
+
+    // Global priority 2: active charge schedules (typically off-peak / HC)
+    // override Charge Now, Vacation, Stop and Auto.
+    const schedule = this.evaluateSchedule(
+      vehicle,
+      state,
+      config,
+      schedules,
+      now,
+    );
+    checks.push(...schedule.checks);
+    if (schedule.decision) {
+      return {
+        ...schedule.decision,
+        checks,
+        scheduleLimitContext: schedule.scheduleLimitContext,
+      };
+    }
+
+    checks.push(DecisionChecks.mode(vehicle.mode));
 
     switch (vehicle.mode) {
       case "stop":
@@ -116,9 +150,7 @@ export class ControllerEngine {
           vehicle,
           state,
           config,
-          schedules,
           energy,
-          now,
           timestamp,
           checks,
         );
@@ -320,44 +352,17 @@ export class ControllerEngine {
     vehicle: EngineVehicleInput,
     state: VehicleChargeState,
     config: ControllerConfig,
-    schedules: EngineSchedule[],
     energy: EnergyData | null,
-    now: Date,
     timestamp: number,
     outerChecks: DecisionCheck[],
   ): VehicleDecision {
     const cs = this.getControlState(vehicle.id);
     const allChecks = [...outerChecks];
 
-    const blockout = this.evaluateBlockout(
-      state,
-      config,
-      schedules,
-      now,
-    );
-    allChecks.push(...blockout.checks);
-    if (blockout.decision) {
-      if (blockout.stateUpdates) Object.assign(cs, blockout.stateUpdates);
-      return { ...blockout.decision, checks: allChecks };
-    }
-
-    const schedule = this.evaluateSchedule(
-      vehicle,
-      state,
-      config,
-      schedules,
-      now,
-    );
-    allChecks.push(...schedule.checks);
-    if (schedule.decision) {
-      return { ...schedule.decision, checks: allChecks };
-    }
-    const scheduleLimitContext = schedule.scheduleLimitContext;
-
     const battery = this.evaluateBatteryPriority(state, config, energy);
     allChecks.push(...battery.checks);
     if (battery.decision) {
-      return { ...battery.decision, checks: allChecks, scheduleLimitContext };
+      return { ...battery.decision, checks: allChecks };
     }
 
     const solar = this.evaluateSolarTracking(
@@ -370,11 +375,11 @@ export class ControllerEngine {
     allChecks.push(...solar.checks);
     if (solar.decision) {
       if (solar.stateUpdates) Object.assign(cs, solar.stateUpdates);
-      return { ...solar.decision, checks: allChecks, scheduleLimitContext };
+      return { ...solar.decision, checks: allChecks };
     }
 
     const fallback = this.decideDefault(state);
-    return { ...fallback, checks: allChecks, scheduleLimitContext };
+    return { ...fallback, checks: allChecks };
   }
 
   // ---- Evaluation steps ----
@@ -439,7 +444,14 @@ export class ControllerEngine {
     ));
     if (activeCharge.chargeLimitPct !== null && limitReached) {
       return {
-        decision: null,
+        decision: {
+          action: state.isCharging ? "stop" : "none",
+          reason: "schedule",
+          detail: state.isCharging
+            ? `Stop — scheduled charge target reached (${state.batteryLevel}% >= ${activeCharge.chargeLimitPct}%)`
+            : `Scheduled charge target reached (${state.batteryLevel}% >= ${activeCharge.chargeLimitPct}%)`,
+          targetAmps: null,
+        },
         checks,
         scheduleLimitContext: {
           scheduleLimitPct: activeCharge.chargeLimitPct,

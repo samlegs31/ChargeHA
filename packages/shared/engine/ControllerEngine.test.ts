@@ -418,12 +418,87 @@ describe("ControllerEngine", () => {
       expect(output.decisions.get("V1")?.action).toBe("stop");
     });
 
-    it("falls through to solar when schedule charge limit is reached", () => {
+    it("charge schedule overrides vacation mode", () => {
       const engine = new ControllerEngine();
       const now = new Date("2026-01-01T03:00:00Z");
       const output = engine.decide({
         ...makeInput({
-          vehicle: { state: { batteryLevel: 85 } },
+          vehicle: {
+            mode: "vacation",
+            state: {
+              isCharging: false,
+              batteryLevel: 50,
+            },
+          },
+          configOverrides: { timezone: "UTC" },
+          energyOverrides: { gridPowerW: 5000 },
+        }),
+        now,
+        schedules: [{
+          id: "s-vacation",
+          vehicleId: null,
+          scheduleType: "charge",
+          startTime: "02:00",
+          endTime: "06:00",
+          days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+          chargeAmps: 16,
+          chargeLimitPct: 80,
+          enabled: true,
+        }],
+      });
+
+      const d = output.decisions.get("V1");
+      expect(d?.reason).toBe("schedule");
+      expect(d?.action).toBe("start");
+      expect(d?.targetAmps).toBe(16);
+    });
+
+    it("charge schedule overrides charge_now mode", () => {
+      const engine = new ControllerEngine();
+      const now = new Date("2026-01-01T03:00:00Z");
+      const output = engine.decide({
+        ...makeInput({
+          vehicle: {
+            mode: "charge_now",
+            state: {
+              isCharging: false,
+              batteryLevel: 50,
+            },
+          },
+          configOverrides: { timezone: "UTC" },
+        }),
+        now,
+        schedules: [{
+          id: "s-charge-now",
+          vehicleId: null,
+          scheduleType: "charge",
+          startTime: "02:00",
+          endTime: "06:00",
+          days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+          chargeAmps: 12,
+          chargeLimitPct: 80,
+          enabled: true,
+        }],
+      });
+
+      const d = output.decisions.get("V1");
+      expect(d?.reason).toBe("schedule");
+      expect(d?.action).toBe("start");
+      expect(d?.targetAmps).toBe(12);
+    });
+
+    it("keeps schedule authoritative when charge limit is reached", () => {
+      const engine = new ControllerEngine();
+      const now = new Date("2026-01-01T03:00:00Z");
+      const output = engine.decide({
+        ...makeInput({
+          vehicle: {
+            state: {
+              batteryLevel: 85,
+              isCharging: true,
+              chargeAmps: 16,
+            },
+          },
           energyOverrides: { gridPowerW: -5000 },
           configOverrides: { timezone: "UTC" },
         }),
@@ -441,8 +516,8 @@ describe("ControllerEngine", () => {
         }],
       });
       const d = output.decisions.get("V1");
-      // Schedule limit reached at 85% >= 80%, falls through to solar tracking
-      expect(d?.action).toBe("start");
+      expect(d?.reason).toBe("schedule");
+      expect(d?.action).toBe("stop");
       expect(d?.scheduleLimitContext?.scheduleLimitPct).toBe(80);
     });
   });
