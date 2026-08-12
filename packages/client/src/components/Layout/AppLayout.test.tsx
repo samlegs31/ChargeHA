@@ -27,11 +27,10 @@ describe("AppLayout", () => {
       </AppLayout>,
     );
 
-    expect(screen.getByText(/Charge/)).toBeInTheDocument();
-    expect(screen.getByText("HA")).toBeInTheDocument();
+    expect(screen.getByLabelText("E.V Solar")).toBeInTheDocument();
   });
 
-  it.each(["Dashboard", "Stats", "Schedules", "Logs", "Settings"])(
+  it.each(["Home", "Stats", "Schedules", "Logs", "Settings"])(
     "renders %s nav link",
     (label) => {
       renderWithProviders(

@@ -1,53 +1,12 @@
 .card {
   position: relative;
-  border-left: 3px solid var(--accent);
-}
-
-.mapCircle {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  width: 80px;
-  height: 48px;
-  border: 1.5px solid var(--gray-a4);
-  border-radius: 10px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
   overflow: hidden;
-  opacity: 0.85;
-  z-index: 1;
-  cursor: pointer;
-  transition:
-    width 0.4s ease,
-    height 0.4s ease,
-    opacity 0.3s ease,
-    box-shadow 0.3s ease,
-    border-radius 0.3s ease;
-}
-
-.mapCircle:hover {
-  width: 240px;
-  height: 150px;
-  opacity: 1;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  border-radius: 12px;
-  z-index: 10;
-}
-
-.mapInner {
-  position: relative;
-  width: 240px;
-  height: 150px;
-  /* Offset so the center of the map (where the dot is) shows
-     in the small 80x48 thumbnail window. The thumbnail clips from
-     top-left, so shift the inner map up and left by half the difference. */
-  top: -51px;
-  left: -80px;
-  transition: top 0.4s ease, left 0.4s ease;
-}
-
-.mapCircle:hover .mapInner {
-  top: 0;
-  left: 0;
+  border: 1px solid var(--gray-a5);
+  border-left: 4px solid var(--accent);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  background: color-mix(in srgb, var(--color-panel-solid) 96%, transparent);
 }
 
 .header {
@@ -55,92 +14,218 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
+  gap: 10px;
+  margin-bottom: 18px;
 }
 
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-width: 0;
 }
 
+.headerLeft > :nth-child(2) {
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+}
+
 .modeToggle {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 4px 0 18px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--gray-a3);
+}
+
+.modeToggle button {
+  min-height: 44px;
+  border-radius: 11px !important;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  white-space: nowrap;
+  padding-inline: 8px;
 }
 
 .batterySection {
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .batteryBar {
   position: relative;
-  height: 20px;
-  background: var(--gray-a3);
-  border-radius: 4px;
+  height: 10px;
+  background: var(--gray-a4);
+  border-radius: 999px;
   overflow: hidden;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
 .batteryFill {
   height: 100%;
-  border-radius: 4px;
+  border-radius: 999px;
   transition: width 0.5s ease;
 }
 
 .chargeLimitMarker {
   position: absolute;
-  top: 0;
-  width: 2px;
-  height: 100%;
-  background: var(--gray-a8);
+  top: -2px;
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--gray-11);
+  opacity: 0.8;
 }
 
 .batteryLabels {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
+}
+
+.batteryLabels > :first-child {
+  font-size: 1.35rem;
 }
 
 .status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 9px;
+  min-height: 28px;
+  margin-bottom: 10px;
 }
 
 .details {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
+  gap: 7px;
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--gray-a2);
 }
 
 .detailRow {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--gray-11);
 }
 
 .controls {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  padding-right: 94px;
 }
 
 .buttonRow {
   display: flex;
+  flex: 1;
   gap: 8px;
 }
 
+.buttonRow button {
+  min-height: 42px;
+  width: 100%;
+  font-weight: 650;
+}
+
 .ampsControl {
-  display: flex;
+  display: inline-grid;
+  grid-template-columns: 40px minmax(54px, auto) 40px;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 4px;
+  min-height: 42px;
+  padding: 2px 4px;
+  border: 1px solid var(--gray-a5);
+  border-radius: 12px;
+  background: var(--gray-a2);
+}
+
+.ampsControl button {
+  min-width: 38px;
+  min-height: 36px;
+  font-size: 1.2rem;
+}
+
+.mapCircle {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  width: 78px;
+  height: 52px;
+  border: 1px solid var(--gray-a5);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  opacity: 0.78;
+  z-index: 1;
+  cursor: pointer;
+  transition: width 0.35s ease, height 0.35s ease, opacity 0.2s ease;
+}
+
+.mapCircle:hover {
+  width: 240px;
+  height: 150px;
+  opacity: 1;
+  z-index: 10;
+}
+
+.mapInner {
+  position: relative;
+  width: 240px;
+  height: 150px;
+  top: -49px;
+  left: -81px;
+  transition: top 0.35s ease, left 0.35s ease;
+}
+
+.mapCircle:hover .mapInner {
+  top: 0;
+  left: 0;
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 16px 14px;
+    border-radius: 16px;
+  }
+
+  .header {
+    margin-bottom: 14px;
+  }
+
+  .headerLeft {
+    width: 100%;
+  }
+
+  .modeToggle {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .modeToggle button {
+    min-height: 48px;
+    font-size: 0.82rem;
+  }
+
+  .controls {
+    flex-direction: column;
+    align-items: stretch;
+    padding-right: 92px;
+  }
+
+  .ampsControl {
+    width: 100%;
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .mapCircle {
+    bottom: 14px;
+  }
 }

@@ -1,386 +1,228 @@
-.container {
+.shell {
+  width: 100%;
+  padding: 12px 10px 16px;
+  border: 1px solid var(--gray-a4);
+  border-radius: 18px;
+  background: var(--gray-a2);
+}
+
+.bus {
   display: grid;
-  grid-template-columns:
-    minmax(0, 1fr) minmax(32px, 72px) minmax(0, 1fr) minmax(32px, 72px)
-    minmax(0, 1fr);
   align-items: start;
   justify-items: center;
-  gap: 16px 0;
-  padding: 28px 16px;
-  max-width: 760px;
+  width: 100%;
   margin: 0 auto;
+}
+
+.busWithBattery {
+  grid-template-columns: minmax(62px, 1fr) minmax(18px, 46px) minmax(62px, 1fr) minmax(18px, 46px) minmax(62px, 1fr) minmax(18px, 46px) minmax(62px, 1fr);
+}
+
+.busWithoutBattery {
+  grid-template-columns: minmax(72px, 1fr) minmax(24px, 70px) minmax(72px, 1fr) minmax(24px, 70px) minmax(72px, 1fr);
+  max-width: 620px;
 }
 
 .node {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  min-width: 110px;
+  gap: 3px;
+  min-width: 0;
+  text-align: center;
 }
 
 .iconBadge {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   border: 2px solid currentColor;
   background: var(--node-bg);
-  margin-bottom: 4px;
-  transition: box-shadow 0.3s ease;
+  margin-bottom: 3px;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .active .iconBadge {
-  box-shadow: 0 0 0 6px var(--node-bg);
+  box-shadow: 0 0 0 5px var(--node-bg);
 }
 
 .nodeLabel {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 1px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--gray-11, #6b7280);
+  color: var(--gray-11);
 }
 
 .vehicleName {
   font-size: 12px;
-  font-weight: 600;
-  color: var(--gray-11, #6b7280);
+  font-weight: 650;
+  color: var(--gray-11);
 }
 
 .nodeValue {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 750;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  letter-spacing: -0.02em;
 }
 
 .pill {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
+  margin-top: 1px;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 999px;
   background: var(--node-bg);
 }
 
-.socText {
-  font-size: 11px;
+.socText,
+.batteryStatus {
+  font-size: 10px;
   font-weight: 600;
-  color: var(--gray-11, #6b7280);
+  color: var(--gray-11);
 }
 
-/* Node color tokens */
-.solar {
-  grid-column: 1;
-  grid-row: 1;
-  color: var(--color-solar);
-  --node-bg: var(--color-solar-bg);
-}
+.batteryStatus { opacity: 0.75; }
 
-.home {
-  grid-column: 3;
-  grid-row: 1;
-  color: var(--color-home);
-  --node-bg: var(--color-home-bg);
-}
+.solar { color: var(--color-solar); --node-bg: var(--color-solar-bg); }
+.home { color: var(--color-home); --node-bg: var(--color-home-bg); }
+.battery { color: var(--color-battery); --node-bg: var(--color-battery-bg); }
+.vehicle { color: var(--color-charging); --node-bg: var(--color-charging-bg); }
+.gridImport { color: var(--color-grid-import); --node-bg: var(--color-grid-import-bg); }
+.gridExport { color: var(--color-grid-export); --node-bg: var(--color-grid-export-bg); }
 
-.gridNode {
-  grid-column: 5;
-  grid-row: 1;
-}
-
-.gridImport {
-  color: var(--color-grid-import);
-  --node-bg: var(--color-grid-import-bg);
-}
-
-.gridExport {
-  color: var(--color-grid-export);
-  --node-bg: var(--color-grid-export-bg);
-}
-
-.battery {
-  grid-column: 3;
-  grid-row: 2;
-  color: var(--color-battery);
-  --node-bg: var(--color-battery-bg);
-}
-
-.vehicle {
-  color: var(--color-charging);
-  --node-bg: var(--color-charging-bg);
-}
-
-/* Idle nodes drop to grey so live flows stand out */
 .idle {
-  color: var(--gray-8, #9ca3af);
-  --node-bg: var(--gray-3, rgba(0, 0, 0, 0.06));
+  color: var(--gray-8);
+  --node-bg: var(--gray-a3);
 }
 
-/* Connectors: thin track with dots travelling along it */
 .connector {
   position: relative;
   width: 100%;
-  height: 2px;
-  align-self: start;
-  /* centred on the 52px icon badge */
-  margin-top: 25px;
-}
-
-.solarToHome {
-  grid-column: 2;
-  grid-row: 1;
-}
-
-.homeToGrid {
-  grid-column: 4;
-  grid-row: 1;
+  height: 3px;
+  margin-top: 23px;
+  border-radius: 999px;
 }
 
 .track {
   position: absolute;
   inset: 0;
-  border-radius: 1px;
+  border-radius: inherit;
   background: currentColor;
-  opacity: 0.15;
+  opacity: 0.14;
 }
 
-.connectorActive .track {
-  opacity: 0.3;
-}
+.connectorActive .track { opacity: 0.32; }
 
 .dot {
   position: absolute;
   top: 50%;
-  left: 0%;
+  left: 0;
   width: 7px;
   height: 7px;
   margin: -3.5px 0 0 -3.5px;
   border-radius: 50%;
   background: currentColor;
-  animation-name: travelRight;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
+  animation: travelRight linear infinite;
 }
 
 @keyframes travelRight {
-  0% {
-    left: 0%;
-    opacity: 0;
-  }
-  12% {
-    opacity: 1;
-  }
-  88% {
-    opacity: 1;
-  }
-  100% {
-    left: 100%;
-    opacity: 0;
-  }
+  0% { left: 0; opacity: 0; }
+  12% { opacity: 1; }
+  88% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
 }
 
-/* Vertical connector from Home down to charging vehicles */
-.connectorVertical {
-  width: 2px;
-  height: 40px;
-  margin-top: 0;
-  justify-self: center;
-}
-
-.toVehicles {
-  grid-column: 3;
-}
-
-.dotVertical {
-  position: absolute;
-  left: 50%;
-  top: 0%;
-  width: 7px;
-  height: 7px;
-  margin: -3.5px 0 0 -3.5px;
-  border-radius: 50%;
-  background: currentColor;
-  animation-name: travelDown;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-}
-
-@keyframes travelDown {
-  0% {
-    top: 0%;
-    opacity: 0;
-  }
-  12% {
-    opacity: 1;
-  }
-  88% {
-    opacity: 1;
-  }
-  100% {
-    top: 100%;
-    opacity: 0;
-  }
-}
-
-/* Multi-vehicle T-branch: stem from Home, rail, then a drop per vehicle */
-.vehicleGroup {
-  grid-column: 1 / -1;
+.vehicleArea {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 100%;
+  margin-top: 4px;
 }
 
-.branchStem {
-  align-self: center;
-  height: 28px;
+.vehicleStem {
+  width: 2px;
+  height: 20px;
+  background: var(--color-charging);
+  opacity: 0.28;
 }
 
 .vehicleRow {
-  position: relative;
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
+  display: flex;
+  justify-content: center;
+  gap: 24px;
   width: 100%;
 }
 
-.branchRail {
-  position: absolute;
-  top: -1px;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--color-charging);
-  opacity: 0.3;
-}
-
-.vehicleColumn {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 0;
-  /* padding (not gap) keeps column centres on the rail drop points */
-  padding: 0 8px;
-}
-
-.branchDrop {
-  align-self: center;
-  height: 24px;
-}
-
-/* Single vehicle: stays in Home column */
-.vehicleSingle {
-  grid-column: 3;
-}
-
-/* Solar vs grid share of the charge */
 .splitBar {
-  display: flex;
   width: 100%;
-  max-width: 140px;
-  height: 6px;
-  margin-top: 6px;
-  border-radius: 3px;
+  max-width: 120px;
+  height: 5px;
+  margin-top: 5px;
+  border-radius: 999px;
   overflow: hidden;
   background: var(--color-grid-car);
 }
 
-.splitSolar {
-  height: 100%;
-  background: var(--color-solar-car);
-}
+.splitSolar { height: 100%; background: var(--color-solar-car); }
 
 .splitLegend {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 2px 12px;
-  margin-top: 2px;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--gray-11, #6b7280);
-  white-space: nowrap;
+  gap: 2px 10px;
+  margin-top: 3px;
+  font-size: 10px;
+  color: var(--gray-11);
 }
 
 .legendSolar::before,
 .legendGrid::before {
   content: "";
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  margin-right: 4px;
+  margin-right: 3px;
 }
 
-.legendSolar::before {
-  background: var(--color-solar-car);
-}
-
-.legendGrid::before {
-  background: var(--color-grid-car);
-}
+.legendSolar::before { background: var(--color-solar-car); }
+.legendGrid::before { background: var(--color-grid-car); }
 
 @media (prefers-reduced-motion: reduce) {
-  .dot {
-    animation: none;
-    left: 50%;
-    opacity: 0.7;
-  }
-
-  .dotVertical {
-    animation: none;
-    top: 50%;
-    opacity: 0.7;
-  }
+  .dot { animation: none; left: 50%; opacity: 0.7; }
 }
 
-/* Mobile: shrink nodes and connectors to fit within viewport */
 @media (max-width: 640px) {
-  .container {
-    grid-template-columns:
-      minmax(0, 1fr) minmax(16px, 32px) minmax(0, 1fr) minmax(16px, 32px)
-      minmax(0, 1fr);
-    gap: 12px 0;
-    padding: 16px 8px;
+  .shell {
+    padding: 11px 5px 14px;
+    border-radius: 16px;
   }
 
-  .node {
-    min-width: 0;
+  .busWithBattery {
+    grid-template-columns: minmax(54px, 1fr) minmax(10px, 22px) minmax(54px, 1fr) minmax(10px, 22px) minmax(54px, 1fr) minmax(10px, 22px) minmax(54px, 1fr);
+  }
+
+  .busWithoutBattery {
+    grid-template-columns: minmax(64px, 1fr) minmax(16px, 34px) minmax(64px, 1fr) minmax(16px, 34px) minmax(64px, 1fr);
   }
 
   .iconBadge {
-    width: 44px;
-    height: 44px;
+    width: 42px;
+    height: 42px;
   }
 
-  .connector {
-    margin-top: 21px;
-  }
-
-  /* vertical connectors hang off the rail, not the badge centre */
-  .connectorVertical {
-    margin-top: 0;
-  }
-
-  .nodeValue {
-    font-size: 15px;
-    white-space: normal;
-    text-align: center;
-  }
-
-  .splitLegend {
-    white-space: normal;
-    text-align: center;
-  }
-}
-
-/* Home ↔ Battery energy flow */
-.homeToBattery {
-  grid-column: 3;
-  grid-row: 2;
-  align-self: start;
+  .connector { margin-top: 20px; }
+  .nodeLabel { font-size: 9px; letter-spacing: 0.1em; }
+  .nodeValue { font-size: 14px; }
+  .socText, .batteryStatus { font-size: 9px; }
+  .pill { font-size: 8px; padding-inline: 5px; }
+  .vehicleRow { gap: 12px; }
 }

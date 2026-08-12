@@ -92,11 +92,11 @@ export function Dashboard({ onNavigateSettings }: DashboardProps) {
         </Card>
       )}
 
-      <EnergyOverview pluginWarnings={pluginWarnings ?? []} />
-
       <VehicleList
         onNavigateSettings={onNavigateSettings}
       />
+
+      <EnergyOverview pluginWarnings={pluginWarnings ?? []} />
 
       {lastUpdated && (
         <Text size="1" color="gray" className={styles.lastUpdated}>

@@ -5,19 +5,37 @@
 }
 
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   display: flex;
   align-items: center;
-  padding: 12px 24px;
-  gap: 24px;
+  padding: 11px 24px;
+  gap: 22px;
   border-bottom: 1px solid var(--gray-a5);
+  background: color-mix(in srgb, var(--color-background) 88%, transparent);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
 }
 
 .brand {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   cursor: pointer;
+  user-select: none;
+}
+
+.logoMark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: white;
+  background: linear-gradient(145deg, var(--accent-9), var(--accent-10));
+  box-shadow: 0 5px 16px var(--accent-a5);
 }
 
 .logo {
@@ -37,8 +55,8 @@
 
 .navLinkActive,
 .navLink {
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 7px 12px;
+  border-radius: 9px;
   cursor: pointer;
   transition: background-color 0.15s, color 0.15s;
   user-select: none;
@@ -58,10 +76,6 @@
   color: var(--gray-12);
 }
 
-.navLink:active {
-  background-color: var(--gray-a4);
-}
-
 .status {
   flex-shrink: 0;
   display: flex;
@@ -71,75 +85,85 @@
 
 .main {
   flex: 1;
-  padding: 24px;
-  max-width: 960px;
+  padding: 20px 24px 28px;
+  max-width: 900px;
   width: 100%;
   margin: 0 auto;
 }
 
-/* Hamburger button — hidden on desktop */
-.menuButton {
-  display: none;
-}
-
-/* Mobile menu — only rendered when open, styled here */
+.menuButton,
 .mobileMenu {
   display: none;
 }
 
-/* Hide logout in status on mobile — it moves to the hamburger menu */
 .statusLogout {
   display: contents;
 }
 
 @media (max-width: 900px) {
   .header {
-    padding: 8px 12px;
+    padding: 9px 12px;
     gap: 8px;
   }
 
-  /* Hide desktop nav on mobile */
+  .brand {
+    gap: 8px;
+  }
+
+  .brand > span:last-child {
+    font-size: 1.2rem;
+  }
+
+  .logoMark {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+  }
+
   .nav {
     display: none;
   }
 
-  /* Push status + hamburger to the right */
   .status {
     margin-left: auto;
   }
 
-  /* Hide logout from header status on mobile */
   .statusLogout {
     display: none;
   }
 
-  /* Show hamburger */
   .menuButton {
     display: flex;
   }
 
-  /* Mobile dropdown menu */
   .mobileMenu {
+    position: sticky;
+    top: 51px;
+    z-index: 49;
     display: flex;
     flex-direction: column;
     border-bottom: 1px solid var(--gray-a5);
-    background-color: var(--color-background);
+    background-color: color-mix(in srgb, var(--color-background) 96%, transparent);
+    backdrop-filter: blur(18px);
   }
 
   .mobileNav {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 10px;
   }
 
   .mobileNavLink,
   .mobileNavLinkActive {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
+    gap: 9px;
+    min-height: 46px;
+    padding: 10px 12px;
+    border-radius: 11px;
     cursor: pointer;
     user-select: none;
-    transition: background-color 0.15s, color 0.15s;
   }
 
   .mobileNavLinkActive {
@@ -149,23 +173,19 @@
 
   .mobileNavLink {
     color: var(--gray-11);
-  }
-
-  .mobileNavLink:hover {
-    background-color: var(--gray-a3);
-    color: var(--gray-12);
+    background: var(--gray-a2);
   }
 
   .mobileMenuFooter {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 12px 16px;
+    padding: 10px 16px 13px;
     border-top: 1px solid var(--gray-a4);
     color: var(--gray-11);
   }
 
   .main {
-    padding: 16px 12px;
+    padding: 12px 10px 24px;
   }
 }

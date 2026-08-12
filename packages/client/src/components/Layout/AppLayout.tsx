@@ -12,10 +12,10 @@ import {
   Settings,
   Sun,
   X,
+  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ConnectionBadge } from "../ConnectionBadge/ConnectionBadge.tsx";
-import logoSrc from "../../assets/chargeha_soft-plug_light.svg";
 import styles from "./AppLayout.module.css";
 
 export type Page =
@@ -37,7 +37,7 @@ interface AppLayoutProps {
 }
 
 const NAV_ITEMS: { page: Page; label: string; icon: LucideIcon }[] = [
-  { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { page: "dashboard", label: "Home", icon: LayoutDashboard },
   { page: "stats", label: "Stats", icon: BarChart3 },
   { page: "schedules", label: "Schedules", icon: Calendar },
   { page: "logs", label: "Logs", icon: ScrollText },
@@ -116,9 +116,11 @@ export function AppLayout(
           className={styles.brand}
           onClick={() => handleNavigate("dashboard")}
         >
-          <img src={logoSrc} alt="ChargeHA" className={styles.logo} />
-          <Text size="5" weight="bold">
-            Charge<span className={styles.accent}>HA</span>
+          <span className={styles.logoMark} aria-hidden="true">
+            <Zap size={20} />
+          </span>
+          <Text size="5" weight="bold" aria-label="E.V Solar">
+            E.V <span className={styles.accent}>Solar</span>
           </Text>
         </div>
         <nav className={styles.nav}>
