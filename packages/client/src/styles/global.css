@@ -4,7 +4,10 @@
   --color-grid-import: #ef4444;
   --color-grid-export: #22c55e;
   --color-home: #60a5fa;
-  --color-battery: #a78bfa;
+  --color-battery: #8b5cf6;
+  --color-battery-home: #7c3aed;
+  --color-battery-car: #d946ef;
+  --color-battery-grid: #6b21a8;
 
   /* Semantic aliases */
   --color-solar-bg: rgba(245, 158, 11, 0.12);
@@ -23,8 +26,10 @@
   --color-away: #1e293b;
 
   /* Chart segment colors for unified energy chart */
-  --color-solar-car: #84cc16; /* lime green — solar to car */
-  --color-grid-car: #3b82f6; /* blue — grid to car */
+  --color-solar-car: #84cc16;
+  --color-solar-battery: #f97316; /* lime green — solar to car */
+  --color-grid-car: #3b82f6;
+  --color-grid-battery: #1d4ed8; /* blue — grid to car */
 
   /* Chart overlay colors */
   --color-solar-production: #334155; /* slate-700 — solar production line */

@@ -56,13 +56,13 @@ interface ChartDatum {
 const FLOW_COLORS: Record<string, string> = {
   solarToHome: "var(--color-solar)",
   solarToCar: "var(--color-solar-car)",
-  solarToBattery: "var(--color-battery)",
+  solarToBattery: "var(--color-solar-battery)",
   solarToGrid: "var(--color-grid-export)",
-  batteryToHome: "var(--color-battery)",
-  batteryToCar: "var(--color-battery)",
+  batteryToHome: "var(--color-battery-home)",
+  batteryToCar: "var(--color-battery-car)",
   gridToHome: "var(--color-grid-import)",
   gridToCar: "var(--color-grid-car)",
-  gridToBattery: "var(--color-battery)",
+  gridToBattery: "var(--color-grid-battery)",
 };
 
 const TOOLTIP_NAMES: Record<string, string> = {
@@ -405,7 +405,7 @@ function ChartLegend() {
       <span className={styles.legendItem}>
         <span
           className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-battery)" }}
+          style={{ backgroundColor: "var(--color-solar-battery)" }}
         />
         Solar → Battery
       </span>
@@ -419,14 +419,14 @@ function ChartLegend() {
       <span className={styles.legendItem}>
         <span
           className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-battery)" }}
+          style={{ backgroundColor: "var(--color-battery-home)" }}
         />
         Battery → Home
       </span>
       <span className={styles.legendItem}>
         <span
           className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-battery)" }}
+          style={{ backgroundColor: "var(--color-battery-car)" }}
         />
         Battery → Car
       </span>
@@ -447,7 +447,7 @@ function ChartLegend() {
       <span className={styles.legendItem}>
         <span
           className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-battery)" }}
+          style={{ backgroundColor: "var(--color-grid-battery)" }}
         />
         Grid → Battery
       </span>
@@ -492,7 +492,7 @@ function chartBars() {
       <Bar
         dataKey="solarToBattery"
         stackId="energy"
-        fill="var(--color-battery)"
+        fill="var(--color-solar-battery)"
         name="solarToBattery"
       />
       <Bar
@@ -504,13 +504,13 @@ function chartBars() {
       <Bar
         dataKey="batteryToHome"
         stackId="energy"
-        fill="var(--color-battery)"
+        fill="var(--color-battery-home)"
         name="batteryToHome"
       />
       <Bar
         dataKey="batteryToCar"
         stackId="energy"
-        fill="var(--color-battery)"
+        fill="var(--color-battery-car)"
         name="batteryToCar"
       />
       <Bar
@@ -528,7 +528,7 @@ function chartBars() {
       <Bar
         dataKey="gridToBattery"
         stackId="energy"
-        fill="var(--color-battery)"
+        fill="var(--color-grid-battery)"
         name="gridToBattery"
         radius={[2, 2, 0, 0]}
       />

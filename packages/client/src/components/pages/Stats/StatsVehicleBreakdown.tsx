@@ -263,7 +263,7 @@ export function StatsVehicleBreakdown(
         </div>
 
         <div className={styles.breakdownRow}>
-          <Zap size={16} style={{ color: "var(--color-grid-import)" }} />
+          <Zap size={16} style={{ color: "var(--color-grid-battery)" }} />
           <Text size="2" className={styles.breakdownLabel}>
             Grid → Battery
           </Text>
