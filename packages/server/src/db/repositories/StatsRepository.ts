@@ -24,6 +24,7 @@ export class StatsRepository {
     Array<{
       bucket: string;
       solarWh: number;
+      batteryWh: number;
       gridWh: number;
       awayWh: number;
       totalWh: number;
@@ -39,6 +40,7 @@ export class StatsRepository {
     const rows = await this.db.all<{
       bucket: string;
       solar_wh: number;
+      battery_wh: number;
       grid_wh: number;
       away_wh: number;
       total_wh: number;
@@ -47,6 +49,7 @@ export class StatsRepository {
     }>(sql`SELECT
               strftime('%H', timestamp, ${offset}) AS bucket,
               SUM(CASE WHEN is_home = 1 THEN solar_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS solar_wh,
+              SUM(CASE WHEN is_home = 1 THEN battery_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS battery_wh,
               SUM(CASE WHEN is_home = 1 THEN grid_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS grid_wh,
               SUM(CASE WHEN is_home = 0 THEN charge_power_w * (60.0 / 3600.0) ELSE 0 END) AS away_wh,
               SUM(charge_power_w * (60.0 / 3600.0)) AS total_wh,
@@ -59,6 +62,7 @@ export class StatsRepository {
     return rows.map((row) => ({
       bucket: row.bucket as string,
       solarWh: (row.solar_wh as number) ?? 0,
+      batteryWh: (row.battery_wh as number) ?? 0,
       gridWh: (row.grid_wh as number) ?? 0,
       awayWh: (row.away_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
@@ -76,6 +80,7 @@ export class StatsRepository {
     Array<{
       bucket: number;
       solarWh: number;
+      batteryWh: number;
       gridWh: number;
       awayWh: number;
       totalWh: number;
@@ -91,6 +96,7 @@ export class StatsRepository {
     const rows = await this.db.all<{
       bucket: number;
       solar_wh: number;
+      battery_wh: number;
       grid_wh: number;
       away_wh: number;
       total_wh: number;
@@ -100,6 +106,7 @@ export class StatsRepository {
               CAST(strftime('%H', timestamp, ${offset}) AS INTEGER) * 4
                 + CAST(strftime('%M', timestamp, ${offset}) AS INTEGER) / 15 AS bucket,
               SUM(CASE WHEN is_home = 1 THEN solar_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS solar_wh,
+              SUM(CASE WHEN is_home = 1 THEN battery_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS battery_wh,
               SUM(CASE WHEN is_home = 1 THEN grid_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS grid_wh,
               SUM(CASE WHEN is_home = 0 THEN charge_power_w * (60.0 / 3600.0) ELSE 0 END) AS away_wh,
               SUM(charge_power_w * (60.0 / 3600.0)) AS total_wh,
@@ -112,6 +119,7 @@ export class StatsRepository {
     return rows.map((row) => ({
       bucket: (row.bucket as number) ?? 0,
       solarWh: (row.solar_wh as number) ?? 0,
+      batteryWh: (row.battery_wh as number) ?? 0,
       gridWh: (row.grid_wh as number) ?? 0,
       awayWh: (row.away_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
@@ -130,6 +138,7 @@ export class StatsRepository {
     Array<{
       bucket: string;
       solarWh: number;
+      batteryWh: number;
       gridWh: number;
       awayWh: number;
       totalWh: number;
@@ -147,6 +156,7 @@ export class StatsRepository {
     const rows = await this.db.all<{
       bucket: string;
       solar_wh: number;
+      battery_wh: number;
       grid_wh: number;
       away_wh: number;
       total_wh: number;
@@ -155,6 +165,7 @@ export class StatsRepository {
     }>(sql`SELECT
               strftime('%d', timestamp, ${offset}) AS bucket,
               SUM(CASE WHEN is_home = 1 THEN solar_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS solar_wh,
+              SUM(CASE WHEN is_home = 1 THEN battery_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS battery_wh,
               SUM(CASE WHEN is_home = 1 THEN grid_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS grid_wh,
               SUM(CASE WHEN is_home = 0 THEN charge_power_w * (60.0 / 3600.0) ELSE 0 END) AS away_wh,
               SUM(charge_power_w * (60.0 / 3600.0)) AS total_wh,
@@ -167,6 +178,7 @@ export class StatsRepository {
     return rows.map((row) => ({
       bucket: row.bucket as string,
       solarWh: (row.solar_wh as number) ?? 0,
+      batteryWh: (row.battery_wh as number) ?? 0,
       gridWh: (row.grid_wh as number) ?? 0,
       awayWh: (row.away_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
@@ -184,6 +196,7 @@ export class StatsRepository {
     Array<{
       bucket: string;
       solarWh: number;
+      batteryWh: number;
       gridWh: number;
       awayWh: number;
       totalWh: number;
@@ -200,6 +213,7 @@ export class StatsRepository {
     const rows = await this.db.all<{
       bucket: string;
       solar_wh: number;
+      battery_wh: number;
       grid_wh: number;
       away_wh: number;
       total_wh: number;
@@ -208,6 +222,7 @@ export class StatsRepository {
     }>(sql`SELECT
               strftime('%m', timestamp, ${offset}) AS bucket,
               SUM(CASE WHEN is_home = 1 THEN solar_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS solar_wh,
+              SUM(CASE WHEN is_home = 1 THEN battery_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS battery_wh,
               SUM(CASE WHEN is_home = 1 THEN grid_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS grid_wh,
               SUM(CASE WHEN is_home = 0 THEN charge_power_w * (60.0 / 3600.0) ELSE 0 END) AS away_wh,
               SUM(charge_power_w * (60.0 / 3600.0)) AS total_wh,
@@ -220,6 +235,7 @@ export class StatsRepository {
     return rows.map((row) => ({
       bucket: row.bucket as string,
       solarWh: (row.solar_wh as number) ?? 0,
+      batteryWh: (row.battery_wh as number) ?? 0,
       gridWh: (row.grid_wh as number) ?? 0,
       awayWh: (row.away_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
@@ -273,6 +289,10 @@ export class StatsRepository {
       bucket: string;
       solarProductionWh: number;
       solarWh: number;
+      batteryChargeWh: number;
+      batteryDischargeWh: number;
+      solarToBatteryWh: number;
+      gridToBatteryWh: number;
       gridWh: number;
       totalWh: number;
       costCents: number;
@@ -284,6 +304,10 @@ export class StatsRepository {
       bucket: string;
       solar_production_wh: number;
       solar_wh: number;
+      battery_charge_wh: number;
+      battery_discharge_wh: number;
+      solar_to_battery_wh: number;
+      grid_to_battery_wh: number;
       grid_wh: number;
       total_wh: number;
       cost_cents: number;
@@ -292,6 +316,24 @@ export class StatsRepository {
               strftime('%H', timestamp, ${offset}) AS bucket,
               SUM(solar_production_w * (60.0 / 3600.0)) AS solar_production_wh,
               SUM(MIN(solar_production_w, home_consumption_w) * (60.0 / 3600.0)) AS solar_wh,
+              SUM(MAX(-COALESCE(battery_power_w, 0), 0) * (60.0 / 3600.0)) AS battery_charge_wh,
+              SUM(MAX(COALESCE(battery_power_w, 0), 0) * (60.0 / 3600.0)) AS battery_discharge_wh,
+              SUM(
+                MIN(
+                  MAX(-COALESCE(battery_power_w, 0), 0),
+                  MAX(solar_production_w - home_consumption_w, 0)
+                ) * (60.0 / 3600.0)
+              ) AS solar_to_battery_wh,
+              SUM(
+                MAX(
+                  MAX(-COALESCE(battery_power_w, 0), 0) -
+                  MIN(
+                    MAX(-COALESCE(battery_power_w, 0), 0),
+                    MAX(solar_production_w - home_consumption_w, 0)
+                  ),
+                  0
+                ) * (60.0 / 3600.0)
+              ) AS grid_to_battery_wh,
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0)) AS grid_wh,
               SUM(home_consumption_w * (60.0 / 3600.0)) AS total_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
@@ -304,6 +346,10 @@ export class StatsRepository {
       bucket: row.bucket as string,
       solarProductionWh: (row.solar_production_wh as number) ?? 0,
       solarWh: (row.solar_wh as number) ?? 0,
+      batteryChargeWh: (row.battery_charge_wh as number) ?? 0,
+      batteryDischargeWh: (row.battery_discharge_wh as number) ?? 0,
+      solarToBatteryWh: (row.solar_to_battery_wh as number) ?? 0,
+      gridToBatteryWh: (row.grid_to_battery_wh as number) ?? 0,
       gridWh: (row.grid_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
@@ -320,6 +366,10 @@ export class StatsRepository {
       bucket: number;
       solarProductionWh: number;
       solarWh: number;
+      batteryChargeWh: number;
+      batteryDischargeWh: number;
+      solarToBatteryWh: number;
+      gridToBatteryWh: number;
       gridWh: number;
       totalWh: number;
       costCents: number;
@@ -331,6 +381,10 @@ export class StatsRepository {
       bucket: number;
       solar_production_wh: number;
       solar_wh: number;
+      battery_charge_wh: number;
+      battery_discharge_wh: number;
+      solar_to_battery_wh: number;
+      grid_to_battery_wh: number;
       grid_wh: number;
       total_wh: number;
       cost_cents: number;
@@ -340,6 +394,24 @@ export class StatsRepository {
                 + CAST(strftime('%M', timestamp, ${offset}) AS INTEGER) / 15 AS bucket,
               SUM(solar_production_w * (60.0 / 3600.0)) AS solar_production_wh,
               SUM(MIN(solar_production_w, home_consumption_w) * (60.0 / 3600.0)) AS solar_wh,
+              SUM(MAX(-COALESCE(battery_power_w, 0), 0) * (60.0 / 3600.0)) AS battery_charge_wh,
+              SUM(MAX(COALESCE(battery_power_w, 0), 0) * (60.0 / 3600.0)) AS battery_discharge_wh,
+              SUM(
+                MIN(
+                  MAX(-COALESCE(battery_power_w, 0), 0),
+                  MAX(solar_production_w - home_consumption_w, 0)
+                ) * (60.0 / 3600.0)
+              ) AS solar_to_battery_wh,
+              SUM(
+                MAX(
+                  MAX(-COALESCE(battery_power_w, 0), 0) -
+                  MIN(
+                    MAX(-COALESCE(battery_power_w, 0), 0),
+                    MAX(solar_production_w - home_consumption_w, 0)
+                  ),
+                  0
+                ) * (60.0 / 3600.0)
+              ) AS grid_to_battery_wh,
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0)) AS grid_wh,
               SUM(home_consumption_w * (60.0 / 3600.0)) AS total_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
@@ -352,6 +424,10 @@ export class StatsRepository {
       bucket: (row.bucket as number) ?? 0,
       solarProductionWh: (row.solar_production_wh as number) ?? 0,
       solarWh: (row.solar_wh as number) ?? 0,
+      batteryChargeWh: (row.battery_charge_wh as number) ?? 0,
+      batteryDischargeWh: (row.battery_discharge_wh as number) ?? 0,
+      solarToBatteryWh: (row.solar_to_battery_wh as number) ?? 0,
+      gridToBatteryWh: (row.grid_to_battery_wh as number) ?? 0,
       gridWh: (row.grid_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
@@ -369,6 +445,10 @@ export class StatsRepository {
       bucket: string;
       solarProductionWh: number;
       solarWh: number;
+      batteryChargeWh: number;
+      batteryDischargeWh: number;
+      solarToBatteryWh: number;
+      gridToBatteryWh: number;
       gridWh: number;
       totalWh: number;
       costCents: number;
@@ -382,6 +462,10 @@ export class StatsRepository {
       bucket: string;
       solar_production_wh: number;
       solar_wh: number;
+      battery_charge_wh: number;
+      battery_discharge_wh: number;
+      solar_to_battery_wh: number;
+      grid_to_battery_wh: number;
       grid_wh: number;
       total_wh: number;
       cost_cents: number;
@@ -390,6 +474,24 @@ export class StatsRepository {
               strftime('%d', timestamp, ${offset}) AS bucket,
               SUM(solar_production_w * (60.0 / 3600.0)) AS solar_production_wh,
               SUM(MIN(solar_production_w, home_consumption_w) * (60.0 / 3600.0)) AS solar_wh,
+              SUM(MAX(-COALESCE(battery_power_w, 0), 0) * (60.0 / 3600.0)) AS battery_charge_wh,
+              SUM(MAX(COALESCE(battery_power_w, 0), 0) * (60.0 / 3600.0)) AS battery_discharge_wh,
+              SUM(
+                MIN(
+                  MAX(-COALESCE(battery_power_w, 0), 0),
+                  MAX(solar_production_w - home_consumption_w, 0)
+                ) * (60.0 / 3600.0)
+              ) AS solar_to_battery_wh,
+              SUM(
+                MAX(
+                  MAX(-COALESCE(battery_power_w, 0), 0) -
+                  MIN(
+                    MAX(-COALESCE(battery_power_w, 0), 0),
+                    MAX(solar_production_w - home_consumption_w, 0)
+                  ),
+                  0
+                ) * (60.0 / 3600.0)
+              ) AS grid_to_battery_wh,
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0)) AS grid_wh,
               SUM(home_consumption_w * (60.0 / 3600.0)) AS total_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
@@ -402,6 +504,10 @@ export class StatsRepository {
       bucket: row.bucket as string,
       solarProductionWh: (row.solar_production_wh as number) ?? 0,
       solarWh: (row.solar_wh as number) ?? 0,
+      batteryChargeWh: (row.battery_charge_wh as number) ?? 0,
+      batteryDischargeWh: (row.battery_discharge_wh as number) ?? 0,
+      solarToBatteryWh: (row.solar_to_battery_wh as number) ?? 0,
+      gridToBatteryWh: (row.grid_to_battery_wh as number) ?? 0,
       gridWh: (row.grid_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
@@ -418,6 +524,10 @@ export class StatsRepository {
       bucket: string;
       solarProductionWh: number;
       solarWh: number;
+      batteryChargeWh: number;
+      batteryDischargeWh: number;
+      solarToBatteryWh: number;
+      gridToBatteryWh: number;
       gridWh: number;
       totalWh: number;
       costCents: number;
@@ -430,6 +540,10 @@ export class StatsRepository {
       bucket: string;
       solar_production_wh: number;
       solar_wh: number;
+      battery_charge_wh: number;
+      battery_discharge_wh: number;
+      solar_to_battery_wh: number;
+      grid_to_battery_wh: number;
       grid_wh: number;
       total_wh: number;
       cost_cents: number;
@@ -438,6 +552,24 @@ export class StatsRepository {
               strftime('%m', timestamp, ${offset}) AS bucket,
               SUM(solar_production_w * (60.0 / 3600.0)) AS solar_production_wh,
               SUM(MIN(solar_production_w, home_consumption_w) * (60.0 / 3600.0)) AS solar_wh,
+              SUM(MAX(-COALESCE(battery_power_w, 0), 0) * (60.0 / 3600.0)) AS battery_charge_wh,
+              SUM(MAX(COALESCE(battery_power_w, 0), 0) * (60.0 / 3600.0)) AS battery_discharge_wh,
+              SUM(
+                MIN(
+                  MAX(-COALESCE(battery_power_w, 0), 0),
+                  MAX(solar_production_w - home_consumption_w, 0)
+                ) * (60.0 / 3600.0)
+              ) AS solar_to_battery_wh,
+              SUM(
+                MAX(
+                  MAX(-COALESCE(battery_power_w, 0), 0) -
+                  MIN(
+                    MAX(-COALESCE(battery_power_w, 0), 0),
+                    MAX(solar_production_w - home_consumption_w, 0)
+                  ),
+                  0
+                ) * (60.0 / 3600.0)
+              ) AS grid_to_battery_wh,
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0)) AS grid_wh,
               SUM(home_consumption_w * (60.0 / 3600.0)) AS total_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
@@ -450,6 +582,10 @@ export class StatsRepository {
       bucket: row.bucket as string,
       solarProductionWh: (row.solar_production_wh as number) ?? 0,
       solarWh: (row.solar_wh as number) ?? 0,
+      batteryChargeWh: (row.battery_charge_wh as number) ?? 0,
+      batteryDischargeWh: (row.battery_discharge_wh as number) ?? 0,
+      solarToBatteryWh: (row.solar_to_battery_wh as number) ?? 0,
+      gridToBatteryWh: (row.grid_to_battery_wh as number) ?? 0,
       gridWh: (row.grid_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,

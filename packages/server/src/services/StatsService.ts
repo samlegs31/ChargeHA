@@ -254,6 +254,10 @@ export class StatsService {
       bucket: string;
       solarProductionWh: number;
       solarWh: number;
+      batteryChargeWh: number;
+      batteryDischargeWh: number;
+      solarToBatteryWh: number;
+      gridToBatteryWh: number;
       gridWh: number;
       totalWh: number;
       costCents: number;
@@ -262,6 +266,7 @@ export class StatsService {
     C extends {
       bucket: string;
       solarWh: number;
+      batteryWh: number;
       gridWh: number;
       awayWh: number;
       totalWh: number;
@@ -291,6 +296,10 @@ export class StatsService {
     E extends {
       solarProductionWh: number;
       solarWh: number;
+      batteryChargeWh: number;
+      batteryDischargeWh: number;
+      solarToBatteryWh: number;
+      gridToBatteryWh: number;
       gridWh: number;
       totalWh: number;
       costCents: number;
@@ -298,6 +307,7 @@ export class StatsService {
     },
     C extends {
       solarWh: number;
+      batteryWh: number;
       gridWh: number;
       awayWh: number;
       totalWh: number;
@@ -318,6 +328,10 @@ export class StatsService {
         label,
         solarProductionWh: e?.solarProductionWh ?? 0,
         solarWh: e?.solarWh ?? 0,
+        batteryChargeWh: e?.batteryChargeWh ?? 0,
+        batteryDischargeWh: e?.batteryDischargeWh ?? 0,
+        solarToBatteryWh: e?.solarToBatteryWh ?? 0,
+        gridToBatteryWh: e?.gridToBatteryWh ?? 0,
         gridWh: e?.gridWh ?? 0,
         totalWh: e?.totalWh ?? 0,
         costCents: e?.costCents ?? 0,
@@ -330,6 +344,7 @@ export class StatsService {
       return {
         label,
         solarWh: v?.solarWh ?? 0,
+        batteryWh: v?.batteryWh ?? 0,
         gridWh: v?.gridWh ?? 0,
         awayWh: v?.awayWh ?? 0,
         totalWh: v?.totalWh ?? 0,
@@ -547,6 +562,22 @@ export class StatsService {
       (s, b) => s + b.solarWh,
       0,
     );
+    const homeBatteryChargeWh = energyBuckets.reduce(
+      (s, b) => s + b.batteryChargeWh,
+      0,
+    );
+    const homeBatteryDischargeWh = energyBuckets.reduce(
+      (s, b) => s + b.batteryDischargeWh,
+      0,
+    );
+    const homeSolarToBatteryWh = energyBuckets.reduce(
+      (s, b) => s + b.solarToBatteryWh,
+      0,
+    );
+    const homeGridToBatteryWh = energyBuckets.reduce(
+      (s, b) => s + b.gridToBatteryWh,
+      0,
+    );
     const homeGridWh = energyBuckets.reduce(
       (s, b) => s + b.gridWh,
       0,
@@ -561,6 +592,10 @@ export class StatsService {
     return {
       homeSolarProductionWh,
       homeSolarWh,
+      homeBatteryChargeWh,
+      homeBatteryDischargeWh,
+      homeSolarToBatteryWh,
+      homeGridToBatteryWh,
       homeGridWh,
       homeConsumedWh,
       homeSelfPoweredPercent,
@@ -571,6 +606,10 @@ export class StatsService {
   private computeChargeTotals(buckets: StatsBucket[]) {
     const totalSolarWh = buckets.reduce(
       (s, b) => s + b.solarWh,
+      0,
+    );
+    const totalBatteryWh = buckets.reduce(
+      (s, b) => s + b.batteryWh,
       0,
     );
     const totalGridWh = buckets.reduce(
@@ -586,7 +625,7 @@ export class StatsService {
       0,
     );
     // selfPoweredPercent is based on home charging only (away excluded)
-    const homeChargeTotal = totalSolarWh + totalGridWh;
+    const homeChargeTotal = totalSolarWh + totalBatteryWh + totalGridWh;
     const selfPoweredPercent = homeChargeTotal > 0
       ? Math.round((totalSolarWh / homeChargeTotal) * 100)
       : 0;
@@ -596,6 +635,7 @@ export class StatsService {
     );
     return {
       totalSolarWh,
+      totalBatteryWh,
       totalGridWh,
       totalAwayWh,
       totalChargedWh,

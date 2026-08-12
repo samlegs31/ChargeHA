@@ -66,6 +66,7 @@ export interface VehicleChargeReadingInput {
   chargeAmps: number;
   batteryLevel: number | null;
   solarContributionW: number;
+  batteryContributionW?: number;
   gridContributionW: number;
   isHome: boolean;
   ratePerKwh?: number | null;

@@ -13,6 +13,8 @@ export class NotificationListener {
   private energyConsecutiveFailures = 0;
   private energyOutageNotified = false;
   private energyLastSuccessAt: Date | null = null;
+  private batteryTargetReached = false;
+  private lastBatterySoc: number | null = null;
 
   constructor(
     eventEmitter: TypedEventEmitter,
@@ -58,6 +60,11 @@ export class NotificationListener {
     eventEmitter.subscribe(
       "controller_schedule_activated",
       (d) => this.onScheduleActivated(d),
+    );
+
+    eventEmitter.subscribe(
+      "energy_update",
+      (d) => this.onEnergyUpdate(d),
     );
 
     eventEmitter.subscribe("energy_poll_success", () => this.onEnergySuccess());
@@ -250,6 +257,46 @@ export class NotificationListener {
   }
 
   // ── Energy ──────────────────────────────────────────────────────────────
+
+  private async onEnergyUpdate(
+    data: EventMap["energy_update"],
+  ): Promise<void> {
+    const enabled = await this.db.getConfig("battery_priority_enabled");
+    const limitRaw = await this.db.getConfig("battery_priority_limit");
+    const limit = Number(limitRaw ?? "80");
+    const soc = data.batterySoc;
+
+    if (soc == null || !Number.isFinite(limit)) return;
+
+    if (enabled !== "true") {
+      this.batteryTargetReached = false;
+      this.lastBatterySoc = soc;
+      return;
+    }
+
+    const crossedTarget =
+      this.lastBatterySoc !== null &&
+      this.lastBatterySoc < limit &&
+      soc >= limit;
+
+    if (crossedTarget && !this.batteryTargetReached) {
+      this.batteryTargetReached = true;
+      this.logger.info(
+        `Home battery reached ${soc}% (target ${limit}%) — sending notification`,
+      );
+      this.notificationService.notify(
+        "battery_target_reached",
+        "Home Battery Ready",
+        `Home battery reached ${Math.round(soc)}%. Priority target ${limit}% is satisfied.`,
+      );
+    }
+
+    if (soc < limit) {
+      this.batteryTargetReached = false;
+    }
+
+    this.lastBatterySoc = soc;
+  }
 
   private onEnergySuccess(): void {
     if (this.energyOutageNotified && this.energyLastSuccessAt) {

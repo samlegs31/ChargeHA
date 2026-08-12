@@ -49,3 +49,75 @@ describe("calculateSolarAttribution", () => {
     expect(r.gridW).toBe(5000);
   });
 });
+
+describe("calculateSolarAttribution with home battery", () => {
+  it("attributes EV charging to battery when the battery is discharging", () => {
+    // EV = 3000W, house excluding EV = 500W.
+    // Solar supplies the 500W house load.
+    // Battery has 3000W available for the EV.
+    const r = calculateSolarAttribution(
+      3000,
+      3000,
+      500,
+      3500,
+      3000,
+    );
+
+    expect(r.solarW).toBe(0);
+    expect(r.batteryW).toBe(3000);
+    expect(r.gridW).toBe(0);
+  });
+
+  it("splits EV charging across solar, battery and grid", () => {
+    // EV = 7000W
+    // non-EV home = 1000W
+    // solar = 4000W -> first 1000W home, 3000W left for EV
+    // battery discharge = 2000W -> available for EV
+    // remaining 2000W comes from grid
+    const r = calculateSolarAttribution(
+      7000,
+      7000,
+      4000,
+      8000,
+      2000,
+    );
+
+    expect(r.solarW).toBe(3000);
+    expect(r.batteryW).toBe(2000);
+    expect(r.gridW).toBe(2000);
+    expect(r.solarW + r.batteryW + r.gridW).toBe(7000);
+  });
+
+  it("does not treat battery charging as a source for the EV", () => {
+    const r = calculateSolarAttribution(
+      3000,
+      3000,
+      1000,
+      4000,
+      -2500,
+    );
+
+    expect(r.batteryW).toBe(0);
+    expect(r.solarW + r.batteryW + r.gridW).toBe(3000);
+  });
+
+  it("preserves the power invariant for multiple vehicles", () => {
+    const a = calculateSolarAttribution(
+      4000,
+      7000,
+      5000,
+      8000,
+      1500,
+    );
+    const b = calculateSolarAttribution(
+      3000,
+      7000,
+      5000,
+      8000,
+      1500,
+    );
+
+    expect(a.solarW + a.batteryW + a.gridW).toBeCloseTo(4000);
+    expect(b.solarW + b.batteryW + b.gridW).toBeCloseTo(3000);
+  });
+});

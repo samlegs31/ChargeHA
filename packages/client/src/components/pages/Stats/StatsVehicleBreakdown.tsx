@@ -1,4 +1,4 @@
-import { DollarSign, MapPin, Sun, Zap } from "lucide-react";
+import { Battery, DollarSign, MapPin, Sun, Zap } from "lucide-react";
 import { Card, Text } from "@radix-ui/themes";
 import type { StatsPeriod, StatsResponse } from "@chargeha/shared";
 import type { DayResolution } from "../../../hooks/useStats.ts";
@@ -22,6 +22,7 @@ function VehicleChargingCard({
   title,
   totalChargedWh,
   solarWh,
+  batteryWh,
   gridWh,
   awayWh,
   costCents,
@@ -31,14 +32,18 @@ function VehicleChargingCard({
   title: string;
   totalChargedWh: number;
   solarWh: number;
+  batteryWh: number;
   gridWh: number;
   awayWh?: number;
   costCents?: number;
   evSolarSavingsCents?: number;
   currencySymbol: string;
 }) {
-  const homeTotal = solarWh + gridWh;
+  const homeTotal = solarWh + batteryWh + gridWh;
   const solarPct = homeTotal > 0 ? Math.round((solarWh / homeTotal) * 100) : 0;
+  const batteryPct = homeTotal > 0
+    ? Math.round((batteryWh / homeTotal) * 100)
+    : 0;
   const gridPct = homeTotal > 0 ? Math.round((gridWh / homeTotal) * 100) : 0;
   const hasCost = (costCents ?? 0) > 0 || (evSolarSavingsCents ?? 0) > 0;
 
@@ -70,6 +75,22 @@ function VehicleChargingCard({
         </Text>
         <Text size="2" color="gray" className={styles.breakdownPct}>
           {solarPct}%
+        </Text>
+      </div>
+      <div className={styles.breakdownRow}>
+        <div
+          className={styles.breakdownIcon}
+          style={{ backgroundColor: "var(--color-battery)" }}
+        />
+        <Battery size={16} style={{ color: "var(--color-battery)" }} />
+        <Text size="2" className={styles.breakdownLabel}>
+          From Battery
+        </Text>
+        <Text size="2" className={styles.breakdownValue}>
+          {kwhValue(batteryWh)}
+        </Text>
+        <Text size="2" color="gray" className={styles.breakdownPct}>
+          {batteryPct}%
         </Text>
       </div>
       <div className={styles.breakdownRow}>
@@ -184,6 +205,20 @@ export function StatsVehicleBreakdown(
         <div className={styles.breakdownRow}>
           <div
             className={styles.breakdownIcon}
+            style={{ backgroundColor: "var(--color-battery)" }}
+          />
+          <Battery size={16} style={{ color: "var(--color-battery)" }} />
+          <Text size="2" className={styles.breakdownLabel}>
+            From Battery
+          </Text>
+          <Text size="2" className={styles.breakdownValue}>
+            {kwhValue(data?.homeBatteryDischargeWh ?? 0)}
+          </Text>
+          <Text size="2" color="gray" className={styles.breakdownPct} />
+        </div>
+        <div className={styles.breakdownRow}>
+          <div
+            className={styles.breakdownIcon}
             style={{ backgroundColor: "var(--color-grid-import)" }}
           />
           <Zap size={16} style={{ color: "var(--color-grid-import)" }} />
@@ -199,6 +234,85 @@ export function StatsVehicleBreakdown(
         </div>
       </Card>
 
+      {/* Home battery energy breakdown */}
+      <Card className={styles.breakdownCard}>
+        <Text size="2" weight="bold">
+          Home Battery
+        </Text>
+
+        <div className={styles.breakdownRow}>
+          <Battery size={16} style={{ color: "var(--color-battery)" }} />
+          <Text size="2" className={styles.breakdownLabel}>
+            Energy Charged
+          </Text>
+          <Text size="2" className={styles.breakdownValue}>
+            {kwhValue(data?.homeBatteryChargeWh ?? 0)}
+          </Text>
+          <Text size="2" className={styles.breakdownPct} />
+        </div>
+
+        <div className={styles.breakdownRow}>
+          <Sun size={16} style={{ color: "var(--color-solar)" }} />
+          <Text size="2" className={styles.breakdownLabel}>
+            Solar → Battery
+          </Text>
+          <Text size="2" className={styles.breakdownValue}>
+            {kwhValue(data?.homeSolarToBatteryWh ?? 0)}
+          </Text>
+          <Text size="2" className={styles.breakdownPct} />
+        </div>
+
+        <div className={styles.breakdownRow}>
+          <Zap size={16} style={{ color: "var(--color-grid-import)" }} />
+          <Text size="2" className={styles.breakdownLabel}>
+            Grid → Battery
+          </Text>
+          <Text size="2" className={styles.breakdownValue}>
+            {kwhValue(data?.homeGridToBatteryWh ?? 0)}
+          </Text>
+          <Text size="2" className={styles.breakdownPct} />
+        </div>
+
+        <div className={styles.breakdownRow}>
+          <Battery size={16} style={{ color: "var(--color-battery)" }} />
+          <Text size="2" className={styles.breakdownLabel}>
+            Energy Discharged
+          </Text>
+          <Text size="2" className={styles.breakdownValue}>
+            {kwhValue(data?.homeBatteryDischargeWh ?? 0)}
+          </Text>
+          <Text size="2" className={styles.breakdownPct} />
+        </div>
+
+        <div className={styles.breakdownRow}>
+          <Battery size={16} style={{ color: "var(--color-battery)" }} />
+          <Text size="2" className={styles.breakdownLabel}>
+            Battery → Home
+          </Text>
+          <Text size="2" className={styles.breakdownValue}>
+            {kwhValue(
+              Math.max(
+                0,
+                (data?.homeBatteryDischargeWh ?? 0) -
+                  (data?.totalBatteryWh ?? 0),
+              ),
+            )}
+          </Text>
+          <Text size="2" className={styles.breakdownPct} />
+        </div>
+
+        <div className={styles.breakdownRow}>
+          <Battery size={16} style={{ color: "var(--color-battery)" }} />
+          <Text size="2" className={styles.breakdownLabel}>
+            Battery → Car
+          </Text>
+          <Text size="2" className={styles.breakdownValue}>
+            {kwhValue(data?.totalBatteryWh ?? 0)}
+          </Text>
+          <Text size="2" className={styles.breakdownPct} />
+        </div>
+      </Card>
+
       {/* Per-vehicle charging cards — one card per vehicle */}
       {hasChargeData && activeVehicleBreakdowns.length > 0 &&
         activeVehicleBreakdowns.map((vb: VehicleBreakdown) => (
@@ -207,6 +321,7 @@ export function StatsVehicleBreakdown(
             title={vb.vehicleName}
             totalChargedWh={vb.totalChargedWh}
             solarWh={vb.totalSolarWh}
+            batteryWh={vb.totalBatteryWh}
             gridWh={vb.totalGridWh}
             costCents={vb.totalCostCents}
             evSolarSavingsCents={vb.evSolarSavingsCents}
@@ -221,6 +336,7 @@ export function StatsVehicleBreakdown(
           title="Vehicle Charging"
           totalChargedWh={data?.totalChargedWh ?? 0}
           solarWh={data?.totalSolarWh ?? 0}
+          batteryWh={data?.totalBatteryWh ?? 0}
           gridWh={data?.totalGridWh ?? 0}
           awayWh={data?.totalAwayWh ?? 0}
           costCents={data?.totalCostCents ?? 0}

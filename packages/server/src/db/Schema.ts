@@ -44,6 +44,7 @@ export const vehicleChargeReadings = sqliteTable("vehicle_charge_readings", {
   chargeAmps: integer("charge_amps").notNull(),
   batteryLevel: integer("battery_level"),
   solarContributionW: real("solar_contribution_w").notNull(),
+  batteryContributionW: real("battery_contribution_w").notNull().default(0),
   gridContributionW: real("grid_contribution_w").notNull(),
   isHome: integer("is_home").notNull().default(1),
   ratePerKwh: real("rate_per_kwh"),

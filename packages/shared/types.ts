@@ -218,7 +218,8 @@ export type NotificationEventType =
   | "schedule_activated"
   | "safety_trip"
   | "mode_changed"
-  | "arrived_home_not_plugged_in";
+  | "arrived_home_not_plugged_in"
+  | "battery_target_reached";
 
 export interface NotificationEventInfo {
   key: NotificationEventType;
@@ -300,6 +301,11 @@ export const NOTIFICATION_EVENTS: NotificationEventInfo[] = [
     description:
       "Reminds you to plug in when you arrive home below the charge target",
   },
+  {
+    key: "battery_target_reached",
+    label: "Home Battery Target Reached",
+    description: "Home battery reached the configured priority SOC",
+  },
 ];
 
 // ---- WebSocket Message Types ----
@@ -362,6 +368,7 @@ export type StatsPeriod = "day" | "month" | "year";
 export interface StatsBucket {
   label: string; // "0"-"23" (day), "1"-"31" (month), "Jan"-"Dec" (year)
   solarWh: number; // Solar energy used for home charging in this bucket
+  batteryWh: number; // Home-battery energy used for vehicle charging
   gridWh: number; // Grid energy used for home charging in this bucket
   awayWh: number; // Energy charged away from home in this bucket
   totalWh: number; // solarWh + gridWh + awayWh
@@ -371,8 +378,12 @@ export interface StatsBucket {
 export interface EnergyBucket {
   label: string;
   solarProductionWh: number; // Total solar produced in this bucket
-  solarWh: number; // Solar self-consumed in this bucket
-  gridWh: number; // Grid imported in this bucket
+  solarWh: number; // Solar used directly by home/EV loads
+  batteryChargeWh: number; // Energy sent into the home battery
+  batteryDischargeWh: number; // Energy delivered by the home battery
+  solarToBatteryWh: number; // Solar energy sent into the home battery
+  gridToBatteryWh: number; // Grid energy sent into the home battery
+  gridWh: number; // Total grid imported in this bucket
   totalWh: number; // Total home consumption
   costCents?: number; // Grid import cost in cents (only when tariff rates exist)
   solarSavingsCents?: number; // Solar self-consumption savings in cents
@@ -393,6 +404,10 @@ export interface StatsResponse {
   homeSolarProductionWh: number;
   homeConsumedWh: number;
   homeSolarWh: number;
+  homeBatteryChargeWh: number;
+  homeBatteryDischargeWh: number;
+  homeSolarToBatteryWh: number;
+  homeGridToBatteryWh: number;
   homeGridWh: number;
   homeSelfPoweredPercent: number;
 
@@ -403,6 +418,7 @@ export interface StatsResponse {
   buckets: StatsBucket[];
   totalChargedWh: number; // Total energy charged across all sources
   totalSolarWh: number;
+  totalBatteryWh: number;
   totalGridWh: number;
   totalAwayWh: number; // Total energy charged away from home
   selfPoweredPercent: number;

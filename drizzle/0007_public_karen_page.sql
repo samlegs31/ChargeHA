@@ -1,0 +1,1 @@
+ALTER TABLE `vehicle_charge_readings` ADD `battery_contribution_w` real DEFAULT 0 NOT NULL;

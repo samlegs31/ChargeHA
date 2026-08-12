@@ -99,6 +99,7 @@ export class VehicleRepository {
       chargeAmps: reading.chargeAmps,
       batteryLevel: reading.batteryLevel,
       solarContributionW: reading.solarContributionW,
+      batteryContributionW: reading.batteryContributionW ?? 0,
       gridContributionW: reading.gridContributionW,
       isHome: reading.isHome ? 1 : 0,
       ratePerKwh: reading.ratePerKwh ?? null,
@@ -120,6 +121,7 @@ export class VehicleRepository {
       chargeAmps: number;
       batteryLevel: number | null;
       solarContributionW: number;
+      batteryContributionW: number;
       gridContributionW: number;
       isHome: boolean;
       ratePerKwh: number | null;

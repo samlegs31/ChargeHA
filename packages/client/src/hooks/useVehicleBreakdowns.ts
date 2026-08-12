@@ -12,6 +12,7 @@ export interface VehicleBreakdown {
   vehicleName: string;
   totalChargedWh: number;
   totalSolarWh: number;
+  totalBatteryWh: number;
   totalGridWh: number;
   totalCostCents: number;
   evSolarSavingsCents: number;
@@ -107,6 +108,7 @@ export function useVehicleBreakdowns({
           vehicleName: v.name,
           totalChargedWh: res.totalChargedWh,
           totalSolarWh: res.totalSolarWh,
+          totalBatteryWh: res.totalBatteryWh,
           totalGridWh: res.totalGridWh,
           totalCostCents: res.totalCostCents ?? 0,
           evSolarSavingsCents: res.evSolarSavingsCents ?? 0,
@@ -124,7 +126,9 @@ export function useVehicleBreakdowns({
     : 0;
 
   // Charge self-powered % for vehicle breakdown
-  const chargeHomeTotal = (data?.totalSolarWh ?? 0) + (data?.totalGridWh ?? 0);
+  const chargeHomeTotal = (data?.totalSolarWh ?? 0) +
+    (data?.totalBatteryWh ?? 0) +
+    (data?.totalGridWh ?? 0);
   const chargeGridPercent = chargeHomeTotal > 0
     ? Math.round(((data?.totalGridWh ?? 0) / chargeHomeTotal) * 100)
     : 0;

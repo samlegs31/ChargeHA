@@ -147,6 +147,7 @@ export class DataRecorder {
     const energy = this.latestRealtime;
     const solarProductionW = energy.solarProductionW;
     const homeConsumptionW = energy.homeConsumptionW;
+    const batteryPowerW = energy.batteryPowerW ?? 0;
     // When the energy poll failed, the home/solar values are zeros (a breadcrumb
     // written by EnergyPoller) so we cannot compute solar attribution. Charge
     // everything to grid — that is the safe default during an inverter outage.
@@ -167,9 +168,18 @@ export class DataRecorder {
         totalChargePowerW,
         solarProductionW,
         homeConsumptionW,
+        batteryPowerW,
       );
-      const awayDefault = { solarContributionW: 0, gridContributionW: 0 };
-      const { solarContributionW, gridContributionW } = isHome
+      const awayDefault = {
+        solarContributionW: 0,
+        batteryContributionW: 0,
+        gridContributionW: 0,
+      };
+      const {
+        solarContributionW,
+        batteryContributionW,
+        gridContributionW,
+      } = isHome
         ? homeAttribution
         : awayDefault;
       // charge_power_w carries the total for away aggregation
@@ -181,6 +191,7 @@ export class DataRecorder {
           chargeAmps: state.chargeAmps,
           batteryLevel: state.batteryLevel,
           solarContributionW,
+          batteryContributionW,
           gridContributionW,
           isHome,
           ratePerKwh,
@@ -197,16 +208,30 @@ export class DataRecorder {
     totalChargePowerW: number,
     solarProductionW: number,
     homeConsumptionW: number,
-  ): { solarContributionW: number; gridContributionW: number } {
+    batteryPowerW: number,
+  ): {
+    solarContributionW: number;
+    batteryContributionW: number;
+    gridContributionW: number;
+  } {
     if (energyPollFailed) {
-      return { solarContributionW: 0, gridContributionW: chargePowerW };
+      return {
+        solarContributionW: 0,
+        batteryContributionW: 0,
+        gridContributionW: chargePowerW,
+      };
     }
-    const { solarW, gridW } = calculateSolarAttribution(
+    const { solarW, batteryW, gridW } = calculateSolarAttribution(
       chargePowerW,
       totalChargePowerW,
       solarProductionW,
       homeConsumptionW,
+      batteryPowerW,
     );
-    return { solarContributionW: solarW, gridContributionW: gridW };
+    return {
+      solarContributionW: solarW,
+      batteryContributionW: batteryW,
+      gridContributionW: gridW,
+    };
   }
 }

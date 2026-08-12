@@ -38,9 +38,13 @@ interface ChartDatum {
   label: string;
   solarToHome: number;
   solarToCar: number;
+  solarToBattery: number;
   solarToGrid: number;
+  batteryToHome: number;
+  batteryToCar: number;
   gridToHome: number;
   gridToCar: number;
+  gridToBattery: number;
   solarProduction: number;
   totalConsumption: number;
   costCents: number | null;
@@ -52,17 +56,25 @@ interface ChartDatum {
 const FLOW_COLORS: Record<string, string> = {
   solarToHome: "var(--color-solar)",
   solarToCar: "var(--color-solar-car)",
+  solarToBattery: "var(--color-battery)",
   solarToGrid: "var(--color-grid-export)",
+  batteryToHome: "var(--color-battery)",
+  batteryToCar: "var(--color-battery)",
   gridToHome: "var(--color-grid-import)",
   gridToCar: "var(--color-grid-car)",
+  gridToBattery: "var(--color-battery)",
 };
 
 const TOOLTIP_NAMES: Record<string, string> = {
   solarToHome: "Solar \u2192 Home",
   solarToCar: "Solar \u2192 Car",
+  solarToBattery: "Solar \u2192 Battery",
   solarToGrid: "Solar \u2192 Grid",
+  batteryToHome: "Battery \u2192 Home",
+  batteryToCar: "Battery \u2192 Car",
   gridToHome: "Grid \u2192 Home",
   gridToCar: "Grid \u2192 Car",
+  gridToBattery: "Grid \u2192 Battery",
   solarProduction: "Solar Production",
   totalConsumption: "Total Consumption",
 };
@@ -71,9 +83,13 @@ const TOOLTIP_NAMES: Record<string, string> = {
 const FLOW_KEYS = [
   "solarToHome",
   "solarToCar",
+  "solarToBattery",
   "solarToGrid",
+  "batteryToHome",
+  "batteryToCar",
   "gridToHome",
   "gridToCar",
+  "gridToBattery",
 ] as const;
 
 /** Build a time-range header label for the tooltip. */
@@ -283,24 +299,69 @@ function buildBucketDatum(
   resolution: DayResolution,
   vehicleSoc: ChartDatum["vehicleSoc"] | undefined,
 ): ChartDatum {
-  const solarToCar = Math.round(((cb?.solarWh ?? 0) / 1000) * 100) / 100;
+  const solarToCar = Math.round(
+    ((cb?.solarWh ?? 0) / 1000) * 100,
+  ) / 100;
+
+  const batteryToCar = Math.round(
+    ((cb?.batteryWh ?? 0) / 1000) * 100,
+  ) / 100;
+
+  const gridToCar = Math.round(
+    ((cb?.gridWh ?? 0) / 1000) * 100,
+  ) / 100;
+
+  const solarToBattery = Math.round(
+    (eb.solarToBatteryWh / 1000) * 100,
+  ) / 100;
+
+  const gridToBattery = Math.round(
+    (eb.gridToBatteryWh / 1000) * 100,
+  ) / 100;
+
+  const batteryDischarge = Math.round(
+    (eb.batteryDischargeWh / 1000) * 100,
+  ) / 100;
+
+  const batteryToHome = Math.round(
+    Math.max(0, batteryDischarge - batteryToCar) * 100,
+  ) / 100;
+
   const solarToHome = Math.round(
     (Math.max(0, eb.solarWh - (cb?.solarWh ?? 0)) / 1000) * 100,
   ) / 100;
-  const gridToCar = Math.round(((cb?.gridWh ?? 0) / 1000) * 100) / 100;
+
   const gridToHome = Math.round(
-    (Math.max(0, eb.gridWh - (cb?.gridWh ?? 0)) / 1000) * 100,
+    (
+      Math.max(
+        0,
+        eb.gridWh -
+          (cb?.gridWh ?? 0) -
+          eb.gridToBatteryWh,
+      ) / 1000
+    ) * 100,
   ) / 100;
-  const solarProduction = Math.round((eb.solarProductionWh / 1000) * 100) / 100;
+
+  const solarProduction = Math.round(
+    (eb.solarProductionWh / 1000) * 100,
+  ) / 100;
+
   const solarToGrid = Math.round(
-    Math.max(0, solarProduction - solarToHome - solarToCar) * 100,
+    Math.max(
+      0,
+      solarProduction -
+        solarToHome -
+        solarToCar -
+        solarToBattery,
+    ) * 100,
   ) / 100;
+
   const energyCost = eb.costCents ?? 0;
   const chargeCost = cb?.costCents ?? 0;
   const gridToCarCostCents = chargeCost;
   const gridToHomeCostCents = Math.max(0, energyCost - chargeCost);
   const totalConsumption = Math.round(
-    (solarToHome + solarToCar + gridToHome + gridToCar) * 100,
+    (eb.totalWh / 1000) * 100,
   ) / 100;
   return {
     label: period === "day" && resolution !== "15m"
@@ -308,9 +369,13 @@ function buildBucketDatum(
       : eb.label,
     solarToHome,
     solarToCar,
+    solarToBattery,
     solarToGrid,
+    batteryToHome,
+    batteryToCar,
     gridToHome,
     gridToCar,
+    gridToBattery,
     solarProduction,
     totalConsumption,
     costCents: cb?.costCents ?? null,
@@ -340,9 +405,30 @@ function ChartLegend() {
       <span className={styles.legendItem}>
         <span
           className={styles.legendSwatch}
+          style={{ backgroundColor: "var(--color-battery)" }}
+        />
+        Solar → Battery
+      </span>
+      <span className={styles.legendItem}>
+        <span
+          className={styles.legendSwatch}
           style={{ backgroundColor: "var(--color-grid-export)" }}
         />
         Solar → Grid
+      </span>
+      <span className={styles.legendItem}>
+        <span
+          className={styles.legendSwatch}
+          style={{ backgroundColor: "var(--color-battery)" }}
+        />
+        Battery → Home
+      </span>
+      <span className={styles.legendItem}>
+        <span
+          className={styles.legendSwatch}
+          style={{ backgroundColor: "var(--color-battery)" }}
+        />
+        Battery → Car
       </span>
       <span className={styles.legendItem}>
         <span
@@ -357,6 +443,13 @@ function ChartLegend() {
           style={{ backgroundColor: "var(--color-grid-car)" }}
         />
         Grid → Car
+      </span>
+      <span className={styles.legendItem}>
+        <span
+          className={styles.legendSwatch}
+          style={{ backgroundColor: "var(--color-battery)" }}
+        />
+        Grid → Battery
       </span>
       <span className={styles.legendItem}>
         <span
@@ -397,10 +490,28 @@ function chartBars() {
         name="solarToCar"
       />
       <Bar
+        dataKey="solarToBattery"
+        stackId="energy"
+        fill="var(--color-battery)"
+        name="solarToBattery"
+      />
+      <Bar
         dataKey="solarToGrid"
         stackId="energy"
         fill="var(--color-grid-export)"
         name="solarToGrid"
+      />
+      <Bar
+        dataKey="batteryToHome"
+        stackId="energy"
+        fill="var(--color-battery)"
+        name="batteryToHome"
+      />
+      <Bar
+        dataKey="batteryToCar"
+        stackId="energy"
+        fill="var(--color-battery)"
+        name="batteryToCar"
       />
       <Bar
         dataKey="gridToHome"
@@ -413,6 +524,12 @@ function chartBars() {
         stackId="energy"
         fill="var(--color-grid-car)"
         name="gridToCar"
+      />
+      <Bar
+        dataKey="gridToBattery"
+        stackId="energy"
+        fill="var(--color-battery)"
+        name="gridToBattery"
         radius={[2, 2, 0, 0]}
       />
       <Line
