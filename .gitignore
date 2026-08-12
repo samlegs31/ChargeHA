@@ -28,3 +28,4 @@ devtools/output/
 # Local backups
 backups/
 *.bak
+update-chargeha.sh
