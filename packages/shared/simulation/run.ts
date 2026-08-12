@@ -259,16 +259,17 @@ export function runSimulation(
     sunset: opts.sunset,
   });
 
-  // incremented each simulation tick
-  // deno-lint-ignore custom-no-let/no-let
-  let simTimestamp = Date.now();
+  // Simulation clock: align engine time with the chart's 00:00 → 23:59 day.
+  // Use a fixed UTC day so schedules are deterministic and independent of
+  // the real clock when the simulation is launched.
+  const simDayStart = Date.UTC(2026, 0, 1, 0, 0, 0, 0);
   // home battery state of charge, tracked across ticks
   // deno-lint-ignore custom-no-let/no-let
   let batterySoc = opts.batteryStartSoc;
 
   // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
   for (const reading of solarDay) {
-    simTimestamp += 60_000;
+    const simTimestamp = simDayStart + reading.minute * 60_000;
 
     const totalChargingW = applyChargingEnergy(vehicleConfigs, vehicleStates);
 
