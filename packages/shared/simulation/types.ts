@@ -23,6 +23,11 @@ export interface SolarConfig {
 export interface SimulationOptions {
   seed: number;
   vehicleMode: "auto" | "vacation";
+  scheduleEnabled: boolean;
+  scheduleStart: string;
+  scheduleEnd: string;
+  scheduleAmps: number;
+  scheduleTargetPct: number;
   vehicleCount: number;
   waterfall: boolean;
   minGenKw: string;

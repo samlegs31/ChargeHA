@@ -36,6 +36,11 @@ function loadChartJs(): Promise<ChartJs> {
 interface SimConfig {
   seed: number;
   vehicleMode: "auto" | "vacation";
+  scheduleEnabled: boolean;
+  scheduleStart: string;
+  scheduleEnd: string;
+  scheduleAmps: number;
+  scheduleTargetPct: number;
   vehicleCount: number;
   waterfall: boolean;
   minGenKw: string;
@@ -62,6 +67,11 @@ interface SimConfig {
 const DEFAULTS: SimConfig = {
   seed: DEFAULT_SOLAR_CONFIG.seed,
   vehicleMode: "auto",
+  scheduleEnabled: false,
+  scheduleStart: "01:10",
+  scheduleEnd: "06:40",
+  scheduleAmps: 16,
+  scheduleTargetPct: 80,
   vehicleCount: 2,
   waterfall: false,
   minGenKw: "1",
@@ -562,6 +572,57 @@ function VehiclesSection(
     <>
       <div className={styles.sectionLabel}>Vehicles</div>
       <div className={styles.controls}>
+        <div className={styles.control}>
+          <label>HC Schedule</label>
+          <select
+            value={config.scheduleEnabled ? "on" : "off"}
+            onChange={(e) =>
+              set("scheduleEnabled", e.target.value === "on")}
+          >
+            <option value="off">Off</option>
+            <option value="on">On</option>
+          </select>
+        </div>
+
+        {config.scheduleEnabled && (
+          <>
+            <div className={styles.control}>
+              <label>HC Start</label>
+              <input
+                type="time"
+                value={config.scheduleStart}
+                onChange={(e) => set("scheduleStart", e.target.value)}
+              />
+            </div>
+
+            <div className={styles.control}>
+              <label>HC End</label>
+              <input
+                type="time"
+                value={config.scheduleEnd}
+                onChange={(e) => set("scheduleEnd", e.target.value)}
+              />
+            </div>
+
+            <NumInput
+              label="HC Amps"
+              value={config.scheduleAmps}
+              onChange={(v) => set("scheduleAmps", v)}
+              step={1}
+              min={5}
+              max={32}
+            />
+
+            <NumInput
+              label="HC Target %"
+              value={config.scheduleTargetPct}
+              onChange={(v) => set("scheduleTargetPct", v)}
+              step={5}
+              min={10}
+              max={100}
+            />
+          </>
+        )}
         <div className={styles.control}>
           <label>Mode</label>
           <select

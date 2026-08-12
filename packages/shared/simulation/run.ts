@@ -1,6 +1,10 @@
 import type { VehicleChargeState } from "../types.ts";
 import { ControllerEngine } from "../engine/mod.ts";
-import type { ControllerConfig, EngineVehicleInput } from "../engine/mod.ts";
+import type {
+  ControllerConfig,
+  EngineSchedule,
+  EngineVehicleInput,
+} from "../engine/mod.ts";
 
 import { generateSolarDay } from "./solar.ts";
 import type {
@@ -231,6 +235,20 @@ export function runSimulation(
   const events: ControllerEvent[] = [];
   const results: SimResult[] = [];
 
+  const simulationSchedules: EngineSchedule[] = opts.scheduleEnabled
+    ? [{
+      id: "SIM_HC",
+      vehicleId: null,
+      scheduleType: "charge",
+      startTime: opts.scheduleStart,
+      endTime: opts.scheduleEnd,
+      days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+      chargeAmps: opts.scheduleAmps,
+      chargeLimitPct: opts.scheduleTargetPct,
+      enabled: true,
+    }]
+    : [];
+
   const solarDay = generateSolarDay({
     seed: opts.seed,
     peakKw: opts.peakSolarKw,
@@ -276,7 +294,7 @@ export function runSimulation(
     const output = engine.decide({
       config,
       vehicles,
-      schedules: [],
+      schedules: simulationSchedules,
       energy: {
         solarProductionW: reading.solarW,
         gridPowerW: battery.gridPowerW,
