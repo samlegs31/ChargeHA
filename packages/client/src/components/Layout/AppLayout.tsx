@@ -159,7 +159,7 @@ export function AppLayout(
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
         >
-          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          {mobileMenuOpen ? <X size={26} strokeWidth={2.4} /> : <Menu size={26} strokeWidth={2.4} />}
         </IconButton>
       </header>
       {mobileMenuOpen && (

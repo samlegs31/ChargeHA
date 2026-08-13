@@ -133,7 +133,41 @@
   }
 
   .menuButton {
-    display: flex;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+
+    border-radius: 12px;
+    border: 1px solid var(--gray-a5);
+    background: var(--gray-a3);
+    color: var(--gray-12);
+
+    transition:
+      background-color 150ms ease,
+      border-color 150ms ease,
+      transform 100ms ease;
+  }
+
+  .menuButton:hover {
+    background: var(--gray-a4);
+    border-color: var(--gray-a6);
+  }
+
+  .menuButton:active {
+    background: var(--gray-a5);
+    transform: scale(0.94);
+  }
+
+  .menuButton svg {
+    width: 26px;
+    height: 26px;
+    stroke-width: 2.4;
   }
 
   .mobileMenu {
@@ -189,3 +223,6 @@
     padding: 12px 10px 24px;
   }
 }
+
+
+

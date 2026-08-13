@@ -11,7 +11,12 @@
 
 # --- Stage 1: Build Tesla HTTP proxy from Go source ---
 FROM --platform=$BUILDPLATFORM golang:1.23-bookworm AS proxy-builder
-RUN git clone --depth 1 https://github.com/teslamotors/vehicle-command.git /src
+RUN for i in 1 2 3 4 5; do \
+      git clone --depth 1 https://github.com/teslamotors/vehicle-command.git /src && break; \
+      echo "Clone failed, retry $i/5..."; \
+      rm -rf /src; \
+      sleep 5; \
+    done && test -d /src/.git
 WORKDIR /src
 ARG TARGETOS TARGETARCH
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o /tesla-http-proxy ./cmd/tesla-http-proxy
