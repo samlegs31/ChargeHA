@@ -431,13 +431,14 @@ describe("StatsService", () => {
   });
 
   describe("buildResponse", () => {
-    it("computes selfPoweredPercent from charge solar and grid totals", async () => {
+    it("counts solar and home-battery energy as self-powered charging", async () => {
       const db = mockDb({
         stats: {
           getStatsDay: () =>
             Promise.resolve([{
               bucket: "10",
-              solarWh: 3000,
+              solarWh: 2000,
+              batteryWh: 1000,
               gridWh: 1000,
               awayWh: 0,
               totalWh: 4000,
@@ -454,24 +455,29 @@ describe("StatsService", () => {
         false,
       );
 
-      // selfPoweredPercent = round(3000 / (3000+1000) * 100) = 75
+      // selfPoweredPercent = round((2000+1000) / 4000 * 100) = 75
       expect(result.selfPoweredPercent).toBe(75);
       expect(result.totalCostCents).toBe(100);
       expect(result.totalChargedWh).toBe(4000);
-      expect(result.totalSolarWh).toBe(3000);
+      expect(result.totalSolarWh).toBe(2000);
+      expect(result.totalBatteryWh).toBe(1000);
       expect(result.totalGridWh).toBe(1000);
     });
 
-    it("computes homeSelfPoweredPercent from energy totals", async () => {
+    it("counts solar and home-battery discharge as home self-powered energy", async () => {
       const db = mockDb({
         stats: {
           getEnergyStatsDay: () =>
             Promise.resolve([{
               bucket: "10",
-              solarProductionWh: 5000,
-              solarWh: 4000,
-              gridWh: 1000,
-              totalWh: 5000,
+              solarProductionWh: 500,
+              solarWh: 100,
+              batteryChargeWh: 0,
+              batteryDischargeWh: 4600,
+              solarToBatteryWh: 0,
+              gridToBatteryWh: 0,
+              gridWh: 5300,
+              totalWh: 10000,
               costCents: 50,
             }]),
         },
@@ -484,12 +490,13 @@ describe("StatsService", () => {
         false,
       );
 
-      // homeSelfPoweredPercent = round(4000/5000 * 100) = 80
-      expect(result.homeSelfPoweredPercent).toBe(80);
-      expect(result.homeSolarProductionWh).toBe(5000);
-      expect(result.homeConsumedWh).toBe(5000);
-      expect(result.homeSolarWh).toBe(4000);
-      expect(result.homeGridWh).toBe(1000);
+      // homeSelfPoweredPercent = round((100+4600)/10000 * 100) = 47
+      expect(result.homeSelfPoweredPercent).toBe(47);
+      expect(result.homeSolarProductionWh).toBe(500);
+      expect(result.homeConsumedWh).toBe(10000);
+      expect(result.homeSolarWh).toBe(100);
+      expect(result.homeBatteryDischargeWh).toBe(4600);
+      expect(result.homeGridWh).toBe(5300);
     });
 
     it("returns 0 selfPoweredPercent when no home charge data", async () => {

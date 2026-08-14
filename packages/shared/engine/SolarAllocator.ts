@@ -213,11 +213,11 @@ export class SolarAllocator {
       return null;
     }
 
-    // Filter to eligible: auto mode, plugged in, at home (or unknown),
-    // battery below charge limit.
+    // Filter to eligible: either stored solar mode (auto or vacation), plugged
+    // in, at home (or unknown), and below the vehicle charge limit.
     const eligible = vehicles
       .filter((v): v is EngineVehicleInput & { state: VehicleChargeState } =>
-        v.mode === "auto" &&
+        (v.mode === "auto" || v.mode === "vacation") &&
         v.state?.isPluggedIn === true &&
         v.state.isHome !== false &&
         v.state.batteryLevel < v.state.chargeLimit

@@ -8,6 +8,62 @@ import { useDraftConfig } from "../../../hooks/useDraftConfig.ts";
 import { useEnergyData } from "../../../hooks/useEnergyData.ts";
 import { SettingsRow, SettingsSection } from "./SettingsLayout.tsx";
 
+interface ProtectionSliderProps {
+  label: string;
+  help: string;
+  enabled: boolean;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  onChange: (value: number) => void;
+}
+
+function ProtectionSlider({
+  label,
+  help,
+  enabled,
+  value,
+  min,
+  max,
+  step,
+  unit,
+  onChange,
+}: ProtectionSliderProps) {
+  return (
+    <SettingsRow label={label} help={help}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          minWidth: 200,
+          opacity: enabled ? 1 : 0.4,
+          pointerEvents: enabled ? "auto" : "none",
+        }}
+      >
+        <Slider
+          min={min}
+          max={max}
+          step={step}
+          disabled={!enabled}
+          value={[value]}
+          onValueChange={([nextValue]) => onChange(nextValue)}
+          style={{ flex: 1 }}
+        />
+        <Text
+          size="2"
+          weight="medium"
+          style={{ minWidth: 58, textAlign: "right" }}
+        >
+          {value} {unit}
+        </Text>
+      </div>
+    </SettingsRow>
+  );
+}
+
 export function BatterySettings() {
   const { data: config } = useBatteryConfig();
   const mutation = useBatteryConfigMutation();
@@ -37,15 +93,15 @@ export function BatterySettings() {
       icon={<Battery size={18} />}
       title="Battery"
       badge="Beta"
-      description="This does not control your home battery — it controls EV charging based on battery state. When enabled, EV charging is held until your home battery reaches a minimum charge level, letting the battery fill first before excess solar is sent to your vehicle. Requires a home battery reporting SOC through your inverter — if no battery is detected, this setting has no effect."
+      description="This does not control your home battery. Outside an active charge schedule, it can hold or stop solar EV charging when the battery SOC is too low or battery discharge stays above your tolerance. Active charge schedules intentionally ignore battery discharge power."
       saveStatus={saveStatus}
       isDirty={isDirty}
       onSave={save}
       action={batteryActionBadge}
     >
       <SettingsRow
-        label="Battery priority enabled"
-        help="When enabled, EV charging is paused until your home battery reaches the priority limit below. Once the battery is charged to that level, excess solar will be allocated to vehicle charging."
+        label="Home battery protection"
+        help="Applies only to solar charging outside active charge schedules. Scheduled off-peak charging continues at its programmed current."
       >
         <Switch
           size="2"
@@ -55,8 +111,8 @@ export function BatterySettings() {
       </SettingsRow>
 
       <SettingsRow
-        label="Battery priority limit"
-        help="Your home battery must reach this charge level before EV charging begins. Higher values give the battery more time to fill first."
+        label="Minimum home battery SOC"
+        help="Solar EV charging waits or stops immediately while the home battery is below this level."
       >
         <div
           style={{
@@ -86,6 +142,30 @@ export function BatterySettings() {
           </Text>
         </div>
       </SettingsRow>
+
+      <ProtectionSlider
+        label="Tolerated battery discharge"
+        help="Solar EV charging may continue while home-battery discharge stays at or below this power. Set 0 W for the strictest protection."
+        enabled={fields.batteryPriorityEnabled}
+        value={fields.batteryDischargeToleranceW}
+        min={0}
+        max={5000}
+        step={100}
+        unit="W"
+        onChange={(value) => setField("batteryDischargeToleranceW", value)}
+      />
+
+      <ProtectionSlider
+        label="Battery discharge grace period"
+        help="When the EV is already charging, discharge must stay above the tolerance for this long before charging stops. Starting a new solar charge is blocked immediately."
+        enabled={fields.batteryPriorityEnabled}
+        value={fields.batteryDischargeGraceMinutes}
+        min={0}
+        max={30}
+        step={1}
+        unit="min"
+        onChange={(value) => setField("batteryDischargeGraceMinutes", value)}
+      />
     </SettingsSection>
   );
 }

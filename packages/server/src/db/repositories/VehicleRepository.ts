@@ -1,8 +1,12 @@
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import type { VehicleMode } from "@chargeha/shared";
-import { and, asc, count, desc, eq, gte, lt, lte, max, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, lt, lte, max, sql } from "drizzle-orm";
 import { sqliteTimezoneOffset, toSqliteDatetime } from "./sqliteHelpers.ts";
-import { vehicleChargeReadings, vehicles as vehiclesTable } from "../Schema.ts";
+import {
+  vehicleChargeReadings,
+  vehiclePollLogs,
+  vehicles as vehiclesTable,
+} from "../Schema.ts";
 import type {
   UpsertVehicleInput,
   VehicleChargeReadingInput,
@@ -177,6 +181,38 @@ export class VehicleRepository {
           sql`datetime('now', ${`-${retentionDays} days`})`,
         ),
       );
+  }
+
+  async getRecentCapacityCalibrationSamples(
+    vehicleId: string,
+    limit = 120,
+  ): Promise<
+    Array<{
+      batteryLevel: number;
+      chargeLimit: number;
+      chargePowerKw: number;
+      minutesToFull: number;
+    }>
+  > {
+    const rows = await this.db
+      .select({
+        batteryLevel: vehiclePollLogs.batteryLevel,
+        chargeLimit: vehiclePollLogs.chargeLimit,
+        chargePowerKw: vehiclePollLogs.chargePowerKw,
+        minutesToFull: vehiclePollLogs.minutesToFull,
+      })
+      .from(vehiclePollLogs)
+      .where(
+        and(
+          eq(vehiclePollLogs.vehicleId, vehicleId),
+          gt(vehiclePollLogs.chargePowerKw, 0.5),
+          gt(vehiclePollLogs.minutesToFull, 0),
+        ),
+      )
+      .orderBy(desc(vehiclePollLogs.timestamp))
+      .limit(limit);
+
+    return rows;
   }
 
   async getVehicleSocForDay(

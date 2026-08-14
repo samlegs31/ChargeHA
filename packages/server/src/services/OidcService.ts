@@ -4,6 +4,24 @@ import type { OidcConfigRow } from "../db/types.ts";
 import { decrypt } from "../lib/Encryption.ts";
 import type { Logger } from "../lib/Logger.ts";
 
+function parseAllowedOidcIssuer(raw: string): URL {
+  const issuer = new URL(raw);
+  if (issuer.username || issuer.password) {
+    throw new Error("OIDC issuer URL must not contain credentials");
+  }
+  if (issuer.protocol === "https:") return issuer;
+
+  const localHost = issuer.hostname === "localhost" ||
+    issuer.hostname === "127.0.0.1" ||
+    issuer.hostname === "::1" ||
+    issuer.hostname === "[::1]";
+  if (issuer.protocol === "http:" && localHost) return issuer;
+
+  throw new Error(
+    "OIDC issuer must use HTTPS (HTTP is only allowed for localhost)",
+  );
+}
+
 /** Resolved OIDC state used by the login/callback handlers. */
 export interface OidcState {
   server: oauth.AuthorizationServer;
@@ -40,9 +58,9 @@ export class OidcService {
     const clientSecret = await this.decryptOidcSecret(config);
 
     try {
-      const issuer = new URL(config.issuerUrl);
-      // oauth4webapi enforces HTTPS by default. Allow HTTP for local dev
-      // providers (e.g. Dex on localhost) by setting allowInsecureRequests.
+      const issuer = parseAllowedOidcIssuer(config.issuerUrl);
+      // oauth4webapi enforces HTTPS by default. HTTP is allowed only for
+      // loopback development providers (e.g. Dex on localhost).
       const allowHttp = issuer.protocol === "http:";
       const response = await oauth.discoveryRequest(issuer, {
         signal: AbortSignal.timeout(10000),
@@ -77,10 +95,11 @@ export class OidcService {
   ): Promise<
     { success: true; error?: undefined } | { success: false; error: string }
   > {
-    const discoveryUrl = `${
-      issuerUrl.replace(/\/+$/, "")
-    }/.well-known/openid-configuration`;
     try {
+      const issuer = parseAllowedOidcIssuer(issuerUrl);
+      const discoveryUrl = `${
+        issuer.toString().replace(/\/+$/, "")
+      }/.well-known/openid-configuration`;
       const res = await fetch(discoveryUrl, {
         signal: AbortSignal.timeout(5000),
       });

@@ -23,12 +23,13 @@ const dayOfWeekSchema: z.ZodEnum<
 ]);
 export type DayOfWeekZ = z.infer<typeof dayOfWeekSchema>;
 
-const vehicleModeSchema: z.ZodEnum<["auto", "charge_now", "vacation", "stop"]> = z.enum([
-  "auto",
-  "charge_now",
-  "vacation",
-  "stop",
-]);
+const vehicleModeSchema: z.ZodEnum<["auto", "charge_now", "vacation", "stop"]> =
+  z.enum([
+    "auto",
+    "charge_now",
+    "vacation",
+    "stop",
+  ]);
 export type VehicleModeZ = z.infer<typeof vehicleModeSchema>;
 
 const vehicleAdapterTypeSchema: z.ZodString = z.string().min(1);
@@ -48,8 +49,8 @@ const statsPeriodSchema: z.ZodEnum<["day", "month", "year"]> = z.enum([
 export type StatsPeriodZ = z.infer<typeof statsPeriodSchema>;
 
 const timeStringSchema: z.ZodString = z.string().regex(
-  /^\d{2}:\d{2}$/,
-  "Expected HH:MM",
+  /^(?:[01]\d|2[0-3]):[0-5]\d$/,
+  "Expected HH:MM (00:00-23:59)",
 );
 
 // ConfigKey and CoreConfigKey are re-exported from configSections above

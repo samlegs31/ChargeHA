@@ -61,22 +61,22 @@ export const solarConfigDef = defineSection({
   },
   solarMarginKw: {
     key: "solar_margin_kw",
-    schema: z.number(),
+    schema: z.number().min(-2).max(5),
     default: 0,
   },
   minSolarGenerationKw: {
     key: "min_solar_generation_kw",
-    schema: z.number(),
+    schema: z.number().min(0).max(10),
     default: 0.2,
   },
   minExcessSolarKw: {
     key: "min_excess_solar_kw",
-    schema: z.number().nullable(),
+    schema: z.number().min(0).max(20).nullable(),
     default: null,
   },
   gridVoltage: {
     key: "grid_voltage",
-    schema: z.number().int(),
+    schema: z.number().int().min(100).max(260),
     default: 230,
   },
   threePhaseCharger: {
@@ -91,26 +91,60 @@ export const solarConfigDef = defineSection({
   },
   gracePeriodMinutes: {
     key: "grace_period_minutes",
-    schema: z.number().int(),
+    schema: z.number().int().min(0).max(30),
     default: 6,
   },
   cooldownPeriodMinutes: {
     key: "cooldown_period_minutes",
-    schema: z.number().int(),
+    schema: z.number().int().min(0).max(60),
     default: 15,
   },
   ampDebounceThreshold: {
     key: "amp_debounce_threshold",
-    schema: z.number().int(),
+    schema: z.number().int().min(1).max(5),
     default: 2,
   },
   ampDebounceSettleMinutes: {
     key: "amp_debounce_settle_minutes",
-    schema: z.number().int(),
+    schema: z.number().int().min(1).max(10),
     default: 3,
   },
 });
 export type SolarConfig = SectionType<typeof solarConfigDef>;
+
+export const solarForecastConfigDef = defineSection({
+  solarForecastEnabled: {
+    key: "solar_forecast_enabled",
+    schema: z.boolean(),
+    default: false,
+  },
+  solarForecastAddress: {
+    key: "solar_forecast_address",
+    schema: z.string().max(300),
+    default: "",
+  },
+  solarForecastLatitude: {
+    key: "solar_forecast_latitude",
+    schema: z.number().min(-90).max(90).nullable(),
+    default: null,
+  },
+  solarForecastLongitude: {
+    key: "solar_forecast_longitude",
+    schema: z.number().min(-180).max(180).nullable(),
+    default: null,
+  },
+  solarForecastInstallationDate: {
+    key: "solar_forecast_installation_date",
+    schema: z.string().max(10),
+    default: "",
+  },
+  solarForecastArraysJson: {
+    key: "solar_forecast_arrays_json",
+    schema: z.string().max(12000),
+    default: "[]",
+  },
+});
+export type SolarForecastConfig = SectionType<typeof solarForecastConfigDef>;
 
 export const batteryConfigDef = defineSection({
   batteryPriorityEnabled: {
@@ -120,8 +154,18 @@ export const batteryConfigDef = defineSection({
   },
   batteryPriorityLimit: {
     key: "battery_priority_limit",
-    schema: z.number().int(),
+    schema: z.number().int().min(20).max(100),
     default: 80,
+  },
+  batteryDischargeToleranceW: {
+    key: "battery_discharge_tolerance_w",
+    schema: z.number().int().min(0).max(10000),
+    default: 300,
+  },
+  batteryDischargeGraceMinutes: {
+    key: "battery_discharge_grace_minutes",
+    schema: z.number().int().min(0).max(30),
+    default: 5,
   },
 });
 export type BatteryConfig = SectionType<typeof batteryConfigDef>;
@@ -129,12 +173,12 @@ export type BatteryConfig = SectionType<typeof batteryConfigDef>;
 export const homeConfigDef = defineSection({
   homeLatitude: {
     key: "home_latitude",
-    schema: z.number().nullable(),
+    schema: z.number().min(-90).max(90).nullable(),
     default: null,
   },
   homeLongitude: {
     key: "home_longitude",
-    schema: z.number().nullable(),
+    schema: z.number().min(-180).max(180).nullable(),
     default: null,
   },
 });
@@ -152,17 +196,19 @@ export type EquipmentConfig = SectionType<typeof equipmentConfigDef>;
 export const systemConfigDef = defineSection({
   energyErrorThreshold: {
     key: "energy_error_threshold",
-    schema: z.number().int(),
+    schema: z.number().int().min(1).max(120),
     default: 6,
   },
   controllerLoopSeconds: {
     key: "controller_loop_seconds",
-    schema: z.number().int(),
+    schema: z.number().int().min(5).max(120),
     default: 30,
   },
   recordingIntervalSeconds: {
     key: "recording_interval_seconds",
-    schema: z.number().int(),
+    // Stats integrate each stored sample as exactly 60 seconds.
+    // Keep this fixed until sample duration is stored with every reading.
+    schema: z.number().int().min(60).max(60),
     default: 60,
   },
   timezone: {
@@ -172,12 +218,12 @@ export const systemConfigDef = defineSection({
   },
   dataRetentionDays: {
     key: "data_retention_days",
-    schema: z.number().int(),
+    schema: z.number().int().min(30).max(3650),
     default: 730,
   },
   logRetentionDays: {
     key: "log_retention_days",
-    schema: z.number().int(),
+    schema: z.number().int().min(7).max(365),
     default: 30,
   },
 });
@@ -285,6 +331,7 @@ export type SectionKeys<T extends SectionDef> = T[keyof T]["key"];
 export type CoreConfigKey =
   | SectionKeys<typeof chargingConfigDef>
   | SectionKeys<typeof solarConfigDef>
+  | SectionKeys<typeof solarForecastConfigDef>
   | SectionKeys<typeof batteryConfigDef>
   | SectionKeys<typeof homeConfigDef>
   | SectionKeys<typeof equipmentConfigDef>
@@ -297,6 +344,7 @@ export type CoreConfigKey =
 export const CORE_CONFIG_KEYS: readonly CoreConfigKey[] = [
   ...sectionDbKeys(chargingConfigDef),
   ...sectionDbKeys(solarConfigDef),
+  ...sectionDbKeys(solarForecastConfigDef),
   ...sectionDbKeys(batteryConfigDef),
   ...sectionDbKeys(homeConfigDef),
   ...sectionDbKeys(equipmentConfigDef),
@@ -304,6 +352,44 @@ export const CORE_CONFIG_KEYS: readonly CoreConfigKey[] = [
   ...sectionDbKeys(notificationConfigDef),
   ...sectionDbKeys(internalConfigDef),
 ];
+
+const CORE_CONFIG_FIELDS: FieldDef[] = [
+  ...Object.values(chargingConfigDef),
+  ...Object.values(solarConfigDef),
+  ...Object.values(solarForecastConfigDef),
+  ...Object.values(batteryConfigDef),
+  ...Object.values(homeConfigDef),
+  ...Object.values(equipmentConfigDef),
+  ...Object.values(systemConfigDef),
+  ...Object.values(notificationConfigDef),
+  ...Object.values(internalConfigDef),
+];
+
+/** Validate a raw KV string against the typed schema for its core config key. */
+export function validateCoreConfigRawValue(
+  key: CoreConfigKey,
+  raw: string,
+): boolean {
+  const field = CORE_CONFIG_FIELDS.find((candidate) => candidate.key === key);
+  if (!field) return false;
+
+  const innerSchema = unwrapNullable(field.schema);
+  const isNullable = innerSchema !== field.schema;
+  if (isNullable && raw === "") return true;
+
+  if (innerSchema instanceof z.ZodBoolean) {
+    if (raw !== "true" && raw !== "false") return false;
+    return field.schema.safeParse(raw === "true").success;
+  }
+
+  if (innerSchema instanceof z.ZodNumber) {
+    if (raw.trim() === "") return false;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && field.schema.safeParse(parsed).success;
+  }
+
+  return field.schema.safeParse(raw).success;
+}
 
 // ── ConfigKey ───────────────────────────────────────────────────────────────
 
@@ -337,12 +423,16 @@ function deserializeValue<T extends z.ZodTypeAny>(
 
   // Check inner type
   if (innerSchema instanceof z.ZodBoolean) {
-    return raw === "true";
+    if (raw !== "true" && raw !== "false") return defaultValue;
+    const result = schema.safeParse(raw === "true");
+    return result.success ? result.data : defaultValue;
   }
   if (innerSchema instanceof z.ZodNumber) {
     if (raw === "") return defaultValue;
-    const num = parseFloat(raw);
-    return isNaN(num) ? defaultValue : num;
+    const num = Number(raw);
+    if (!Number.isFinite(num)) return defaultValue;
+    const result = schema.safeParse(num);
+    return result.success ? result.data : defaultValue;
   }
   if (innerSchema instanceof z.ZodEnum) {
     // Validate against the enum values
@@ -460,6 +550,8 @@ export const chargingConfigInput: z.ZodType<Partial<ChargingConfig>> =
   buildSectionInputSchema(chargingConfigDef);
 export const solarConfigInput: z.ZodType<Partial<SolarConfig>> =
   buildSectionInputSchema(solarConfigDef);
+export const solarForecastConfigInput: z.ZodType<Partial<SolarForecastConfig>> =
+  buildSectionInputSchema(solarForecastConfigDef);
 export const batteryConfigInput: z.ZodType<Partial<BatteryConfig>> =
   buildSectionInputSchema(batteryConfigDef);
 export const homeConfigInput: z.ZodType<Partial<HomeConfig>> =

@@ -161,4 +161,18 @@ describe("isScheduleActiveNow", () => {
       expect(isScheduleActiveNow(weekend, wed, "")).toBe(false);
     });
   });
+  it("carries a Monday-only overnight schedule into Tuesday morning", () => {
+    const mondayNight = makeSchedule({
+      startTime: "22:00",
+      endTime: "06:00",
+      days: ["mon"],
+    });
+
+    expect(isScheduleActiveNow(mondayNight, new Date(2025, 0, 6, 23, 0), ""))
+      .toBe(true);
+    expect(isScheduleActiveNow(mondayNight, new Date(2025, 0, 7, 3, 0), ""))
+      .toBe(true);
+    expect(isScheduleActiveNow(mondayNight, new Date(2025, 0, 7, 23, 0), ""))
+      .toBe(false);
+  });
 });

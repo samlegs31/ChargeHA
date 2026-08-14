@@ -102,6 +102,42 @@ vi.mock("./hooks/useWizardState.ts", () => ({
 
 type AuthMode = "none" | "local" | "oidc";
 
+function mockMatchMedia(initialMatches: boolean) {
+  const listeners = new Set<(event: MediaQueryListEvent) => void>();
+  const media = {
+    matches: initialMatches,
+    media: "(prefers-color-scheme: dark)",
+    onchange: null,
+    addEventListener: vi.fn(
+      (_type: string, listener: EventListenerOrEventListenerObject) => {
+        if (typeof listener === "function") {
+          listeners.add(listener as (event: MediaQueryListEvent) => void);
+        }
+      },
+    ),
+    removeEventListener: vi.fn(
+      (_type: string, listener: EventListenerOrEventListenerObject) => {
+        if (typeof listener === "function") {
+          listeners.delete(listener as (event: MediaQueryListEvent) => void);
+        }
+      },
+    ),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  };
+
+  globalThis.matchMedia = vi.fn().mockReturnValue(media);
+
+  return {
+    emit(matches: boolean) {
+      media.matches = matches;
+      const event = { matches, media: media.media } as MediaQueryListEvent;
+      for (const listener of listeners) listener(event);
+    },
+  };
+}
+
 const mocks = vi.hoisted(() => {
   const logoutMutate = vi.fn();
   return {
@@ -236,7 +272,7 @@ describe("App", () => {
   describe("routing", () => {
     beforeEach(() => {
       // jsdom doesn't implement matchMedia
-      globalThis.matchMedia = vi.fn().mockReturnValue({ matches: false });
+      mockMatchMedia(false);
       // Reset to root before each test
       globalThis.history.pushState(null, "", "/");
       mockWizardDefault();
@@ -316,7 +352,7 @@ describe("App", () => {
       await userEvent.click(screen.getByText("Settings"));
       expect(globalThis.location.pathname).toBe("/settings");
 
-      await userEvent.click(screen.getByText("Dashboard"));
+      await userEvent.click(screen.getByText("Home"));
       expect(globalThis.location.pathname).toBe("/");
     });
 
@@ -350,13 +386,13 @@ describe("App", () => {
     it("highlights the active nav link", async () => {
       render(<App />);
 
-      const dashboardLink = screen.getByText("Dashboard");
+      const dashboardLink = screen.getByText("Home");
       expect(dashboardLink.className).toContain("navLinkActive");
 
       await userEvent.click(screen.getByText("Stats"));
       const statsLink = screen.getByText("Stats");
       expect(statsLink.className).toContain("navLinkActive");
-      expect(screen.getByText("Dashboard").className).not.toContain(
+      expect(screen.getByText("Home").className).not.toContain(
         "navLinkActive",
       );
     });
@@ -364,7 +400,7 @@ describe("App", () => {
 
   describe("first-run redirect", () => {
     beforeEach(() => {
-      globalThis.matchMedia = vi.fn().mockReturnValue({ matches: false });
+      mockMatchMedia(false);
       globalThis.history.pushState(null, "", "/");
       mockWizardDefault();
       mockAuthDefault();
@@ -428,7 +464,7 @@ describe("App", () => {
     });
 
     it("uses dark appearance when matchMedia prefers dark scheme and no stored theme", () => {
-      globalThis.matchMedia = vi.fn().mockReturnValue({ matches: true });
+      mockMatchMedia(true);
 
       const { container } = render(<App />);
 
@@ -439,7 +475,7 @@ describe("App", () => {
     });
 
     it("uses light appearance when matchMedia prefers light scheme", () => {
-      globalThis.matchMedia = vi.fn().mockReturnValue({ matches: false });
+      mockMatchMedia(false);
 
       const { container } = render(<App />);
 
@@ -448,56 +484,24 @@ describe("App", () => {
       expect(themeRoot?.className).toContain("light");
     });
 
-    it("uses stored appearance from localStorage", () => {
-      localStorage.setItem("chargeha-theme", JSON.stringify("dark"));
-      globalThis.matchMedia = vi.fn().mockReturnValue({ matches: false });
+    it("follows device appearance changes after mount", () => {
+      const media = mockMatchMedia(false);
 
       const { container } = render(<App />);
-
-      const themeRoot = container.querySelector(".radix-themes");
-      expect(themeRoot?.className).toContain("dark");
-    });
-
-    it("toggles appearance when theme switch is clicked", async () => {
-      globalThis.matchMedia = vi.fn().mockReturnValue({ matches: false });
-
-      const { container } = render(<App />);
-
       const themeRoot = container.querySelector(".radix-themes");
       expect(themeRoot?.className).toContain("light");
 
-      // The Radix Switch renders a button[role=switch]
-      const switchEl = screen.getByRole("switch");
-      await userEvent.click(switchEl);
-
-      // After toggle, should switch to dark
-      expect(themeRoot?.className).toContain("dark");
-      expect(localStorage.getItem("chargeha-theme")).toBe(
-        JSON.stringify("dark"),
-      );
-    });
-
-    it("toggles back to light from dark", async () => {
-      globalThis.matchMedia = vi.fn().mockReturnValue({ matches: true });
-
-      const { container } = render(<App />);
-
-      const themeRoot = container.querySelector(".radix-themes");
+      act(() => media.emit(true));
       expect(themeRoot?.className).toContain("dark");
 
-      const switchEl = screen.getByRole("switch");
-      await userEvent.click(switchEl);
-
+      act(() => media.emit(false));
       expect(themeRoot?.className).toContain("light");
-      expect(localStorage.getItem("chargeha-theme")).toBe(
-        JSON.stringify("light"),
-      );
     });
   });
 
   describe("auth boot check", () => {
     beforeEach(() => {
-      globalThis.matchMedia = vi.fn().mockReturnValue({ matches: false });
+      mockMatchMedia(false);
       globalThis.history.pushState(null, "", "/");
       mockWizardDefault();
       mockAuthDefault();

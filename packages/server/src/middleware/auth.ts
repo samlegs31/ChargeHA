@@ -22,6 +22,9 @@ const EXEMPT_PREFIXES = [
 const EXEMPT_EXACT = [
   "GET /",
   "GET /login",
+  // Tesla redirects here from its own domain, so there is no E.V Solar
+  // session cookie available on the callback request.
+  "GET /api/vehicle/tesla/callback",
 ] as const;
 
 /** tRPC procedure paths that bypass auth. */
@@ -47,15 +50,30 @@ const STATIC_EXTENSIONS = [
   ".map",
 ] as const;
 
+const LOOPBACK_PROXY_IPS = new Set(["127.0.0.1", "::1"]);
+
+function isTrustedProxyRequest(req: Request): boolean {
+  const remoteIp = req.headers.get("x-evsolar-remote-ip");
+  if (!remoteIp) return false;
+  if (LOOPBACK_PROXY_IPS.has(remoteIp)) return true;
+
+  const configured = (Deno.env.get("TRUSTED_PROXY_IPS") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return configured.includes(remoteIp);
+}
+
 /**
  * Detect whether the incoming request arrived over HTTPS.
- * Checks X-Forwarded-Proto header first (reverse proxy), then URL scheme.
+ * The URL scheme is authoritative for direct HTTPS requests. A forwarded
+ * scheme is accepted only from a trusted proxy peer, never from an arbitrary
+ * client header.
  */
 export function isHttps(req: Request): boolean {
-  const forwarded = req.headers.get("x-forwarded-proto");
-  if (forwarded === "https") return true;
-  const proto = new URL(req.url).protocol;
-  return proto === "https:";
+  if (new URL(req.url).protocol === "https:") return true;
+  return isTrustedProxyRequest(req) &&
+    req.headers.get("x-forwarded-proto") === "https";
 }
 
 /** Check whether a path is exempt from auth. */

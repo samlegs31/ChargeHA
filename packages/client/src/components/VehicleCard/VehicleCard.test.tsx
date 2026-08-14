@@ -65,9 +65,10 @@ describe("VehicleCard", () => {
     expect(screen.getByText("Model 3")).toBeInTheDocument();
     expect(screen.getByText("72%")).toBeInTheDocument();
     expect(screen.getByText("Limit: 80%")).toBeInTheDocument();
-    expect(screen.getByText("Auto - Plugged In")).toBeInTheDocument();
+    expect(screen.getByText("Solar + clock - Plugged In")).toBeInTheDocument();
     expect(screen.getByText("STOP")).toBeInTheDocument();
-    expect(screen.getByText("AUTO")).toBeInTheDocument();
+    expect(screen.getByText("SOLAR + 🕒")).toBeInTheDocument();
+    expect(screen.getByText("SOLAR ONLY")).toBeInTheDocument();
     expect(screen.getByText("CHARGE NOW")).toBeInTheDocument();
     expect(screen.getByText("Start Charging")).toBeInTheDocument();
     expect(screen.getByText("Online")).toBeInTheDocument();
@@ -79,9 +80,9 @@ describe("VehicleCard", () => {
     [
       "charging",
       { isCharging: true, chargePowerKw: 7.4 },
-      "Auto - Charging at 7.4 kW",
+      "Solar + clock - Charging at 7.4 kW",
     ],
-    ["unplugged", { isPluggedIn: false }, "Auto - Unplugged"],
+    ["unplugged", { isPluggedIn: false }, "Solar + clock - Unplugged"],
   ])("status text %s", (_label, state, expected) => {
     renderVC({ state: makeVehicleState(state) });
     expect(screen.getByText(expected)).toBeInTheDocument();
@@ -160,7 +161,7 @@ describe("VehicleCard", () => {
     expect(screen.queryByText("Vehicle API error")).not.toBeInTheDocument();
   });
 
-  // --- charging details: solar/grid, energy added, minutesToFull ---
+  // --- charging details: solar/battery/grid, energy added, minutesToFull ---
 
   const renderCharging = (extra: Partial<VCProps> = {}) => {
     return renderVC({
@@ -173,16 +174,25 @@ describe("VehicleCard", () => {
     });
   };
 
-  it.each<[string, number, number, RegExp]>([
-    ["kW formatting", 3500, 1200, /3\.5 kW solar, 1\.2 kW grid/],
-    ["W formatting", 500, 0, /500 W solar, 0 W grid/],
-  ])("solar/grid row %s", (_label, solarPowerW, gridPowerW, expected) => {
-    renderCharging({ solarPowerW, gridPowerW });
-    expect(screen.getByText(expected)).toBeInTheDocument();
-  });
+  it.each<[string, number, number, number, RegExp]>([
+    [
+      "kW formatting",
+      3500,
+      600,
+      1200,
+      /3\.5 kW solar, 600 W battery, 1\.2 kW grid/,
+    ],
+    ["W formatting", 500, 0, 0, /500 W solar, 0 W grid/],
+  ])(
+    "solar/battery/grid row %s",
+    (_label, solarPowerW, batteryPowerW, gridPowerW, expected) => {
+      renderCharging({ solarPowerW, batteryPowerW, gridPowerW });
+      expect(screen.getByText(expected)).toBeInTheDocument();
+    },
+  );
 
-  it("hides solar/grid row when both are zero", () => {
-    renderCharging({ solarPowerW: 0, gridPowerW: 0 });
+  it("hides source row when solar, battery and grid are all zero", () => {
+    renderCharging({ solarPowerW: 0, batteryPowerW: 0, gridPowerW: 0 });
     expect(screen.queryByText(/solar,/)).not.toBeInTheDocument();
   });
 
@@ -235,6 +245,7 @@ describe("VehicleCard", () => {
         minutesToFull: 60,
       }),
       solarPowerW: 2000,
+      batteryPowerW: 300,
       gridPowerW: 500,
     });
 
@@ -326,9 +337,10 @@ describe("VehicleCard", () => {
 
   // --- mode + start/stop button callbacks ---
 
-  it.each<[string, "stop" | "auto" | "charge_now"]>([
+  it.each<[string, "stop" | "auto" | "vacation" | "charge_now"]>([
     ["STOP", "stop"],
-    ["AUTO", "auto"],
+    ["SOLAR + 🕒", "auto"],
+    ["SOLAR ONLY", "vacation"],
     ["CHARGE NOW", "charge_now"],
   ])("clicking %s mode button calls onChangeMode with %s", (label, mode) => {
     const onChangeMode = vi.fn();
@@ -362,7 +374,7 @@ describe("VehicleCard", () => {
 
   it.each<[VCProps["commandPending"], string]>([
     ["mode:stop", "STOP"],
-    ["mode:auto", "AUTO"],
+    ["mode:auto", "SOLAR + 🕒"],
     ["mode:charge_now", "CHARGE NOW"],
   ])(
     "commandPending=%s disables %s mode button",

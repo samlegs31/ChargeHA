@@ -12,6 +12,7 @@ import { logsRouter } from "./routers/logs.ts";
 import { notificationsRouter } from "./routers/notifications.ts";
 import { wizardRouter } from "./routers/wizard.ts";
 import { authRouter } from "./routers/auth.ts";
+import { forecastRouter } from "./routers/forecast.ts";
 /** Plugin router records collected from registries at startup. */
 export interface PluginRouters<
   TVehicle extends Record<string, AnyRouter> = Record<string, AnyRouter>,
@@ -33,6 +34,7 @@ export function createAppRouter<
     stats: statsRouter,
     vehicle: vehiclesRouter,
     config: configRouter,
+    forecast: forecastRouter,
     health: healthRouter,
     tariff: tariffsRouter,
     schedule: schedulesRouter,

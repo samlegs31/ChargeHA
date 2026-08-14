@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import {
   BatteryCharging,
   Car,
@@ -29,6 +29,7 @@ interface VehicleCardProps {
   onChangeMode: (mode: VehicleMode) => void;
   onNavigateSettings?: () => void;
   solarPowerW?: number;
+  batteryPowerW?: number;
   gridPowerW?: number;
   loading?: boolean;
   commandsDisabled?: boolean;
@@ -42,12 +43,13 @@ interface VehicleCardProps {
   pollingSuspendReason?: string | null;
   controllerReason?: string | null;
   controllerDetail?: string | null;
+  forecastContent?: ReactNode;
 }
 
 const MODE_LABELS: Record<VehicleMode, string> = {
-  auto: "Auto",
+  auto: "Solar + clock",
   charge_now: "Charge Now",
-  vacation: "Vacation",
+  vacation: "Solar Only",
   stop: "Stopped",
 };
 
@@ -86,8 +88,8 @@ const MODE_BUTTONS: {
   color: "red" | "blue" | "green" | "orange";
 }[] = [
   { value: "stop", label: "STOP", color: "red" },
-  { value: "auto", label: "AUTO", color: "blue" },
-  { value: "vacation", label: "VACATION", color: "orange" },
+  { value: "auto", label: "SOLAR + 🕒", color: "blue" },
+  { value: "vacation", label: "SOLAR ONLY", color: "orange" },
   { value: "charge_now", label: "CHARGE NOW", color: "green" },
 ];
 
@@ -289,6 +291,7 @@ export function VehicleCard({
   onChangeMode,
   onNavigateSettings,
   solarPowerW = 0,
+  batteryPowerW = 0,
   gridPowerW = 0,
   loading = false,
   commandsDisabled = false,
@@ -302,6 +305,7 @@ export function VehicleCard({
   pollingSuspendReason,
   controllerReason,
   controllerDetail,
+  forecastContent,
 }: VehicleCardProps) {
   if (loading) {
     return (
@@ -365,6 +369,9 @@ export function VehicleCard({
         <Text size="2">{getStatusText(state, mode, atHome)}</Text>
       </div>
 
+      {/* Informational forecast lives directly under vehicle status. */}
+      {forecastContent}
+
       {/* Spacer when unplugged so the card has room for the map below. */}
       {!state.isPluggedIn && <div style={{ height: 20 }} />}
 
@@ -381,6 +388,7 @@ export function VehicleCard({
           onStopCharging={onStopCharging}
           onSetAmps={onSetAmps}
           solarPowerW={solarPowerW}
+          batteryPowerW={batteryPowerW}
           gridPowerW={gridPowerW}
           chargeLimitPercent={chargeLimitPercent}
         />

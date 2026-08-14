@@ -173,7 +173,7 @@ describe("AuthService (integration)", () => {
       // → local
       await authService.changeMode({
         newMode: "local",
-        localConfig: { username: "admin", password: "password123" },
+        localConfig: { username: "admin", password: "secure-password-123" },
       });
       internal = await configService.getInternal();
       expect(internal.authMode).toBe("local");
@@ -184,7 +184,7 @@ describe("AuthService (integration)", () => {
       expect(localUser.username).toBe("admin");
 
       // Create a session to verify it gets cleaned up
-      const sessionId = await authService.login("admin", "password123");
+      const sessionId = await authService.login("admin", "secure-password-123");
       expect(await db.getSession(sessionId)).not.toBeNull();
 
       // → oidc (requires re-auth with current local password)
@@ -212,7 +212,7 @@ describe("AuthService (integration)", () => {
       try {
         await authService.changeMode({
           newMode: "oidc",
-          currentPassword: "password123",
+          currentPassword: "secure-password-123",
           oidcConfig: {
             issuerUrl: "https://auth.example.com",
             clientId: "my-client",
@@ -272,7 +272,7 @@ describe("AuthService (integration)", () => {
     it("returns a valid session ID when switching to local mode", async () => {
       const sessionId = await authService.changeMode({
         newMode: "local",
-        localConfig: { username: "admin", password: "password123" },
+        localConfig: { username: "admin", password: "secure-password-123" },
       });
 
       // changeMode returns a session ID for local mode
@@ -335,7 +335,7 @@ describe("AuthService (integration)", () => {
       // Change password using session1
       await authService.changePassword(
         "oldpassword1",
-        "newpassword1",
+        "new-secure-password-123",
         session1,
       );
 
@@ -351,7 +351,10 @@ describe("AuthService (integration)", () => {
       );
 
       // New password works
-      const session3 = await authService.login("admin", "newpassword1");
+      const session3 = await authService.login(
+        "admin",
+        "new-secure-password-123",
+      );
       expect(typeof session3).toBe("string");
       expect(await authService.validateSession(session3)).not.toBeNull();
     });
@@ -361,7 +364,11 @@ describe("AuthService (integration)", () => {
       const sessionId = await authService.login("admin", "password123");
 
       await expect(
-        authService.changePassword("wrongcurrent", "newpassword1", sessionId),
+        authService.changePassword(
+          "wrongcurrent",
+          "new-secure-password-123",
+          sessionId,
+        ),
       ).rejects.toThrow("Invalid credentials");
     });
 
@@ -371,7 +378,7 @@ describe("AuthService (integration)", () => {
 
       await expect(
         authService.changePassword("password123", "", sessionId),
-      ).rejects.toThrow(/at least 1 character/);
+      ).rejects.toThrow(/at least 15 characters/);
     });
 
     it("rejects password change with invalid session", async () => {
@@ -380,7 +387,7 @@ describe("AuthService (integration)", () => {
       await expect(
         authService.changePassword(
           "password123",
-          "newpassword1",
+          "new-secure-password-123",
           "nonexistent-session",
         ),
       ).rejects.toThrow("Invalid session");

@@ -76,6 +76,67 @@ describe("ChargeController — schedules", () => {
       expect(log?.action).toBe("start");
       expect(log?.targetAmps).toBe(16);
     });
+
+    it("ignores home-battery discharge during an active SOLAR + clock schedule", async () => {
+      const { today, startTime, endTime } = currentScheduleWindow();
+      ctx = await setupController(
+        {},
+        "auto",
+        { ...BASE_ENERGY, batterySoc: 20, batteryPowerW: 2500 },
+        {
+          battery_priority_enabled: "true",
+          battery_priority_limit: "80",
+          battery_discharge_tolerance_w: "0",
+          battery_discharge_grace_minutes: "0",
+        },
+      );
+      await ctx.db.createSchedule({
+        id: "charge-battery-bypass",
+        vehicleId: VIN,
+        scheduleType: "charge",
+        startTime,
+        endTime,
+        days: [today],
+        chargeAmps: 16,
+        chargeLimitPct: null,
+        enabled: true,
+      });
+
+      await ctx.runOneLoop();
+
+      const log = await ctx.getLastLogParsed();
+      expect(log?.action).toBe("start");
+      expect(log?.targetAmps).toBe(16);
+      expect(log?.checks.some((check) => check.check === "battery_discharge"))
+        .toBe(false);
+    });
+
+    it("does not apply a charge schedule in SOLAR ONLY mode", async () => {
+      const { today, startTime, endTime } = currentScheduleWindow();
+      ctx = await setupController(
+        {},
+        "vacation",
+        { ...BASE_ENERGY, solarProductionW: 0, gridPowerW: 1000 },
+      );
+      await ctx.db.createSchedule({
+        id: "charge-solar-only",
+        vehicleId: VIN,
+        scheduleType: "charge",
+        startTime,
+        endTime,
+        days: [today],
+        chargeAmps: 16,
+        chargeLimitPct: null,
+        enabled: true,
+      });
+
+      await ctx.runOneLoop();
+
+      const log = await ctx.getLastLogParsed();
+      expect(log?.action).toBe("none");
+      expect(log?.checks.some((check) => check.check === "charge_schedule"))
+        .toBe(false);
+    });
   });
 
   describe("schedule to solar transition", () => {

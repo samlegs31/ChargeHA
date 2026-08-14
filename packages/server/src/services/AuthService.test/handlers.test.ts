@@ -523,7 +523,7 @@ describe("AuthService", () => {
       const result = await service.handleChangeMode(
         {
           newMode: "local",
-          localConfig: { username: "admin", password: "password123" },
+          localConfig: { username: "admin", password: "secure-password-123" },
         },
         responseHeaders,
         false,
@@ -678,7 +678,7 @@ describe("AuthService handler cookie paths (no FakeTime)", () => {
     const result = await svc.handleChangeMode(
       {
         newMode: "local",
-        localConfig: { username: "admin", password: "password123" },
+        localConfig: { username: "admin", password: "secure-password-123" },
       },
       responseHeaders,
     );
@@ -709,7 +709,7 @@ describe("AuthService handler cookie paths (no FakeTime)", () => {
     // No responseHeaders — covers sessionId truthy + responseHeaders falsy branch
     const result = await svc.handleChangeMode({
       newMode: "local",
-      localConfig: { username: "admin", password: "password123" },
+      localConfig: { username: "admin", password: "secure-password-123" },
     });
 
     expect(result).toEqual({ success: true });

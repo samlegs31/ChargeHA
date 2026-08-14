@@ -1,0 +1,13 @@
+{
+  "name": "@chargeha/plugins",
+  "version": "0.0.1",
+  "exports": {
+    "./types": "./types.ts",
+    "./PluginDbLogger": "./PluginDbLogger.ts",
+    "./registerPlugins": "./registerPlugins.ts"
+  },
+  "imports": {
+    "hono": "jsr:@hono/hono@^4",
+    "@trpc/server": "npm:@trpc/server@^11"
+  }
+}

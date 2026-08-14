@@ -99,6 +99,27 @@ export function useSolarConfigMutation() {
   return { ...mutation, saveStatus };
 }
 
+// ── Solar Forecast ──────────────────────────────────────────────────────────
+
+export function useSolarForecastConfig() {
+  return trpc.config.solarForecast.get.useQuery();
+}
+
+export function useSolarForecastConfigMutation() {
+  const utils = trpc.useUtils();
+  const { saveStatus, onMutate, onSuccess, onError } = useSaveStatus();
+  const mutation = trpc.config.solarForecast.set.useMutation({
+    onMutate,
+    onSuccess: () => {
+      utils.config.solarForecast.get.invalidate();
+      utils.forecast.today.invalidate();
+      onSuccess();
+    },
+    onError,
+  });
+  return { ...mutation, saveStatus };
+}
+
 // ── Battery ─────────────────────────────────────────────────────────────────
 
 export function useBatteryConfig() {

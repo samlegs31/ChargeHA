@@ -22,6 +22,8 @@ import { SettingsRow, SettingsSection } from "./SettingsLayout.tsx";
 
 type AuthMode = "none" | "local" | "oidc";
 
+const MIN_PASSWORD_LENGTH = 15;
+
 const MODE_LABELS: Record<AuthMode, string> = {
   none: "No Authentication",
   local: "Username & Password",
@@ -153,7 +155,9 @@ function OidcConfigFields(
 
 function validateLocal(form: LocalForm): string | null {
   if (form.username.length < 1) return "Username is required";
-  if (form.password.length < 1) return "Password is required";
+  if (form.password.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  }
   return null;
 }
 
@@ -220,6 +224,7 @@ function ChangePasswordFields(
           placeholder="Enter new password"
           autoComplete="new-password"
           aria-label="New Password"
+          minLength={MIN_PASSWORD_LENGTH}
         />
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
@@ -270,8 +275,10 @@ function ChangePasswordForm({
     setError(null);
     setSuccess(false);
 
-    if (newPassword.length < 1) {
-      setError("New password is required");
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setError(
+        `New password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      );
       return;
     }
     if (newPassword !== confirmPassword) {

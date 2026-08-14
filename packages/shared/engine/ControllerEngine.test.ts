@@ -80,6 +80,17 @@ describe("ControllerEngine", () => {
       expect(output.decisions.get("V1")?.action).toBe("stop");
     });
 
+    it("keeps STOP absolute when global charging control is disabled", () => {
+      const engine = new ControllerEngine();
+      const output = engine.decide(makeInput({
+        configOverrides: { chargingEnabled: false },
+        vehicle: { mode: "stop", state: { isCharging: true } },
+      }));
+      const decision = output.decisions.get("V1");
+      expect(decision?.action).toBe("stop");
+      expect(decision?.reason).toBe("mode_stop");
+    });
+
     it("starts at max amps in charge_now mode", () => {
       const engine = new ControllerEngine();
       const output = engine.decide(
@@ -205,16 +216,16 @@ describe("ControllerEngine", () => {
       expect(d?.detail).toContain("Cooldown");
     });
 
-    it("charges at min amps in solar_grid mode when solar is insufficient", () => {
+    it("ignores legacy solar_grid mode outside schedules", () => {
       const engine = new ControllerEngine();
       const output = engine.decide(makeInput({
         configOverrides: { solarTrackingMode: "solar_grid" },
         energyOverrides: { solarProductionW: 2000, gridPowerW: 500 },
       }));
       const d = output.decisions.get("V1");
-      expect(d?.action).toBe("start");
-      expect(d?.targetAmps).toBe(5);
-      expect(d?.detail).toContain("solar+grid");
+      expect(d?.action).toBe("none");
+      expect(d?.targetAmps).toBe(null);
+      expect(d?.detail).not.toContain("solar+grid");
     });
 
     it("uses reported single-phase over threePhaseCharger flag while charging", () => {
@@ -418,7 +429,51 @@ describe("ControllerEngine", () => {
       expect(output.decisions.get("V1")?.action).toBe("stop");
     });
 
-    it("charge schedule overrides vacation mode", () => {
+    it("CHARGE NOW remains immediate during a blockout", () => {
+      const engine = new ControllerEngine();
+      const now = new Date("2026-01-01T03:00:00Z");
+      const output = engine.decide({
+        ...makeInput({
+          vehicle: { mode: "charge_now" },
+          configOverrides: { timezone: "UTC" },
+        }),
+        now,
+        schedules: [{
+          id: "blockout-charge-now",
+          vehicleId: null,
+          scheduleType: "blockout",
+          startTime: "02:00",
+          endTime: "06:00",
+          days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+          chargeAmps: null,
+          chargeLimitPct: null,
+          enabled: true,
+        }],
+      });
+      expect(output.decisions.get("V1")?.reason).toBe("charge_now");
+      expect(output.decisions.get("V1")?.action).toBe("start");
+    });
+
+    it("SOLAR + clock uses excess-solar-only logic outside schedules", () => {
+      const engine = new ControllerEngine();
+      const output = engine.decide(makeInput({
+        configOverrides: {
+          solarTrackingEnabled: false,
+          solarTrackingMode: "solar_grid",
+          solarReference: "gross",
+        },
+        energyOverrides: {
+          solarProductionW: 5000,
+          gridPowerW: 1000,
+        },
+      }));
+
+      const d = output.decisions.get("V1");
+      expect(d?.action).toBe("none");
+      expect(d?.reason).toBe("solar_tracking");
+    });
+
+    it("SOLAR ONLY ignores an active charge schedule", () => {
       const engine = new ControllerEngine();
       const now = new Date("2026-01-01T03:00:00Z");
       const output = engine.decide({
@@ -448,12 +503,13 @@ describe("ControllerEngine", () => {
       });
 
       const d = output.decisions.get("V1");
-      expect(d?.reason).toBe("schedule");
-      expect(d?.action).toBe("start");
-      expect(d?.targetAmps).toBe(16);
+      expect(d?.reason).toBe("vacation");
+      expect(d?.action).toBe("none");
+      expect(d?.checks.some((check) => check.check === "charge_schedule"))
+        .toBe(false);
     });
 
-    it("charge schedule overrides charge_now mode", () => {
+    it("CHARGE NOW ignores an active charge schedule", () => {
       const engine = new ControllerEngine();
       const now = new Date("2026-01-01T03:00:00Z");
       const output = engine.decide({
@@ -482,9 +538,80 @@ describe("ControllerEngine", () => {
       });
 
       const d = output.decisions.get("V1");
+      expect(d?.reason).toBe("charge_now");
+      expect(d?.action).toBe("start");
+      expect(d?.targetAmps).toBe(32);
+      expect(d?.checks.some((check) => check.check === "charge_schedule"))
+        .toBe(false);
+    });
+
+    it("STOP remains absolute during an active charge schedule", () => {
+      const engine = new ControllerEngine();
+      const now = new Date("2026-01-01T03:00:00Z");
+      const output = engine.decide({
+        ...makeInput({
+          vehicle: {
+            mode: "stop",
+            state: { isCharging: true, chargeAmps: 16 },
+          },
+          configOverrides: { timezone: "UTC" },
+        }),
+        now,
+        schedules: [{
+          id: "s-stop",
+          vehicleId: null,
+          scheduleType: "charge",
+          startTime: "02:00",
+          endTime: "06:00",
+          days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+          chargeAmps: 16,
+          chargeLimitPct: null,
+          enabled: true,
+        }],
+      });
+
+      const d = output.decisions.get("V1");
+      expect(d?.reason).toBe("mode_stop");
+      expect(d?.action).toBe("stop");
+      expect(d?.checks.some((check) => check.check === "charge_schedule"))
+        .toBe(false);
+    });
+
+    it("active SOLAR + clock schedule ignores home-battery protection", () => {
+      const engine = new ControllerEngine();
+      const now = new Date("2026-01-01T03:00:00Z");
+      const output = engine.decide({
+        ...makeInput({
+          configOverrides: {
+            timezone: "UTC",
+            batteryPriorityEnabled: true,
+            batteryPriorityLimit: 80,
+            batteryDischargeToleranceW: 0,
+          },
+          energyOverrides: { batterySoc: 20, batteryPowerW: 2500 },
+        }),
+        now,
+        schedules: [{
+          id: "s-battery-bypass",
+          vehicleId: null,
+          scheduleType: "charge",
+          startTime: "02:00",
+          endTime: "06:00",
+          days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+          chargeAmps: 16,
+          chargeLimitPct: null,
+          enabled: true,
+        }],
+      });
+
+      const d = output.decisions.get("V1");
       expect(d?.reason).toBe("schedule");
       expect(d?.action).toBe("start");
-      expect(d?.targetAmps).toBe(12);
+      expect(d?.targetAmps).toBe(16);
+      expect(d?.checks.some((check) => check.check === "battery_priority"))
+        .toBe(false);
+      expect(d?.checks.some((check) => check.check === "battery_discharge"))
+        .toBe(false);
     });
 
     it("keeps schedule authoritative when charge limit is reached", () => {
@@ -522,7 +649,7 @@ describe("ControllerEngine", () => {
     });
   });
 
-  describe("battery priority", () => {
+  describe("home battery protection", () => {
     it("stops when home battery is below priority limit", () => {
       const engine = new ControllerEngine();
       const output = engine.decide(makeInput({
@@ -535,7 +662,7 @@ describe("ControllerEngine", () => {
       }));
       const d = output.decisions.get("V1");
       expect(d?.action).toBe("stop");
-      expect(d?.detail).toContain("battery priority");
+      expect(d?.detail).toContain("minimum SOC");
     });
 
     it("proceeds when home battery is above priority limit", () => {
@@ -549,6 +676,56 @@ describe("ControllerEngine", () => {
       }));
       // Should proceed to solar tracking and start
       expect(output.decisions.get("V1")?.action).toBe("start");
+    });
+
+    it("blocks a new solar charge immediately above discharge tolerance", () => {
+      const engine = new ControllerEngine();
+      const output = engine.decide(makeInput({
+        configOverrides: {
+          batteryPriorityEnabled: true,
+          batteryPriorityLimit: 50,
+          batteryDischargeToleranceW: 300,
+          batteryDischargeGraceMinutes: 5,
+        },
+        energyOverrides: {
+          batterySoc: 80,
+          batteryPowerW: 900,
+          gridPowerW: -5000,
+        },
+      }));
+      const d = output.decisions.get("V1");
+      expect(d?.action).toBe("none");
+      expect(d?.detail).toContain("discharging at 900W");
+    });
+
+    it("stops only after sustained discharge grace expires", () => {
+      const engine = new ControllerEngine();
+      const baseTimestamp = 1_000_000;
+      const input = makeInput({
+        configOverrides: {
+          batteryPriorityEnabled: true,
+          batteryPriorityLimit: 50,
+          batteryDischargeToleranceW: 300,
+          batteryDischargeGraceMinutes: 5,
+        },
+        vehicle: { state: { isCharging: true, chargeAmps: 10 } },
+        energyOverrides: {
+          batterySoc: 80,
+          batteryPowerW: 900,
+          gridPowerW: -5000,
+        },
+        timestamp: baseTimestamp,
+      });
+
+      const duringGrace = engine.decide(input).decisions.get("V1");
+      expect(duringGrace?.action).not.toBe("stop");
+
+      const afterGrace = engine.decide({
+        ...input,
+        timestamp: baseTimestamp + 5 * 60_000,
+      }).decisions.get("V1");
+      expect(afterGrace?.action).toBe("stop");
+      expect(afterGrace?.detail).toContain("discharging at 900W");
     });
   });
 
@@ -595,8 +772,8 @@ describe("ControllerEngine", () => {
     });
   });
 
-  describe("default fallback", () => {
-    it("stops when no solar tracking and no schedule", () => {
+  describe("solar-only fallback", () => {
+    it("stops when energy data is unavailable outside a schedule", () => {
       const engine = new ControllerEngine();
       const output = engine.decide(makeInput({
         configOverrides: { solarTrackingEnabled: false },
@@ -605,7 +782,7 @@ describe("ControllerEngine", () => {
       }));
       const d = output.decisions.get("V1");
       expect(d?.action).toBe("stop");
-      expect(d?.detail).toContain("no schedule or solar tracking");
+      expect(d?.detail).toContain("no usable solar surplus");
     });
 
     it("marks as suspendable when idle with no schedule or solar", () => {
@@ -712,34 +889,33 @@ describe("ControllerEngine", () => {
     });
   });
 
-  describe("solar+grid fallback", () => {
-    it("charges at min amps from grid when not charging and solar insufficient", () => {
+  describe("legacy solar+grid setting", () => {
+    it("does not start from grid when solar is insufficient", () => {
       const engine = new ControllerEngine();
       const output = engine.decide(makeInput({
         configOverrides: { solarTrackingMode: "solar_grid" },
         energyOverrides: { solarProductionW: 2000, gridPowerW: 500 },
       }));
       const d = output.decisions.get("V1");
-      expect(d?.action).toBe("start");
-      expect(d?.targetAmps).toBe(5);
-      expect(d?.detail).toContain("solar+grid");
+      expect(d?.action).toBe("none");
+      expect(d?.targetAmps).toBe(null);
+      expect(d?.detail).not.toContain("solar+grid");
     });
 
-    it("returns none when not charging and already in solar_grid fallback", () => {
+    it("keeps waiting for excess solar when not charging", () => {
       const engine = new ControllerEngine();
-      // Not charging + insufficient solar in solar_grid → fallback to start at min
       const output = engine.decide(makeInput({
         configOverrides: { solarTrackingMode: "solar_grid" },
         vehicle: { state: { isCharging: false } },
         energyOverrides: { solarProductionW: 2000, gridPowerW: 500 },
       }));
       const d = output.decisions.get("V1");
-      expect(d?.action).toBe("start");
-      expect(d?.targetAmps).toBe(5);
-      expect(d?.detail).toContain("solar+grid");
+      expect(d?.action).toBe("none");
+      expect(d?.targetAmps).toBe(null);
+      expect(d?.detail).not.toContain("solar+grid");
     });
 
-    it("falls back to grid when grace expires in solar_grid mode", () => {
+    it("stops when grace expires despite legacy solar_grid mode", () => {
       const engine = new ControllerEngine();
       const baseTimestamp = Date.now();
 
@@ -763,7 +939,10 @@ describe("ControllerEngine", () => {
         energyOverrides: { solarProductionW: 2000, gridPowerW: 3000 },
         timestamp: baseTimestamp + 7 * 60 * 1000,
       }));
-      expect(output.decisions.get("V1")?.detail).toContain("solar+grid");
+      expect(output.decisions.get("V1")?.action).toBe("stop");
+      expect(output.decisions.get("V1")?.detail).toContain(
+        "grace period expired",
+      );
     });
   });
 
@@ -862,7 +1041,7 @@ describe("ControllerEngine", () => {
   });
 
   describe("allocation — edge cases", () => {
-    it("uses gross solar reference", () => {
+    it("ignores legacy gross reference and uses excess solar", () => {
       const engine = new ControllerEngine();
       const v1 = makeVehicle({ id: "V1", name: "EV 1", priority: 1 });
       const v2 = makeVehicle({ id: "V2", name: "EV 2", priority: 2 });
@@ -874,7 +1053,7 @@ describe("ControllerEngine", () => {
         now: new Date("2026-01-01T12:00:00Z"),
         timestamp: Date.now(),
       });
-      expect(output.decisions.get("V1")?.action).toBe("start");
+      expect(output.decisions.get("V1")?.action).toBe("none");
     });
 
     it("uses grid voltage when charger reports low voltage", () => {
@@ -966,12 +1145,12 @@ describe("ControllerEngine", () => {
     });
   });
 
-  describe("solar+grid fallback — charging above min", () => {
-    it("adjusts to min when charging above min and solar insufficient", () => {
+  describe("legacy solar+grid setting — charging above min", () => {
+    it("stops when the excess-solar grace period expires", () => {
       const engine = new ControllerEngine();
       const baseTimestamp = Date.now();
 
-      // Tick 1: charging at 10A, good solar, solar_grid mode
+      // Tick 1: charging at 10A with good solar.
       engine.decide(makeInput({
         configOverrides: { solarTrackingMode: "solar_grid" },
         vehicle: { state: { isCharging: true, chargeAmps: 10 } },
@@ -987,8 +1166,7 @@ describe("ControllerEngine", () => {
         timestamp: baseTimestamp + 60_000,
       }));
 
-      // Tick 3: grace expires — solar_grid fallback, currently at min (5A)
-      // but let's say vehicle is at 10A still → should adjust
+      // Tick 3: grace expires. Legacy solar_grid is intentionally ignored.
       const output = engine.decide(makeInput({
         configOverrides: { solarTrackingMode: "solar_grid" },
         vehicle: { state: { isCharging: true, chargeAmps: 10 } },
@@ -996,9 +1174,9 @@ describe("ControllerEngine", () => {
         timestamp: baseTimestamp + 7 * 60 * 1000,
       }));
       const d = output.decisions.get("V1");
-      expect(d?.action).toBe("adjust_amps");
-      expect(d?.targetAmps).toBe(5);
-      expect(d?.detail).toContain("solar+grid");
+      expect(d?.action).toBe("stop");
+      expect(d?.targetAmps).toBe(null);
+      expect(d?.detail).toContain("grace period expired");
     });
   });
 

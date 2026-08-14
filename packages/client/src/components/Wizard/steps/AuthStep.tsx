@@ -8,6 +8,8 @@ import styles from "./steps.module.css";
 
 type AuthMode = "none" | "local" | "oidc";
 
+const MIN_PASSWORD_LENGTH = 15;
+
 interface LocalForm {
   username: string;
   password: string;
@@ -32,8 +34,8 @@ const OIDC_ERROR_MESSAGES: Record<string, string> = {
 
 function validateLocal(form: LocalForm): string | null {
   if (form.username.length < 1) return "Username is required";
-  if (form.password.length < 1) {
-    return "Password is required";
+  if (form.password.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
   }
   return null;
 }
@@ -117,11 +119,13 @@ function LocalFormFields(
       <Text as="label" size="2" weight="medium">Password</Text>
       <TextField.Root
         type="password"
-        placeholder="Enter password"
+        placeholder="At least 15 characters"
         value={localForm.password}
         onChange={(e) =>
           setLocalForm((f) => ({ ...f, password: e.target.value }))}
         aria-label="Password"
+        minLength={MIN_PASSWORD_LENGTH}
+        autoComplete="new-password"
       />
     </div>
   );

@@ -340,7 +340,7 @@ describe("Schedules", () => {
 
     expect(
       screen.getByText(
-        /Blockout schedules take priority over charge schedules/,
+        /Blockouts stop both solar modes and take priority over charge schedules/,
       ),
     ).toBeInTheDocument();
     expect(
@@ -348,7 +348,7 @@ describe("Schedules", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Charge schedules override solar tracking and charge at the set rate/,
+        /Charge schedules run only when the vehicle is in SOLAR \+ 🕒 mode/,
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(/Times shown in/)).toBeInTheDocument();

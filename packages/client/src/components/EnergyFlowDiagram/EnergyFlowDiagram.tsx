@@ -1,5 +1,5 @@
 import { Battery, Car, Home, Sun, Zap } from "lucide-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { EnergyData } from "@chargeha/shared";
 import { kwValue } from "../../utils/Format.ts";
 import styles from "./EnergyFlowDiagram.module.css";
@@ -9,6 +9,7 @@ export interface ChargingVehicleFlow {
   name: string;
   chargePowerW: number;
   solarW: number;
+  batteryW?: number;
   gridW: number;
 }
 
@@ -18,43 +19,84 @@ interface EnergyFlowDiagramProps {
   chargingVehicles?: ChargingVehicleFlow[];
 }
 
-const DOT_COUNT = 2;
+type FlowSource = "solar" | "battery" | "grid" | "idle";
+type FlowDirection = "up" | "down";
+
+const ACTIVE_FLOW_W = 25;
 
 function flowDurationS(powerW: number): number {
   const kw = Math.abs(powerW) / 1000;
-  return Math.min(3, Math.max(1.35, 3.1 - kw * 0.2));
+  return Math.min(2.8, Math.max(1.05, 2.9 - kw * 0.18));
 }
 
-function BusConnector({
+function dominantSource(
+  solarW: number,
+  batteryW: number,
+  gridW: number,
+): FlowSource {
+  const sources: Array<[FlowSource, number]> = [
+    ["solar", Math.max(0, solarW)],
+    ["battery", Math.max(0, batteryW)],
+    ["grid", Math.max(0, gridW)],
+  ];
+  const [source, powerW] = sources.reduce((largest, current) =>
+    current[1] > largest[1] ? current : largest
+  );
+  return powerW >= ACTIVE_FLOW_W ? source : "idle";
+}
+
+function sourceColor(source: FlowSource): string {
+  switch (source) {
+    case "solar":
+      return "var(--color-solar-car)";
+    case "battery":
+      return "var(--color-battery)";
+    case "grid":
+      return "var(--color-grid-import)";
+    default:
+      return "var(--gray-7)";
+  }
+}
+
+function FlowBranch({
+  testId,
   active,
-  color,
-  direction = "right",
+  direction,
+  source,
   powerW,
+  color,
 }: {
+  testId: string;
   active: boolean;
-  color: string;
-  direction?: "right" | "left";
+  direction: FlowDirection;
+  source: FlowSource;
   powerW: number;
+  color?: string;
 }) {
-  const durationS = flowDurationS(powerW);
+  const style = {
+    "--flow-color": color ?? sourceColor(source),
+    "--flow-duration": `${flowDurationS(powerW)}s`,
+  } as CSSProperties;
+
   return (
     <div
-      className={`${styles.connector} ${active ? styles.connectorActive : ""}`}
-      style={{ color }}
+      className={`${styles.flowBranch} ${
+        active ? styles.flowActive : styles.flowIdle
+      }`}
+      data-testid={testId}
+      data-direction={direction}
+      data-source={source}
+      style={style}
       aria-hidden="true"
     >
-      <div className={styles.track} />
-      {active && Array.from({ length: DOT_COUNT }, (_, i) => (
-        <div
-          key={i}
-          className={styles.dot}
-          style={{
-            animationDuration: `${durationS}s`,
-            animationDelay: `${(-durationS / DOT_COUNT) * i}s`,
-            animationDirection: direction === "left" ? "reverse" : "normal",
-          }}
-        />
-      ))}
+      <div className={styles.flowTrack} />
+      {active && (
+        <span
+          className={direction === "up" ? styles.arrowUp : styles.arrowDown}
+        >
+          {direction === "up" ? "↑" : "↓"}
+        </span>
+      )}
     </div>
   );
 }
@@ -75,7 +117,11 @@ function FlowNode({
   children?: ReactNode;
 }) {
   return (
-    <div className={`${styles.node} ${className ?? ""} ${active ? styles.active : styles.idle}`}>
+    <div
+      className={`${styles.node} ${className ?? ""} ${
+        active ? styles.active : styles.idle
+      }`}
+    >
       <div className={styles.iconBadge}>{icon}</div>
       <div className={styles.nodeLabel}>{label}</div>
       <div className={styles.nodeValue}>{value}</div>
@@ -85,21 +131,217 @@ function FlowNode({
 }
 
 function VehicleNode({ v }: { v: ChargingVehicleFlow }) {
-  const solarPct = v.chargePowerW > 0
-    ? Math.min(100, Math.round((v.solarW / v.chargePowerW) * 100))
-    : 0;
+  const batteryW = v.batteryW ?? 0;
+  const totalW = Math.max(1, v.chargePowerW);
+  const solarPct = Math.min(100, (Math.max(0, v.solarW) / totalW) * 100);
+  const batteryPct = Math.min(
+    100 - solarPct,
+    (Math.max(0, batteryW) / totalW) * 100,
+  );
+  const gridPct = Math.max(0, 100 - solarPct - batteryPct);
+
   return (
-    <div className={`${styles.node} ${styles.vehicle} ${styles.active}`} data-testid={`vehicle-node-${v.id}`}>
-      <div className={styles.iconBadge}><Car size={22} /></div>
-      <div className={styles.vehicleName}>{v.name}</div>
-      <div className={styles.nodeValue}>{kwValue(v.chargePowerW)}</div>
-      <div className={styles.splitBar}>
-        <div className={styles.splitSolar} style={{ width: `${solarPct}%` }} />
+    <div className={styles.vehicleFlow}>
+      <div
+        className={`${styles.node} ${styles.vehicle} ${styles.active}`}
+        data-testid={`vehicle-node-${v.id}`}
+      >
+        <div className={styles.iconBadge}>
+          <Car size={25} />
+        </div>
+        <div className={styles.vehicleName}>{v.name}</div>
+        <div className={styles.nodeValue}>{kwValue(v.chargePowerW)}</div>
+        <div className={styles.splitBar}>
+          <div
+            className={styles.splitSolar}
+            style={{ width: `${solarPct}%` }}
+          />
+          <div
+            className={styles.splitBattery}
+            style={{ width: `${batteryPct}%` }}
+          />
+          <div className={styles.splitGrid} style={{ width: `${gridPct}%` }} />
+        </div>
+        <div className={styles.splitLegend}>
+          <span className={styles.legendSolar}>{kwValue(v.solarW)} solar</span>
+          {batteryW >= ACTIVE_FLOW_W && (
+            <span className={styles.legendBattery}>
+              {kwValue(batteryW)} battery
+            </span>
+          )}
+          <span className={styles.legendGrid}>{kwValue(v.gridW)} grid</span>
+        </div>
       </div>
-      <div className={styles.splitLegend}>
-        <span className={styles.legendSolar}>{kwValue(v.solarW)} solar</span>
-        <span className={styles.legendGrid}>{kwValue(v.gridW)} grid</span>
+      <FlowBranch
+        testId={`flow-vehicle-${v.id}`}
+        active={v.chargePowerW >= ACTIVE_FLOW_W}
+        direction="up"
+        source={dominantSource(v.solarW, batteryW, v.gridW)}
+        powerW={v.chargePowerW}
+      />
+    </div>
+  );
+}
+
+function batteryStatus(batteryW: number): string {
+  if (batteryW > ACTIVE_FLOW_W) return "Discharging";
+  if (batteryW < -ACTIVE_FLOW_W) return "Charging";
+  return "Idle";
+}
+
+function BatteryEndpoint({
+  batteryW,
+  batterySoc,
+  loading,
+  busSource,
+}: {
+  batteryW: number;
+  batterySoc: number | null;
+  loading: boolean;
+  busSource: FlowSource;
+}) {
+  const charging = batteryW < -ACTIVE_FLOW_W;
+  const discharging = batteryW > ACTIVE_FLOW_W;
+  const active = charging || discharging;
+
+  return (
+    <div className={styles.endpoint}>
+      <FlowBranch
+        testId="flow-battery"
+        active={active}
+        direction={charging ? "down" : "up"}
+        source={discharging ? "battery" : busSource}
+        powerW={batteryW}
+      />
+      <FlowNode
+        icon={<Battery size={26} />}
+        label="Battery"
+        value={loading ? "---" : kwValue(Math.abs(batteryW))}
+        className={styles.battery}
+        active={active}
+      >
+        {!loading && batterySoc != null && (
+          <div className={styles.socText}>{Math.round(batterySoc)}%</div>
+        )}
+        {!loading && (
+          <div className={styles.batteryStatus}>{batteryStatus(batteryW)}</div>
+        )}
+      </FlowNode>
+    </div>
+  );
+}
+
+function GridEndpoint({
+  gridW,
+  loading,
+  busSource,
+}: {
+  gridW: number;
+  loading: boolean;
+  busSource: FlowSource;
+}) {
+  const exporting = gridW < -ACTIVE_FLOW_W;
+  const importing = gridW > ACTIVE_FLOW_W;
+  const active = exporting || importing;
+
+  return (
+    <div className={styles.endpoint}>
+      <FlowBranch
+        testId="flow-grid"
+        active={active}
+        direction={exporting ? "down" : "up"}
+        source={importing ? "grid" : busSource}
+        powerW={gridW}
+        color={exporting
+          ? "var(--color-grid-export)"
+          : "var(--color-grid-import)"}
+      />
+      <FlowNode
+        icon={<Zap size={26} />}
+        label="Grid"
+        value={loading ? "---" : kwValue(Math.abs(gridW))}
+        className={exporting ? styles.gridExport : styles.gridImport}
+        active={active}
+      >
+        {!loading && active && (
+          <div className={styles.pill}>{exporting ? "Export" : "Import"}</div>
+        )}
+      </FlowNode>
+    </div>
+  );
+}
+
+function EnergyEndpoints({
+  loading,
+  hasBattery,
+  solarW,
+  batteryW,
+  batterySoc,
+  homeW,
+  gridW,
+  homeSource,
+  busSource,
+}: {
+  loading: boolean;
+  hasBattery: boolean;
+  solarW: number;
+  batteryW: number;
+  batterySoc: number | null;
+  homeW: number;
+  gridW: number;
+  homeSource: FlowSource;
+  busSource: FlowSource;
+}) {
+  const endpointClass = hasBattery
+    ? styles.endpointsWithBattery
+    : styles.endpointsWithoutBattery;
+
+  return (
+    <div className={`${styles.endpoints} ${endpointClass}`}>
+      <div className={styles.endpoint}>
+        <FlowBranch
+          testId="flow-solar"
+          active={solarW >= ACTIVE_FLOW_W}
+          direction="up"
+          source="solar"
+          powerW={solarW}
+        />
+        <FlowNode
+          icon={<Sun size={26} />}
+          label="Solar"
+          value={loading ? "---" : kwValue(solarW)}
+          className={styles.solar}
+          active={solarW >= ACTIVE_FLOW_W}
+        />
       </div>
+
+      {hasBattery && (
+        <BatteryEndpoint
+          batteryW={batteryW}
+          batterySoc={batterySoc}
+          loading={loading}
+          busSource={busSource}
+        />
+      )}
+
+      <div className={styles.endpoint}>
+        <FlowBranch
+          testId="flow-home"
+          active={homeW >= ACTIVE_FLOW_W}
+          direction="down"
+          source={homeSource}
+          powerW={homeW}
+        />
+        <FlowNode
+          icon={<Home size={26} />}
+          label="Home"
+          value={loading ? "---" : kwValue(homeW)}
+          className={styles.home}
+          active={homeW >= ACTIVE_FLOW_W}
+        />
+      </div>
+
+      <GridEndpoint gridW={gridW} loading={loading} busSource={busSource} />
     </div>
   );
 }
@@ -110,50 +352,58 @@ export function EnergyFlowDiagram({
   chargingVehicles = [],
 }: EnergyFlowDiagramProps) {
   const solarW = data?.solarProductionW ?? 0;
-  const homeW = data?.homeConsumptionW ?? 0;
   const gridW = data?.gridPowerW ?? 0;
   const batteryW = data?.batteryPowerW ?? 0;
-  const hasBattery = data?.batteryPowerW !== null && data?.batteryPowerW !== undefined;
-  const isExporting = gridW < 0;
-  const batteryCharging = batteryW < -10;
-  const batteryActive = Math.abs(batteryW) > 10;
-  const batteryStatus = batteryW > 10 ? "Discharging" : batteryCharging ? "Charging" : "Idle";
-  const gridColor = isExporting ? "var(--color-grid-export)" : "var(--color-grid-import)";
+  const totalVehicleW = chargingVehicles.reduce(
+    (total, vehicle) => total + vehicle.chargePowerW,
+    0,
+  );
+  // Fronius reports site consumption, including the EV. Display ordinary home load only.
+  const homeW = Math.max(0, (data?.homeConsumptionW ?? 0) - totalVehicleW);
+  const hasBattery = data?.batteryPowerW !== null &&
+    data?.batteryPowerW !== undefined;
+  const solarToHomeW = Math.min(Math.max(0, solarW), homeW);
+  const remainingHomeW = Math.max(0, homeW - solarToHomeW);
+  const batteryToHomeW = Math.min(Math.max(0, batteryW), remainingHomeW);
+  const gridToHomeW = Math.max(0, remainingHomeW - batteryToHomeW);
+  const homeSource = dominantSource(solarToHomeW, batteryToHomeW, gridToHomeW);
+  const busSource = dominantSource(
+    solarW,
+    Math.max(0, batteryW),
+    Math.max(0, gridW),
+  );
 
   return (
-    <section className={styles.shell} data-testid="energy-flow" aria-label="Live energy flow">
-      <div className={`${styles.bus} ${hasBattery ? styles.busWithBattery : styles.busWithoutBattery}`}>
-        <FlowNode icon={<Sun size={24} />} label="Solar" value={loading ? "---" : kwValue(solarW)} className={styles.solar} active={solarW > 10} />
-
-        <BusConnector active={solarW > 10} color="var(--color-solar)" powerW={solarW} />
-
-        {hasBattery && (
-          <>
-            <FlowNode icon={<Battery size={24} />} label="Battery" value={loading ? "---" : kwValue(Math.abs(batteryW))} className={styles.battery} active={batteryActive}>
-              {!loading && data?.batterySoc != null && <div className={styles.socText}>{Math.round(data.batterySoc)}%</div>}
-              {!loading && <div className={styles.batteryStatus}>{batteryStatus}</div>}
-            </FlowNode>
-            <BusConnector active={batteryActive} color="var(--color-battery)" direction={batteryCharging ? "left" : "right"} powerW={batteryW} />
-          </>
-        )}
-
-        <FlowNode icon={<Home size={24} />} label="Home" value={loading ? "---" : kwValue(homeW)} className={styles.home} active={homeW > 10} />
-
-        <BusConnector active={Math.abs(gridW) > 10} color={gridColor} direction={isExporting ? "right" : "left"} powerW={gridW} />
-
-        <FlowNode icon={<Zap size={24} />} label="Grid" value={loading ? "---" : kwValue(Math.abs(gridW))} className={isExporting ? styles.gridExport : styles.gridImport} active={Math.abs(gridW) > 10}>
-          {!loading && Math.abs(gridW) > 10 && <div className={styles.pill}>{isExporting ? "Export" : "Import"}</div>}
-        </FlowNode>
-      </div>
-
+    <section
+      className={styles.shell}
+      data-testid="energy-flow"
+      aria-label="Live energy flow"
+    >
       {chargingVehicles.length > 0 && (
-        <div className={styles.vehicleArea}>
-          <div className={styles.vehicleStem} aria-hidden="true" />
-          <div className={styles.vehicleRow}>
-            {chargingVehicles.map((v) => <VehicleNode key={v.id} v={v} />)}
-          </div>
+        <div className={styles.vehicleFlows}>
+          {chargingVehicles.map((vehicle) => (
+            <VehicleNode key={vehicle.id} v={vehicle} />
+          ))}
         </div>
       )}
+      <div
+        className={styles.energyBus}
+        data-testid="energy-bus"
+        data-source={busSource}
+        style={{ "--bus-color": sourceColor(busSource) } as CSSProperties}
+        aria-hidden="true"
+      />
+      <EnergyEndpoints
+        loading={loading}
+        hasBattery={hasBattery}
+        solarW={solarW}
+        batteryW={batteryW}
+        batterySoc={data?.batterySoc ?? null}
+        homeW={homeW}
+        gridW={gridW}
+        homeSource={homeSource}
+        busSource={busSource}
+      />
     </section>
   );
 }

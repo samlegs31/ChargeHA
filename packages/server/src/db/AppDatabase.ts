@@ -170,6 +170,28 @@ export class AppDatabase {
   async readSecret(key: string): Promise<string | null> {
     return await readSecret(this, key, this.encryptionKey);
   }
+  /**
+   * Read a secret and upgrade an older plaintext config row to encrypted
+   * storage when ENCRYPTION_KEY is available. Config and secrets share the
+   * same KV row; is_encrypted marks whether the value is encrypted.
+   */
+  async readSecretWithConfigMigration(
+    key: CoreConfigKey,
+  ): Promise<string | null> {
+    const row = await this.getSecret(key);
+    if (row === null) return null;
+
+    if (row.isEncrypted) {
+      return await this.readSecret(key);
+    }
+
+    const plaintext = row.value;
+    if (this.encryptionKey && plaintext !== "") {
+      // storeSecret updates this SAME row with ciphertext + is_encrypted=1.
+      await this.storeSecret(key, plaintext);
+    }
+    return plaintext;
+  }
   // ---- Vehicles ----
   async getVehicle(id: string): Promise<VehicleRow | null> {
     return await this.vehicles.getVehicle(id);

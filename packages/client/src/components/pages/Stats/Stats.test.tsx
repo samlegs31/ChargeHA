@@ -211,19 +211,39 @@ describe("Stats", () => {
   // ---- Data rendering (folds L214 + L280) ----
 
   it(
-    "renders summary cards and Energy Sources values from data " +
-      "(homeSelfPoweredPercent 75 → 75%, complement 25%)",
+    "renders summary self-powered value and Energy Sources percentages",
     () => {
       setStats({ isAtPresent: false, data: mockStatsData });
 
       renderStats();
 
-      // homeSelfPoweredPercent = 75 → "75%" appears in summary card AND
-      // in Energy Sources breakdown (≥ 2 occurrences).
-      expect(screen.getAllByText("75%").length).toBeGreaterThanOrEqual(2);
-      expect(screen.getByText("25%")).toBeInTheDocument();
+      // Summary card keeps the backend self-powered metric.
+      expect(screen.getByText("75%")).toBeInTheDocument();
+
+      // Energy Sources is normalized across Solar + Battery + Grid:
+      // 3700 + 0 + 300 = 4000 Wh.
+      expect(screen.getByText("93%")).toBeInTheDocument();
+      expect(screen.getByText("7%")).toBeInTheDocument();
     },
   );
+
+  it("includes home battery in Energy Sources percentages", () => {
+    setStats({
+      isAtPresent: false,
+      data: {
+        ...mockStatsData,
+        homeBatteryDischargeWh: 500,
+      },
+    });
+
+    renderStats();
+
+    // 3700 solar + 500 battery + 300 grid = 4500 Wh
+    // Largest-remainder rounding => 82% + 11% + 7% = 100%.
+    expect(screen.getAllByText("82%").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("11%")).toBeInTheDocument();
+    expect(screen.getByText("7%")).toBeInTheDocument();
+  });
 
   it("renders chart when data is present", () => {
     setStats({ isAtPresent: false, data: mockStatsData });

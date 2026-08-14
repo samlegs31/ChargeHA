@@ -31,6 +31,8 @@ export interface ControllerConfig {
   cooldownPeriodMinutes: number;
   batteryPriorityEnabled: boolean;
   batteryPriorityLimit: number;
+  batteryDischargeToleranceW: number;
+  batteryDischargeGraceMinutes: number;
   priorityChargingEnabled: boolean;
   timezone: string;
   ampDebounceThreshold: number;
@@ -87,6 +89,8 @@ export interface VehicleControlState {
   graceStartedAt: number | null;
   graceNotified: boolean;
   cooldownUntil: number | null;
+  /** When home-battery discharge first exceeded the configured tolerance. */
+  batteryDischargeStartedAt: number | null;
   lastActiveScheduleIds: Set<string>;
   blockoutChargeNotified: boolean;
   pollingSuspended: boolean;
@@ -132,7 +136,7 @@ export interface VehicleDecision {
   checks: DecisionCheck[];
   /** When true, polling can be suspended — charging is not possible. */
   suspendable?: boolean;
-  /** Set when a charge schedule's limit was reached and the decision fell through. */
+  /** Set when an active charge schedule's target limit was reached. */
   scheduleLimitContext?: { scheduleLimitPct: number; batteryLevel: number };
 }
 
@@ -150,6 +154,7 @@ export type ControlStateUpdates = Partial<
     | "graceStartedAt"
     | "graceNotified"
     | "cooldownUntil"
+    | "batteryDischargeStartedAt"
     | "blockoutChargeNotified"
     | "pendingAmps"
     | "pendingSince"
@@ -190,6 +195,7 @@ export function createControlState(): VehicleControlState {
     graceStartedAt: null,
     graceNotified: false,
     cooldownUntil: null,
+    batteryDischargeStartedAt: null,
     lastActiveScheduleIds: new Set<string>(),
     blockoutChargeNotified: false,
     pollingSuspended: false,

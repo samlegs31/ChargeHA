@@ -74,6 +74,12 @@ const dayProfile = (offset: number): DayProfile => {
 
 const simOptions = (profile: DayProfile): SimulationOptions => ({
   seed: profile.seed,
+  vehicleMode: "auto",
+  scheduleEnabled: false,
+  scheduleStart: "00:00",
+  scheduleEnd: "00:00",
+  scheduleAmps: 16,
+  scheduleTargetPct: 80,
   vehicleCount: 1,
   waterfall: false,
   minGenKw: "1",

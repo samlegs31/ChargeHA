@@ -57,11 +57,25 @@ describe("ConfigService", () => {
     });
   });
 
+  describe("getSolarForecast", () => {
+    it("returns disabled empty defaults when no config is set", async () => {
+      const result = await service.getSolarForecast();
+      expect(result.solarForecastEnabled).toBe(false);
+      expect(result.solarForecastAddress).toBe("");
+      expect(result.solarForecastLatitude).toBe(null);
+      expect(result.solarForecastLongitude).toBe(null);
+      expect(result.solarForecastInstallationDate).toBe("");
+      expect(result.solarForecastArraysJson).toBe("[]");
+    });
+  });
+
   describe("getBattery", () => {
     it("returns defaults when no config is set", async () => {
       const result = await service.getBattery();
       expect(result.batteryPriorityEnabled).toBe(false);
       expect(result.batteryPriorityLimit).toBe(80);
+      expect(result.batteryDischargeToleranceW).toBe(300);
+      expect(result.batteryDischargeGraceMinutes).toBe(5);
     });
   });
 
@@ -136,15 +150,42 @@ describe("ConfigService", () => {
     });
   });
 
+  describe("setSolarForecast", () => {
+    it("persists location, installation date, and array JSON", async () => {
+      const arrays = JSON.stringify([
+        { name: "South", capacityKwp: 4.15, azimuthDeg: 180, tiltDeg: 18 },
+      ]);
+      await service.setSolarForecast({
+        solarForecastEnabled: true,
+        solarForecastAddress: "Tarabel, France",
+        solarForecastLatitude: 43.55,
+        solarForecastLongitude: 1.68,
+        solarForecastInstallationDate: "2022-05-30",
+        solarForecastArraysJson: arrays,
+      });
+      const result = await service.getSolarForecast();
+      expect(result.solarForecastEnabled).toBe(true);
+      expect(result.solarForecastAddress).toBe("Tarabel, France");
+      expect(result.solarForecastLatitude).toBe(43.55);
+      expect(result.solarForecastLongitude).toBe(1.68);
+      expect(result.solarForecastInstallationDate).toBe("2022-05-30");
+      expect(result.solarForecastArraysJson).toBe(arrays);
+    });
+  });
+
   describe("setBattery", () => {
     it("persists values to DB", async () => {
       await service.setBattery({
         batteryPriorityEnabled: true,
         batteryPriorityLimit: 50,
+        batteryDischargeToleranceW: 600,
+        batteryDischargeGraceMinutes: 8,
       });
       const result = await service.getBattery();
       expect(result.batteryPriorityEnabled).toBe(true);
       expect(result.batteryPriorityLimit).toBe(50);
+      expect(result.batteryDischargeToleranceW).toBe(600);
+      expect(result.batteryDischargeGraceMinutes).toBe(8);
     });
   });
 
@@ -186,6 +227,94 @@ describe("ConfigService", () => {
       const result = await service.getNotification();
       expect(result.notificationProvider).toBe("telegram");
       expect(result.notificationTelegramSilent).toBe(true);
+    });
+  });
+
+  describe("Telegram encryption with ENCRYPTION_KEY", () => {
+    it("encrypts the token in the KV row and never returns plaintext", async () => {
+      const encryptionKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+      const encryptedDb = new AppDatabase(":memory:", encryptionKey);
+      await encryptedDb.init();
+      const mockEnergyManager = throwingMock<EnergyAdapterManager>(
+        "EnergyAdapterManager",
+        { reconfigure: () => Promise.resolve() },
+      );
+      const encryptedService = new ConfigService(
+        encryptedDb,
+        mockEnergyManager,
+        encryptionKey,
+        testLogger,
+      );
+
+      try {
+        await encryptedService.setNotification({
+          notificationTelegramBotToken: "123:ENCRYPT-ME",
+        });
+
+        const row = await encryptedDb.getSecret(
+          "notification_telegram_bot_token",
+        );
+        expect(row?.isEncrypted).toBe(true);
+        expect(row?.value).not.toBe("123:ENCRYPT-ME");
+        expect(
+          await encryptedDb.readSecret("notification_telegram_bot_token"),
+        ).toBe("123:ENCRYPT-ME");
+
+        const data = await encryptedService.getNotification();
+        expect(data.notificationTelegramBotToken).toBe("********");
+      } finally {
+        encryptedDb.close();
+      }
+    });
+  });
+
+  describe("Telegram secret handling", () => {
+    it("stores the bot token as a secret and returns only a mask", async () => {
+      await service.setNotification({
+        notificationTelegramBotToken: "123:TOPSECRET",
+      });
+
+      expect(
+        await db.readSecret("notification_telegram_bot_token"),
+      ).toBe("123:TOPSECRET");
+      expect(
+        await db.getSecret("notification_telegram_bot_token"),
+      ).not.toBeNull();
+
+      const result = await service.getNotification();
+      expect(result.notificationTelegramBotToken).toBe("********");
+    });
+
+    it("preserves the token when a masked form is saved", async () => {
+      await service.setNotification({
+        notificationTelegramBotToken: "123:KEEP",
+      });
+      await service.setNotification({
+        notificationTelegramBotToken: "********",
+        notificationTelegramChatId: "456",
+      });
+
+      expect(
+        await db.readSecret("notification_telegram_bot_token"),
+      ).toBe("123:KEEP");
+      expect(await db.getConfig("notification_telegram_chat_id")).toBe("456");
+    });
+
+    it("migrates a legacy plaintext token on first read", async () => {
+      await db.setConfig(
+        "notification_telegram_bot_token",
+        "123:LEGACY",
+      );
+
+      const result = await service.getNotification();
+
+      expect(result.notificationTelegramBotToken).toBe("********");
+      expect(
+        await db.readSecret("notification_telegram_bot_token"),
+      ).toBe("123:LEGACY");
+      expect(
+        await db.getSecret("notification_telegram_bot_token"),
+      ).not.toBeNull();
     });
   });
 

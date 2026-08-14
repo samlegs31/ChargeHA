@@ -1,6 +1,10 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { validateEncryptionKey } from "./EncryptionKey.ts";
+import {
+  loadEncryptionKey,
+  selectEncryptionKeyForStartup,
+  validateEncryptionKey,
+} from "./EncryptionKey.ts";
 
 describe("validateEncryptionKey", () => {
   it("accepts a valid base64-encoded 32-byte key", () => {
@@ -66,5 +70,62 @@ describe("validateEncryptionKey", () => {
     expect(result.valid).toBe(false);
     expect(result.error).toContain("not set");
     expect(result.key).toBeUndefined();
+  });
+});
+
+describe("loadEncryptionKey", () => {
+  const validKey = btoa(String.fromCharCode(...new Uint8Array(32)));
+
+  it("loads and trims a key from a secret file", () => {
+    const result = loadEncryptionKey(
+      undefined,
+      "/run/secrets/evsolar_encryption_key",
+      () => `${validKey}\n`,
+    );
+
+    expect(result).toEqual({ valid: true, key: validKey });
+  });
+
+  it("prefers the secret file over the legacy environment value", () => {
+    const result = loadEncryptionKey(
+      "invalid-env-value",
+      "/run/secrets/evsolar_encryption_key",
+      () => validKey,
+    );
+
+    expect(result).toEqual({ valid: true, key: validKey });
+  });
+
+  it("fails closed when a configured secret file cannot be read", () => {
+    const result = loadEncryptionKey(
+      validKey,
+      "/run/secrets/missing",
+      () => {
+        throw new Error("missing");
+      },
+    );
+
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe("ENCRYPTION_KEY_FILE could not be read");
+  });
+});
+
+describe("selectEncryptionKeyForStartup", () => {
+  it("refuses startup when an explicitly configured secret file is invalid", () => {
+    expect(() =>
+      selectEncryptionKeyForStartup(
+        { valid: false, error: "ENCRYPTION_KEY_FILE could not be read" },
+        "/run/secrets/evsolar_encryption_key",
+      )
+    ).toThrow("refusing to start");
+  });
+
+  it("preserves legacy optional encryption when no secret file is configured", () => {
+    expect(
+      selectEncryptionKeyForStartup(
+        { valid: false, error: "ENCRYPTION_KEY is not set" },
+        undefined,
+      ),
+    ).toBeNull();
   });
 });

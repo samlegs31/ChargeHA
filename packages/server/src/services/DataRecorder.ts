@@ -17,10 +17,9 @@ export class DataRecorder {
   private readonly vehicleManager: VehicleManager;
   private readonly tariffService: TariffService;
   private readonly logger: Logger;
-  /** Promise of the next pending setTimeout id. The async ctor-time
-   *  scheduling means the id isn't known synchronously — wrapping it in
-   *  a promise lets `stop()` always await the in-flight schedule and
-   *  clear whatever id it lands on. */
+  /** Promise-wrapped timeout id kept for the existing stop/test contract.
+   *  Recording is intentionally fixed at 60 seconds because Stats integrate
+   *  every stored sample as one minute. */
   private timer: Promise<ReturnType<typeof setTimeout>> | null = null;
   private latestRealtime: EnergyData | null = null;
   private tickCount = 0;
@@ -56,24 +55,11 @@ export class DataRecorder {
   }
 
   private scheduleNext(): void {
-    // Read interval from DB config each tick (same pattern as ChargeController)
-    this.timer = (async () => {
-      try {
-        const val = await this.db.getConfig("recording_interval_seconds");
-        const seconds = parseInt(val ?? String(DEFAULT_INTERVAL_SECONDS), 10) ||
-          DEFAULT_INTERVAL_SECONDS;
-        return setTimeout(() => this.tick(), seconds * 1000);
-      } catch (error) {
-        this.logger.warn(
-          "Failed to read recording_interval_seconds config:",
-          error,
-        );
-        return setTimeout(
-          () => this.tick(),
-          DEFAULT_INTERVAL_SECONDS * 1000,
-        );
-      }
-    })();
+    // Fixed one-minute cadence: StatsRepository integrates each sample using
+    // 60 / 3600, so allowing another interval would make kWh/cost incorrect.
+    this.timer = Promise.resolve(
+      setTimeout(() => this.tick(), DEFAULT_INTERVAL_SECONDS * 1000),
+    );
   }
 
   private async tick(): Promise<void> {
@@ -93,7 +79,7 @@ export class DataRecorder {
           DEFAULT_LOG_RETENTION_DAYS;
         await this.db.pruneEnergyReadings(dataDays);
         await this.db.pruneVehicleChargeReadings(dataDays);
-        await this.db.pruneVehiclePollLogs(dataDays);
+        await this.db.pruneVehiclePollLogs(logDays);
         // Plugin logs are noisy per-API-call entries — short retention.
         await this.db.prunePluginLogs(logDays);
       } catch (error) {
@@ -179,9 +165,7 @@ export class DataRecorder {
         solarContributionW,
         batteryContributionW,
         gridContributionW,
-      } = isHome
-        ? homeAttribution
-        : awayDefault;
+      } = isHome ? homeAttribution : awayDefault;
       // charge_power_w carries the total for away aggregation
 
       return chain.then(() =>

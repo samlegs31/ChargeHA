@@ -73,6 +73,24 @@ describe("demoAggregate", () => {
       expect(stats.totalGridWh).toBe(900);
     });
 
+    it("keeps all battery accounting at zero in demo mode", () => {
+      expect(stats.energyBuckets[8].batteryChargeWh).toBe(0);
+      expect(stats.energyBuckets[8].batteryDischargeWh).toBe(0);
+      expect(stats.energyBuckets[8].solarToBatteryWh).toBe(0);
+      expect(stats.energyBuckets[8].gridToBatteryWh).toBe(0);
+      expect(stats.buckets[14].batteryWh).toBe(0);
+      expect(stats.homeBatteryChargeWh).toBe(0);
+      expect(stats.homeBatteryDischargeWh).toBe(0);
+      expect(stats.homeSolarToBatteryWh).toBe(0);
+      expect(stats.homeGridToBatteryWh).toBe(0);
+      expect(stats.totalBatteryWh).toBe(0);
+    });
+
+    it("keeps self-powered percentages consistent when battery flow is zero", () => {
+      expect(stats.homeSelfPoweredPercent).toBe(33);
+      expect(stats.selfPoweredPercent).toBe(0);
+    });
+
     it("builds a per-rate tariff breakdown for charging", () => {
       expect(stats.tariffBreakdown).toEqual([
         { label: "Peak", ratePerKwh: 0.45, gridWh: 900, costCents: 41 },

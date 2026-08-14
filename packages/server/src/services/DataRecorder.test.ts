@@ -125,92 +125,39 @@ describe("DataRecorder", () => {
   });
 
   describe("scheduleNext", () => {
-    it("uses custom interval from config", async () => {
+    it("records on the fixed 60-second cadence", async () => {
       const fakeTime = new FakeTime();
       try {
+        // Even a legacy/stale DB value must not change the sampling period.
         await db.setConfig("recording_interval_seconds", "30");
         feedEnergy(emitter, ENERGY_DATA);
         testable(recorder).scheduleNext();
-        // Flush the getConfig promise
-        await fakeTime.tickAsync(0);
-        // After 29s, tick should not have fired
-        await fakeTime.tickAsync(29_000);
-        const readingsBefore = await db.getRecentReadings(10);
-        expect(readingsBefore).toHaveLength(0);
-        // At 30s, tick fires
-        await fakeTime.tickAsync(1_000);
-        // Flush the async tick
-        await fakeTime.tickAsync(0);
-        const readingsAfter = await db.getRecentReadings(10);
-        expect(readingsAfter).toHaveLength(1);
-      } finally {
-        fakeTime.restore();
-        await recorder.stop();
-      }
-    });
 
-    it("uses default interval when config returns null", async () => {
-      const fakeTime = new FakeTime();
-      try {
-        // No config set — getConfig returns null, falls through to default 60s
-        feedEnergy(emitter, ENERGY_DATA);
-        testable(recorder).scheduleNext();
-        await fakeTime.tickAsync(0);
-        // At 59s, no tick
         await fakeTime.tickAsync(59_000);
-        const readingsBefore = await db.getRecentReadings(10);
-        expect(readingsBefore).toHaveLength(0);
-        // At 60s, tick fires
+        expect(await db.getRecentReadings(10)).toHaveLength(0);
+
         await fakeTime.tickAsync(1_000);
         await fakeTime.tickAsync(0);
-        const readingsAfter = await db.getRecentReadings(10);
-        expect(readingsAfter).toHaveLength(1);
+        expect(await db.getRecentReadings(10)).toHaveLength(1);
       } finally {
         fakeTime.restore();
         await recorder.stop();
       }
     });
 
-    it("uses default interval when config returns invalid value", async () => {
-      const fakeTime = new FakeTime();
-      try {
-        await db.setConfig("recording_interval_seconds", "notanumber");
-        feedEnergy(emitter, ENERGY_DATA);
-        testable(recorder).scheduleNext();
-        await fakeTime.tickAsync(0);
-        // NaN || DEFAULT → 60s
-        await fakeTime.tickAsync(60_000);
-        await fakeTime.tickAsync(0);
-        const readings = await db.getRecentReadings(10);
-        expect(readings).toHaveLength(1);
-      } finally {
-        fakeTime.restore();
-        await recorder.stop();
-      }
-    });
-
-    it("uses default interval when getConfig throws", async () => {
-      const fakeTime = new FakeTime();
+    it("does not query recording_interval_seconds while scheduling", async () => {
+      let intervalReads = 0;
       const originalGetConfig = db.getConfig.bind(db);
       const getConfigStub = stub(db, "getConfig", (key) => {
-        if (key === "recording_interval_seconds") {
-          return Promise.reject(new Error("DB error"));
-        }
+        if (key === "recording_interval_seconds") intervalReads++;
         return originalGetConfig(key);
       });
+
       try {
-        feedEnergy(emitter, ENERGY_DATA);
         testable(recorder).scheduleNext();
-        // Flush the rejected promise → catch branch
-        await fakeTime.tickAsync(0);
-        // Default 60s
-        await fakeTime.tickAsync(60_000);
-        await fakeTime.tickAsync(0);
-        const readings = await db.getRecentReadings(10);
-        expect(readings).toHaveLength(1);
+        expect(intervalReads).toBe(0);
       } finally {
         getConfigStub.restore();
-        fakeTime.restore();
         await recorder.stop();
       }
     });
@@ -273,6 +220,29 @@ describe("DataRecorder", () => {
 
         await testable(recorder).tick();
         expect(prunedDays).toBe(365);
+        await recorder.stop();
+      } finally {
+        fakeTime.restore();
+      }
+    });
+
+    it("uses log retention days for vehicle poll logs", async () => {
+      const fakeTime = new FakeTime();
+      try {
+        await db.setConfig("data_retention_days", "365");
+        await db.setConfig("log_retention_days", "30");
+        feedEnergy(emitter, ENERGY_DATA);
+        testable(recorder).tickCount = 99;
+
+        let vehiclePollDays: number | null = null;
+        const originalPrune = db.pruneVehiclePollLogs.bind(db);
+        db.pruneVehiclePollLogs = (days: number) => {
+          vehiclePollDays = days;
+          return originalPrune(days);
+        };
+
+        await testable(recorder).tick();
+        expect(vehiclePollDays).toBe(30);
         await recorder.stop();
       } finally {
         fakeTime.restore();

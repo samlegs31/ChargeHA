@@ -34,19 +34,39 @@ export class ControllerEngine {
     const { config, vehicles, schedules, energy, now, timestamp } = input;
     if (!config.chargingEnabled) {
       const decisions = new Map(
-        vehicles.map((vehicle): [string, VehicleDecision] => [vehicle.id, {
-          action: "none",
-          reason: "charging_disabled",
-          detail: "Charging disabled",
-          targetAmps: null,
-          checks: [],
-        }]),
+        vehicles.map((vehicle): [string, VehicleDecision] => {
+          // The global switch disables automation, but it must never weaken an
+          // explicit STOP. This also catches a charge restarted externally
+          // while E.V Solar automation is disabled.
+          const enforceStop = vehicle.mode === "stop" &&
+            vehicle.state?.isCharging === true;
+          return [vehicle.id, {
+            action: enforceStop ? "stop" : "none",
+            reason: enforceStop ? "mode_stop" : "charging_disabled",
+            detail: enforceStop
+              ? "Stop — mode set to stop"
+              : "Charging disabled",
+            targetAmps: null,
+            checks: [],
+          }];
+        }),
       );
       return { decisions, controlStates: this.controlStates };
     }
 
-    // Pre-compute per-vehicle solar allocation
-    const allocation = SolarAllocator.allocate(vehicles, config, energy);
+    // Both stored solar modes always use excess-solar-only behavior outside
+    // schedules, even if legacy global solar-tracking settings are disabled.
+    const solarOnlyConfig: ControllerConfig = {
+      ...config,
+      solarTrackingEnabled: true,
+      solarTrackingMode: "solar_only",
+      solarReference: "excess",
+    };
+    const allocation = SolarAllocator.allocate(
+      vehicles,
+      solarOnlyConfig,
+      energy,
+    );
     vehicles.forEach((vehicle) => {
       const cs = this.getControlState(vehicle.id);
       cs.allocatedAmps = allocation.get(vehicle.id) ?? null;
@@ -94,7 +114,21 @@ export class ControllerEngine {
     const state = vehicle.state;
     const checks = [...precondition.checks];
 
-    // Global priority 1: blockout schedules override every charging mode.
+    checks.push(DecisionChecks.mode(vehicle.mode));
+
+    // Explicit modes are authoritative. STOP is an absolute stop and
+    // CHARGE NOW is immediate; neither charge nor blockout schedules may
+    // replace those user decisions.
+    if (vehicle.mode === "stop") {
+      this.getControlState(vehicle.id).batteryDischargeStartedAt = null;
+      return { ...this.decideStopMode(state), checks };
+    }
+    if (vehicle.mode === "charge_now") {
+      this.getControlState(vehicle.id).batteryDischargeStartedAt = null;
+      return { ...this.decideChargeNowMode(state), checks };
+    }
+
+    // Blockouts remain a safety restriction for the two solar modes.
     const blockout = this.evaluateBlockout(
       state,
       config,
@@ -105,11 +139,26 @@ export class ControllerEngine {
     if (blockout.decision) {
       const cs = this.getControlState(vehicle.id);
       if (blockout.stateUpdates) Object.assign(cs, blockout.stateUpdates);
+      cs.batteryDischargeStartedAt = null;
       return { ...blockout.decision, checks };
     }
 
-    // Global priority 2: active charge schedules (typically off-peak / HC)
-    // override Charge Now, Vacation, Stop and Auto.
+    // SOLAR ONLY (stored as "vacation") never uses charge schedules.
+    if (vehicle.mode === "vacation") {
+      return this.decideSolarOnlyMode(
+        state,
+        config,
+        energy,
+        timestamp,
+        checks,
+        vehicle.id,
+        "vacation",
+      );
+    }
+
+    // Charge schedules apply only to SOLAR + CLOCK (stored as "auto").
+    // They intentionally bypass home-battery protection: off-peak charging
+    // runs at the programmed current regardless of battery discharge.
     const schedule = this.evaluateSchedule(
       vehicle,
       state,
@@ -119,6 +168,7 @@ export class ControllerEngine {
     );
     checks.push(...schedule.checks);
     if (schedule.decision) {
+      this.getControlState(vehicle.id).batteryDischargeStartedAt = null;
       return {
         ...schedule.decision,
         checks,
@@ -126,35 +176,15 @@ export class ControllerEngine {
       };
     }
 
-    checks.push(DecisionChecks.mode(vehicle.mode));
-
-    switch (vehicle.mode) {
-      case "stop":
-        return { ...this.decideStopMode(state), checks: [...checks] };
-
-      case "charge_now":
-        return { ...this.decideChargeNowMode(state), checks: [...checks] };
-
-      case "vacation":
-        return this.decideVacationMode(
-          state,
-          config,
-          energy,
-          timestamp,
-          checks,
-          vehicle.id,
-        );
-
-      case "auto":
-        return this.decideAutoMode(
-          vehicle,
-          state,
-          config,
-          energy,
-          timestamp,
-          checks,
-        );
-    }
+    return this.decideSolarOnlyMode(
+      state,
+      config,
+      energy,
+      timestamp,
+      checks,
+      vehicle.id,
+      null,
+    );
   }
 
   // ---- Preconditions ----
@@ -281,35 +311,42 @@ export class ControllerEngine {
     };
   }
 
-  // ---- Vacation mode ----
+  // ---- Solar-only behavior shared by both solar modes ----
 
-  private decideVacationMode(
+  private decideSolarOnlyMode(
     state: VehicleChargeState,
     config: ControllerConfig,
     energy: EnergyData | null,
     timestamp: number,
     outerChecks: DecisionCheck[],
     vehicleId: string,
+    reasonOverride: "vacation" | null,
   ): VehicleDecision {
     const cs = this.getControlState(vehicleId);
     const allChecks = [...outerChecks];
 
-    // Home battery keeps priority when battery priority is enabled.
-    const battery = this.evaluateBatteryPriority(state, config, energy);
+    const battery = this.evaluateBatteryProtection(
+      state,
+      config,
+      energy,
+      timestamp,
+      cs,
+    );
     allChecks.push(...battery.checks);
+    if (battery.stateUpdates) Object.assign(cs, battery.stateUpdates);
     if (battery.decision) {
       return {
         ...battery.decision,
-        reason: "vacation",
+        reason: reasonOverride ?? battery.decision.reason,
         checks: allChecks,
       };
     }
 
-    // Vacation always means:
+    // Both SOLAR ONLY and SOLAR + CLOCK outside a schedule mean:
     // - solar surplus only
     // - never intentionally supplement from the grid
     // - solar tracking active even if normal Auto solar tracking is disabled
-    const vacationConfig: ControllerConfig = {
+    const solarOnlyConfig: ControllerConfig = {
       ...config,
       solarTrackingEnabled: true,
       solarTrackingMode: "solar_only",
@@ -318,7 +355,7 @@ export class ControllerEngine {
 
     const solar = this.evaluateSolarTracking(
       state,
-      vacationConfig,
+      solarOnlyConfig,
       energy,
       timestamp,
       cs,
@@ -329,57 +366,21 @@ export class ControllerEngine {
       if (solar.stateUpdates) Object.assign(cs, solar.stateUpdates);
       return {
         ...solar.decision,
-        reason: "vacation",
+        reason: reasonOverride ?? solar.decision.reason,
         checks: allChecks,
       };
     }
 
     return {
       action: state.isCharging ? "stop" : "none",
-      reason: "vacation",
+      reason: reasonOverride ?? "solar_tracking",
       detail: state.isCharging
-        ? "Stop — vacation mode, no usable solar surplus"
-        : "Vacation — waiting for solar surplus",
+        ? "Stop — no usable solar surplus"
+        : "Solar only — waiting for solar surplus",
       targetAmps: null,
       checks: allChecks,
       suspendable: !state.isCharging,
     };
-  }
-
-  // ---- Auto mode pipeline ----
-
-  private decideAutoMode(
-    vehicle: EngineVehicleInput,
-    state: VehicleChargeState,
-    config: ControllerConfig,
-    energy: EnergyData | null,
-    timestamp: number,
-    outerChecks: DecisionCheck[],
-  ): VehicleDecision {
-    const cs = this.getControlState(vehicle.id);
-    const allChecks = [...outerChecks];
-
-    const battery = this.evaluateBatteryPriority(state, config, energy);
-    allChecks.push(...battery.checks);
-    if (battery.decision) {
-      return { ...battery.decision, checks: allChecks };
-    }
-
-    const solar = this.evaluateSolarTracking(
-      state,
-      config,
-      energy,
-      timestamp,
-      cs,
-    );
-    allChecks.push(...solar.checks);
-    if (solar.decision) {
-      if (solar.stateUpdates) Object.assign(cs, solar.stateUpdates);
-      return { ...solar.decision, checks: allChecks };
-    }
-
-    const fallback = this.decideDefault(state);
-    return { ...fallback, checks: allChecks };
   }
 
   // ---- Evaluation steps ----
@@ -481,17 +482,23 @@ export class ControllerEngine {
     return makeDecision("none", `Already charging at ${amps}A (schedule)`);
   }
 
-  private evaluateBatteryPriority(
+  private evaluateBatteryProtection(
     state: VehicleChargeState,
     config: ControllerConfig,
     energy: EnergyData | null,
+    timestamp: number,
+    controlState: Readonly<VehicleControlState>,
   ): EvalResult {
     const checks: DecisionCheck[] = [];
     if (!config.batteryPriorityEnabled || !energy) {
       checks.push(DecisionChecks.batteryPrioritySkip(
         config.batteryPriorityEnabled,
       ));
-      return { decision: null, checks };
+      return {
+        decision: null,
+        checks,
+        stateUpdates: { batteryDischargeStartedAt: null },
+      };
     }
 
     const belowLimit = energy.batterySoc !== null &&
@@ -502,18 +509,87 @@ export class ControllerEngine {
       belowLimit,
     ));
 
-    if (!belowLimit) return { decision: null, checks };
+    if (belowLimit) {
+      return {
+        decision: {
+          action: state.isCharging ? "stop" : "none",
+          reason: "battery_priority",
+          detail: state.isCharging
+            ? `Stop — home battery below minimum SOC (${energy.batterySoc}% < ${config.batteryPriorityLimit}%)`
+            : `Waiting — home battery below minimum SOC (${energy.batterySoc}% < ${config.batteryPriorityLimit}%)`,
+          targetAmps: null,
+        },
+        checks,
+        stateUpdates: { batteryDischargeStartedAt: null },
+      };
+    }
+
+    const dischargeW = energy.batteryPowerW === null
+      ? null
+      : Math.max(0, energy.batteryPowerW);
+    const excessiveDischarge = dischargeW !== null &&
+      dischargeW > config.batteryDischargeToleranceW;
+
+    if (!excessiveDischarge) {
+      checks.push(DecisionChecks.batteryDischarge(
+        dischargeW,
+        config.batteryDischargeToleranceW,
+      ));
+      return {
+        decision: null,
+        checks,
+        stateUpdates: { batteryDischargeStartedAt: null },
+      };
+    }
+
+    if (!state.isCharging) {
+      checks.push(DecisionChecks.batteryDischarge(
+        dischargeW,
+        config.batteryDischargeToleranceW,
+      ));
+      return {
+        decision: {
+          action: "none",
+          reason: "battery_priority",
+          detail: `Waiting — home battery discharging at ${
+            Math.round(dischargeW)
+          }W (tolerance ${config.batteryDischargeToleranceW}W)`,
+          targetAmps: null,
+        },
+        checks,
+        stateUpdates: { batteryDischargeStartedAt: null },
+      };
+    }
+
+    const startedAt = controlState.batteryDischargeStartedAt ?? timestamp;
+    const elapsedSec = Math.round((timestamp - startedAt) / 1000);
+    const graceSec = config.batteryDischargeGraceMinutes * 60;
+    checks.push(DecisionChecks.batteryDischarge(
+      dischargeW,
+      config.batteryDischargeToleranceW,
+      elapsedSec,
+      graceSec,
+    ));
+
+    if (elapsedSec < graceSec) {
+      return {
+        decision: null,
+        checks,
+        stateUpdates: { batteryDischargeStartedAt: startedAt },
+      };
+    }
 
     return {
       decision: {
-        action: state.isCharging ? "stop" : "none",
+        action: "stop",
         reason: "battery_priority",
-        detail: state.isCharging
-          ? `Stop — battery priority (${energy.batterySoc}% < ${config.batteryPriorityLimit}%)`
-          : `Waiting for home battery (${energy.batterySoc}% < ${config.batteryPriorityLimit}%)`,
+        detail: `Stop — home battery discharging at ${
+          Math.round(dischargeW)
+        }W for ${elapsedSec}s (tolerance ${config.batteryDischargeToleranceW}W)`,
         targetAmps: null,
       },
       checks,
+      stateUpdates: { batteryDischargeStartedAt: null },
     };
   }
 
@@ -543,18 +619,6 @@ export class ControllerEngine {
       decision: result.decision,
       checks: [...checks, ...result.checks],
       stateUpdates: result.stateUpdates,
-    };
-  }
-
-  private decideDefault(state: VehicleChargeState): PipelineDecision {
-    return {
-      action: state.isCharging ? "stop" : "none",
-      reason: "idle",
-      detail: state.isCharging
-        ? "Stop — no schedule or solar tracking"
-        : "Idle — no schedule or solar tracking active",
-      targetAmps: null,
-      suspendable: !state.isCharging,
     };
   }
 

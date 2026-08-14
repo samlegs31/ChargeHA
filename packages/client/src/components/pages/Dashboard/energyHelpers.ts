@@ -17,11 +17,11 @@ export function formatTimeUntil(isoString: string): string {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
-/** Per-vehicle { solarW, gridW } map for currently-charging vehicles. */
+/** Per-vehicle source attribution for currently-charging vehicles. */
 export function useVehicleSolarGrid(
   realtime: EnergyData | null,
   vehicles: VehicleWithState[],
-): Record<string, { solarW: number; gridW: number }> {
+): Record<string, { solarW: number; batteryW: number; gridW: number }> {
   return useMemo(() => {
     if (!realtime) return {};
 
@@ -42,6 +42,7 @@ export function useVehicleSolarGrid(
           totalChargePowerW,
           realtime.solarProductionW,
           realtime.homeConsumptionW,
+          realtime.batteryPowerW ?? 0,
         ),
       ]),
     );
@@ -70,6 +71,7 @@ export function useChargingVehicleFlows(
         name: v.name || v.state.vehicleName,
         chargePowerW: v.state.chargePowerKw * 1000,
         solarW: vehicleSolarGrid[v.id]?.solarW ?? 0,
+        batteryW: vehicleSolarGrid[v.id]?.batteryW ?? 0,
         gridW: vehicleSolarGrid[v.id]?.gridW ?? 0,
       }));
   }, [vehicles, vehicleSolarGrid]);

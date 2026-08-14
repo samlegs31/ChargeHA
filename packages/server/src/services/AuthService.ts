@@ -15,7 +15,7 @@ const SESSION_TTL_SECS = 30 * 24 * 60 * 60;
 const SESSION_COOKIE_MAX_AGE = 30 * 24 * 60 * 60;
 
 /** Minimum password length for local auth. */
-const MIN_PASSWORD_LENGTH = 1;
+const MIN_PASSWORD_LENGTH = 15;
 
 /** Auth mode type. */
 export type AuthMode = "none" | "local" | "oidc";
@@ -189,7 +189,7 @@ export class AuthService {
 
   /**
    * Change the current user's password.
-   * Verifies current password, validates new password (min 8 chars),
+   * Verifies current password, validates new password (min 15 chars),
    * updates the hash, and invalidates all sessions except the current one.
    */
   async changePassword(

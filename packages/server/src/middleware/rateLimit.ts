@@ -26,17 +26,23 @@ export class RateLimiter {
   private records = new Map<string, AttemptRecord>();
 
   /**
-   * Extract client IP from a request.
-   * Reads X-Forwarded-For first value when present, falls back to remote address.
+   * Extract client IP for brute-force limiting.
+   *
+   * The TCP peer address is authoritative by default. X-Forwarded-For is only
+   * consulted when the caller explicitly marks the peer as a trusted proxy;
+   * otherwise a client could rotate a spoofed header to bypass the limiter.
    */
   extractIp(
     headers: { get(name: string): string | null },
     remoteAddr?: string,
+    trustForwarded = false,
   ): string {
-    const forwarded = headers.get("x-forwarded-for");
-    if (forwarded) {
-      const first = forwarded.split(",")[0].trim();
-      if (first) return first;
+    if (trustForwarded) {
+      const forwarded = headers.get("x-forwarded-for");
+      if (forwarded) {
+        const first = forwarded.split(",")[0].trim();
+        if (first) return first;
+      }
     }
     return remoteAddr ?? "unknown";
   }

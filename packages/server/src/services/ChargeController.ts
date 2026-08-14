@@ -78,7 +78,7 @@ interface DecisionLogEntry {
   targetAmps: number | null;
   /** When true, polling can be suspended for this vehicle. */
   suspendable?: boolean;
-  /** Set when a charge schedule's limit was reached and the decision fell through. */
+  /** Set when an active charge schedule's target limit was reached. */
   scheduleLimitContext?: { scheduleLimitPct: number; batteryLevel: number };
 }
 
@@ -151,25 +151,26 @@ export class ChargeController {
     // Compute context for middleware requests
     const hasSolar = energy !== null &&
       energy.solarProductionW >= config.minSolarGenerationKw * 1000;
-    const hasBlockout = schedules.some(
-      (s) => this.isActiveBlockout(s, now, config.timezone),
-    );
-
     // Request fresh state for each vehicle via middleware
     const engineVehicles: EngineVehicleInput[] = await Promise.all(
       vehicles.map(async (v) => {
         const applicable = schedules.filter((s) =>
           this.isScheduleApplicable(s, v.id, now, config.timezone)
         );
-        const activeChargeSchedule = applicable.find(
-          (s) => s.scheduleType === "charge",
+        const isSolarMode = v.mode === "auto" || v.mode === "vacation";
+        const activeChargeSchedule = v.mode === "auto"
+          ? applicable.find((s) => s.scheduleType === "charge")
+          : undefined;
+        const hasActiveBlockout = applicable.some(
+          (s) => s.scheduleType === "blockout",
         );
+        const hasApplicableBlockout = isSolarMode && hasActiveBlockout;
         await this.vehicleManager.requestState(v.id, {
           origin: "controller",
           traceId,
-          hasSolar,
-          hasSchedule: applicable.length > 0,
-          hasBlockout,
+          hasSolar: isSolarMode && hasSolar,
+          hasSchedule: activeChargeSchedule !== undefined,
+          hasBlockout: hasApplicableBlockout,
           scheduleChargeLimitPct: activeChargeSchedule?.chargeLimitPct ?? null,
         });
         const state = await this.vehicleManager.getState(v.id);
@@ -586,6 +587,8 @@ export class ChargeController {
       ampDebounceSettleMinutes: solar.ampDebounceSettleMinutes,
       batteryPriorityEnabled: battery.batteryPriorityEnabled,
       batteryPriorityLimit: battery.batteryPriorityLimit,
+      batteryDischargeToleranceW: battery.batteryDischargeToleranceW,
+      batteryDischargeGraceMinutes: battery.batteryDischargeGraceMinutes,
       priorityChargingEnabled: charging.priorityChargingEnabled,
       timezone: system.timezone,
     };

@@ -6,6 +6,7 @@ import {
   homeConfigInput,
   notificationConfigInput,
   solarConfigInput,
+  solarForecastConfigInput,
   systemConfigInput,
 } from "@chargeha/shared/configSections";
 import {
@@ -28,6 +29,13 @@ const solarRouter = router({
   set: publicProcedure
     .input(solarConfigInput)
     .mutation(({ ctx, input }) => ctx.configService.setSolar(input)),
+});
+
+const solarForecastRouter = router({
+  get: publicProcedure.query(({ ctx }) => ctx.configService.getSolarForecast()),
+  set: publicProcedure
+    .input(solarForecastConfigInput)
+    .mutation(({ ctx, input }) => ctx.configService.setSolarForecast(input)),
 });
 
 const batteryRouter = router({
@@ -71,6 +79,7 @@ export const configRouter = router({
   // Per-section typed sub-routers (core sections only)
   charging: chargingRouter,
   solar: solarRouter,
+  solarForecast: solarForecastRouter,
   battery: batteryRouter,
   home: homeRouter,
   equipment: equipmentRouter,

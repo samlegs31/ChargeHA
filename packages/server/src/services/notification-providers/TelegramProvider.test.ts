@@ -151,6 +151,19 @@ describe("TelegramProvider", () => {
       expect(harness.fetchMock.calls[0].init?.method).toBe("POST");
     });
 
+    it("migrates a legacy plaintext token before sending", async () => {
+      await harness.configure();
+
+      await harness.provider.send(TEST_PAYLOAD);
+
+      expect(
+        await harness.db.readSecret("notification_telegram_bot_token"),
+      ).toBe("123:ABC");
+      expect(
+        await harness.db.getSecret("notification_telegram_bot_token"),
+      ).not.toBeNull();
+    });
+
     it("sends correct body with chat_id and HTML parse mode", async () => {
       await harness.configure();
 

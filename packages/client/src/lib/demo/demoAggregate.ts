@@ -143,6 +143,10 @@ const buildBuckets = (
       label: labelFn(key),
       solarProductionWh: round(e?.solarProductionWh ?? 0),
       solarWh: round(e?.solarWh ?? 0),
+      batteryChargeWh: 0,
+      batteryDischargeWh: 0,
+      solarToBatteryWh: 0,
+      gridToBatteryWh: 0,
       gridWh: round(e?.gridWh ?? 0),
       totalWh: round(e?.totalWh ?? 0),
       costCents: round(e?.costCents ?? 0),
@@ -154,6 +158,7 @@ const buildBuckets = (
     return {
       label: labelFn(key),
       solarWh: round(c?.solarWh ?? 0),
+      batteryWh: 0,
       gridWh: round(c?.gridWh ?? 0),
       awayWh: round(c?.awayWh ?? 0),
       totalWh: round(c?.totalWh ?? 0),
@@ -168,29 +173,38 @@ const sum = <T>(rows: T[], pick: (r: T) => number): number =>
 
 const computeEnergyTotals = (e: EnergyBucket[]) => {
   const homeSolarWh = sum(e, (b) => b.solarWh);
+  const homeBatteryDischargeWh = sum(e, (b) => b.batteryDischargeWh);
   const homeConsumedWh = sum(e, (b) => b.totalWh);
+  const homeSelfPoweredWh = homeSolarWh + homeBatteryDischargeWh;
   return {
     homeSolarProductionWh: sum(e, (b) => b.solarProductionWh),
     homeConsumedWh,
     homeSolarWh,
+    homeBatteryChargeWh: sum(e, (b) => b.batteryChargeWh),
+    homeBatteryDischargeWh,
+    homeSolarToBatteryWh: sum(e, (b) => b.solarToBatteryWh),
+    homeGridToBatteryWh: sum(e, (b) => b.gridToBatteryWh),
     homeGridWh: sum(e, (b) => b.gridWh),
     homeSelfPoweredPercent: homeConsumedWh > 0
-      ? Math.round((homeSolarWh / homeConsumedWh) * 100)
+      ? Math.round((homeSelfPoweredWh / homeConsumedWh) * 100)
       : 0,
   };
 };
 
 const computeChargeTotals = (b: StatsBucket[]) => {
   const totalSolarWh = sum(b, (x) => x.solarWh);
+  const totalBatteryWh = sum(b, (x) => x.batteryWh);
   const totalGridWh = sum(b, (x) => x.gridWh);
-  const homeChargeTotal = totalSolarWh + totalGridWh;
+  const homeChargeTotal = totalSolarWh + totalBatteryWh + totalGridWh;
+  const selfPoweredWh = totalSolarWh + totalBatteryWh;
   return {
     totalSolarWh,
+    totalBatteryWh,
     totalGridWh,
     totalAwayWh: sum(b, (x) => x.awayWh),
     totalChargedWh: sum(b, (x) => x.totalWh),
     selfPoweredPercent: homeChargeTotal > 0
-      ? Math.round((totalSolarWh / homeChargeTotal) * 100)
+      ? Math.round((selfPoweredWh / homeChargeTotal) * 100)
       : 0,
     totalCostCents: sum(b, (x) => x.costCents ?? 0),
   };

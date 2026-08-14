@@ -180,13 +180,13 @@ describe("AuthStep", () => {
       target: { value: "admin" },
     });
     fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "" },
+      target: { value: "too-short" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
       expect(
-        screen.getByText("Password is required"),
+        screen.getByText("Password must be at least 15 characters"),
       ).toBeInTheDocument();
     });
     expect(mockSetAuthModeMutateAsync).not.toHaveBeenCalled();
@@ -204,14 +204,14 @@ describe("AuthStep", () => {
       target: { value: "admin" },
     });
     fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "password123" },
+      target: { value: "secure-password-123" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
     await waitFor(() => {
       expect(mockSetAuthModeMutateAsync).toHaveBeenCalledWith({
         mode: "local",
-        localConfig: { username: "admin", password: "password123" },
+        localConfig: { username: "admin", password: "secure-password-123" },
         oidcConfig: undefined,
       });
     });

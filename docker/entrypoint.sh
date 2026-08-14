@@ -10,6 +10,7 @@ echo "[entrypoint] Starting ChargeHA server..."
 #   TLS cert on localhost:4443. Without this flag, Deno rejects the cert and ALL
 #   vehicle commands fail. Do NOT remove this flag.
 exec deno run \
+  --cached-only \
   --allow-net \
   --allow-read \
   --allow-write \

@@ -630,8 +630,8 @@ function VehiclesSection(
             onChange={(e) =>
               set("vehicleMode", e.target.value as "auto" | "vacation")}
           >
-            <option value="auto">Auto</option>
-            <option value="vacation">Vacation</option>
+            <option value="auto">Solar + clock</option>
+            <option value="vacation">Solar Only</option>
           </select>
         </div>
         <NumInput

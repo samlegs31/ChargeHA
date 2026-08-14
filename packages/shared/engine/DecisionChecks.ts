@@ -6,6 +6,7 @@ export type CheckName =
   | "location"
   | "battery_at_limit"
   | "battery_priority"
+  | "battery_discharge"
   | "solar_tracking"
   | "blockout_schedule"
   | "charge_schedule"
@@ -21,6 +22,19 @@ export type CheckName =
 export interface DecisionCheck {
   check: CheckName;
   result: string;
+}
+
+function batteryDischargeGraceResult(
+  elapsedSec?: number,
+  graceSec?: number,
+): string {
+  if (elapsedSec === undefined || graceSec === undefined) {
+    return "blocking start";
+  }
+  if (elapsedSec >= graceSec) {
+    return `grace expired (${elapsedSec}s >= ${graceSec}s)`;
+  }
+  return `grace active (${elapsedSec}s < ${graceSec}s)`;
 }
 
 /**
@@ -96,6 +110,28 @@ export class DecisionChecks {
       };
     }
     return { check: "battery_priority", result: "no battery data" };
+  }
+
+  static batteryDischarge(
+    dischargeW: number | null,
+    toleranceW: number,
+    elapsedSec?: number,
+    graceSec?: number,
+  ): DecisionCheck {
+    if (dischargeW === null) {
+      return { check: "battery_discharge", result: "no battery power data" };
+    }
+    if (dischargeW <= toleranceW) {
+      return {
+        check: "battery_discharge",
+        result: `ok (${Math.round(dischargeW)}W <= ${toleranceW}W)`,
+      };
+    }
+    const grace = batteryDischargeGraceResult(elapsedSec, graceSec);
+    return {
+      check: "battery_discharge",
+      result: `high (${Math.round(dischargeW)}W > ${toleranceW}W) — ${grace}`,
+    };
   }
 
   static solarTrackingSkip(enabled: boolean): DecisionCheck {

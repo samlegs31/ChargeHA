@@ -246,7 +246,7 @@ describe("AuthSettings", () => {
     fireEvent.submit(screen.getByTestId("change-password-form"));
 
     expect(
-      screen.getByText("New password is required"),
+      screen.getByText("New password must be at least 15 characters"),
     ).toBeInTheDocument();
     expect(mockChangePasswordMutate).not.toHaveBeenCalled();
   });
@@ -258,10 +258,10 @@ describe("AuthSettings", () => {
       target: { value: "oldpass123" },
     });
     fireEvent.change(screen.getByLabelText("New Password"), {
-      target: { value: "newpassword1" },
+      target: { value: "new-secure-password-1" },
     });
     fireEvent.change(screen.getByLabelText("Confirm New Password"), {
-      target: { value: "newpassword2" },
+      target: { value: "new-secure-password-2" },
     });
     fireEvent.submit(screen.getByTestId("change-password-form"));
 
@@ -280,16 +280,16 @@ describe("AuthSettings", () => {
       target: { value: "oldpass123" },
     });
     fireEvent.change(screen.getByLabelText("New Password"), {
-      target: { value: "newpassword123" },
+      target: { value: "new-secure-password-123" },
     });
     fireEvent.change(screen.getByLabelText("Confirm New Password"), {
-      target: { value: "newpassword123" },
+      target: { value: "new-secure-password-123" },
     });
     fireEvent.submit(screen.getByTestId("change-password-form"));
 
     expect(mockChangePasswordMutate).toHaveBeenCalledWith({
       currentPassword: "oldpass123",
-      newPassword: "newpassword123",
+      newPassword: "new-secure-password-123",
     });
   });
 
@@ -300,10 +300,10 @@ describe("AuthSettings", () => {
       target: { value: "oldpass123" },
     });
     fireEvent.change(screen.getByLabelText("New Password"), {
-      target: { value: "newpassword123" },
+      target: { value: "new-secure-password-123" },
     });
     fireEvent.change(screen.getByLabelText("Confirm New Password"), {
-      target: { value: "newpassword123" },
+      target: { value: "new-secure-password-123" },
     });
     fireEvent.submit(screen.getByTestId("change-password-form"));
 
@@ -326,10 +326,10 @@ describe("AuthSettings", () => {
       target: { value: "wrongpass" },
     });
     fireEvent.change(screen.getByLabelText("New Password"), {
-      target: { value: "newpassword123" },
+      target: { value: "new-secure-password-123" },
     });
     fireEvent.change(screen.getByLabelText("Confirm New Password"), {
-      target: { value: "newpassword123" },
+      target: { value: "new-secure-password-123" },
     });
     fireEvent.submit(screen.getByTestId("change-password-form"));
 

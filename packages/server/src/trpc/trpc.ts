@@ -19,6 +19,7 @@ import type { AuthService } from "../services/AuthService.ts";
 import type { OidcService } from "../services/OidcService.ts";
 import type { GeocodeService } from "../services/GeocodeService.ts";
 import type { HealthService } from "../services/HealthService.ts";
+import type { SolarForecastService } from "../services/SolarForecastService.ts";
 import type { RateLimiter } from "../middleware/rateLimit.ts";
 import { AuthError } from "../services/AuthService.ts";
 import { GeocodeError } from "../services/GeocodeService.ts";
@@ -44,6 +45,7 @@ export interface TrpcContext {
   logger: Logger;
   geocodeService: GeocodeService;
   healthService: HealthService;
+  solarForecastService: SolarForecastService;
   authService: AuthService;
   oidcService: OidcService;
   rateLimiter: RateLimiter;

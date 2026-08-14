@@ -180,9 +180,10 @@ function PageHeader(
       </div>
       <div>
         <Text size="2" color="gray">
-          Charge schedules override solar tracking and charge at the set rate
-          regardless of solar production. Use these for off-peak windows where
-          you want guaranteed charging.
+          Charge schedules run only when the vehicle is in SOLAR + 🕒 mode.
+          During an active window, charging uses the programmed current
+          regardless of solar production or home-battery discharge. Use these
+          windows for guaranteed off-peak charging.
         </Text>
       </div>
       {activeScheduleNotes.map((note) => (
@@ -286,6 +287,26 @@ function BlockoutSection(
   );
 }
 
+function ScheduleBehaviorNote() {
+  return (
+    <Card className={styles.infoCard}>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <Info
+          size={16}
+          style={{ color: "var(--gray-9)", flexShrink: 0, marginTop: 2 }}
+        />
+        <Text size="1" color="gray">
+          Outside scheduled windows, SOLAR + 🕒 uses the same excess-solar logic
+          as SOLAR ONLY, including solar grace/cooldown and home-battery
+          protection. SOLAR ONLY never uses charge schedules. Blockouts stop
+          both solar modes and take priority over charge schedules. STOP is
+          absolute; CHARGE NOW starts immediately and ignores schedules.
+        </Text>
+      </div>
+    </Card>
+  );
+}
+
 export function Schedules({ onNavigateSettings }: SchedulesProps) {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const {
@@ -378,21 +399,7 @@ export function Schedules({ onNavigateSettings }: SchedulesProps) {
         schedules={schedules}
       />
 
-      {/* Info note */}
-      <Card className={styles.infoCard}>
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <Info
-            size={16}
-            style={{ color: "var(--gray-9)", flexShrink: 0, marginTop: 2 }}
-          />
-          <Text size="1" color="gray">
-            Outside of scheduled windows, vehicles in Auto mode will charge
-            based on excess solar production. Blockout schedules take priority
-            over charge schedules — if a blockout is active, charging will not
-            start regardless of other settings.
-          </Text>
-        </div>
-      </Card>
+      <ScheduleBehaviorNote />
     </div>
   );
 }

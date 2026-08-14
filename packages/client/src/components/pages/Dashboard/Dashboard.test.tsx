@@ -138,6 +138,15 @@ vi.mock("../../../trpc.ts", () => ({
         useQuery: vi.fn(() => ({ data: [], isLoading: false, error: null })),
       },
     },
+    forecast: {
+      today: {
+        useQuery: vi.fn(() => ({
+          data: undefined,
+          isLoading: false,
+          isError: true,
+        })),
+      },
+    },
     vehicle: {
       command: {
         useMutation: vi.fn(() => ({
@@ -188,14 +197,15 @@ vi.mock("../../MetricCard/MetricCard.tsx", () => ({
   ),
 }));
 
-// VehicleCard mock surfaces solarPowerW/gridPowerW so tests can assert the
-// computed solar/grid split per vehicle.
+// VehicleCard mock surfaces solar/battery/grid power so tests can assert the
+// computed source split per vehicle.
 vi.mock("../../VehicleCard/VehicleCard.tsx", () => ({
   VehicleCard: (
-    { name, onNavigateSettings, solarPowerW, gridPowerW }: {
+    { name, onNavigateSettings, solarPowerW, batteryPowerW, gridPowerW }: {
       name: string;
       onNavigateSettings?: () => void;
       solarPowerW?: number;
+      batteryPowerW?: number;
       gridPowerW?: number;
     },
   ) => (
@@ -203,6 +213,7 @@ vi.mock("../../VehicleCard/VehicleCard.tsx", () => ({
       data-testid="vehicle-card"
       data-name={name}
       data-solar-w={solarPowerW ?? ""}
+      data-battery-w={batteryPowerW ?? ""}
       data-grid-w={gridPowerW ?? ""}
     >
       {name}
@@ -534,6 +545,32 @@ describe("Dashboard", () => {
     const card = screen.getByTestId("vehicle-card");
     expect(card.getAttribute("data-solar-w")).toBe("3000");
     expect(card.getAttribute("data-grid-w")).toBe("0");
+  });
+
+  it("passes computed battery contribution to VehicleCard", () => {
+    // 1 kW EV load, 2.5 kW ordinary home load, 2 kW solar and 1 kW
+    // home-battery discharge -> 500 W battery remains available for the EV.
+    h.setEnergy({
+      realtime: {
+        solarProductionW: 2000,
+        gridPowerW: 500,
+        homeConsumptionW: 3500,
+        batteryPowerW: 1000,
+        batterySoc: 70,
+      },
+    });
+    h.setVehicles([
+      makeVehicle({
+        state: makeVehicleState({ isCharging: true, chargePowerKw: 1.0 }),
+      }),
+    ]);
+
+    h.render();
+
+    const card = screen.getByTestId("vehicle-card");
+    expect(card.getAttribute("data-solar-w")).toBe("0");
+    expect(card.getAttribute("data-battery-w")).toBe("500");
+    expect(card.getAttribute("data-grid-w")).toBe("500");
   });
 
   it("renders multiple charging vehicles and computes individual solar/grid splits", () => {

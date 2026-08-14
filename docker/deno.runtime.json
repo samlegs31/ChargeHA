@@ -1,0 +1,22 @@
+{
+  "workspace": [
+    "./packages/shared",
+    "./packages/server",
+    "./packages/plugins"
+  ],
+  "nodeModulesDir": "none",
+  "minimumDependencyAge": "P14D",
+  "compilerOptions": {
+    "strict": true
+  },
+  "imports": {
+    "@db/sqlite": "jsr:@db/sqlite@^0.12",
+    "drizzle-orm": "npm:drizzle-orm@^0.45.1",
+    "better-sqlite3": "npm:better-sqlite3@11.10.0",
+    "typescript": "npm:typescript@5.9.3",
+    "@ts-rex/argon2": "jsr:@ts-rex/argon2@^1.0.3",
+    "jsmodbus": "npm:jsmodbus@^4",
+    "oauth4webapi": "npm:oauth4webapi@^3",
+    "zod": "npm:zod@^3.24"
+  }
+}

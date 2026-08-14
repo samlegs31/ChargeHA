@@ -374,4 +374,21 @@ describe("getApplicablePeriodForTime", () => {
     const result = getApplicablePeriodForTime(420, "tue", periods);
     expect(result).toBeNull();
   });
+  it("carries a Monday-only overnight tariff into Tuesday morning", () => {
+    const periods = [
+      makePeriod({
+        startTime: "22:00",
+        endTime: "07:00",
+        ratePerKwh: 8,
+        days: ["mon"],
+        label: "Monday night",
+      }),
+    ];
+
+    expect(getApplicablePeriodForTime(23 * 60, "mon", periods)?.ratePerKwh)
+      .toBe(8);
+    expect(getApplicablePeriodForTime(3 * 60, "tue", periods)?.ratePerKwh)
+      .toBe(8);
+    expect(getApplicablePeriodForTime(3 * 60, "wed", periods)).toBeNull();
+  });
 });

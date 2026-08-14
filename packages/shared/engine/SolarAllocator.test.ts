@@ -54,6 +54,8 @@ describe("SolarAllocator", () => {
     cooldownPeriodMinutes: 15,
     batteryPriorityEnabled: false,
     batteryPriorityLimit: 0,
+    batteryDischargeToleranceW: 300,
+    batteryDischargeGraceMinutes: 5,
     priorityChargingEnabled: true,
     timezone: "",
     ampDebounceThreshold: 2,
@@ -341,6 +343,17 @@ describe("SolarAllocator", () => {
         BASE_ENERGY,
       );
       expect(result.size).toBe(0);
+    });
+
+    it("allocates excess solar across SOLAR ONLY vehicles", () => {
+      const vehicles: EngineVehicleInput[] = [
+        { ...makeVehicle("v1", 1), mode: "vacation" },
+        { ...makeVehicle("v2", 2), mode: "vacation" },
+      ];
+      const energy = { ...BASE_ENERGY, gridPowerW: -2300 };
+      const result = SolarAllocator.waterfall(vehicles, BASE_CONFIG, energy);
+      expect(result.get("v1")).toBe(10);
+      expect(result.get("v2")).toBe(0);
     });
 
     it("gives all amps to priority 1 when it can absorb everything", () => {

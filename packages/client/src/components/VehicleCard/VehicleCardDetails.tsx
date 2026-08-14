@@ -5,7 +5,6 @@ import {
   CloudSun,
   Plug,
   ShieldBan,
-  Sun,
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -94,6 +93,7 @@ interface VehicleCardDetailsProps {
   onStopCharging: () => void;
   onSetAmps: (amps: number) => void;
   solarPowerW: number;
+  batteryPowerW: number;
   gridPowerW: number;
   chargeLimitPercent: number;
   allocationStatus: string | null;
@@ -204,6 +204,7 @@ export function VehicleCardDetails({
   onStopCharging,
   onSetAmps,
   solarPowerW,
+  batteryPowerW,
   gridPowerW,
   chargeLimitPercent,
   allocationStatus,
@@ -237,11 +238,14 @@ export function VehicleCardDetails({
         )}
         {state.isCharging && (
           <>
-            {(solarPowerW > 0 || gridPowerW > 0) && (
+            {(solarPowerW > 0 || batteryPowerW > 0 || gridPowerW > 0) && (
               <div className={styles.detailRow}>
-                <Sun size={14} />
+                <ArrowUpDown size={14} />
                 <Text size="1" color="gray">
-                  {kwValue(solarPowerW)} solar, {kwValue(gridPowerW)} grid
+                  {kwValue(solarPowerW)} solar
+                  {batteryPowerW > 0 &&
+                    `, ${kwValue(batteryPowerW)} battery`}
+                  {`, ${kwValue(gridPowerW)} grid`}
                 </Text>
               </div>
             )}

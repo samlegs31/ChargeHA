@@ -126,37 +126,31 @@ describe("RateLimiter", () => {
   });
 
   describe("extractIp()", () => {
-    it("reads first value from X-Forwarded-For", () => {
+    it("uses the TCP peer address by default even if X-Forwarded-For is present", () => {
       const headers = new Headers({
-        "x-forwarded-for": "10.0.0.1, 172.16.0.1, 192.168.0.1",
+        "x-forwarded-for": "10.0.0.1, 172.16.0.1",
       });
-      expect(limiter.extractIp(headers)).toBe("10.0.0.1");
+      expect(limiter.extractIp(headers, "192.168.1.100")).toBe(
+        "192.168.1.100",
+      );
     });
 
-    it("reads single value from X-Forwarded-For", () => {
-      const headers = new Headers({ "x-forwarded-for": "10.0.0.1" });
-      expect(limiter.extractIp(headers)).toBe("10.0.0.1");
-    });
-
-    it("trims whitespace from X-Forwarded-For values", () => {
+    it("uses X-Forwarded-For only when the peer is explicitly trusted", () => {
       const headers = new Headers({
-        "x-forwarded-for": "  10.0.0.1  , 172.16.0.1",
+        "x-forwarded-for": "10.0.0.1, 172.16.0.1",
       });
-      expect(limiter.extractIp(headers)).toBe("10.0.0.1");
+      expect(limiter.extractIp(headers, "127.0.0.1", true)).toBe("10.0.0.1");
     });
 
-    it("falls back to remote address when no X-Forwarded-For", () => {
-      const headers = new Headers();
-      expect(limiter.extractIp(headers, "192.168.1.100")).toBe("192.168.1.100");
-    });
-
-    it("falls back to remote address when X-Forwarded-For is empty", () => {
+    it("falls back to the trusted proxy peer when forwarded header is empty", () => {
       const headers = new Headers({ "x-forwarded-for": "" });
-      expect(limiter.extractIp(headers, "192.168.1.100")).toBe("192.168.1.100");
+      expect(limiter.extractIp(headers, "127.0.0.1", true)).toBe("127.0.0.1");
     });
 
-    it("returns 'unknown' when no IP source available", () => {
-      const headers = new Headers();
+    it("returns 'unknown' when no TCP peer is available", () => {
+      const headers = new Headers({
+        "x-forwarded-for": "10.0.0.1",
+      });
       expect(limiter.extractIp(headers)).toBe("unknown");
     });
   });

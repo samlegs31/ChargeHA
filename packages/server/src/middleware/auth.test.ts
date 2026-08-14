@@ -7,18 +7,33 @@ import { makeSession, setupAuthApp } from "../test-helpers/authHarness.ts";
 // ── isHttps ─────────────────────────────────────────────────────────────────
 
 describe("isHttps()", () => {
-  it("returns true when X-Forwarded-Proto is https", () => {
+  it("ignores X-Forwarded-Proto from an untrusted client", () => {
     const req = new Request("http://localhost/test", {
       headers: { "X-Forwarded-Proto": "https" },
+    });
+    expect(isHttps(req)).toBe(false);
+  });
+
+  it("accepts X-Forwarded-Proto from a loopback proxy", () => {
+    const req = new Request("http://localhost/test", {
+      headers: {
+        "X-Forwarded-Proto": "https",
+        "X-Evsolar-Remote-Ip": "127.0.0.1",
+      },
     });
     expect(isHttps(req)).toBe(true);
   });
 
-  it("returns false when X-Forwarded-Proto is http", () => {
+  it("accepts X-Forwarded-Proto from an explicitly configured trusted proxy", () => {
+    Deno.env.set("TRUSTED_PROXY_IPS", "192.168.1.10");
     const req = new Request("http://localhost/test", {
-      headers: { "X-Forwarded-Proto": "http" },
+      headers: {
+        "X-Forwarded-Proto": "https",
+        "X-Evsolar-Remote-Ip": "192.168.1.10",
+      },
     });
-    expect(isHttps(req)).toBe(false);
+    expect(isHttps(req)).toBe(true);
+    Deno.env.delete("TRUSTED_PROXY_IPS");
   });
 
   it("returns true when URL scheme is https", () => {
@@ -41,7 +56,10 @@ describe("hstsMiddleware()", () => {
     app.get("/test", (c) => c.text("ok"));
 
     const res = await app.request("/test", {
-      headers: { "X-Forwarded-Proto": "https" },
+      headers: {
+        "X-Forwarded-Proto": "https",
+        "X-Evsolar-Remote-Ip": "127.0.0.1",
+      },
     });
 
     expect(res.headers.get("Strict-Transport-Security")).toBe(
@@ -64,6 +82,7 @@ describe("hstsMiddleware()", () => {
 describe("createAuthMiddleware()", () => {
   beforeEach(() => {
     Deno.env.delete("RESET_AUTH");
+    Deno.env.delete("TRUSTED_PROXY_IPS");
   });
 
   describe("auth_mode === 'none'", () => {
@@ -116,6 +135,16 @@ describe("createAuthMiddleware()", () => {
 
       const res = await app.request("/auth/oidc/callback");
       expect(res.status).toBe(200);
+    });
+
+    it("allows Tesla OAuth callback without auth", async () => {
+      const { app } = setupAuthApp({ authMode: "local" });
+
+      const res = await app.request(
+        "/api/vehicle/tesla/callback?code=abc&state=xyz",
+      );
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("tesla callback");
     });
 
     it("allows GET / (the SPA shell) without auth", async () => {

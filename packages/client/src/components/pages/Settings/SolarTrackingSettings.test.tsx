@@ -16,44 +16,15 @@ const { mockSolarMutate, st } = vi.hoisted(() => ({
   mockSolarMutate: vi.fn(),
   st: {
     solarConfigData: null as Record<string, unknown> | null,
-    batteryConfigData: null as Record<string, unknown> | null,
-    energyData: undefined as
-      | { realtime: Record<string, unknown> | null }
-      | undefined,
-    vehiclesData: undefined as
-      | { vehicles: Array<{ id: string; name: string }> }
-      | undefined,
   },
 }));
 
 vi.mock("../../../hooks/useSectionConfig.ts", () => ({
   useSolarConfig: () => ({ data: st.solarConfigData }),
-  useBatteryConfig: () => ({ data: st.batteryConfigData }),
   useSolarConfigMutation: () => ({
     mutate: mockSolarMutate,
     saveStatus: { state: "idle", tick: 0 },
   }),
-}));
-
-vi.mock("../../../hooks/useEnergyData.ts", () => ({
-  useEnergyData: () => ({ data: st.energyData }),
-}));
-
-vi.mock("../../../hooks/useSchedules.ts", () => ({
-  useSchedules: () => ({ schedules: [] }),
-}));
-
-vi.mock("../../../trpc.ts", () => ({
-  widenTrpc: vi.fn(),
-  trpc: {
-    vehicle: {
-      list: {
-        useQuery: vi.fn(() => ({
-          data: st.vehiclesData,
-        })),
-      },
-    },
-  },
 }));
 
 vi.mock("./SettingsLayout.tsx", () => ({
@@ -96,10 +67,6 @@ vi.mock("./SettingsLayout.tsx", () => ({
   ),
 }));
 
-vi.mock("../../SolarSimulation/SolarSimulation.tsx", () => ({
-  SolarSimulation: () => <div data-testid="solar-simulation" />,
-}));
-
 describe("SolarTrackingSettings", () => {
   const defaultSolarConfig = () => ({
     solarTrackingEnabled: true,
@@ -119,12 +86,6 @@ describe("SolarTrackingSettings", () => {
 
   beforeEach(() => {
     st.solarConfigData = defaultSolarConfig();
-    st.batteryConfigData = {
-      batteryPriorityEnabled: false,
-      batteryPriorityLimit: 80,
-    };
-    st.energyData = undefined;
-    st.vehiclesData = undefined;
     mockSolarMutate.mockClear();
   });
 
@@ -144,9 +105,6 @@ describe("SolarTrackingSettings", () => {
   });
 
   it.each([
-    "Solar tracking enabled",
-    "Mode",
-    "Reference",
     "Solar margin",
     "Min solar generation",
     "Min excess solar",
@@ -155,7 +113,6 @@ describe("SolarTrackingSettings", () => {
     "Grid voltage",
     "Three-phase charger",
     "Consumption excludes charging",
-    "Simulate",
   ])("renders %s control", (label) => {
     renderWithProviders(<SolarTrackingSettings />);
     expect(screen.getByText(label)).toBeInTheDocument();
@@ -166,19 +123,14 @@ describe("SolarTrackingSettings", () => {
     expect(screen.getByText("0.5 kW")).toBeInTheDocument();
   });
 
-  it("shows simulation when simulate button clicked", () => {
+  it("does not expose legacy solar mode/reference controls or the stale simulator", () => {
     renderWithProviders(<SolarTrackingSettings />);
-    expect(screen.queryByTestId("solar-simulation")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText("Simulate"));
-    expect(screen.getByTestId("solar-simulation")).toBeInTheDocument();
-  });
-
-  it("hides simulation on second click", () => {
-    renderWithProviders(<SolarTrackingSettings />);
-    fireEvent.click(screen.getByText("Simulate"));
-    expect(screen.getByTestId("solar-simulation")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Simulate"));
-    expect(screen.queryByTestId("solar-simulation")).not.toBeInTheDocument();
+    expect(screen.queryByText("Solar tracking enabled")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mode")).not.toBeInTheDocument();
+    expect(screen.queryByText("Reference")).not.toBeInTheDocument();
+    expect(screen.queryByText("Solar + Grid")).not.toBeInTheDocument();
+    expect(screen.queryByText("Gross Solar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Simulate")).not.toBeInTheDocument();
   });
 
   it("hides debounce fields until Advanced is toggled", () => {

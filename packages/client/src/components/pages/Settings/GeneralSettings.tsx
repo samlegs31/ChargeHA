@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { Server } from "lucide-react";
-import { Select } from "@radix-ui/themes";
+import { Select, Text } from "@radix-ui/themes";
 import {
   useHomeConfig,
   useSystemConfig,
@@ -56,17 +56,9 @@ export function GeneralSettings() {
 
         <SettingsRow
           label="Recording interval"
-          help="How often energy readings are saved to the database."
+          help="Fixed at 60 seconds so energy and cost statistics remain accurate."
         >
-          <NumberInput
-            value={String(fields.recordingIntervalSeconds)}
-            onChange={(v) =>
-              setField("recordingIntervalSeconds", parseInt(v) || 60)}
-            suffix="sec"
-            step={10}
-            min={10}
-            max={300}
-          />
+          <Text size="2" color="gray">60 sec (fixed)</Text>
         </SettingsRow>
 
         <SettingsRow

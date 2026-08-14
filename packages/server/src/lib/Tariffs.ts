@@ -62,17 +62,26 @@ export function getApplicablePeriodForTime(
   dayAbbr: DayOfWeek,
   tariffPeriods: TariffPeriodRow[],
 ): TariffPeriodRow | null {
+  const dayIndex = ALL_DAYS.indexOf(dayAbbr);
+  const previousDay = ALL_DAYS[
+    (dayIndex + ALL_DAYS.length - 1) % ALL_DAYS.length
+  ] as DayOfWeek;
+
   const matches = tariffPeriods
     .filter((p) => p.enabled)
-    .filter((p) => p.days.includes(dayAbbr))
     .filter((p) => {
       const start = parseTimeToMinutes(p.startTime);
       const end = parseTimeToMinutes(p.endTime);
+
       if (start > end) {
-        // Overnight period (e.g. 22:00-07:00): matches if current >= start OR current < end
-        return minutesSinceMidnight >= start || minutesSinceMidnight < end;
+        // An overnight period belongs to the day on which it starts.
+        if (minutesSinceMidnight >= start) return p.days.includes(dayAbbr);
+        if (minutesSinceMidnight < end) return p.days.includes(previousDay);
+        return false;
       }
-      return minutesSinceMidnight >= start && minutesSinceMidnight < end;
+
+      return p.days.includes(dayAbbr) &&
+        minutesSinceMidnight >= start && minutesSinceMidnight < end;
     });
 
   if (matches.length === 0) return null;

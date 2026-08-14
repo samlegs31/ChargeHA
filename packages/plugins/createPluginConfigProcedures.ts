@@ -9,6 +9,8 @@ import type { SectionDef } from "@chargeha/shared/configSections";
 import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDependencies";
 import { publicProcedure } from "../server/src/trpc/trpc.ts";
 
+const SECRET_MASK = "********";
+
 /**
  * Creates reusable getConfig/setConfig tRPC procedures for a plugin.
  *
@@ -38,10 +40,12 @@ export function createPluginConfigProcedures(
     getConfig: publicProcedure.query(async () => {
       const entries = await Promise.all(
         dbKeys.map(async (key) => {
-          const value = secretKeySet.has(key)
-            ? await deps.getSecret(key)
-            : await deps.getConfig(key);
-          return [key, value] as const;
+          if (secretKeySet.has(key)) {
+            // Never send decrypted credentials back to the browser.
+            const secret = await deps.getSecret(key);
+            return [key, secret ? SECRET_MASK : null] as const;
+          }
+          return [key, await deps.getConfig(key)] as const;
         }),
       );
       return deserializeSection(configDef, Object.fromEntries(entries));
@@ -54,11 +58,14 @@ export function createPluginConfigProcedures(
         const kvPairs = serializeSection(configDef, validated);
 
         await Promise.all(
-          Object.entries(kvPairs).map(([key, value]) =>
-            secretKeySet.has(key)
-              ? deps.setSecret(key, value)
-              : deps.setConfig(key, value)
-          ),
+          Object.entries(kvPairs).map(([key, value]) => {
+            if (secretKeySet.has(key)) {
+              // The mask means "configured but unchanged".
+              if (value === SECRET_MASK) return Promise.resolve();
+              return deps.setSecret(key, value);
+            }
+            return deps.setConfig(key, value);
+          }),
         );
 
         deps.log.info("Plugin config updated");

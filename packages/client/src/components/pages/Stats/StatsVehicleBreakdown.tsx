@@ -17,6 +17,44 @@ interface StatsVehicleBreakdownProps {
   resolution: DayResolution;
 }
 
+function energySourcePercentages(
+  solarWh: number,
+  batteryWh: number,
+  gridWh: number,
+) {
+  const values = [
+    Math.max(0, solarWh),
+    Math.max(0, batteryWh),
+    Math.max(0, gridWh),
+  ];
+  const total = values.reduce((sum, value) => sum + value, 0);
+
+  if (total <= 0) {
+    return { solarPct: 0, batteryPct: 0, gridPct: 0 };
+  }
+
+  const raw = values.map((value) => (value / total) * 100);
+  const pct = raw.map(Math.floor);
+  let remaining = 100 - pct.reduce((sum, value) => sum + value, 0);
+
+  const order = raw
+    .map((value, index) => ({
+      index,
+      fraction: value - pct[index],
+    }))
+    .sort((a, b) => b.fraction - a.fraction);
+
+  for (let i = 0; i < remaining; i++) {
+    pct[order[i].index]++;
+  }
+
+  return {
+    solarPct: pct[0],
+    batteryPct: pct[1],
+    gridPct: pct[2],
+  };
+}
+
 /** Renders a single vehicle charging card matching the "Vehicle Charging" layout. */
 function VehicleChargingCard({
   title,
@@ -175,9 +213,14 @@ export function StatsVehicleBreakdown(
     hasConfiguredVehicles,
     vehicleBreakdownsLoading,
     currencySymbol,
-    gridPercent,
     activeVehicleBreakdowns,
   } = useVehicleBreakdowns({ data, loading, period, cursor, resolution });
+
+  const { solarPct, batteryPct, gridPct } = energySourcePercentages(
+    data?.homeSolarWh ?? 0,
+    data?.homeBatteryDischargeWh ?? 0,
+    data?.homeGridWh ?? 0,
+  );
 
   return (
     <>
@@ -199,7 +242,7 @@ export function StatsVehicleBreakdown(
             {kwhValue(data?.homeSolarWh ?? 0)}
           </Text>
           <Text size="2" color="gray" className={styles.breakdownPct}>
-            {data?.homeSelfPoweredPercent ?? 0}%
+            {solarPct}%
           </Text>
         </div>
         <div className={styles.breakdownRow}>
@@ -214,7 +257,9 @@ export function StatsVehicleBreakdown(
           <Text size="2" className={styles.breakdownValue}>
             {kwhValue(data?.homeBatteryDischargeWh ?? 0)}
           </Text>
-          <Text size="2" color="gray" className={styles.breakdownPct} />
+          <Text size="2" color="gray" className={styles.breakdownPct}>
+            {batteryPct}%
+          </Text>
         </div>
         <div className={styles.breakdownRow}>
           <div
@@ -229,7 +274,7 @@ export function StatsVehicleBreakdown(
             {kwhValue(data?.homeGridWh ?? 0)}
           </Text>
           <Text size="2" color="gray" className={styles.breakdownPct}>
-            {gridPercent}%
+            {gridPct}%
           </Text>
         </div>
       </Card>

@@ -586,8 +586,9 @@ export class StatsService {
       (s, b) => s + b.totalWh,
       0,
     );
+    const homeSelfPoweredWh = homeSolarWh + homeBatteryDischargeWh;
     const homeSelfPoweredPercent = homeConsumedWh > 0
-      ? Math.round((homeSolarWh / homeConsumedWh) * 100)
+      ? Math.round((homeSelfPoweredWh / homeConsumedWh) * 100)
       : 0;
     return {
       homeSolarProductionWh,
@@ -626,8 +627,9 @@ export class StatsService {
     );
     // selfPoweredPercent is based on home charging only (away excluded)
     const homeChargeTotal = totalSolarWh + totalBatteryWh + totalGridWh;
+    const selfPoweredWh = totalSolarWh + totalBatteryWh;
     const selfPoweredPercent = homeChargeTotal > 0
-      ? Math.round((totalSolarWh / homeChargeTotal) * 100)
+      ? Math.round((selfPoweredWh / homeChargeTotal) * 100)
       : 0;
     const totalCostCents = buckets.reduce(
       (s, b) => s + (b.costCents ?? 0),

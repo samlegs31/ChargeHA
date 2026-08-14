@@ -69,6 +69,8 @@ describe("BatterySettings", () => {
     state.batteryConfigData = {
       batteryPriorityEnabled: false,
       batteryPriorityLimit: 80,
+      batteryDischargeToleranceW: 300,
+      batteryDischargeGraceMinutes: 5,
     };
     state.energyData = undefined;
     mockBatteryMutate.mockClear();
@@ -94,10 +96,10 @@ describe("BatterySettings", () => {
     expect(screen.getByText("Beta")).toBeInTheDocument();
   });
 
-  it("renders battery priority enabled switch", () => {
+  it("renders home battery protection switch", () => {
     renderWithProviders(<BatterySettings />);
     expect(
-      screen.getByText("Battery priority enabled"),
+      screen.getByText("Home battery protection"),
     ).toBeInTheDocument();
   });
 
@@ -110,12 +112,24 @@ describe("BatterySettings", () => {
       state.batteryConfigData = {
         batteryPriorityEnabled: enabled,
         batteryPriorityLimit: limit,
+        batteryDischargeToleranceW: 300,
+        batteryDischargeGraceMinutes: 5,
       };
       renderWithProviders(<BatterySettings />);
-      expect(screen.getByText("Battery priority limit")).toBeInTheDocument();
+      expect(screen.getByText("Minimum home battery SOC")).toBeInTheDocument();
       expect(screen.getByText(`${limit}%`)).toBeInTheDocument();
     },
   );
+
+  it("renders discharge tolerance and grace period", () => {
+    renderWithProviders(<BatterySettings />);
+    expect(screen.getByText("Tolerated battery discharge"))
+      .toBeInTheDocument();
+    expect(screen.getByText("300 W")).toBeInTheDocument();
+    expect(screen.getByText("Battery discharge grace period"))
+      .toBeInTheDocument();
+    expect(screen.getByText("5 min")).toBeInTheDocument();
+  });
 
   it("shows detected badge with SOC when battery is reporting", () => {
     state.energyData = {

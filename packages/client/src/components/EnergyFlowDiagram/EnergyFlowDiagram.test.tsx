@@ -72,6 +72,26 @@ describe("EnergyFlowDiagram", () => {
       expect(screen.getByText("Import")).toBeInTheDocument();
       expect(screen.getByText("200 W")).toBeInTheDocument();
     });
+
+    it("shows ordinary home load without counting the charging vehicle twice", () => {
+      const vehicle: ChargingVehicleFlow = {
+        id: "friday",
+        name: "F.R.I.D.A.Y.",
+        chargePowerW: 4600,
+        solarW: 4600,
+        gridW: 0,
+      };
+
+      renderWithProviders(
+        <EnergyFlowDiagram
+          data={makeEnergyData({ homeConsumptionW: 5400 })}
+          chargingVehicles={[vehicle]}
+        />,
+      );
+
+      expect(screen.getByText("800 W")).toBeInTheDocument();
+      expect(screen.queryByText("5.4 kW")).not.toBeInTheDocument();
+    });
   });
 
   // ---- battery node ----
@@ -128,6 +148,78 @@ describe("EnergyFlowDiagram", () => {
       expect(screen.getByText(label)).toBeInTheDocument();
       expect(screen.getByText(expected)).toBeInTheDocument();
     });
+
+    it("animates import upward in red and export downward in green", () => {
+      const { rerender } = renderWithProviders(
+        <EnergyFlowDiagram
+          data={makeEnergyData({ solarProductionW: 0, gridPowerW: 800 })}
+        />,
+      );
+
+      expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+        "data-direction",
+        "up",
+      );
+      expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+        "data-source",
+        "grid",
+      );
+      expect(screen.getByTestId("flow-grid").getAttribute("style")).toContain(
+        "--flow-color: var(--color-grid-import)",
+      );
+
+      rerender(
+        <EnergyFlowDiagram
+          data={makeEnergyData({ solarProductionW: 1800, gridPowerW: -600 })}
+        />,
+      );
+      expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+        "data-direction",
+        "down",
+      );
+      expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+        "data-source",
+        "solar",
+      );
+      expect(screen.getByTestId("flow-grid").getAttribute("style")).toContain(
+        "--flow-color: var(--color-grid-export)",
+      );
+    });
+
+    it("uses real branch directions for solar, home, and the battery", () => {
+      const { rerender } = renderWithProviders(
+        <EnergyFlowDiagram
+          data={makeEnergyData({ batteryPowerW: -1200, batterySoc: 65 })}
+        />,
+      );
+
+      expect(screen.getByTestId("flow-solar")).toHaveAttribute(
+        "data-direction",
+        "up",
+      );
+      expect(screen.getByTestId("flow-home")).toHaveAttribute(
+        "data-direction",
+        "down",
+      );
+      expect(screen.getByTestId("flow-battery")).toHaveAttribute(
+        "data-direction",
+        "down",
+      );
+
+      rerender(
+        <EnergyFlowDiagram
+          data={makeEnergyData({ batteryPowerW: 1200, batterySoc: 64 })}
+        />,
+      );
+      expect(screen.getByTestId("flow-battery")).toHaveAttribute(
+        "data-direction",
+        "up",
+      );
+      expect(screen.getByTestId("flow-battery")).toHaveAttribute(
+        "data-source",
+        "battery",
+      );
+    });
   });
 
   // ---- charging vehicles ----
@@ -138,6 +230,7 @@ describe("EnergyFlowDiagram", () => {
       name: "Model 3",
       chargePowerW: 7400,
       solarW: 5000,
+      batteryW: 0,
       gridW: 2400,
     };
 

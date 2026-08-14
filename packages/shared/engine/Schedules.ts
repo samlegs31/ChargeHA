@@ -54,9 +54,7 @@ export function isScheduleActiveNow(
     ? parseTimezone(now, timezone)
     : { day: now.getDay(), hours: now.getHours(), minutes: now.getMinutes() };
 
-  // Check day of week
   const dayKey = DAY_MAP[String(day)];
-  if (!schedule.days.includes(dayKey)) return false;
 
   // Parse time strings
   const currentMinutes = hours * 60 + minutes;
@@ -66,10 +64,20 @@ export function isScheduleActiveNow(
   const endMinutes = endH * 60 + endM;
 
   if (startMinutes <= endMinutes) {
-    // Normal range (e.g. 09:00 - 17:00)
-    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
-  } else {
-    // Overnight range (e.g. 22:00 - 06:00)
-    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+    // Normal range: the current calendar day must be selected.
+    return schedule.days.includes(dayKey) &&
+      currentMinutes >= startMinutes && currentMinutes < endMinutes;
   }
+
+  // Overnight range (e.g. Monday 22:00 - Tuesday 06:00).
+  // Before midnight, the window belongs to the current day. After midnight,
+  // it belongs to the previous day — the day on which the schedule started.
+  if (currentMinutes >= startMinutes) {
+    return schedule.days.includes(dayKey);
+  }
+  if (currentMinutes < endMinutes) {
+    const previousDay = DAY_MAP[String((day + 6) % 7)];
+    return schedule.days.includes(previousDay);
+  }
+  return false;
 }

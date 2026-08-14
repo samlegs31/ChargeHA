@@ -63,6 +63,8 @@ function buildControllerConfig(opts: SimulationOptions): ControllerConfig {
     ampDebounceSettleMinutes: opts.ampDebounceSettleMinutes ?? 3,
     batteryPriorityEnabled: opts.batteryPriorityEnabled,
     batteryPriorityLimit: opts.batteryPriorityLimit,
+    batteryDischargeToleranceW: 300,
+    batteryDischargeGraceMinutes: 5,
     priorityChargingEnabled: opts.waterfall,
     timezone: "",
   };

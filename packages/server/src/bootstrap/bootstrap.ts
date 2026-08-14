@@ -22,6 +22,7 @@ import { VehicleService } from "../services/VehicleService.ts";
 import { TariffService } from "../services/TariffService.ts";
 import { StatsService } from "../services/StatsService.ts";
 import { ConfigService } from "../services/ConfigService.ts";
+import { SolarForecastService } from "../services/SolarForecastService.ts";
 import { GeocodeService } from "../services/GeocodeService.ts";
 import { OidcService } from "../services/OidcService.ts";
 import { RateLimiter } from "../middleware/rateLimit.ts";
@@ -46,6 +47,8 @@ import {
   isHttps,
 } from "../middleware/auth.ts";
 import { createOidcRoutes } from "../routes/oidcAuth.ts";
+import { registerPublicPluginRoutes } from "../routes/publicPluginRoutes.ts";
+import { createHealthRoutes } from "../routes/health.ts";
 import { createAppRouter } from "../trpc/root.ts";
 import type { TrpcContext } from "../trpc/trpc.ts";
 
@@ -145,6 +148,14 @@ function buildAuxServices(
     db,
     new Logger("EnergyPoller", logLevel),
   );
+  const solarForecastService = new SolarForecastService(
+    db,
+    configService,
+    vehicleManager,
+    poller,
+    scheduleService,
+    new Logger("SolarForecast", logLevel),
+  );
 
   return {
     tariffService,
@@ -159,6 +170,7 @@ function buildAuxServices(
     wizardService,
     logService,
     poller,
+    solarForecastService,
   };
 }
 
@@ -246,6 +258,7 @@ function buildServices(
     wizardService,
     logService,
     poller,
+    solarForecastService,
   } = auxServices;
 
   registerNotificationListeners({
@@ -289,6 +302,7 @@ function buildServices(
     wizardService,
     logService,
     poller,
+    solarForecastService,
     healthService,
   };
 }
@@ -318,8 +332,39 @@ function buildHttpApp(
   });
 
   const app = new Hono();
-  app.use(secureHeaders({ strictTransportSecurity: false }));
+  app.use(
+    secureHeaders({
+      strictTransportSecurity: false,
+      contentSecurityPolicy: {
+        defaultSrc: ["'self'"],
+        baseUri: ["'self'"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'", "data:"],
+        formAction: ["'self'"],
+        frameAncestors: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        manifestSrc: ["'self'"],
+        mediaSrc: ["'self'", "blob:"],
+        objectSrc: ["'none'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        workerSrc: ["'self'", "blob:"],
+      },
+      permissionsPolicy: {
+        bluetooth: ["none"],
+        camera: ["none"],
+        geolocation: ["none"],
+        microphone: ["none"],
+        payment: ["none"],
+        serial: ["none"],
+        usb: ["none"],
+      },
+    }),
+  );
   app.use(hstsMiddleware());
+
+  // Docker healthcheck: real endpoint, not the SPA fallback.
+  app.route("/health", createHealthRoutes(db));
 
   const authLogger = new Logger("Auth", logLevel);
   app.use(
@@ -336,6 +381,13 @@ function buildHttpApp(
       oidcService: services.oidcService,
       logger: authLogger,
     }),
+  );
+
+  // Publish plugin-owned public resources at their canonical root paths.
+  // Tesla uses this for /.well-known/appspecific/com.tesla.3p.public-key.pem.
+  registerPublicPluginRoutes(
+    app,
+    vehicleRegistry.getAll().flatMap((plugin) => plugin.getTunnelRoutes()),
   );
 
   vehicleRegistry.getAll().forEach((plugin) => {
@@ -355,6 +407,7 @@ function buildHttpApp(
     configService: services.configService,
     geocodeService: services.geocodeService,
     healthService: services.healthService,
+    solarForecastService: services.solarForecastService,
     scheduleService: services.scheduleService,
     wizardService: services.wizardService,
     logService: services.logService,
@@ -392,6 +445,7 @@ function setupTrpcEndpoint(
     configService: ConfigService;
     geocodeService: GeocodeService;
     healthService: HealthService;
+    solarForecastService: SolarForecastService;
     scheduleService: ScheduleService;
     wizardService: WizardService;
     logService: LogService;
@@ -423,6 +477,7 @@ function setupTrpcEndpoint(
         configService: ctx.configService,
         geocodeService: ctx.geocodeService,
         healthService: ctx.healthService,
+        solarForecastService: ctx.solarForecastService,
         scheduleService: ctx.scheduleService,
         wizardService: ctx.wizardService,
         logService: ctx.logService,
@@ -436,7 +491,7 @@ function setupTrpcEndpoint(
         oidcService: ctx.oidcService,
         rateLimiter: ctx.rateLimiter,
         responseHeaders,
-        clientIp: extractClientIp(c.req.raw),
+        clientIp: extractClientIp(c.req.raw, ctx.rateLimiter),
         isHttps: isHttps(c.req.raw),
         sessionId: parseCookieValue(c.req.header("Cookie"), "session_id"),
       }),
@@ -525,7 +580,16 @@ export async function bootstrap(): Promise<
     logLevel,
   });
 
-  const server = Deno.serve({ port }, app.fetch);
+  const server = Deno.serve({ port }, (request, info) => {
+    // Inject the TCP peer address ourselves. Any same-named client header is
+    // overwritten here, so downstream auth/rate-limit code can trust it.
+    const headers = new Headers(request.headers);
+    const remoteIp = info.remoteAddr.transport === "tcp"
+      ? info.remoteAddr.hostname
+      : "local";
+    headers.set("x-evsolar-remote-ip", remoteIp);
+    return app.fetch(new Request(request, { headers }));
+  });
   serverLogger.info(
     `ChargeHA running on http://localhost:${port} (log level: ${logLevel})`,
   );
@@ -559,11 +623,24 @@ function parseCookieValue(
   return rest.join("=");
 }
 
-function extractClientIp(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0].trim();
-    if (first) return first;
-  }
-  return "unknown";
+function isTrustedProxyIp(remoteIp: string): boolean {
+  if (remoteIp === "127.0.0.1" || remoteIp === "::1") return true;
+  const configured = (Deno.env.get("TRUSTED_PROXY_IPS") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return configured.includes(remoteIp);
+}
+
+function extractClientIp(req: Request, rateLimiter: RateLimiter): string {
+  // The Deno.serve wrapper sets this from ServeHandlerInfo.remoteAddr and
+  // overwrites any same-named client header. Forwarded addresses are accepted
+  // only when that TCP peer is explicitly trusted as a proxy.
+  const remoteIp = req.headers.get("x-evsolar-remote-ip");
+  if (!remoteIp) return "unknown";
+  return rateLimiter.extractIp(
+    req.headers,
+    remoteIp,
+    isTrustedProxyIp(remoteIp),
+  );
 }

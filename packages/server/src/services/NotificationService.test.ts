@@ -181,6 +181,12 @@ describe("NotificationService", () => {
 
       await svc.sendTest();
       expect(telegramProvider.sentPayloads).toHaveLength(1);
+      expect(
+        await db.readSecret("notification_telegram_bot_token"),
+      ).toBe("test-token");
+      expect(
+        await db.getSecret("notification_telegram_bot_token"),
+      ).not.toBeNull();
     });
 
     it("skips config fields with no DB key mapping", async () => {

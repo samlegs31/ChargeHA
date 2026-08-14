@@ -175,8 +175,8 @@ export class VehicleService {
       mode,
     });
 
-    // For charge_now, start charging at max amps immediately rather than
-    // waiting for the next controller loop (up to 30s delay).
+    // Explicit modes take effect immediately rather than waiting for the next
+    // controller loop (up to 30s delay).
     if (mode === "charge_now") {
       const state = await this.vehicleManager.getState(vehicleId);
       if (state) {
@@ -185,6 +185,16 @@ export class VehicleService {
           state.chargeAmpsMax,
           { origin: "user:charge-now", traceId: createTraceId() },
           state,
+        );
+      }
+    } else if (mode === "stop") {
+      const state = await this.vehicleManager.getState(vehicleId);
+      if (state?.isCharging) {
+        await this.vehicleManager.stopCharging(
+          vehicleId,
+          { origin: "user:mode-stop", traceId: createTraceId() },
+          state,
+          { force: true },
         );
       }
     }

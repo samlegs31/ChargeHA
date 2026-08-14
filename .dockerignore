@@ -2,6 +2,7 @@ node_modules
 .git
 .env
 data
+backups/
 
 coverage
 coverage_*

@@ -108,7 +108,9 @@ export class NotificationService {
         )
         .map(async (field) => {
           const dbKey = PROP_TO_DB_KEY[field.key];
-          const val = await this.db.getConfig(dbKey);
+          const val = dbKey === "notification_telegram_bot_token"
+            ? await this.db.readSecretWithConfigMigration(dbKey)
+            : await this.db.getConfig(dbKey);
           return val ? [field.key, val] as const : null;
         }),
     );

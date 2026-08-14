@@ -71,7 +71,7 @@ export class TeslaProxyManager {
           "-tls-key",
           tlsKeyPath,
           "-host",
-          "0.0.0.0",
+          "127.0.0.1",
           "-port",
           String(this.port),
           "-timeout",
@@ -83,7 +83,7 @@ export class TeslaProxyManager {
 
       this.process = cmd.spawn();
       this.logger.info(
-        `Tesla HTTP proxy started on port ${this.port} (PID ${this.process.pid})`,
+        `Tesla HTTP proxy started on 127.0.0.1:${this.port} (PID ${this.process.pid})`,
       );
 
       // Log proxy output in background

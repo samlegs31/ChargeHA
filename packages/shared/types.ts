@@ -293,7 +293,8 @@ export const NOTIFICATION_EVENTS: NotificationEventInfo[] = [
   {
     key: "mode_changed",
     label: "Mode Changed",
-    description: "Vehicle mode switched (Auto / Charge Now / Stop)",
+    description:
+      "Vehicle mode switched (Solar + clock / Solar Only / Charge Now / Stop)",
   },
   {
     key: "arrived_home_not_plugged_in",

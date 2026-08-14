@@ -615,6 +615,43 @@ describe("VehicleService", () => {
       expect(result).toEqual({ success: true, mode: "charge_now" });
       expect(startCalled).toBe(false);
     });
+
+    it("stop immediately stops a charging vehicle", async () => {
+      let stoppedWith:
+        | { vehicleId: string; origin: string; force: boolean | undefined }
+        | undefined;
+      mgr = makeMockVehicleManager({
+        getState: () => Promise.resolve({ ...CHARGE_STATE, isCharging: true }),
+        stopCharging: (
+          vehicleId: string,
+          ctx: { origin: string },
+          _state: VehicleChargeState,
+          options?: { force?: boolean },
+        ) => {
+          stoppedWith = {
+            vehicleId,
+            origin: ctx.origin,
+            force: options?.force,
+          };
+          return Promise.resolve({ success: true });
+        },
+      });
+      service = new VehicleService(
+        db,
+        mgr,
+        registry,
+        new TypedEventEmitter(),
+        testLogger,
+      );
+
+      const result = await service.setMode("v1", "stop");
+      expect(result).toEqual({ success: true, mode: "stop" });
+      expect(stoppedWith).toEqual({
+        vehicleId: "v1",
+        origin: "user:mode-stop",
+        force: true,
+      });
+    });
   });
 
   // =========================================================================

@@ -160,6 +160,39 @@ describe("Tesla Plugin Router", () => {
     });
   });
 
+  describe("tesla secret config", () => {
+    it("never returns the client secret plaintext", async () => {
+      await ctx.db.storeSecret("tesla.client_secret", "super-secret-value");
+
+      const data = await ctx.caller.plugin.vehicle.tesla.getConfig();
+
+      expect(data.teslaClientSecret).toBe("********");
+      expect(JSON.stringify(data)).not.toContain("super-secret-value");
+    });
+
+    it("preserves a configured secret when the browser sends the mask", async () => {
+      await ctx.db.storeSecret("tesla.client_secret", "keep-me");
+
+      await ctx.caller.plugin.vehicle.tesla.setConfig({
+        teslaClientSecret: "********",
+        teslaRegion: "eu",
+      });
+
+      expect(await ctx.db.readSecret("tesla.client_secret")).toBe("keep-me");
+      expect(await ctx.db.getPluginConfig("tesla.region")).toBe("eu");
+    });
+
+    it("stores a replacement when a new secret is entered", async () => {
+      await ctx.db.storeSecret("tesla.client_secret", "old-secret");
+
+      await ctx.caller.plugin.vehicle.tesla.setConfig({
+        teslaClientSecret: "new-secret",
+      });
+
+      expect(await ctx.db.readSecret("tesla.client_secret")).toBe("new-secret");
+    });
+  });
+
   describe("tesla.getAuthUrl", () => {
     it("returns an authorization URL", async () => {
       const data = await ctx.caller.plugin.vehicle.tesla.getAuthUrl({

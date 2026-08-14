@@ -12,6 +12,7 @@ import { useVehicles } from "../../../hooks/useVehicles.ts";
 import { useToast } from "../../../hooks/useToast.tsx";
 import { useControllerStatuses } from "../../../hooks/controllerStatusStore.ts";
 import { VehicleCard } from "../../VehicleCard/VehicleCard.tsx";
+import { SolarForecastInline } from "../../VehicleCard/SolarForecastInline.tsx";
 import { trpc } from "../../../trpc.ts";
 import { useVehicleSolarGrid } from "./energyHelpers.ts";
 
@@ -27,12 +28,33 @@ function ConnectedVehicleCard(
     { vehicleId },
     { refetchInterval: 30_000 },
   );
+  const forecastEligible = props.state.isPluggedIn && props.atHome !== false &&
+    (props.mode === "vacation" || props.mode === "auto");
+  const forecast = trpc.forecast.today.useQuery(
+    { vehicleId },
+    {
+      enabled: forecastEligible,
+      refetchInterval: 15 * 60_000,
+      refetchOnWindowFocus: true,
+      retry: 1,
+    },
+  );
 
   return (
     <VehicleCard
       {...props}
       commandsDisabled={cmdStatus?.commandsDisabled ?? false}
       commandsDisabledReason={cmdStatus?.reason ?? undefined}
+      forecastContent={forecastEligible
+        ? (
+          <SolarForecastInline
+            mode={props.mode}
+            data={forecast.data}
+            isLoading={forecast.isLoading}
+            isError={forecast.isError}
+          />
+        )
+        : null}
     />
   );
 }
@@ -181,7 +203,7 @@ function VehicleCards(
     vehiclesLoading: boolean;
     commandPending: Record<string, string | false>;
     vehicleErrors: Record<string, string | undefined>;
-    vehicleSolarGrid: Record<string, { solarW: number; gridW: number }>;
+    vehicleSolarGrid: Record<string, { solarW: number; batteryW: number; gridW: number }>;
     allocationStatus: Record<string, string>;
     controllerStatuses: ReturnType<typeof useControllerStatuses>;
     wakeMutation: ReturnType<typeof trpc.vehicle.command.useMutation>;
@@ -211,6 +233,7 @@ function VehicleCards(
               onSetAmps={(amps) => setAmps(v.id, amps)}
               onChangeMode={(mode) => changeMode(v.id, mode)}
               solarPowerW={vehicleSolarGrid[v.id]?.solarW ?? 0}
+              batteryPowerW={vehicleSolarGrid[v.id]?.batteryW ?? 0}
               gridPowerW={vehicleSolarGrid[v.id]?.gridW ?? 0}
               loading={vehiclesLoading}
               lastLocation={v.lastLocation}

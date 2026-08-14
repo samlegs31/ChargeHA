@@ -143,6 +143,38 @@ describe("OidcService", () => {
       expect(result.error).toContain("500");
     });
 
+    it("rejects a non-local HTTP issuer before fetching", async () => {
+      let fetched = false;
+      globalThis.fetch = () => {
+        fetched = true;
+        return Promise.resolve(new Response("{}", { status: 200 }));
+      };
+
+      const service = new OidcService(
+        createMockDb(),
+        null,
+        createMockLogger(),
+      );
+      const result = await service.testDiscovery("http://192.168.1.50:8080");
+      expect(result.success).toBe(false);
+      assertExists(result.error);
+      expect(result.error).toContain("must use HTTPS");
+      expect(fetched).toBe(false);
+    });
+
+    it("allows HTTP only for localhost development issuers", async () => {
+      globalThis.fetch = () =>
+        Promise.resolve(new Response("{}", { status: 200 }));
+
+      const service = new OidcService(
+        createMockDb(),
+        null,
+        createMockLogger(),
+      );
+      const result = await service.testDiscovery("http://localhost:5556");
+      expect(result.success).toBe(true);
+    });
+
     it("returns failure when discovery endpoint is unreachable", async () => {
       globalThis.fetch = () => Promise.reject(new Error("network down"));
 

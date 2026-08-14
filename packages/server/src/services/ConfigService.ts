@@ -18,11 +18,17 @@ import {
   serializeSection,
   type SolarConfig,
   solarConfigDef,
+  type SolarForecastConfig,
+  solarForecastConfigDef,
   type SystemConfig,
   systemConfigDef,
+  validateCoreConfigRawValue,
 } from "@chargeha/shared/configSections";
 import type { EnergyAdapterManager } from "./EnergyAdapterManager.ts";
 import type { Logger } from "../lib/Logger.ts";
+
+const SECRET_MASK = "********";
+const TELEGRAM_TOKEN_KEY = "notification_telegram_bot_token" as const;
 
 export class ConfigService {
   constructor(
@@ -71,6 +77,13 @@ export class ConfigService {
     return deserializeSection(solarConfigDef, raw);
   }
 
+  async getSolarForecast(): Promise<SolarForecastConfig> {
+    const raw = await this.readSectionRaw(
+      sectionDbKeys(solarForecastConfigDef),
+    );
+    return deserializeSection(solarForecastConfigDef, raw);
+  }
+
   async getBattery(): Promise<BatteryConfig> {
     const raw = await this.readSectionRaw(sectionDbKeys(batteryConfigDef));
     return deserializeSection(batteryConfigDef, raw);
@@ -95,6 +108,14 @@ export class ConfigService {
     const raw = await this.readSectionRaw(
       sectionDbKeys(notificationConfigDef),
     );
+
+    // Telegram's bot token is write-only from the browser's perspective.
+    // Migrate any pre-batch plaintext config value on first read.
+    const token = await this.db.readSecretWithConfigMigration(
+      TELEGRAM_TOKEN_KEY,
+    );
+    raw[TELEGRAM_TOKEN_KEY] = token ? SECRET_MASK : null;
+
     return deserializeSection(notificationConfigDef, raw);
   }
 
@@ -112,6 +133,11 @@ export class ConfigService {
 
   setSolar(input: Partial<SolarConfig>): Promise<void> {
     const kvPairs = serializeSection(solarConfigDef, input);
+    return this.writeSectionRaw(kvPairs);
+  }
+
+  setSolarForecast(input: Partial<SolarForecastConfig>): Promise<void> {
+    const kvPairs = serializeSection(solarForecastConfigDef, input);
     return this.writeSectionRaw(kvPairs);
   }
 
@@ -135,11 +161,22 @@ export class ConfigService {
     return this.writeSectionRaw(kvPairs);
   }
 
-  setNotification(
+  async setNotification(
     input: Partial<NotificationConfig>,
   ): Promise<void> {
     const kvPairs = serializeSection(notificationConfigDef, input);
-    return this.writeSectionRaw(kvPairs);
+    const token = kvPairs[TELEGRAM_TOKEN_KEY];
+
+    if (token !== undefined && token !== SECRET_MASK) {
+      // storeSecret updates the same KV row and marks it encrypted when possible.
+      await this.db.storeSecret(TELEGRAM_TOKEN_KEY, token);
+    }
+
+    await Promise.all(
+      Object.entries(kvPairs)
+        .filter(([key]) => key !== TELEGRAM_TOKEN_KEY)
+        .map(([key, value]) => this.db.setConfig(key as CoreConfigKey, value)),
+    );
   }
 
   setInternal(input: Partial<InternalConfig>): Promise<void> {
@@ -165,6 +202,17 @@ export class ConfigService {
     key: CoreConfigKey,
     value: string,
   ): Promise<{ key: CoreConfigKey; value: string }> {
+    if (!validateCoreConfigRawValue(key, value)) {
+      throw new Error(`Invalid value for config key: ${key}`);
+    }
+
+    if (key === TELEGRAM_TOKEN_KEY) {
+      if (value !== SECRET_MASK) {
+        await this.db.storeSecret(key, value);
+      }
+      return { key, value: value ? SECRET_MASK : "" };
+    }
+
     await this.db.setConfig(key, value);
     return { key, value };
   }

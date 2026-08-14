@@ -1,6 +1,6 @@
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import type { EnergyData } from "@chargeha/shared";
-import { and, count, desc, gte, lt, lte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt, lte, max, sql } from "drizzle-orm";
 import { sqliteTimezoneOffset, toSqliteDatetime } from "./sqliteHelpers.ts";
 import { energyReadings } from "../Schema.ts";
 
@@ -90,6 +90,22 @@ export class EnergyRepository {
       .offset(opts.offset);
 
     return { rows, total };
+  }
+
+  async getRecentObservedSolarMaxW(days = 90): Promise<number> {
+    const result = await this.db
+      .select({ value: max(energyReadings.solarProductionW) })
+      .from(energyReadings)
+      .where(
+        and(
+          gte(
+            energyReadings.timestamp,
+            sql`datetime('now', ${`-${days} days`})`,
+          ),
+          eq(energyReadings.pollFailed, 0),
+        ),
+      );
+    return Number(result[0]?.value ?? 0);
   }
 
   async pruneEnergyReadings(retentionDays: number): Promise<void> {

@@ -197,9 +197,13 @@ describe("GeneralSettings", () => {
     expect((inputs[0] as HTMLInputElement).value).toBe("10");
   });
 
+  it("shows the recording interval as fixed at 60 seconds", () => {
+    renderWithProviders(<GeneralSettings />);
+    expect(screen.getByText("60 sec (fixed)")).toBeInTheDocument();
+  });
+
   it.each<[string, "sec" | "days", 0 | 1, string, number]>([
     ["controllerLoopSeconds", "sec", 0, "30", 30],
-    ["recordingIntervalSeconds", "sec", 1, "120", 120],
     ["dataRetentionDays", "days", 0, "365", 365],
     ["logRetentionDays", "days", 1, "14", 14],
   ])("mutates %s on change", (field, suffix, idx, value, expected) => {
@@ -212,7 +216,6 @@ describe("GeneralSettings", () => {
 
   it.each<[string, "sec" | "days", 0 | 1, number]>([
     ["controllerLoopSeconds", "sec", 0, 10],
-    ["recordingIntervalSeconds", "sec", 1, 60],
     ["dataRetentionDays", "days", 0, 730],
     ["logRetentionDays", "days", 1, 30],
   ])(

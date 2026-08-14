@@ -124,7 +124,7 @@ describe("ChargeController — processAutoMode", () => {
       expect(log?.targetAmps).toBe(20);
     });
 
-    it("falls through to solar tracking when schedule limit is reached", async () => {
+    it("keeps the active charge schedule authoritative when its limit is reached", async () => {
       ctx = await setupController(
         { batteryLevel: 70 },
         "auto",
@@ -143,7 +143,9 @@ describe("ChargeController — processAutoMode", () => {
             c.check === "charge_schedule" && c.result.includes("limit reached"),
         ),
       ).toBe(true);
-      expect(log.checks.some((c) => c.check === "solar_tracking")).toBe(true);
+      expect(log.checks.some((c) => c.check === "solar_tracking")).toBe(false);
+      expect(log.action).toBe("none");
+      expect(log.actionDetail).toContain("Scheduled charge target reached");
     });
 
     it("shows 'max' in limit-reached message when schedule has null chargeAmps", async () => {
@@ -262,7 +264,7 @@ describe("ChargeController — processAutoMode", () => {
 
       const log = await ctx.getLastLogParsed();
       expect(log?.action).toBe("none");
-      expect(log?.actionDetail).toContain("Waiting for home battery");
+      expect(log?.actionDetail).toContain("below minimum SOC");
     });
 
     it("skips with 'no energy data' when enabled but no energy snapshot", async () => {
@@ -303,7 +305,7 @@ describe("ChargeController — processAutoMode", () => {
     });
   });
 
-  describe("processAutoMode — solar tracking entry and fallthrough", () => {
+  describe("processAutoMode — enforced excess-solar behavior", () => {
     it("shows 'skip (no energy data)' when solar enabled but no energy", async () => {
       ctx = await setupController({}, "auto", null);
       await ctx.runOneLoop();
@@ -319,7 +321,7 @@ describe("ChargeController — processAutoMode", () => {
       ).toBe(true);
     });
 
-    it("shows 'disabled' when solar tracking is off", async () => {
+    it("ignores the legacy solar tracking off switch", async () => {
       ctx = await setupController({}, "auto", BASE_ENERGY, {
         solar_tracking_enabled: "false",
       });
@@ -331,30 +333,31 @@ describe("ChargeController — processAutoMode", () => {
         log.checks.some(
           (c) => c.check === "solar_tracking" && c.result === "disabled",
         ),
-      ).toBe(true);
+      ).toBe(false);
+      expect(log.action).toBe("start");
     });
 
-    it("idles when no schedule and solar tracking disabled, not charging", async () => {
+    it("starts from excess solar even when legacy solar tracking is disabled", async () => {
       ctx = await setupController({ isCharging: false }, "auto", BASE_ENERGY, {
         solar_tracking_enabled: "false",
       });
       await ctx.runOneLoop();
 
       const log = await ctx.getLastLogParsed();
-      expect(log?.action).toBe("none");
-      expect(log?.actionDetail).toContain("Idle");
+      expect(log?.action).toBe("start");
+      expect(log?.actionDetail).toContain("solar tracking");
     });
 
-    it("stops when no schedule and solar tracking disabled, currently charging", async () => {
+    it("continues excess-solar control when legacy solar tracking is disabled", async () => {
       ctx = await setupController({ isCharging: true }, "auto", BASE_ENERGY, {
         solar_tracking_enabled: "false",
       });
       await ctx.runOneLoop();
 
-      expect(ctx.adapter.commands).toContainEqual({ cmd: "stop" });
+      expect(ctx.adapter.commands).not.toContainEqual({ cmd: "stop" });
       const log = await ctx.getLastLogParsed();
-      expect(log?.action).toBe("stop");
-      expect(log?.actionDetail).toContain("no schedule or solar tracking");
+      expect(log?.action).toBe("adjust_amps");
+      expect(log?.actionDetail).toContain("solar");
     });
   });
 });

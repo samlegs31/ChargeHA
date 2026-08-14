@@ -28,7 +28,7 @@ export class TelegramProvider implements NotificationProvider {
   }
 
   async send(payload: NotificationPayload): Promise<void> {
-    const botToken = await this.db.getConfig(
+    const botToken = await this.db.readSecretWithConfigMigration(
       "notification_telegram_bot_token",
     );
     const chatId = await this.db.getConfig("notification_telegram_chat_id");

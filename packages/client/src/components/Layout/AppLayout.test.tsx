@@ -14,8 +14,6 @@ describe("AppLayout", () => {
   beforeEach(vi.clearAllMocks);
   afterEach(cleanup);
   const defaultProps = {
-    appearance: "dark" as const,
-    onToggleAppearance: vi.fn(),
     activePage: "dashboard" as const,
     onNavigate: vi.fn(),
   };
@@ -53,24 +51,15 @@ describe("AppLayout", () => {
     expect(screen.getByTestId("connection-badge")).toBeInTheDocument();
   });
 
-  it.each([
-    { appearance: "dark" as const, ariaChecked: "true" },
-    { appearance: "light" as const, ariaChecked: "false" },
-  ])(
-    "renders the theme toggle switch reflecting $appearance appearance",
-    ({ appearance, ariaChecked }) => {
-      renderWithProviders(
-        <AppLayout {...defaultProps} appearance={appearance}>
-          <div />
-        </AppLayout>,
-      );
+  it("does not render a manual theme switch", () => {
+    renderWithProviders(
+      <AppLayout {...defaultProps}>
+        <div />
+      </AppLayout>,
+    );
 
-      expect(screen.getByRole("switch")).toHaveAttribute(
-        "aria-checked",
-        ariaChecked,
-      );
-    },
-  );
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  });
 
   it("renders children content", () => {
     renderWithProviders(

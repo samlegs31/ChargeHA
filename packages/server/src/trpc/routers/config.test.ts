@@ -148,21 +148,51 @@ describe("Config tRPC Router", () => {
     });
   });
 
+  describe("config.solarForecast", () => {
+    it("get returns safe defaults", async () => {
+      const data = await caller.config.solarForecast.get();
+      expect(data.solarForecastEnabled).toBe(false);
+      expect(data.solarForecastLatitude).toBe(null);
+      expect(data.solarForecastLongitude).toBe(null);
+      expect(data.solarForecastArraysJson).toBe("[]");
+    });
+
+    it("set persists typed forecast settings", async () => {
+      await caller.config.solarForecast.set({
+        solarForecastEnabled: true,
+        solarForecastInstallationDate: "2022-05-30",
+        solarForecastLatitude: 43.55,
+        solarForecastLongitude: 1.68,
+      });
+      const data = await caller.config.solarForecast.get();
+      expect(data.solarForecastEnabled).toBe(true);
+      expect(data.solarForecastInstallationDate).toBe("2022-05-30");
+      expect(data.solarForecastLatitude).toBe(43.55);
+      expect(data.solarForecastLongitude).toBe(1.68);
+    });
+  });
+
   describe("config.battery", () => {
     it("get returns typed defaults", async () => {
       const data = await caller.config.battery.get();
       expect(data.batteryPriorityEnabled).toBe(false);
       expect(data.batteryPriorityLimit).toBe(80);
+      expect(data.batteryDischargeToleranceW).toBe(300);
+      expect(data.batteryDischargeGraceMinutes).toBe(5);
     });
 
     it("set persists typed values", async () => {
       await caller.config.battery.set({
         batteryPriorityEnabled: true,
         batteryPriorityLimit: 90,
+        batteryDischargeToleranceW: 500,
+        batteryDischargeGraceMinutes: 7,
       });
       const data = await caller.config.battery.get();
       expect(data.batteryPriorityEnabled).toBe(true);
       expect(data.batteryPriorityLimit).toBe(90);
+      expect(data.batteryDischargeToleranceW).toBe(500);
+      expect(data.batteryDischargeGraceMinutes).toBe(7);
     });
   });
 
@@ -195,6 +225,60 @@ describe("Config tRPC Router", () => {
       const data = await caller.config.home.get();
       expect(data.homeLatitude).toBe(null);
       expect(data.homeLongitude).toBe(null);
+    });
+  });
+
+  describe("config validation guardrails", () => {
+    it("rejects unsafe system intervals", async () => {
+      await expect(
+        caller.config.system.set({ controllerLoopSeconds: 0 }),
+      ).rejects.toThrow();
+
+      await expect(
+        caller.config.system.set({ recordingIntervalSeconds: 301 }),
+      ).rejects.toThrow();
+    });
+
+    it("rejects invalid battery percentage and coordinates", async () => {
+      await expect(
+        caller.config.battery.set({ batteryPriorityLimit: 101 }),
+      ).rejects.toThrow();
+
+      await expect(
+        caller.config.battery.set({ batteryDischargeToleranceW: -1 }),
+      ).rejects.toThrow();
+
+      await expect(
+        caller.config.battery.set({ batteryDischargeGraceMinutes: 31 }),
+      ).rejects.toThrow();
+
+      await expect(
+        caller.config.home.set({ homeLatitude: 91 }),
+      ).rejects.toThrow();
+    });
+
+    it("prevents raw config.set from bypassing typed bounds", async () => {
+      await expect(
+        caller.config.set({
+          key: "controller_loop_seconds",
+          value: "-1",
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("routes a raw Telegram token write into the secret store", async () => {
+      const result = await caller.config.set({
+        key: "notification_telegram_bot_token",
+        value: "raw-secret",
+      });
+
+      expect(result.value).toBe("********");
+      expect(
+        await db.readSecret("notification_telegram_bot_token"),
+      ).toBe("raw-secret");
+      expect(
+        await db.getSecret("notification_telegram_bot_token"),
+      ).not.toBeNull();
     });
   });
 
@@ -248,7 +332,13 @@ describe("Config tRPC Router", () => {
       });
       const data = await caller.config.notification.get();
       expect(data.notificationProvider).toBe("telegram");
-      expect(data.notificationTelegramBotToken).toBe("123:abc");
+      expect(data.notificationTelegramBotToken).toBe("********");
+      expect(await db.readSecret("notification_telegram_bot_token")).toBe(
+        "123:abc",
+      );
+      expect(
+        await db.getSecret("notification_telegram_bot_token"),
+      ).not.toBeNull();
       expect(data.notificationTelegramChatId).toBe("456");
       expect(data.notificationTelegramSilent).toBe(true);
     });

@@ -649,7 +649,7 @@ describe("AuthService", () => {
       } catch (err) {
         expect(err).toBeInstanceOf(AuthError);
         expect((err as AuthError).code).toBe("BAD_REQUEST");
-        expect((err as AuthError).message).toContain("at least 1 character");
+        expect((err as AuthError).message).toContain("at least 15 characters");
       }
     });
 

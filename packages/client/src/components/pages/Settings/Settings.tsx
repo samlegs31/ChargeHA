@@ -12,6 +12,7 @@ import { AuthSettings } from "./AuthSettings.tsx";
 import { InverterSettings } from "./InverterSettings.tsx";
 import { VehicleSettings } from "./VehicleSettings.tsx";
 import { SolarTrackingSettings } from "./SolarTrackingSettings.tsx";
+import { SolarForecastSettings } from "./SolarForecastSettings.tsx";
 import { BatterySettings } from "./BatterySettings.tsx";
 import { TariffSettings } from "./TariffSettings.tsx";
 import { GeneralSettings } from "./GeneralSettings.tsx";
@@ -119,6 +120,9 @@ export function Settings() {
 
       {/* ═══ Solar Tracking ═══ */}
       <SolarTrackingSettings />
+
+      {/* ═══ Solar Forecast ═══ */}
+      <SolarForecastSettings />
 
       {/* ═══ Electricity Tariffs ═══ */}
       <TariffSettings />

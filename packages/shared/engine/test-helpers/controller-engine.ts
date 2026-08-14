@@ -23,6 +23,8 @@ export const makeConfig = (
   cooldownPeriodMinutes: 15,
   batteryPriorityEnabled: false,
   batteryPriorityLimit: 0,
+  batteryDischargeToleranceW: 300,
+  batteryDischargeGraceMinutes: 5,
   priorityChargingEnabled: false,
   timezone: "",
   ampDebounceThreshold: 2,

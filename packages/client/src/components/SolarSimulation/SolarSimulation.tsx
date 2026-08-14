@@ -190,8 +190,8 @@ function VehicleSimRow(
         >
           <Select.Trigger variant="ghost" style={{ minWidth: 100 }} />
           <Select.Content>
-            <Select.Item value="auto">Auto</Select.Item>
-            <Select.Item value="vacation">Vacation</Select.Item>
+            <Select.Item value="auto">Solar + clock</Select.Item>
+            <Select.Item value="vacation">Solar Only</Select.Item>
             <Select.Item value="charge_now">Charge Now</Select.Item>
             <Select.Item value="stop">Stop</Select.Item>
           </Select.Content>

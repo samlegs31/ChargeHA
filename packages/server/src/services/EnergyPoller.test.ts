@@ -71,6 +71,47 @@ describe("EnergyPoller", () => {
     });
   });
 
+  describe("cumulative DB cache", () => {
+    it("reuses the daily cumulative summary for fast consecutive polls", async () => {
+      let summaryReads = 0;
+      const original = db.getTodayEnergySummary.bind(db);
+      db.getTodayEnergySummary = (timezone: string) => {
+        summaryReads++;
+        return original(timezone);
+      };
+
+      await testable(poller).poll();
+      await testable(poller).poll();
+
+      expect(summaryReads).toBe(1);
+    });
+
+    it("invalidates cached timezone when timezone config changes", async () => {
+      let timezoneReads = 0;
+      const original = db.getConfig.bind(db);
+      db.getConfig = (key) => {
+        if (key === "timezone") timezoneReads++;
+        return original(key);
+      };
+
+      // The constructor performs an initial poll before beforeEach() stops it.
+      // timezoneCache may therefore already be warm here. What matters is
+      // that a timezone config change invalidates it and forces exactly one
+      // new DB read on the next poll.
+      await testable(poller).poll();
+      await testable(poller).poll();
+      const readsBeforeChange = timezoneReads;
+
+      emitter.emit("config_changed", { key: "timezone" });
+      await testable(poller).poll();
+      expect(timezoneReads).toBe(readsBeforeChange + 1);
+
+      // Cache should be warm again after that refresh.
+      await testable(poller).poll();
+      expect(timezoneReads).toBe(readsBeforeChange + 1);
+    });
+  });
+
   describe("poll", () => {
     it("emits energy update event", async () => {
       await testable(poller).poll();
@@ -184,6 +225,25 @@ describe("EnergyPoller", () => {
         (failureEvents[0].data as { error: string }).error,
       ).toBe("string error");
     });
+  });
+
+  it("skips a new poll while the previous poll is still in flight", async () => {
+    let calls = 0;
+    let resolvePoll!: (value: EnergyData) => void;
+
+    adapter.getRealtimeData = () => {
+      calls++;
+      return new Promise<EnergyData>((resolve) => {
+        resolvePoll = resolve;
+      });
+    };
+
+    testable(poller).runPoll();
+    testable(poller).runPoll();
+    expect(calls).toBe(1);
+
+    resolvePoll(BASE_REALTIME);
+    await poller.stop();
   });
 
   describe("stop / restart", () => {

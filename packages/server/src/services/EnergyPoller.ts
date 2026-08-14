@@ -7,6 +7,8 @@ import type { AppDatabase } from "../db/AppDatabase.ts";
 import type { Logger } from "../lib/Logger.ts";
 import { ServiceError } from "../lib/ServiceError.ts";
 
+const CUMULATIVE_REFRESH_MS = 60_000;
+
 export class EnergyPoller {
   private readonly em: EnergyAdapterManager;
   private readonly eventEmitter: TypedEventEmitter;
@@ -17,6 +19,8 @@ export class EnergyPoller {
   private polling: Promise<void> | null = null;
   private latestRealtime: EnergyData | null = null;
   private latestCumulative: CumulativeEnergyData | null = null;
+  private lastCumulativeRefreshAt = 0;
+  private timezoneCache: string | null = null;
 
   constructor(
     em: EnergyAdapterManager,
@@ -32,6 +36,10 @@ export class EnergyPoller {
     // the adapter and restart the timer so the new poll interval takes
     // effect immediately.
     this.eventEmitter.subscribe("config_changed", ({ key }) => {
+      if (key === "timezone") {
+        this.timezoneCache = null;
+        this.lastCumulativeRefreshAt = 0;
+      }
       if (!this.em.isRelevantConfigKey(key)) return;
       void this.em.reconfigure().then(() => this.restart());
     });
@@ -40,12 +48,26 @@ export class EnergyPoller {
 
   private async start(): Promise<ReturnType<typeof setInterval>> {
     await this.em.ready();
-    this.polling = this.poll();
+    this.runPoll();
     const intervalSeconds = this.em.pollIntervalSeconds();
     this.logger.info(`Polling every ${intervalSeconds}s`);
-    return setInterval(() => {
-      this.polling = this.poll();
-    }, intervalSeconds * 1000);
+    return setInterval(() => this.runPoll(), intervalSeconds * 1000);
+  }
+
+  /** Start one poll only when no previous poll is still running. */
+  private runPoll(): void {
+    if (this.polling) {
+      this.logger.debug(
+        "Skipping poll because previous poll is still in flight",
+      );
+      return;
+    }
+
+    const inFlight = this.poll();
+    this.polling = inFlight;
+    void inFlight.finally(() => {
+      if (this.polling === inFlight) this.polling = null;
+    });
   }
 
   async stop(): Promise<void> {
@@ -131,19 +153,9 @@ export class EnergyPoller {
             : ""),
       );
 
-      // Build cumulative data from local DB recordings
-      // Use the configured timezone (IANA) so the "today" boundary matches
-      // the user's local day, not the server's system timezone.
-      const timezone = (await this.db.getConfig("timezone")) ?? "";
-      const todaySummary = await this.db.getTodayEnergySummary(timezone);
-      const cumulative: CumulativeEnergyData = {
-        solarProducedWh: 0,
-        gridImportedWh: 0,
-        gridExportedWh: 0,
-        dailySolarProducedWh: todaySummary.solarWh,
-        dailyGridImportWh: todaySummary.gridImportWh,
-        dailyGridExportWh: todaySummary.gridExportWh,
-      };
+      // Daily totals are based on one-minute DB recordings, so refreshing
+      // this aggregate on every fast inverter poll only wastes SQLite work.
+      const cumulative = await this.buildCumulativeFromDb();
 
       this.latestRealtime = realtime;
       this.latestCumulative = cumulative;
@@ -191,10 +203,23 @@ export class EnergyPoller {
   /** Build cumulative-from-DB block; on DB error, return zeros so a poll
    *  failure path still produces a usable event. */
   private async buildCumulativeFromDb(): Promise<CumulativeEnergyData> {
+    const now = Date.now();
+    if (
+      this.latestCumulative &&
+      now - this.lastCumulativeRefreshAt < CUMULATIVE_REFRESH_MS
+    ) {
+      return this.latestCumulative;
+    }
+
     try {
-      const timezone = (await this.db.getConfig("timezone")) ?? "";
-      const todaySummary = await this.db.getTodayEnergySummary(timezone);
-      return {
+      if (this.timezoneCache === null) {
+        this.timezoneCache = (await this.db.getConfig("timezone")) ?? "";
+      }
+
+      const todaySummary = await this.db.getTodayEnergySummary(
+        this.timezoneCache,
+      );
+      const cumulative: CumulativeEnergyData = {
         solarProducedWh: 0,
         gridImportedWh: 0,
         gridExportedWh: 0,
@@ -202,8 +227,11 @@ export class EnergyPoller {
         dailyGridImportWh: todaySummary.gridImportWh,
         dailyGridExportWh: todaySummary.gridExportWh,
       };
+      this.lastCumulativeRefreshAt = now;
+      return cumulative;
     } catch {
-      return {
+      // Keep the last known totals if SQLite has a transient read failure.
+      return this.latestCumulative ?? {
         solarProducedWh: 0,
         gridImportedWh: 0,
         gridExportedWh: 0,

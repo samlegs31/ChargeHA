@@ -60,6 +60,10 @@ export function setupAuthApp(
   app.get("/health", (c) => c.json({ healthy: true }));
   app.get("/auth/oidc/login", (c) => c.text("oidc login"));
   app.get("/auth/oidc/callback", (c) => c.text("oidc callback"));
+  app.get(
+    "/api/vehicle/tesla/callback",
+    (c) => c.text("tesla callback"),
+  );
   app.get("/.well-known/openid-configuration", (c) => c.text("openid config"));
   app.all("/trpc/auth.login", (c) => c.json({ result: true }));
   app.all("/trpc/auth.session", (c) => c.json({ result: true }));
