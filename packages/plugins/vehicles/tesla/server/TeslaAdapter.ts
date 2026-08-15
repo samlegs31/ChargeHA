@@ -39,17 +39,23 @@ export class TeslaApiError extends Error {
 // Tesla hardware minimum charging amps
 const MIN_CHARGE_AMPS = 5;
 
-// Wake-up polling config
-const WAKE_POLL_INTERVAL_MS = 15000;
-const WAKE_TIMEOUT_MS = 60000;
+// Wake-up polling config. A single paid wake is followed by free /vehicles
+// probes for up to 90s so a slow deep-sleep wake is not treated as a failure.
+const WAKE_POLL_INTERVAL_MS = 10000;
+const WAKE_TIMEOUT_MS = 90000;
 
 /** Tesla Fleet API charge_state fields used by this adapter. */
 interface TeslaChargeState {
   battery_level?: number;
   charge_limit_soc?: number;
   charging_state?: string;
+  /** Legacy fallback used by older vehicle_data responses. */
   charge_amps?: number;
+  /** Requested charging current. */
+  charge_current_request?: number;
   charge_current_request_max?: number;
+  /** Sensed AC input current — the actual current drawn by the vehicle. */
+  charger_actual_current?: number;
   charger_power?: number;
   charger_voltage?: number;
   charger_phases?: number;
@@ -57,6 +63,12 @@ interface TeslaChargeState {
   minutes_to_full_charge?: number;
   charge_port_door_open?: boolean;
 }
+
+/** Response-only extension kept compatible with the shared vehicle state. */
+type TeslaAdapterChargeState = AdapterVehicleChargeState & {
+  /** Tesla charge_current_request: command/vehicle target, not measured draw. */
+  chargeAmpsRequested: number;
+};
 
 /** Tesla Fleet API vehicle_state fields used by this adapter. */
 interface TeslaVehicleState {
@@ -146,14 +158,23 @@ export class TeslaAdapter implements VehicleAdapter {
     const vehicle = response.vehicle_state;
     const drive = response.drive_state;
     const chargingState = charge.charging_state ?? "Unknown";
-    const chargeAmps = charge.charge_amps ?? 0;
+
+    // Tesla exposes two different currents. Keep them separate:
+    // - charger_actual_current = measured AC input current
+    // - charge_current_request = requested charging current
+    // Older responses may only expose charge_amps, so retain it as an actual
+    // current fallback rather than treating a command target as telemetry.
+    const actualChargeAmps = charge.charger_actual_current ??
+      charge.charge_amps ?? 0;
+    const requestedChargeAmps = charge.charge_current_request ??
+      actualChargeAmps;
     const chargerVoltage = charge.charger_voltage ?? 0;
     const chargerPhases = charge.charger_phases ?? 1;
-    // Compute from V × I × phases — Tesla's charger_power field rounds to
-    // integer kW, which misreports e.g. 1.44 kW as 1 and shows 0 during
-    // ramp-up transitions.
+
+    // Compute live power from the sensed current. Tesla's charger_power field
+    // rounds to integer kW and can briefly show 0 during ramp-up transitions.
     const chargerPowerKw =
-      Math.round(chargeAmps * chargerVoltage * chargerPhases / 10) / 100;
+      Math.round(actualChargeAmps * chargerVoltage * chargerPhases / 10) / 100;
     const notChargingStates = [
       "Disconnected",
       "Stopped",
@@ -163,16 +184,17 @@ export class TeslaAdapter implements VehicleAdapter {
     const definitelyNotCharging = notChargingStates.includes(chargingState);
     const chargingStates = ["Charging", "Starting"];
     const isCharging = chargingStates.includes(chargingState) ||
-      chargerPowerKw > 0.1 || (!definitelyNotCharging && chargeAmps > 0);
+      chargerPowerKw > 0.1 || (!definitelyNotCharging && actualChargeAmps > 0);
 
-    return {
+    const state: TeslaAdapterChargeState = {
       vehicleId: this.vin,
       batteryLevel: charge.battery_level ?? 0,
       chargeLimit: charge.charge_limit_soc ?? 0,
       isCharging,
       isPluggedIn: chargingState !== "Disconnected",
       isOnline: response.state === "online",
-      chargeAmps,
+      chargeAmps: actualChargeAmps,
+      chargeAmpsRequested: requestedChargeAmps,
       chargeAmpsMax: charge.charge_current_request_max ?? 0,
       chargeAmpsMin: MIN_CHARGE_AMPS,
       chargePowerKw: chargerPowerKw,
@@ -186,6 +208,7 @@ export class TeslaAdapter implements VehicleAdapter {
       latitude: drive?.latitude ?? null,
       longitude: drive?.longitude ?? null,
     };
+    return state;
   }
 
   async startCharging(ctx: CallContext): Promise<boolean> {
@@ -255,7 +278,8 @@ export class TeslaAdapter implements VehicleAdapter {
     // Consume response body to avoid leak
     await response.text();
 
-    // Poll until online or timeout
+    // Poll until online or timeout. /vehicles probes are free, so allowing a
+    // slow deep-sleep wake to finish is preferable to issuing another wake.
     const pollCtx: CallContext = {
       ...ctx,
       origin: `${ctx.origin}:wake-poll`,
@@ -265,8 +289,6 @@ export class TeslaAdapter implements VehicleAdapter {
       (chain: Promise<boolean>) =>
         chain.then(async (found) => {
           if (found) return true;
-          // Sleep before each poll — Tesla needs ~15s to come fully online
-          // after the wake_up POST; polling sooner just burns rate-limit quota.
           await sleep(WAKE_POLL_INTERVAL_MS);
           const data = await this.fleetApiGet<TeslaVehicleListItem[]>(
             "/api/1/vehicles",
