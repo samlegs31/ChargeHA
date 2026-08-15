@@ -15,14 +15,14 @@ concurrency:
 
 env:
   BASE_SHA: cdc308ebd7e8bc8386fe5eae81b894f9d8cc5708
-  PAYLOAD_SHA256: f7a062cac4f4718a05715a8169c5b39fe1e0822a64a5c14227f8d55064ddc240
-  TRANSFORM_SHA256: e407c0f1fb84d47f9dd75ac7562f7b11283baf82082244c623698e847f8658ca
+  PAYLOAD_BLOB_SHA: 2d81420475553a9217238405631e8374108138ca
+  TRANSFORM_BLOB_SHA: 03d7fcdd29a62657b9191408ae248e8075c94943
 
 jobs:
   validate:
     name: Deno 2.9.4 full validation
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     steps:
       - name: Checkout validation branch
@@ -30,14 +30,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Preserve candidate artifacts and verify SHA
+      - name: Verify candidate integrity and preserve artifacts
         shell: bash
         run: |
           set -Eeuo pipefail
+          payload_blob="$(git hash-object .github/candidates/evsolar-v43-payload.tar.gz)"
+          transform_blob="$(git hash-object .github/candidates/evsolar-v43-transform.py)"
+          printf 'payload git blob:   %s\n' "$payload_blob"
+          printf 'transform git blob: %s\n' "$transform_blob"
+          test "$payload_blob" = "$PAYLOAD_BLOB_SHA"
+          test "$transform_blob" = "$TRANSFORM_BLOB_SHA"
+          sha256sum .github/candidates/evsolar-v43-payload.tar.gz
+          sha256sum .github/candidates/evsolar-v43-transform.py
           cp .github/candidates/evsolar-v43-payload.tar.gz /tmp/evsolar-v43-payload.tar.gz
           cp .github/candidates/evsolar-v43-transform.py /tmp/evsolar-v43-transform.py
-          echo "$PAYLOAD_SHA256  /tmp/evsolar-v43-payload.tar.gz" | sha256sum -c -
-          echo "$TRANSFORM_SHA256  /tmp/evsolar-v43-transform.py" | sha256sum -c -
           python3 -m py_compile /tmp/evsolar-v43-transform.py
 
       - name: Restore exact audited baseline
@@ -54,11 +60,14 @@ jobs:
         with:
           deno-version: v2.9.4
 
-      - name: Resolve frozen dependencies
-        run: deno install --frozen
+      - name: Reproducible dependency install
+        run: deno ci
+
+      - name: Print Deno version
+        run: deno --version
 
       - name: Baseline full type-check
-        run: deno check
+        run: deno check --frozen
 
       - name: Baseline repository invariants
         shell: bash
@@ -101,6 +110,10 @@ jobs:
           )
           : > /tmp/lint-baseline.tsv
           for rel in "${files[@]}"; do
+            if [[ ! -f "$rel" ]]; then
+              printf '%s\t0\n' "$rel" >> /tmp/lint-baseline.tsv
+              continue
+            fi
             set +e
             deno lint "$rel" > /tmp/lint-one.txt 2>&1
             set -e
@@ -115,12 +128,25 @@ jobs:
           set -Eeuo pipefail
           tar -xzf /tmp/evsolar-v43-payload.tar.gz --no-same-owner -C .
           python3 /tmp/evsolar-v43-transform.py
-          mapfile -t fmt_files < <(git diff --name-only --diff-filter=AM | grep -E '\.(ts|tsx|json)$' || true)
-          if ((${#fmt_files[@]})); then deno fmt "${fmt_files[@]}"; fi
           git diff --check
           git status --short
+          sha256sum deno.lock > /tmp/deno-lock-after-apply.sha256
+          git diff --name-only "$BASE_SHA" | sort > /tmp/evsolar-v43-files.txt
 
-      - name: Candidate architecture and physics invariants
+      - id: format
+        name: Format check (read-only)
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t fmt_files < <(git diff --name-only --diff-filter=AM "$BASE_SHA" | grep -E '\.(ts|tsx|json)$' || true)
+          if ((${#fmt_files[@]})); then
+            deno fmt --check "${fmt_files[@]}"
+          fi
+
+      - id: architecture
+        name: Architecture and physics invariants
+        continue-on-error: true
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -136,7 +162,9 @@ jobs:
           grep -q 'probeFroniusSunSpec' packages/plugins/energy/fronius-local/server/index.ts
           ! grep -q 'window\.' packages/client/src/components/pages/Settings/ChargeHqHistoryImport.tsx
 
-      - name: New files lint clean
+      - id: lint_new
+        name: New files lint clean
+        continue-on-error: true
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -154,94 +182,192 @@ jobs:
             packages/shared/inverter.test.ts \
             packages/shared/inverter.ts
 
-      - name: Existing files add zero lint debt
+      - id: lint_existing
+        name: Existing files add zero lint debt
+        continue-on-error: true
         shell: bash
         run: |
           set -Eeuo pipefail
+          regressions=0
           while IFS=$'\t' read -r rel before; do
+            [[ -f "$rel" ]] || continue
             set +e
             deno lint "$rel" > /tmp/lint-after.txt 2>&1
             set -e
             after="$(grep -c 'error\[' /tmp/lint-after.txt || true)"
             printf '%-72s %s -> %s\n' "$rel" "$before" "$after"
             if (( after > before )); then
+              regressions=1
               cat /tmp/lint-after.txt
-              exit 1
             fi
           done < /tmp/lint-baseline.tsv
+          exit "$regressions"
 
-      - name: Candidate targeted type-checks
+      - id: deno_check
+        name: Blocking Deno type-check
+        continue-on-error: true
+        run: deno check --frozen
+
+      - name: Shadow tsgo type-check (informational)
+        continue-on-error: true
+        run: deno check --frozen --unstable-tsgo
+
+      - id: pure_tests
+        name: Pure inverter tests (no permissions)
+        continue-on-error: true
         shell: bash
         run: |
           set -Eeuo pipefail
-          deno check \
-            packages/server/src/services/SolarForecastService.ts \
-            packages/server/src/services/SolarForecastService.test.ts \
-            packages/shared/inverter.test.ts
-          deno check \
-            packages/server/src/bootstrap/bootstrap.ts \
-            packages/server/src/services/EnergyAdapterManager.ts \
-            packages/server/src/services/SolarForecastService.ts \
-            packages/server/src/services/ChargeHistoryService.test.ts \
-            packages/server/src/services/StatsService.test.ts \
-            packages/server/src/trpc/root.ts
-          deno check \
-            packages/plugins/energy/fronius-local/server/index.ts \
-            packages/plugins/energy/fronius-local/server/FroniusLocalAdapter.test.ts \
-            packages/plugins/energy/fronius-local/server/FroniusInverterProfiles.test.ts \
-            packages/plugins/energy/fronius-local/server/FroniusSunSpec.test.ts
-          deno check \
-            packages/client/src/components/pages/Settings/Settings.tsx \
-            packages/client/src/components/pages/Settings/SolarForecastSettings.tsx \
-            packages/client/src/components/pages/Stats/StatsVehicleBreakdown.tsx
-
-      - name: Candidate full workspace type-check
-        run: deno check
-
-      - name: Candidate targeted tests
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          deno test --allow-all \
-            packages/server/src/services/ChargeHistoryService.test.ts \
-            packages/server/src/db/repositories/ChargeHistoryRepository.test.ts
-          deno test --allow-all packages/server/src/services/StatsService.test.ts
-          deno test --allow-all \
+          deno test --frozen \
             packages/shared/inverter.test.ts \
-            packages/server/src/services/SolarForecastService.test.ts
-          deno test --allow-all \
-            packages/plugins/energy/fronius-local/server/FroniusInverterProfiles.test.ts \
-            packages/plugins/energy/fronius-local/server/FroniusSunSpec.test.ts \
+            packages/plugins/energy/fronius-local/server/FroniusInverterProfiles.test.ts
+
+      - id: sunspec_strict
+        name: SunSpec strict network tests with sanitizers
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          deno test --frozen \
+            --allow-net=127.0.0.1,localhost \
+            --sanitize-ops \
+            --sanitize-resources \
+            packages/plugins/energy/fronius-local/server/FroniusSunSpec.test.ts
+
+      - id: sunspec_stress
+        name: SunSpec race stress (repeats + shuffle)
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          deno test --frozen \
+            --allow-net=127.0.0.1,localhost \
+            --sanitize-ops \
+            --sanitize-resources \
+            --repeats=20 \
+            --shuffle \
+            packages/plugins/energy/fronius-local/server/FroniusSunSpec.test.ts
+
+      - id: targeted_tests
+        name: Candidate targeted service tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          deno test --frozen --allow-all \
+            packages/server/src/services/ChargeHistoryService.test.ts \
+            packages/server/src/db/repositories/ChargeHistoryRepository.test.ts \
+            packages/server/src/services/StatsService.test.ts \
+            packages/server/src/services/SolarForecastService.test.ts \
             packages/plugins/energy/fronius-local/server/FroniusLocalAdapter.test.ts
 
-      - name: Candidate repository invariants
+      - id: invariants
+        name: Candidate repository invariants
+        continue-on-error: true
         shell: bash
         run: |
           set -Eeuo pipefail
           deno task check:unused
           deno task check:packument
 
-      - name: Candidate full server tests
+      - id: server_tests
+        name: Full server tests
+        continue-on-error: true
         run: deno task test:server
 
-      - name: Candidate full client tests
+      - id: client_tests
+        name: Client Vitest suite
+        continue-on-error: true
         run: deno task test:client
 
-      - name: Candidate frontend production build
+      - id: client_build
+        name: Vite production build
+        continue-on-error: true
         run: deno task build
 
+      - name: Explain better-sqlite3 dependency path
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          set +e
+          deno why --frozen better-sqlite3
+          status=$?
+          set -e
+          if (( status != 0 )); then
+            echo 'better-sqlite3 is not present in the resolved dependency tree.'
+          fi
+          exit 0
+
+      - id: audit
+        name: Dependency audit (high + critical)
+        continue-on-error: true
+        run: deno audit --frozen --level=high
+
+      - id: lock_guard
+        name: Lockfile immutability guard
+        continue-on-error: true
+        run: sha256sum -c /tmp/deno-lock-after-apply.sha256
+
+      - name: Validation summary and final gate
+        if: always()
+        shell: bash
+        env:
+          FORMAT: ${{ steps.format.outcome }}
+          ARCHITECTURE: ${{ steps.architecture.outcome }}
+          LINT_NEW: ${{ steps.lint_new.outcome }}
+          LINT_EXISTING: ${{ steps.lint_existing.outcome }}
+          DENO_CHECK: ${{ steps.deno_check.outcome }}
+          PURE_TESTS: ${{ steps.pure_tests.outcome }}
+          SUNSPEC_STRICT: ${{ steps.sunspec_strict.outcome }}
+          SUNSPEC_STRESS: ${{ steps.sunspec_stress.outcome }}
+          TARGETED_TESTS: ${{ steps.targeted_tests.outcome }}
+          INVARIANTS: ${{ steps.invariants.outcome }}
+          SERVER_TESTS: ${{ steps.server_tests.outcome }}
+          CLIENT_TESTS: ${{ steps.client_tests.outcome }}
+          CLIENT_BUILD: ${{ steps.client_build.outcome }}
+          AUDIT: ${{ steps.audit.outcome }}
+          LOCK_GUARD: ${{ steps.lock_guard.outcome }}
+        run: |
+          set -Eeuo pipefail
+          failures=0
+          check() {
+            local name="$1"
+            local outcome="$2"
+            printf '%-24s %s\n' "$name" "$outcome"
+            if [[ "$outcome" != success ]]; then failures=$((failures + 1)); fi
+          }
+          check format "$FORMAT"
+          check architecture "$ARCHITECTURE"
+          check lint-new "$LINT_NEW"
+          check lint-existing "$LINT_EXISTING"
+          check deno-check "$DENO_CHECK"
+          check pure-tests "$PURE_TESTS"
+          check sunspec-strict "$SUNSPEC_STRICT"
+          check sunspec-stress "$SUNSPEC_STRESS"
+          check targeted-tests "$TARGETED_TESTS"
+          check invariants "$INVARIANTS"
+          check server-tests "$SERVER_TESTS"
+          check client-tests "$CLIENT_TESTS"
+          check client-build "$CLIENT_BUILD"
+          check audit "$AUDIT"
+          check lock-guard "$LOCK_GUARD"
+          echo "Validation failures: $failures"
+          exit "$failures"
+
       - name: Produce validated patch and manifest
+        if: success()
         shell: bash
         run: |
           set -Eeuo pipefail
           git diff --binary "$BASE_SHA" > /tmp/evsolar-v43-validated.patch
           git diff --stat "$BASE_SHA"
-          git diff --name-only "$BASE_SHA" | sort > /tmp/evsolar-v43-files.txt
           while IFS= read -r rel; do
             test -f "$rel" && sha256sum "$rel"
           done < /tmp/evsolar-v43-files.txt > /tmp/evsolar-v43-sha256.txt
 
       - name: Upload validated candidate artifacts
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: evsolar-v43-validated-candidate
