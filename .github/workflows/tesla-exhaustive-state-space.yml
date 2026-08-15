@@ -27,21 +27,28 @@ jobs:
         run: |
           deno fmt \
             packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts \
-            packages/shared/engine/ControllerEngine.exhaustive.test.ts
+            packages/shared/engine/ControllerEngine.exhaustive.test.ts \
+            packages/shared/engine/ControllerEngine.sequence-exhaustive.test.ts
 
       - name: Type-check exhaustive harnesses
         run: |
           deno check \
             packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts \
-            packages/shared/engine/ControllerEngine.exhaustive.test.ts
+            packages/shared/engine/ControllerEngine.exhaustive.test.ts \
+            packages/shared/engine/ControllerEngine.sequence-exhaustive.test.ts
 
       - name: Run exhaustive Tesla strategy matrix
         run: deno test -A packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts
 
+      - name: Run 1M stateful charging event sequences
+        run: deno test -A packages/shared/engine/ControllerEngine.sequence-exhaustive.test.ts
+
       - name: Run exhaustive controller safety matrix
+        if: always()
         run: deno test -A packages/shared/engine/ControllerEngine.exhaustive.test.ts
 
       - name: Run all Tesla regression tests
+        if: always()
         run: deno test -A packages/plugins/vehicles/tesla/server/*.test.ts packages/server/src/services/VehicleManager.unplugRace.test.ts
 
       - name: Run complete server test suite
