@@ -85,7 +85,10 @@ Deno.test("TeslaApiStrategy exhaustive bounded state space", () => {
               scheduleLimit,
             );
 
-            assertEquals(strategy.staleness(ctx, null), expectedStaleness(ctx, null));
+            assertEquals(
+              strategy.staleness(ctx, null),
+              expectedStaleness(ctx, null),
+            );
             stalenessCases++;
 
             for (const wakeAge of wakeAges) {
@@ -115,12 +118,14 @@ Deno.test("TeslaApiStrategy exhaustive bounded state space", () => {
                     );
                     stalenessCases++;
 
-                    for (const age of [
-                      0,
-                      staleAfter - 1,
-                      staleAfter,
-                      staleAfter + 1,
-                    ]) {
+                    for (
+                      const age of [
+                        0,
+                        staleAfter - 1,
+                        staleAfter,
+                        staleAfter + 1,
+                      ]
+                    ) {
                       assertEquals(
                         strategy.isCacheFresh(ctx, state, now - age),
                         age < staleAfter,
