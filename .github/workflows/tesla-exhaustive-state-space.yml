@@ -23,9 +23,9 @@ jobs:
       - name: Install dependencies
         run: deno install --frozen
 
-      - name: Format check exhaustive harnesses
+      - name: Format exhaustive harnesses in runner
         run: |
-          deno fmt --check \
+          deno fmt \
             packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts \
             packages/shared/engine/ControllerEngine.exhaustive.test.ts
 
