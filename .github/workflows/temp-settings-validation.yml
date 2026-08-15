@@ -1,0 +1,44 @@
+name: Temporary settings validation
+
+on:
+  push:
+    branches:
+      - ui/evsolar-settings-cleanup
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.4
+
+      - name: Install dependencies
+        run: deno install --frozen
+
+      - name: Check formatting
+        run: |
+          deno fmt --check \
+            packages/client/src/components/pages/Settings/Settings.tsx \
+            packages/client/src/components/pages/Settings/SettingsLayout.tsx \
+            packages/client/src/components/pages/Settings/BatterySettings.tsx \
+            packages/client/src/components/pages/Settings/InverterSettings.tsx
+
+      - name: Type-check changed settings modules
+        run: |
+          deno check \
+            packages/client/src/components/pages/Settings/Settings.tsx \
+            packages/client/src/components/pages/Settings/SettingsLayout.tsx \
+            packages/client/src/components/pages/Settings/BatterySettings.tsx \
+            packages/client/src/components/pages/Settings/InverterSettings.tsx
+
+      - name: Run settings tests
+        run: |
+          deno test -A \
+            packages/client/src/components/pages/Settings/Settings.test.tsx \
+            packages/client/src/components/pages/Settings/SettingsLayout.test.tsx \
+            packages/client/src/components/pages/Settings/BatterySettings.test.tsx \
+            packages/client/src/components/pages/Settings/InverterSettings.test.tsx
