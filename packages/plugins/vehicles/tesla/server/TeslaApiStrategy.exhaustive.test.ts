@@ -1,4 +1,5 @@
 import { assertEquals, assertGreater } from "@std/assert";
+import { FakeTime } from "@std/testing/time";
 import { buildVehicleChargeState } from "@chargeha/shared/test-factories";
 import type { AdapterVehicleChargeState } from "@chargeha/shared";
 import type { VehicleRequestContext } from "../../../types.ts";
@@ -60,86 +61,89 @@ function expectedWake(
 }
 
 Deno.test("TeslaApiStrategy exhaustive bounded state space", () => {
-  const strategy = new TeslaApiStrategy();
-  const bools = [false, true] as const;
-  const batteryLevels = [0, 49, 50, 79, 80, 99, 100] as const;
-  const chargeLimits = [50, 80, 100] as const;
-  const scheduleLimits = [undefined, null, 50, 80, 100] as const;
-  const now = Date.now();
-  const wakeAges = [0, HOUR - 1, HOUR, HOUR + 1] as const;
+  const time = new FakeTime();
+  try {
+    const strategy = new TeslaApiStrategy();
+    const bools = [false, true] as const;
+    const batteryLevels = [0, 49, 50, 79, 80, 99, 100] as const;
+    const chargeLimits = [50, 80, 100] as const;
+    const scheduleLimits = [undefined, null, 50, 80, 100] as const;
+    const now = Date.now();
+    const wakeAges = [0, HOUR - 1, HOUR, HOUR + 1] as const;
 
-  let stalenessCases = 0;
-  let freshnessCases = 0;
-  let wakeCases = 0;
+    let stalenessCases = 0;
+    let freshnessCases = 0;
+    let wakeCases = 0;
 
-  for (const hasSolar of bools) {
-    for (const hasSchedule of bools) {
-      for (const hasBlockout of bools) {
-        for (const forceRefresh of bools) {
-          for (const scheduleLimit of scheduleLimits) {
-            const ctx = context(
-              hasSolar,
-              hasSchedule,
-              hasBlockout,
-              forceRefresh,
-              scheduleLimit,
-            );
-
-            assertEquals(
-              strategy.staleness(ctx, null),
-              expectedStaleness(ctx, null),
-            );
-            stalenessCases++;
-
-            for (const wakeAge of wakeAges) {
-              const lastWake = now - wakeAge;
-              assertEquals(
-                strategy.shouldWake(ctx, null, lastWake),
-                expectedWake(ctx, null, lastWake, now),
+    for (const hasSolar of bools) {
+      for (const hasSchedule of bools) {
+        for (const hasBlockout of bools) {
+          for (const forceRefresh of bools) {
+            for (const scheduleLimit of scheduleLimits) {
+              const ctx = context(
+                hasSolar,
+                hasSchedule,
+                hasBlockout,
+                forceRefresh,
+                scheduleLimit,
               );
-              wakeCases++;
-            }
 
-            for (const isOnline of bools) {
-              for (const isPluggedIn of bools) {
-                for (const batteryLevel of batteryLevels) {
-                  for (const chargeLimit of chargeLimits) {
-                    const state = buildVehicleChargeState({
-                      isOnline,
-                      isPluggedIn,
-                      batteryLevel,
-                      chargeLimit,
-                    });
-                    const staleAfter = expectedStaleness(ctx, state);
+              assertEquals(
+                strategy.staleness(ctx, null),
+                expectedStaleness(ctx, null),
+              );
+              stalenessCases++;
 
-                    assertEquals(
-                      strategy.staleness(ctx, state),
-                      staleAfter,
-                    );
-                    stalenessCases++;
+              for (const wakeAge of wakeAges) {
+                const lastWake = now - wakeAge;
+                assertEquals(
+                  strategy.shouldWake(ctx, null, lastWake),
+                  expectedWake(ctx, null, lastWake, now),
+                );
+                wakeCases++;
+              }
 
-                    for (
-                      const age of [
-                        0,
-                        staleAfter - 1,
+              for (const isOnline of bools) {
+                for (const isPluggedIn of bools) {
+                  for (const batteryLevel of batteryLevels) {
+                    for (const chargeLimit of chargeLimits) {
+                      const state = buildVehicleChargeState({
+                        isOnline,
+                        isPluggedIn,
+                        batteryLevel,
+                        chargeLimit,
+                      });
+                      const staleAfter = expectedStaleness(ctx, state);
+
+                      assertEquals(
+                        strategy.staleness(ctx, state),
                         staleAfter,
-                        staleAfter + 1,
-                      ]
-                    ) {
-                      assertEquals(
-                        strategy.isCacheFresh(ctx, state, now - age),
-                        age < staleAfter,
                       );
-                      freshnessCases++;
-                    }
+                      stalenessCases++;
 
-                    for (const wakeAge of wakeAges) {
-                      const lastWake = now - wakeAge;
-                      assertEquals(
-                        strategy.shouldWake(ctx, state, lastWake),
-                        expectedWake(ctx, state, lastWake, now),
-                      );
-                      wakeCases++;
+                      for (
+                        const age of [
+                          0,
+                          staleAfter - 1,
+                          staleAfter,
+                          staleAfter + 1,
+                        ]
+                      ) {
+                        assertEquals(
+                          strategy.isCacheFresh(ctx, state, now - age),
+                          age < staleAfter,
+                        );
+                        freshnessCases++;
+                      }
+
+                      for (const wakeAge of wakeAges) {
+                        const lastWake = now - wakeAge;
+                        assertEquals(
+                          strategy.shouldWake(ctx, state, lastWake),
+                          expectedWake(ctx, state, lastWake, now),
+                        );
+                        wakeCases++;
+                      }
                     }
                   }
                 }
@@ -149,67 +153,74 @@ Deno.test("TeslaApiStrategy exhaustive bounded state space", () => {
         }
       }
     }
+
+    // Guards against accidentally shrinking the matrix later.
+    assertGreater(stalenessCases, 6_000);
+    assertGreater(freshnessCases, 25_000);
+    assertGreater(wakeCases, 25_000);
+
+    console.log(
+      `exhaustive matrix: ${stalenessCases} staleness, ${freshnessCases} freshness, ${wakeCases} wake decisions`,
+    );
+  } finally {
+    time.restore();
   }
-
-  // Guards against accidentally shrinking the matrix later.
-  assertGreater(stalenessCases, 6_000);
-  assertGreater(freshnessCases, 25_000);
-  assertGreater(wakeCases, 25_000);
-
-  console.log(
-    `exhaustive matrix: ${stalenessCases} staleness, ${freshnessCases} freshness, ${wakeCases} wake decisions`,
-  );
 });
 
 Deno.test("TeslaApiStrategy safety invariants across all boolean contexts", () => {
-  const strategy = new TeslaApiStrategy();
-  const bools = [false, true] as const;
-  const now = Date.now();
-  let cases = 0;
+  const time = new FakeTime();
+  try {
+    const strategy = new TeslaApiStrategy();
+    const bools = [false, true] as const;
+    const now = Date.now();
+    let cases = 0;
 
-  for (const hasSolar of bools) {
-    for (const hasSchedule of bools) {
-      for (const hasBlockout of bools) {
-        const ctx = context(
-          hasSolar,
-          hasSchedule,
-          hasBlockout,
-          false,
-          80,
-        );
+    for (const hasSolar of bools) {
+      for (const hasSchedule of bools) {
+        for (const hasBlockout of bools) {
+          const ctx = context(
+            hasSolar,
+            hasSchedule,
+            hasBlockout,
+            false,
+            80,
+          );
 
-        const unplugged = buildVehicleChargeState({
-          isPluggedIn: false,
-          batteryLevel: 20,
-          chargeLimit: 100,
-        });
-        assertEquals(strategy.shouldWake(ctx, unplugged, 0), null);
-
-        const full = buildVehicleChargeState({
-          isPluggedIn: true,
-          batteryLevel: 80,
-          chargeLimit: 100,
-        });
-        assertEquals(strategy.shouldWake(ctx, full, 0), null);
-
-        if (hasBlockout) {
-          const eligible = buildVehicleChargeState({
-            isPluggedIn: true,
+          const unplugged = buildVehicleChargeState({
+            isPluggedIn: false,
             batteryLevel: 20,
             chargeLimit: 100,
           });
-          assertEquals(strategy.shouldWake(ctx, eligible, 0), null);
-        }
+          assertEquals(strategy.shouldWake(ctx, unplugged, 0), null);
 
-        const force = { ...ctx, forceRefresh: true };
-        assertEquals(
-          strategy.shouldWake(force, unplugged, now),
-          "force_refresh",
-        );
-        cases++;
+          const full = buildVehicleChargeState({
+            isPluggedIn: true,
+            batteryLevel: 80,
+            chargeLimit: 100,
+          });
+          assertEquals(strategy.shouldWake(ctx, full, 0), null);
+
+          if (hasBlockout) {
+            const eligible = buildVehicleChargeState({
+              isPluggedIn: true,
+              batteryLevel: 20,
+              chargeLimit: 100,
+            });
+            assertEquals(strategy.shouldWake(ctx, eligible, 0), null);
+          }
+
+          const force = { ...ctx, forceRefresh: true };
+          assertEquals(
+            strategy.shouldWake(force, unplugged, now),
+            "force_refresh",
+          );
+          cases++;
+        }
       }
     }
-  }
 
-  assertEquals(cases, 8);
+    assertEquals(cases, 8);
+  } finally {
+    time.restore();
+  }
 });
