@@ -17,8 +17,8 @@ import { TeslaApiStrategy } from "./TeslaApiStrategy.ts";
 const ONLINE_CHECK_DEBOUNCE_MS = 60_000;
 
 type TeslaCachedState = Omit<AdapterVehicleChargeState, "isOnline"> & {
-  /** Last requested current. This is a command target, not live telemetry. */
-  chargeAmpsRequested?: number;
+  /** Sensed Tesla AC input current. chargeAmps remains the control target. */
+  chargeAmpsActual?: number;
 };
 
 /**
@@ -173,6 +173,7 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
         isCharging: false,
         chargePowerKw: 0,
         chargeAmps: 0,
+        chargeAmpsActual: 0,
       };
       this.lastFetchAtMs = 0;
       this.logger.debug("stopCharging accepted — telemetry refresh required");
@@ -187,17 +188,17 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     await this.ensureOnline(withSuffix(ctx, "pre"));
     const ok = await this.adapter.setChargeAmps(amps, ctx);
     if (ok && this.cachedState) {
-      // IMPORTANT: chargeAmps is measured current. Never overwrite it with a
-      // command target. Doing so created impossible combinations such as 18A
-      // alongside a stale 1.2kW power reading. Store the request separately
-      // and force a real vehicle_data refresh on the next controller pass.
+      // chargeAmps is intentionally the controller target: the pure solar
+      // engine and its debounce logic already use it that way. Do not alter
+      // chargeAmpsActual, chargePowerKw, ETA or lastUpdated here — those are
+      // live telemetry and must only change after vehicle_data is fetched.
       this.cachedState = {
         ...this.cachedState,
-        chargeAmpsRequested: amps,
+        chargeAmps: amps,
       };
       this.lastFetchAtMs = 0;
       this.logger.debug(
-        `setChargeAmps accepted — target=${amps}A, actual telemetry unchanged`,
+        `setChargeAmps accepted — target=${amps}A, live telemetry unchanged`,
       );
     } else if (!ok) {
       await this.refreshCacheAfterRejection(withSuffix(ctx, "post-reject"));
