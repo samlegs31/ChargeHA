@@ -136,10 +136,18 @@ jobs:
           set -Eeuo pipefail
           tar -xzf /tmp/evsolar-v43-payload.tar.gz --no-same-owner -C .
           python3 /tmp/evsolar-v43-transform.py
-          git diff --check
           git status --short
-          sha256sum deno.lock > /tmp/deno-lock-after-apply.sha256
           git diff --name-only "$BASE_SHA" | sort > /tmp/evsolar-v43-files.txt
+
+      - id: diff_check
+        name: Candidate patch whitespace check
+        continue-on-error: true
+        run: git diff --check "$BASE_SHA"
+
+      - id: lock_snapshot
+        name: Capture candidate lockfile state
+        continue-on-error: true
+        run: sha256sum deno.lock > /tmp/deno-lock-after-apply.sha256
 
       - id: format
         name: Format check (read-only)
@@ -314,8 +322,18 @@ jobs:
 
       - id: lock_guard
         name: Lockfile immutability guard
+        if: always()
         continue-on-error: true
-        run: sha256sum -c /tmp/deno-lock-after-apply.sha256
+        shell: bash
+        env:
+          LOCK_SNAPSHOT: ${{ steps.lock_snapshot.outcome }}
+        run: |
+          set -Eeuo pipefail
+          if [[ "$LOCK_SNAPSHOT" != success ]]; then
+            echo 'Candidate lockfile snapshot failed; immutability cannot be verified.'
+            exit 1
+          fi
+          sha256sum -c /tmp/deno-lock-after-apply.sha256
 
       - name: Validation summary and final gate
         if: always()
@@ -325,6 +343,7 @@ jobs:
           BASELINE_INVARIANTS: ${{ steps.baseline_invariants.outcome }}
           BASELINE_SERVER_TESTS: ${{ steps.baseline_server_tests.outcome }}
           BASELINE_CLIENT_TESTS: ${{ steps.baseline_client_tests.outcome }}
+          DIFF_CHECK: ${{ steps.diff_check.outcome }}
           FORMAT: ${{ steps.format.outcome }}
           ARCHITECTURE: ${{ steps.architecture.outcome }}
           LINT_NEW: ${{ steps.lint_new.outcome }}
@@ -360,6 +379,7 @@ jobs:
           reference server-tests "$BASELINE_SERVER_TESTS"
           reference client-tests "$BASELINE_CLIENT_TESTS"
           echo '--- Candidate validation ---'
+          check diff-check "$DIFF_CHECK"
           check format "$FORMAT"
           check architecture "$ARCHITECTURE"
           check lint-new "$LINT_NEW"
