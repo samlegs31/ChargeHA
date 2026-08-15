@@ -14,7 +14,7 @@ env:
 
 jobs:
   archive:
-    name: Candidate archive integrity
+    name: Candidate archive recovery
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -32,58 +32,36 @@ jobs:
           sha256sum /tmp/evsolar-v43-payload.tar.gz
 
       - id: gzip_gnu
-        name: GNU gzip stream integrity
+        name: Confirm known gzip truncation
         continue-on-error: true
         run: gzip -tv /tmp/evsolar-v43-payload.tar.gz
 
-      - id: tar_gnu
-        name: GNU tar table integrity
-        continue-on-error: true
-        run: tar -tzf /tmp/evsolar-v43-payload.tar.gz >/dev/null
-
-      - id: gzip_python
-        name: Python gzip stream integrity
-        continue-on-error: true
+      - name: Verify every candidate member is fully readable
         shell: bash
         run: |
+          set -Eeuo pipefail
           python3 - <<'PY'
-          import gzip
-          path = '/tmp/evsolar-v43-payload.tar.gz'
-          total = 0
-          with gzip.open(path, 'rb') as stream:
-              while chunk := stream.read(1024 * 1024):
-                  total += len(chunk)
-          print(f'uncompressed_bytes={total}')
-          PY
-
-      - id: tar_python
-        name: Python tar table integrity
-        continue-on-error: true
-        shell: bash
-        run: |
-          python3 - <<'PY'
+          import hashlib
           import tarfile
+
           path = '/tmp/evsolar-v43-payload.tar.gz'
           with tarfile.open(path, 'r:gz') as archive:
               members = archive.getmembers()
-          print(f'members={len(members)}')
+              print(f'members={len(members)}')
+              if len(members) != 5:
+                  raise SystemExit(f'unexpected member count: {len(members)}')
+              for member in members:
+                  print(f'name={member.name!r} type={member.type!r} size={member.size}')
+                  if not member.isfile():
+                      raise SystemExit(f'non-regular member rejected: {member.name!r}')
+                  stream = archive.extractfile(member)
+                  if stream is None:
+                      raise SystemExit(f'cannot open member: {member.name!r}')
+                  data = stream.read()
+                  if len(data) != member.size:
+                      raise SystemExit(
+                          f'truncated member {member.name!r}: got {len(data)}, expected {member.size}'
+                      )
+                  digest = hashlib.sha256(data).hexdigest()
+                  print(f'sha256={digest}  {member.name}')
           PY
-
-      - name: Archive integrity gate
-        if: always()
-        shell: bash
-        env:
-          GNU_GZIP: ${{ steps.gzip_gnu.outcome }}
-          GNU_TAR: ${{ steps.tar_gnu.outcome }}
-          PY_GZIP: ${{ steps.gzip_python.outcome }}
-          PY_TAR: ${{ steps.tar_python.outcome }}
-        run: |
-          set -Eeuo pipefail
-          printf 'GNU gzip:   %s\n' "$GNU_GZIP"
-          printf 'GNU tar:    %s\n' "$GNU_TAR"
-          printf 'Python gzip:%s\n' "$PY_GZIP"
-          printf 'Python tar: %s\n' "$PY_TAR"
-          [[ "$GNU_GZIP" == success ]]
-          [[ "$GNU_TAR" == success ]]
-          [[ "$PY_GZIP" == success ]]
-          [[ "$PY_TAR" == success ]]
