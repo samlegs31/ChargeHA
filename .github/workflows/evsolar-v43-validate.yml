@@ -455,7 +455,10 @@ jobs:
           check audit "$AUDIT"
           check lock-guard "$LOCK_GUARD"
           echo "Candidate validation failures: $failures"
-          exit "$failures"
+          if (( failures > 0 )); then
+            exit 1
+          fi
+          echo 'Candidate validation gate: success'
 
       - name: Produce validated patch and manifest
         if: success()
