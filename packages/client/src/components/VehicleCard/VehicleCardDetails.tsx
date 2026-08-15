@@ -14,6 +14,12 @@ import { kwValue } from "../../utils/Format.ts";
 import { Spinner } from "../ui/Spinner.tsx";
 import styles from "./VehicleCard.module.css";
 
+/** Tesla adds the requested current to the runtime state without changing the
+ * shared adapter contract used by other vehicle plugins. */
+type VehicleStateWithRequestedAmps = VehicleChargeState & {
+  chargeAmpsRequested?: number;
+};
+
 /** Which controller reasons warrant a visible status row. */
 const VISIBLE_REASONS = new Set([
   "schedule",
@@ -108,6 +114,19 @@ function formatMinutes(minutes: number): string {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
+function formatAmps(amps: number): string {
+  return Number.isInteger(amps) ? String(amps) : amps.toFixed(1);
+}
+
+function requestedAmps(state: VehicleChargeState): number {
+  return (state as VehicleStateWithRequestedAmps).chargeAmpsRequested ??
+    state.chargeAmps;
+}
+
+function isCurrentRamping(state: VehicleChargeState): boolean {
+  return state.isCharging && Math.abs(requestedAmps(state) - state.chargeAmps) >= 0.5;
+}
+
 function ChargeButton(
   { isCharging, disabled, commandPending, onStart, onStop }: {
     isCharging: boolean;
@@ -167,6 +186,7 @@ function AmpsControl(
     onSetAmps: (amps: number) => void;
   },
 ) {
+  const targetAmps = requestedAmps(state);
   return (
     <Tooltip content="Start charging to adjust amps" hidden={state.isCharging}>
       <div className={styles.ampsControl}>
@@ -174,20 +194,18 @@ function AmpsControl(
           variant="ghost"
           size="1"
           disabled={disabled || !state.isCharging ||
-            state.chargeAmps <= state.chargeAmpsMin}
-          onClick={() =>
-            onSetAmps(state.chargeAmps - 1)}
+            targetAmps <= state.chargeAmpsMin}
+          onClick={() => onSetAmps(Math.round(targetAmps) - 1)}
         >
           {commandPending === "amps" ? <Spinner /> : "−"}
         </Button>
-        <Text size="2" weight="bold">{state.chargeAmps}A</Text>
+        <Text size="2" weight="bold">{formatAmps(targetAmps)}A</Text>
         <Button
           variant="ghost"
           size="1"
           disabled={disabled || !state.isCharging ||
-            state.chargeAmps >= state.chargeAmpsMax}
-          onClick={() =>
-            onSetAmps(state.chargeAmps + 1)}
+            targetAmps >= state.chargeAmpsMax}
+          onClick={() => onSetAmps(Math.round(targetAmps) + 1)}
         >
           {commandPending === "amps" ? <Spinner /> : "+"}
         </Button>
@@ -211,6 +229,12 @@ export function VehicleCardDetails({
   controllerReason,
   controllerDetail,
 }: VehicleCardDetailsProps) {
+  const targetAmps = requestedAmps(state);
+  const ramping = isCurrentRamping(state);
+  const currentLabel = ramping
+    ? `${formatAmps(state.chargeAmps)}A actual · ${formatAmps(targetAmps)}A target · ${formatAmps(state.chargeAmpsMax)}A max`
+    : `${formatAmps(state.chargeAmps)}A / ${formatAmps(state.chargeAmpsMax)}A max`;
+
   return (
     <>
       {/* Charge details */}
@@ -218,9 +242,7 @@ export function VehicleCardDetails({
         <div className={styles.detailRow}>
           <Zap size={14} />
           <Text size="1" color="gray">
-            {state.isCharging
-              ? `${state.chargeAmps}A / ${state.chargeAmpsMax}A max`
-              : "Not Charging"}
+            {state.isCharging ? currentLabel : "Not Charging"}
           </Text>
         </div>
         {allocationStatus && (
@@ -255,14 +277,23 @@ export function VehicleCardDetails({
                 {state.energyAddedKwh.toFixed(1)} kWh added
               </Text>
             </div>
-            {state.minutesToFull > 0 && (
-              <div className={styles.detailRow}>
-                <Plug size={14} />
-                <Text size="1" color="gray">
-                  {formatMinutes(state.minutesToFull)} to {chargeLimitPercent}%
-                </Text>
-              </div>
-            )}
+            {ramping
+              ? (
+                <div className={styles.detailRow}>
+                  <Plug size={14} />
+                  <Text size="1" color="gray">
+                    ETA updating while charging current settles
+                  </Text>
+                </div>
+              )
+              : state.minutesToFull > 0 && (
+                <div className={styles.detailRow}>
+                  <Plug size={14} />
+                  <Text size="1" color="gray">
+                    {formatMinutes(state.minutesToFull)} to {chargeLimitPercent}%
+                  </Text>
+                </div>
+              )}
           </>
         )}
       </div>
