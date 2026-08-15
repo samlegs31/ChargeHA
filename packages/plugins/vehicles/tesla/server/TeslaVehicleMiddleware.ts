@@ -16,6 +16,11 @@ import { TeslaApiStrategy } from "./TeslaApiStrategy.ts";
 // Bypassed for forceRefresh (user-initiated) and command paths.
 const ONLINE_CHECK_DEBOUNCE_MS = 60_000;
 
+type TeslaCachedState = Omit<AdapterVehicleChargeState, "isOnline"> & {
+  /** Last requested current. This is a command target, not live telemetry. */
+  chargeAmpsRequested?: number;
+};
+
 /**
  * Tesla-specific vehicle middleware. Wraps the adapter with caching and
  * cost-aware API decisions. All wake/fetch/staleness logic is delegated
@@ -29,8 +34,7 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
   // isOnline lives on lastKnownOnline (live, refreshed every probe).
   // Strip it from the cached snapshot to avoid two sources of truth —
   // getCachedState() merges them when returning to consumers.
-  private cachedState: Omit<AdapterVehicleChargeState, "isOnline"> | null =
-    null;
+  private cachedState: TeslaCachedState | null = null;
   private lastKnownOnline = false;
   private lastFetchAtMs = 0;
   private lastWakeAtMs = 0;
@@ -144,12 +148,15 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     await this.ensureOnline(withSuffix(ctx, "pre"));
     const ok = await this.adapter.startCharging(ctx);
     if (ok && this.cachedState) {
+      // Keep the UI responsive, but do not pretend this is fresh telemetry.
+      // Invalidating lastFetchAtMs forces the next controller pass to read
+      // vehicle_data and confirm the real current/power/ETA.
       this.cachedState = {
         ...this.cachedState,
         isCharging: true,
-        lastUpdated: new Date().toISOString(),
       };
-      this.logger.debug("startCharging confirmed — updated cache");
+      this.lastFetchAtMs = 0;
+      this.logger.debug("startCharging accepted — telemetry refresh required");
     } else if (!ok) {
       await this.refreshCacheAfterRejection(withSuffix(ctx, "post-reject"));
     }
@@ -166,9 +173,9 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
         isCharging: false,
         chargePowerKw: 0,
         chargeAmps: 0,
-        lastUpdated: new Date().toISOString(),
       };
-      this.logger.debug("stopCharging confirmed — updated cache");
+      this.lastFetchAtMs = 0;
+      this.logger.debug("stopCharging accepted — telemetry refresh required");
     } else if (!ok) {
       await this.refreshCacheAfterRejection(withSuffix(ctx, "post-reject"));
     }
@@ -180,12 +187,18 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     await this.ensureOnline(withSuffix(ctx, "pre"));
     const ok = await this.adapter.setChargeAmps(amps, ctx);
     if (ok && this.cachedState) {
+      // IMPORTANT: chargeAmps is measured current. Never overwrite it with a
+      // command target. Doing so created impossible combinations such as 18A
+      // alongside a stale 1.2kW power reading. Store the request separately
+      // and force a real vehicle_data refresh on the next controller pass.
       this.cachedState = {
         ...this.cachedState,
-        chargeAmps: amps,
-        lastUpdated: new Date().toISOString(),
+        chargeAmpsRequested: amps,
       };
-      this.logger.debug(`setChargeAmps confirmed — cache amps=${amps}`);
+      this.lastFetchAtMs = 0;
+      this.logger.debug(
+        `setChargeAmps accepted — target=${amps}A, actual telemetry unchanged`,
+      );
     } else if (!ok) {
       await this.refreshCacheAfterRejection(withSuffix(ctx, "post-reject"));
     }
