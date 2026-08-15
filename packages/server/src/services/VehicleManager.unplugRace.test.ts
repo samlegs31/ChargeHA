@@ -81,7 +81,11 @@ describe("VehicleManager unplugged command race", () => {
   afterEach(() => db.close());
 
   it("does not persist a command error when refreshed state shows unplugged", async () => {
-    middleware.nextState = { ...state, isPluggedIn: false, chargePortOpen: false };
+    middleware.nextState = {
+      ...state,
+      isPluggedIn: false,
+      chargePortOpen: false,
+    };
     await manager.requestState("VIN1", requestContext);
 
     middleware.startResult = false;
@@ -116,7 +120,11 @@ describe("VehicleManager unplugged command race", () => {
     );
     expect(manager.getVehicleError("VIN1")).not.toBeNull();
 
-    middleware.nextState = { ...state, isPluggedIn: false, chargePortOpen: false };
+    middleware.nextState = {
+      ...state,
+      isPluggedIn: false,
+      chargePortOpen: false,
+    };
     await manager.requestState("VIN1", requestContext);
 
     expect(manager.getVehicleError("VIN1")).toBeNull();

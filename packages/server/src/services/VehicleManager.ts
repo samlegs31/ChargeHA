@@ -361,7 +361,8 @@ export class VehicleManager {
         this.clearVehicleError(vehicleId);
         this.detectTransitions(vehicleId, refreshedState);
         if (
-          this.lastEmittedUpdatedAt.get(vehicleId) !== refreshedState.lastUpdated
+          this.lastEmittedUpdatedAt.get(vehicleId) !==
+            refreshedState.lastUpdated
         ) {
           this.lastEmittedUpdatedAt.set(vehicleId, refreshedState.lastUpdated);
           this.eventEmitter.emit("vehicle_update", refreshedState);
