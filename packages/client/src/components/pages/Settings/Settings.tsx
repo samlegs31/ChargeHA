@@ -31,8 +31,8 @@ function EncryptionWarning() {
           <Text size="2" color="gray">
             Secrets such as API keys, tokens, and passwords are currently stored
             without encryption. Configure <code>ENCRYPTION_KEY</code> or{" "}
-            <code>ENCRYPTION_KEY_FILE</code> on the server before adding
-            credentials.
+            <code>ENCRYPTION_KEY_FILE</code>{" "}
+            on the server before adding credentials.
           </Text>
         </div>
       </div>
