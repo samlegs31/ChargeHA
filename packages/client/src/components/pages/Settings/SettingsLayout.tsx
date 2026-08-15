@@ -23,25 +23,40 @@ export function SettingsRow({
     <div
       style={{
         display: "flex",
-        alignItems: "center",
+        alignItems: "flex-start",
         justifyContent: "space-between",
-        gap: 16,
+        flexWrap: "wrap",
+        gap: "8px 16px",
         minHeight: 36,
       }}
     >
-      <div style={{ flex: 1 }}>
-        <Text size="2">{label}</Text>
+      <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+        <Text size="2" weight="medium">{label}</Text>
         {help && (
           <Text
             size="1"
             color="gray"
-            style={{ display: "block", marginTop: 2 }}
+            style={{
+              display: "block",
+              marginTop: 2,
+              lineHeight: 1.4,
+              maxWidth: 680,
+            }}
           >
             {help}
           </Text>
         )}
       </div>
-      <div style={{ flexShrink: 0 }}>{children}</div>
+      <div
+        style={{
+          flex: "0 1 auto",
+          flexShrink: 0,
+          marginLeft: "auto",
+          maxWidth: "100%",
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -90,7 +105,7 @@ export function NumberInput({
         onBlur={() => {
           setEditing(false);
         }}
-        style={{ width: 80 }}
+        style={{ width: 88 }}
       />
       <Text size="2" color="gray">{suffix}</Text>
     </div>
