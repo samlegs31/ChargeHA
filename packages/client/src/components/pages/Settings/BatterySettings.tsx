@@ -93,7 +93,7 @@ export function BatterySettings() {
       icon={<Battery size={18} />}
       title="Battery"
       badge="Beta"
-      description="This does not control your home battery. Outside an active charge schedule, it can hold or stop solar EV charging when the battery SOC is too low or battery discharge stays above your tolerance. Active charge schedules intentionally ignore battery discharge power."
+      description="Protect your home-battery reserve during unscheduled solar EV charging. E.V Solar only decides whether the EV may charge; it never controls the home battery itself."
       saveStatus={saveStatus}
       isDirty={isDirty}
       onSave={save}
@@ -101,7 +101,7 @@ export function BatterySettings() {
     >
       <SettingsRow
         label="Home battery protection"
-        help="Applies only to solar charging outside active charge schedules. Scheduled off-peak charging continues at its programmed current."
+        help="Applies only to solar charging outside an active schedule. Scheduled charging continues at its programmed current."
       >
         <Switch
           size="2"
@@ -112,7 +112,7 @@ export function BatterySettings() {
 
       <SettingsRow
         label="Minimum home battery SOC"
-        help="Solar EV charging waits or stops immediately while the home battery is below this level."
+        help="Below this reserve, unscheduled solar EV charging will not start or continue."
       >
         <div
           style={{
@@ -145,7 +145,7 @@ export function BatterySettings() {
 
       <ProtectionSlider
         label="Tolerated battery discharge"
-        help="Solar EV charging may continue while home-battery discharge stays at or below this power. Set 0 W for the strictest protection."
+        help="EV charging may continue while home-battery discharge stays at or below this power. Set 0 W for the strictest protection."
         enabled={fields.batteryPriorityEnabled}
         value={fields.batteryDischargeToleranceW}
         min={0}
@@ -157,7 +157,7 @@ export function BatterySettings() {
 
       <ProtectionSlider
         label="Battery discharge grace period"
-        help="When the EV is already charging, discharge must stay above the tolerance for this long before charging stops. Starting a new solar charge is blocked immediately."
+        help="If the EV is already charging, discharge must remain above the tolerance for this long before charging stops. New solar charging is blocked immediately."
         enabled={fields.batteryPriorityEnabled}
         value={fields.batteryDischargeGraceMinutes}
         min={0}
