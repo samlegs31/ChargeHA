@@ -72,7 +72,100 @@ describe("TeslaVehicleMiddleware", () => {
     it("fetches on first call (no cache)", async () => {
       await middleware.requestState(ctx());
       expect(adapter.isVehicleOnlineCalls).toBe(1);
+      expect(adapter.getChargeStateCalls).toBe(2);
+      expect(adapter.getChargeStateIncludeLocation).toEqual([false, true]);
+    });
+
+    it("does not request location while vehicle is unplugged", async () => {
+      adapter.state = {
+        ...buildVehicleChargeState({
+          isPluggedIn: false,
+          latitude: 43.6,
+          longitude: 1.4,
+        }),
+        odometerMiles: 1000,
+      };
+
+      const state = await middleware.requestState(ctx());
+
+      expect(adapter.getChargeStateIncludeLocation).toEqual([false]);
+      expect(state?.latitude).toBeNull();
+      expect(state?.longitude).toBeNull();
+    });
+
+    it("fetches location once when plugged, then reuses it if odometer is unchanged", async () => {
+      const first = await middleware.requestState(ctx({ hasSolar: true }));
+      expect(adapter.getChargeStateIncludeLocation).toEqual([false, true]);
+      expect(first?.latitude).toBe(43.6);
+      expect(first?.longitude).toBe(1.4);
+
+      adapter.getChargeStateCalls = 0;
+      adapter.getChargeStateIncludeLocation = [];
+      time.tick(11 * 60 * 1000);
+
+      const second = await middleware.requestState(ctx({ hasSolar: true }));
       expect(adapter.getChargeStateCalls).toBe(1);
+      expect(adapter.getChargeStateIncludeLocation).toEqual([false]);
+      expect(second?.latitude).toBe(43.6);
+      expect(second?.longitude).toBe(1.4);
+    });
+
+    it("refetches location if odometer changed before a plugged poll", async () => {
+      await middleware.requestState(ctx({ hasSolar: true }));
+      adapter.getChargeStateCalls = 0;
+      adapter.getChargeStateIncludeLocation = [];
+
+      adapter.state = {
+        ...adapter.state,
+        latitude: 44.0,
+        longitude: 2.0,
+        odometerMiles: 1001,
+      };
+      time.tick(11 * 60 * 1000);
+
+      const state = await middleware.requestState(ctx({ hasSolar: true }));
+      expect(adapter.getChargeStateIncludeLocation).toEqual([false, true]);
+      expect(state?.latitude).toBe(44.0);
+      expect(state?.longitude).toBe(2.0);
+    });
+
+    it("clears trusted location after observing unplug", async () => {
+      await middleware.requestState(ctx({ hasSolar: true }));
+      adapter.getChargeStateIncludeLocation = [];
+
+      adapter.state = {
+        ...adapter.state,
+        isPluggedIn: false,
+      };
+      time.tick(11 * 60 * 1000);
+      await middleware.requestState(ctx({ hasSolar: true }));
+      expect(adapter.getChargeStateIncludeLocation).toEqual([false]);
+
+      adapter.getChargeStateIncludeLocation = [];
+      adapter.state = {
+        ...adapter.state,
+        isPluggedIn: true,
+      };
+      time.tick(6 * 60 * 1000);
+      await middleware.requestState(ctx({ hasSolar: true }));
+      expect(adapter.getChargeStateIncludeLocation).toEqual([false, true]);
+    });
+
+    it("allows a manual force refresh to request location while unplugged", async () => {
+      adapter.state = {
+        ...buildVehicleChargeState({
+          isPluggedIn: false,
+          latitude: 43.6,
+          longitude: 1.4,
+        }),
+        odometerMiles: 1000,
+      };
+
+      const state = await middleware.requestState(ctx({ forceRefresh: true }));
+
+      expect(adapter.getChargeStateIncludeLocation).toEqual([true]);
+      expect(state?.latitude).toBe(43.6);
+      expect(state?.longitude).toBe(1.4);
     });
 
     it("returns cache when fresh", async () => {
@@ -138,7 +231,7 @@ describe("TeslaVehicleMiddleware", () => {
           await middleware.requestState(ctx(overrides));
 
           expect(adapter.wakeVehicleCalls).toBe(1);
-          expect(adapter.getChargeStateCalls).toBe(1);
+          expect(adapter.getChargeStateCalls).toBe(2);
         },
       );
     });
@@ -239,7 +332,7 @@ describe("TeslaVehicleMiddleware", () => {
       const state = await middleware.requestState(ctx());
       // Probe ran, transition detected, fresh fetch happened
       expect(adapter.isVehicleOnlineCalls).toBe(1);
-      expect(adapter.getChargeStateCalls).toBe(1);
+      expect(adapter.getChargeStateCalls).toBe(2);
       expect(state?.isPluggedIn).toBe(true);
       expect(state?.batteryLevel).toBe(70);
     });
@@ -307,6 +400,7 @@ describe("TeslaVehicleMiddleware", () => {
       });
       await middleware.requestState(ctx());
       adapter.getChargeStateCalls = 0;
+      adapter.getChargeStateIncludeLocation = [];
 
       // 4 min later — within 5 min staleness window, no refetch.
       time.tick(4 * 60 * 1000);
@@ -320,7 +414,8 @@ describe("TeslaVehicleMiddleware", () => {
         isPluggedIn: true,
       });
       const state = await middleware.requestState(ctx());
-      expect(adapter.getChargeStateCalls).toBe(1);
+      expect(adapter.getChargeStateCalls).toBe(2);
+      expect(adapter.getChargeStateIncludeLocation).toEqual([false, true]);
       expect(state?.isPluggedIn).toBe(true);
     });
   });

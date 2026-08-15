@@ -16,10 +16,29 @@ import { TeslaApiStrategy } from "./TeslaApiStrategy.ts";
 // Bypassed for forceRefresh (user-initiated) and command paths.
 const ONLINE_CHECK_DEBOUNCE_MS = 60_000;
 
-type TeslaCachedState = Omit<AdapterVehicleChargeState, "isOnline"> & {
+type TeslaAdapterState = AdapterVehicleChargeState & {
   /** Sensed Tesla AC input current. chargeAmps remains the control target. */
   chargeAmpsActual?: number;
+  /** Odometer is internal metadata used to validate cached coordinates. */
+  odometerMiles?: number;
 };
+
+type TeslaCachedState = Omit<TeslaAdapterState, "isOnline">;
+
+type TeslaLocationAwareAdapter = VehicleAdapter & {
+  getChargeState(
+    ctx: CallContext,
+    options?: { includeLocation?: boolean },
+  ): Promise<TeslaAdapterState>;
+};
+
+interface TrustedLocation {
+  latitude: number;
+  longitude: number;
+  odometerMiles: number;
+}
+
+const LOCATION_ODOMETER_TOLERANCE_MILES = 0.01;
 
 /**
  * Tesla-specific vehicle middleware. Wraps the adapter with caching and
@@ -27,7 +46,7 @@ type TeslaCachedState = Omit<AdapterVehicleChargeState, "isOnline"> & {
  * to TeslaApiStrategy — this class only handles I/O execution.
  */
 export class TeslaVehicleMiddleware implements VehicleMiddleware {
-  private readonly adapter: VehicleAdapter;
+  private readonly adapter: TeslaLocationAwareAdapter;
   private readonly logger: Logger;
   private readonly strategy: TeslaApiStrategy;
 
@@ -39,9 +58,10 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
   private lastFetchAtMs = 0;
   private lastWakeAtMs = 0;
   private lastOnlineCheckAtMs = 0;
+  private trustedLocation: TrustedLocation | null = null;
 
   constructor(adapter: VehicleAdapter, logger: Logger) {
-    this.adapter = adapter;
+    this.adapter = adapter as TeslaLocationAwareAdapter;
     this.logger = logger;
     this.strategy = new TeslaApiStrategy();
   }
@@ -109,7 +129,10 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     //    cache stale and shouldWake keeps skipping forever.
     if (cameOnline) {
       this.logger.info("Vehicle came online — refreshing state");
-      return this.fetchAndCache(withSuffix(context, "transition"));
+      return this.fetchAndCache(
+        withSuffix(context, "transition"),
+        !!context.forceRefresh,
+      );
     }
 
     // 2. Cache fresh → use it
@@ -122,7 +145,10 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     // 3. Online → fetch fresh
     if (isOnline) {
       this.logger.debug("Online with stale cache — fetching fresh state");
-      return this.fetchAndCache(withSuffix(context, "request_vehicle_data"));
+      return this.fetchAndCache(
+        withSuffix(context, "request_vehicle_data"),
+        !!context.forceRefresh,
+      );
     }
 
     // 4. Asleep but worth waking → wake, then fetch
@@ -130,7 +156,10 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
       this.logger.info(
         `Asleep — waking to refresh state (reason=${wakeReason})`,
       );
-      return this.wakeAndFetch(withSuffix(context, `wake:${wakeReason}`));
+      return this.wakeAndFetch(
+        withSuffix(context, `wake:${wakeReason}`),
+        !!context.forceRefresh,
+      );
     }
 
     // 5. Asleep, not worth waking → return stale cache
@@ -212,7 +241,7 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
    *  Costs $0.002 per rejection, bounded by VehicleManager's command backoff. */
   private async refreshCacheAfterRejection(ctx: CallContext): Promise<void> {
     try {
-      await this.fetchAndCache(ctx);
+      await this.fetchAndCache(ctx, false);
       this.logger.info(
         "Refreshed vehicle_data after command rejection — cache resynced",
       );
@@ -266,12 +295,36 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     return isOnline;
   }
 
-  /** Fetch vehicle data from the adapter and update the cache ($0.002). */
+  /** Fetch vehicle data and update the cache. Routine telemetry excludes
+   *  location_data so EV Solar does not request location while the car is
+   *  driving. A plugged vehicle gets one location check when needed. */
   private async fetchAndCache(
     ctx: CallContext,
+    includeLocation: boolean,
   ): Promise<AdapterVehicleChargeState | null> {
-    const state = await this.adapter.getChargeState(ctx);
+    const fetchedState = await this.adapter.getChargeState(ctx, {
+      includeLocation,
+    });
+    const state = await this.withRequiredLocation(
+      fetchedState,
+      ctx,
+      includeLocation,
+    );
     state.lastUpdated = new Date().toISOString();
+
+    if (!state.isPluggedIn) {
+      this.trustedLocation = null;
+    } else if (
+      state.latitude != null &&
+      state.longitude != null &&
+      state.odometerMiles != null
+    ) {
+      this.trustedLocation = {
+        latitude: state.latitude,
+        longitude: state.longitude,
+        odometerMiles: state.odometerMiles,
+      };
+    }
 
     this.lastKnownOnline = state.isOnline;
     this.lastFetchAtMs = Date.now();
@@ -281,9 +334,40 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     return this.getCachedState();
   }
 
+  private canReuseTrustedLocation(state: TeslaAdapterState): boolean {
+    if (!this.trustedLocation || state.odometerMiles == null) return false;
+    return Math.abs(
+      state.odometerMiles - this.trustedLocation.odometerMiles,
+    ) <= LOCATION_ODOMETER_TOLERANCE_MILES;
+  }
+
+  private async withRequiredLocation(
+    state: TeslaAdapterState,
+    ctx: CallContext,
+    includeLocation: boolean,
+  ): Promise<TeslaAdapterState> {
+    if (includeLocation || !state.isPluggedIn) return state;
+
+    if (this.canReuseTrustedLocation(state)) {
+      return {
+        ...state,
+        latitude: this.trustedLocation?.latitude ?? null,
+        longitude: this.trustedLocation?.longitude ?? null,
+      };
+    }
+
+    this.logger.info(
+      "Plugged vehicle location unknown or odometer changed — fetching location for home check",
+    );
+    return await this.adapter.getChargeState(withSuffix(ctx, "location"), {
+      includeLocation: true,
+    });
+  }
+
   /** Wake the vehicle ($0.02), then fetch fresh state. */
   private async wakeAndFetch(
     ctx: CallContext,
+    includeLocation: boolean,
   ): Promise<AdapterVehicleChargeState | null> {
     this.logger.info("Waking vehicle");
     this.lastWakeAtMs = Date.now();
@@ -295,7 +379,10 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     }
 
     this.lastKnownOnline = true;
-    return this.fetchAndCache(withSuffix(ctx, "request_vehicle_data"));
+    return this.fetchAndCache(
+      withSuffix(ctx, "request_vehicle_data"),
+      includeLocation,
+    );
   }
 }
 

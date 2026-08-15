@@ -5,8 +5,13 @@ import { buildVehicleChargeState } from "@chargeha/shared/test-factories";
  * Tesla-specific adapter stub used by TeslaVehicleMiddleware tests. Tracks
  * call counts and lets tests toggle isOnline / wakeResult / etc.
  */
+type MockTeslaState = VehicleChargeState & { odometerMiles?: number };
+
 export class MockTeslaAdapter {
-  state: VehicleChargeState = buildVehicleChargeState();
+  state: MockTeslaState = {
+    ...buildVehicleChargeState({ latitude: 43.6, longitude: 1.4 }),
+    odometerMiles: 1000,
+  };
   isOnline = true;
   wakeResult = true;
   startChargingResult = true;
@@ -14,15 +19,25 @@ export class MockTeslaAdapter {
   setChargeAmpsResult = true;
 
   getChargeStateCalls = 0;
+  getChargeStateIncludeLocation: Array<boolean | undefined> = [];
   isVehicleOnlineCalls = 0;
   wakeVehicleCalls = 0;
   startChargingCalls = 0;
   stopChargingCalls = 0;
   setChargeAmpsCalls = 0;
 
-  getChargeState(_ctx: unknown): Promise<VehicleChargeState> {
+  getChargeState(
+    _ctx: unknown,
+    options?: { includeLocation?: boolean },
+  ): Promise<MockTeslaState> {
     this.getChargeStateCalls++;
-    return Promise.resolve({ ...this.state });
+    this.getChargeStateIncludeLocation.push(options?.includeLocation);
+    const state = { ...this.state };
+    if (options?.includeLocation === false) {
+      state.latitude = null;
+      state.longitude = null;
+    }
+    return Promise.resolve(state);
   }
 
   isVehicleOnline(_ctx: unknown): Promise<boolean> {

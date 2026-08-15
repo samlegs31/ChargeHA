@@ -68,12 +68,15 @@ interface TeslaChargeState {
 type TeslaAdapterChargeState = AdapterVehicleChargeState & {
   /** Tesla charger_actual_current: measured draw, not the control target. */
   chargeAmpsActual: number;
+  /** Odometer is used internally to validate cached home coordinates. */
+  odometerMiles?: number;
 };
 
 /** Tesla Fleet API vehicle_state fields used by this adapter. */
 interface TeslaVehicleState {
   vehicle_name?: string;
   car_type?: string;
+  odometer?: number;
 }
 
 /** Tesla Fleet API drive_state fields used by this adapter. */
@@ -141,13 +144,16 @@ export class TeslaAdapter implements VehicleAdapter {
     // No persistent connection to clean up
   }
 
-  async getChargeState(ctx: CallContext): Promise<AdapterVehicleChargeState> {
+  async getChargeState(
+    ctx: CallContext,
+    options: { includeLocation?: boolean } = {},
+  ): Promise<AdapterVehicleChargeState> {
     // `;` must be percent-encoded — Tesla's gateway treats raw `;` as a
-    // query-param separator and silently drops everything after the
-    // first endpoint, leaving drive_state / vehicle_state missing.
-    const endpoints = encodeURIComponent(
-      "charge_state;vehicle_state;location_data",
-    );
+    // query-param separator. Routine polling excludes location_data because
+    // Tesla shows a location-sharing indicator in the vehicle when it is read.
+    const endpointNames = ["charge_state", "vehicle_state"];
+    if (options.includeLocation ?? true) endpointNames.push("location_data");
+    const endpoints = encodeURIComponent(endpointNames.join(";"));
     const data = await this.fleetApiGet<TeslaVehicleDataResponse>(
       `/api/1/vehicles/${this.vin}/vehicle_data?endpoints=${endpoints}`,
       ctx,
@@ -203,6 +209,7 @@ export class TeslaAdapter implements VehicleAdapter {
       minutesToFull: charge.minutes_to_full_charge ?? 0,
       chargePortOpen: charge.charge_port_door_open ?? false,
       vehicleName: vehicle?.vehicle_name ?? "Tesla",
+      odometerMiles: vehicle?.odometer,
       lastUpdated: new Date().toISOString(),
       latitude: drive?.latitude ?? null,
       longitude: drive?.longitude ?? null,

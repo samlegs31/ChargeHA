@@ -19,9 +19,13 @@ describe("TeslaAdapter", () => {
   let baseUrl: string;
   let mockTokenManager: MockTokenManager;
   let adapter: TeslaAdapter;
-  let requestLog: Array<
-    { method: string; url: string; body?: string; authorization: string | null }
-  >;
+  let requestLog: Array<{
+    method: string;
+    url: string;
+    body?: string;
+    authorization: string | null;
+    endpoints: string | null;
+  }>;
   let responseOverrides: Map<string, { status: number; body: unknown }>;
 
   const VIN = "5YJ3E1EA1MF000001";
@@ -43,6 +47,7 @@ describe("TeslaAdapter", () => {
       },
       vehicle_state: {
         vehicle_name: "My Model 3",
+        odometer: 12345.6,
       },
       state: "online",
     },
@@ -66,6 +71,7 @@ describe("TeslaAdapter", () => {
         url: url.pathname,
         body,
         authorization: req.headers.get("Authorization"),
+        endpoints: url.searchParams.get("endpoints"),
       });
 
       // Check for response overrides
@@ -132,6 +138,7 @@ describe("TeslaAdapter", () => {
       expect(state.minutesToFull).toBe(45);
       expect(state.chargePortOpen).toBe(true);
       expect(state.vehicleName).toBe("My Model 3");
+      expect((state as { odometerMiles?: number }).odometerMiles).toBe(12345.6);
     });
 
     it("sets isCharging to false when not charging", async () => {
@@ -195,6 +202,24 @@ describe("TeslaAdapter", () => {
       const state = await adapter.getChargeState(c("test:charge-state"));
       expect(state.isCharging).toBe(true);
       expect(state.isPluggedIn).toBe(true);
+    });
+
+    it("includes location_data by default", async () => {
+      await adapter.getChargeState(c("test:with-location"));
+      const req = requestLog.find((r) => r.url.includes("vehicle_data"));
+      assertExists(req);
+      expect(req.endpoints).toBe(
+        "charge_state;vehicle_state;location_data",
+      );
+    });
+
+    it("omits location_data when explicitly disabled", async () => {
+      await adapter.getChargeState(c("test:no-location"), {
+        includeLocation: false,
+      });
+      const req = requestLog.find((r) => r.url.includes("vehicle_data"));
+      assertExists(req);
+      expect(req.endpoints).toBe("charge_state;vehicle_state");
     });
 
     it("sends authorization header", async () => {
