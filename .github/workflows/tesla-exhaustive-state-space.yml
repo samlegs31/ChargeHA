@@ -39,4 +39,5 @@ jobs:
         run: deno task test:server
 
       - name: Run complete client test suite
+        if: always()
         run: deno task test:client
