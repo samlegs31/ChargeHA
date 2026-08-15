@@ -1,0 +1,48 @@
+name: Temporary E.V Solar live telemetry validation
+
+on:
+  push:
+    branches:
+      - fix/evsolar-tesla-live-telemetry
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.4
+
+      - name: Install dependencies
+        run: deno install --frozen
+
+      - name: Formatting
+        run: |
+          deno fmt --check \
+            packages/plugins/vehicles/tesla/server/TeslaAdapter.ts \
+            packages/plugins/vehicles/tesla/server/TeslaVehicleMiddleware.ts \
+            packages/client/src/components/VehicleCard/VehicleCardDetails.tsx
+
+      - name: Type check
+        run: deno check
+
+      - name: Tesla server tests
+        run: |
+          deno test \
+            --allow-net \
+            --allow-read \
+            --allow-write \
+            --allow-env \
+            --allow-ffi \
+            --unstable-ffi \
+            packages/plugins/vehicles/tesla/server/TeslaAdapter.test.ts \
+            packages/plugins/vehicles/tesla/server/TeslaVehicleMiddleware.test.ts
+
+      - name: Vehicle card tests
+        run: deno task --filter client test -- VehicleCard/VehicleCard.test.tsx --run
