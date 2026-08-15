@@ -1,0 +1,253 @@
+name: E.V Solar v4.3 candidate validation
+
+on:
+  push:
+    branches:
+      - agent/evsolar-v43-ci-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: evsolar-v43-ci-validation
+  cancel-in-progress: true
+
+env:
+  BASE_SHA: cdc308ebd7e8bc8386fe5eae81b894f9d8cc5708
+  PAYLOAD_SHA256: f7a062cac4f4718a05715a8169c5b39fe1e0822a64a5c14227f8d55064ddc240
+  TRANSFORM_SHA256: e407c0f1fb84d47f9dd75ac7562f7b11283baf82082244c623698e847f8658ca
+
+jobs:
+  validate:
+    name: Deno 2.9.4 full validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout validation branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preserve candidate artifacts and verify SHA
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cp .github/candidates/evsolar-v43-payload.tar.gz /tmp/evsolar-v43-payload.tar.gz
+          cp .github/candidates/evsolar-v43-transform.py /tmp/evsolar-v43-transform.py
+          echo "$PAYLOAD_SHA256  /tmp/evsolar-v43-payload.tar.gz" | sha256sum -c -
+          echo "$TRANSFORM_SHA256  /tmp/evsolar-v43-transform.py" | sha256sum -c -
+          python3 -m py_compile /tmp/evsolar-v43-transform.py
+
+      - name: Restore exact audited baseline
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git reset --hard "$BASE_SHA"
+          git clean -fdx
+          test "$(git rev-parse HEAD)" = "$BASE_SHA"
+          test -z "$(git status --porcelain)"
+
+      - name: Setup Deno 2.9.4
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.4
+
+      - name: Resolve frozen dependencies
+        run: deno install --frozen
+
+      - name: Baseline full type-check
+        run: deno check
+
+      - name: Baseline repository invariants
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          deno task check:unused
+          deno task check:packument
+
+      - name: Baseline server tests
+        run: deno task test:server
+
+      - name: Baseline client tests
+        run: deno task test:client
+
+      - name: Capture lint debt baseline
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          files=(
+            packages/client/src/components/pages/Settings/Settings.tsx
+            packages/client/src/components/pages/Settings/SolarForecastSettings.tsx
+            packages/client/src/components/pages/Stats/StatsVehicleBreakdown.tsx
+            packages/plugins/types.ts
+            packages/plugins/energy/fronius-local/server/FroniusLocalAdapter.ts
+            packages/plugins/energy/fronius-local/server/index.ts
+            packages/server/src/bootstrap/bootstrap.ts
+            packages/server/src/db/AppDatabase.ts
+            packages/server/src/db/Schema.ts
+            packages/server/src/services/EnergyAdapterManager.ts
+            packages/server/src/services/SolarForecastService.ts
+            packages/server/src/services/SolarForecastService.test.ts
+            packages/server/src/services/StatsService.test.ts
+            packages/server/src/services/StatsService.ts
+            packages/server/src/trpc/root.ts
+            packages/server/src/trpc/routers/energy.ts
+            packages/server/src/trpc/trpc.ts
+            packages/shared/configSections.ts
+            packages/shared/forecast.ts
+            packages/shared/types.ts
+          )
+          : > /tmp/lint-baseline.tsv
+          for rel in "${files[@]}"; do
+            set +e
+            deno lint "$rel" > /tmp/lint-one.txt 2>&1
+            set -e
+            count="$(grep -c 'error\[' /tmp/lint-one.txt || true)"
+            printf '%s\t%s\n' "$rel" "$count" >> /tmp/lint-baseline.tsv
+          done
+          cat /tmp/lint-baseline.tsv
+
+      - name: Apply candidate exactly
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          tar -xzf /tmp/evsolar-v43-payload.tar.gz --no-same-owner -C .
+          python3 /tmp/evsolar-v43-transform.py
+          mapfile -t fmt_files < <(git diff --name-only --diff-filter=AM | grep -E '\.(ts|tsx|json)$' || true)
+          if ((${#fmt_files[@]})); then deno fmt "${fmt_files[@]}"; fi
+          git diff --check
+          git status --short
+
+      - name: Candidate architecture and physics invariants
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          grep -q 'const chargeHistoryService = new ChargeHistoryService(db);' packages/server/src/bootstrap/bootstrap.ts
+          grep -q '\.\.\.auxServices,' packages/server/src/bootstrap/bootstrap.ts
+          ! grep -q 'getRecentObservedSolarMaxW' packages/server/src/services/SolarForecastService.ts
+          ! grep -q 'BASE_SYSTEM_EFFICIENCY' packages/server/src/services/SolarForecastService.ts
+          ! grep -qi 'fronius' packages/server/src/services/SolarForecastService.ts
+          grep -q 'const currentPoint = closestPoint(combinedDc, now);' packages/server/src/services/SolarForecastService.ts
+          grep -q 'computeLivePvCorrection' packages/server/src/services/SolarForecastService.ts
+          ! grep -q 'inverterAcPowerW' packages/shared/types.ts
+          ! grep -q 'inverterAcPowerW' packages/plugins/energy/fronius-local/server/FroniusLocalAdapter.ts
+          grep -q 'probeFroniusSunSpec' packages/plugins/energy/fronius-local/server/index.ts
+          ! grep -q 'window\.' packages/client/src/components/pages/Settings/ChargeHqHistoryImport.tsx
+
+      - name: New files lint clean
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          deno lint \
+            packages/client/src/components/pages/Settings/ChargeHqHistoryImport.tsx \
+            packages/plugins/energy/fronius-local/server/FroniusInverterProfiles.test.ts \
+            packages/plugins/energy/fronius-local/server/FroniusInverterProfiles.ts \
+            packages/plugins/energy/fronius-local/server/FroniusSunSpec.test.ts \
+            packages/plugins/energy/fronius-local/server/FroniusSunSpec.ts \
+            packages/server/src/db/repositories/ChargeHistoryRepository.test.ts \
+            packages/server/src/db/repositories/ChargeHistoryRepository.ts \
+            packages/server/src/services/ChargeHistoryService.test.ts \
+            packages/server/src/services/ChargeHistoryService.ts \
+            packages/server/src/trpc/routers/chargeHistory.ts \
+            packages/shared/inverter.test.ts \
+            packages/shared/inverter.ts
+
+      - name: Existing files add zero lint debt
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          while IFS=$'\t' read -r rel before; do
+            set +e
+            deno lint "$rel" > /tmp/lint-after.txt 2>&1
+            set -e
+            after="$(grep -c 'error\[' /tmp/lint-after.txt || true)"
+            printf '%-72s %s -> %s\n' "$rel" "$before" "$after"
+            if (( after > before )); then
+              cat /tmp/lint-after.txt
+              exit 1
+            fi
+          done < /tmp/lint-baseline.tsv
+
+      - name: Candidate targeted type-checks
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          deno check \
+            packages/server/src/services/SolarForecastService.ts \
+            packages/server/src/services/SolarForecastService.test.ts \
+            packages/shared/inverter.test.ts
+          deno check \
+            packages/server/src/bootstrap/bootstrap.ts \
+            packages/server/src/services/EnergyAdapterManager.ts \
+            packages/server/src/services/SolarForecastService.ts \
+            packages/server/src/services/ChargeHistoryService.test.ts \
+            packages/server/src/services/StatsService.test.ts \
+            packages/server/src/trpc/root.ts
+          deno check \
+            packages/plugins/energy/fronius-local/server/index.ts \
+            packages/plugins/energy/fronius-local/server/FroniusLocalAdapter.test.ts \
+            packages/plugins/energy/fronius-local/server/FroniusInverterProfiles.test.ts \
+            packages/plugins/energy/fronius-local/server/FroniusSunSpec.test.ts
+          deno check \
+            packages/client/src/components/pages/Settings/Settings.tsx \
+            packages/client/src/components/pages/Settings/SolarForecastSettings.tsx \
+            packages/client/src/components/pages/Stats/StatsVehicleBreakdown.tsx
+
+      - name: Candidate full workspace type-check
+        run: deno check
+
+      - name: Candidate targeted tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          deno test --allow-all \
+            packages/server/src/services/ChargeHistoryService.test.ts \
+            packages/server/src/db/repositories/ChargeHistoryRepository.test.ts
+          deno test --allow-all packages/server/src/services/StatsService.test.ts
+          deno test --allow-all \
+            packages/shared/inverter.test.ts \
+            packages/server/src/services/SolarForecastService.test.ts
+          deno test --allow-all \
+            packages/plugins/energy/fronius-local/server/FroniusInverterProfiles.test.ts \
+            packages/plugins/energy/fronius-local/server/FroniusSunSpec.test.ts \
+            packages/plugins/energy/fronius-local/server/FroniusLocalAdapter.test.ts
+
+      - name: Candidate repository invariants
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          deno task check:unused
+          deno task check:packument
+
+      - name: Candidate full server tests
+        run: deno task test:server
+
+      - name: Candidate full client tests
+        run: deno task test:client
+
+      - name: Candidate frontend production build
+        run: deno task build
+
+      - name: Produce validated patch and manifest
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git diff --binary "$BASE_SHA" > /tmp/evsolar-v43-validated.patch
+          git diff --stat "$BASE_SHA"
+          git diff --name-only "$BASE_SHA" | sort > /tmp/evsolar-v43-files.txt
+          while IFS= read -r rel; do
+            test -f "$rel" && sha256sum "$rel"
+          done < /tmp/evsolar-v43-files.txt > /tmp/evsolar-v43-sha256.txt
+
+      - name: Upload validated candidate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: evsolar-v43-validated-candidate
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            /tmp/evsolar-v43-validated.patch
+            /tmp/evsolar-v43-files.txt
+            /tmp/evsolar-v43-sha256.txt
