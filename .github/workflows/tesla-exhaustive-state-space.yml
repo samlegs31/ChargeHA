@@ -1,4 +1,4 @@
-name: Tesla exhaustive state-space tests
+name: EV Solar exhaustive state-space tests
 
 on:
   push:
@@ -23,19 +23,29 @@ jobs:
       - name: Install dependencies
         run: deno install --frozen
 
-      - name: Format check exhaustive harness
-        run: deno fmt --check packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts
+      - name: Format check exhaustive harnesses
+        run: |
+          deno fmt --check \
+            packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts \
+            packages/shared/engine/ControllerEngine.exhaustive.test.ts
 
-      - name: Type-check exhaustive harness
-        run: deno check packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts
+      - name: Type-check exhaustive harnesses
+        run: |
+          deno check \
+            packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts \
+            packages/shared/engine/ControllerEngine.exhaustive.test.ts
 
       - name: Run exhaustive Tesla strategy matrix
         run: deno test -A packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts
+
+      - name: Run exhaustive controller safety matrix
+        run: deno test -A packages/shared/engine/ControllerEngine.exhaustive.test.ts
 
       - name: Run all Tesla regression tests
         run: deno test -A packages/plugins/vehicles/tesla/server/*.test.ts packages/server/src/services/VehicleManager.unplugRace.test.ts
 
       - name: Run complete server test suite
+        if: always()
         run: deno task test:server
 
       - name: Run complete client test suite
