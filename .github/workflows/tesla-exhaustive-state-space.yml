@@ -41,7 +41,24 @@ jobs:
         run: deno test -A packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts
 
       - name: Run 1M stateful charging event sequences
-        run: deno test -A packages/shared/engine/ControllerEngine.sequence-exhaustive.test.ts
+        shell: bash
+        run: |
+          set +e
+          deno test -A packages/shared/engine/ControllerEngine.sequence-exhaustive.test.ts 2>&1 | tee sequence-test.log
+          status=${PIPESTATUS[0]}
+          echo "$status" > sequence-test.exit-code
+          exit "$status"
+
+      - name: Preserve sequence diagnostic log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stateful-sequence-diagnostics
+          path: |
+            sequence-test.log
+            sequence-test.exit-code
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Run exhaustive controller safety matrix
         if: always()
