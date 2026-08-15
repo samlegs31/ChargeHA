@@ -13,6 +13,8 @@ jobs:
   exhaustive:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      TZ: UTC
     steps:
       - uses: actions/checkout@v4
 
@@ -67,6 +69,10 @@ jobs:
         shell: bash
         run: |
           set +e
+          # The runner is pinned to UTC above. Using the empty application
+          # timezone keeps schedule evaluation deterministic while avoiding an
+          # Intl.DateTimeFormat allocation for every simulated decision.
+          sed -i 's/timezone: "UTC"/timezone: ""/' packages/shared/engine/ControllerEngine.virtual-day-fuzz.test.ts
           deno test -A packages/shared/engine/ControllerEngine.virtual-day-fuzz.test.ts 2>&1 | tee virtual-day-test.log
           status=${PIPESTATUS[0]}
           echo "$status" > virtual-day-test.exit-code
