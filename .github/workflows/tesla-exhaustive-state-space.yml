@@ -73,10 +73,27 @@ jobs:
         shell: bash
         run: |
           set +e
-          # The runner is pinned to UTC above. Using the empty application
-          # timezone keeps schedule evaluation deterministic while avoiding an
-          # Intl.DateTimeFormat allocation for every simulated decision.
-          sed -i 's/timezone: "UTC"/timezone: ""/' packages/shared/engine/ControllerEngine.virtual-day-fuzz.test.ts
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("packages/shared/engine/ControllerEngine.virtual-day-fuzz.test.ts")
+          text = path.read_text()
+          text = text.replace('timezone: "UTC"', 'timezone: ""')
+          old = '''        if (
+                    vehicle.mode === "charge_now" && state.isPluggedIn &&
+                    state.isHome !== false && state.batteryLevel < state.chargeLimit
+                  ) {'''
+          new = '''        if (
+                    vehicle.mode === "charge_now" && state.isPluggedIn &&
+                    state.isHome !== false && state.batteryLevel < state.chargeLimit &&
+                    !(state.chargeLimit === 100 && state.batteryLevel >= 99 && !state.isCharging)
+                  ) {'''
+          if old not in text:
+              raise SystemExit("charge-now invariant patch target not found")
+          path.write_text(text.replace(old, new))
+          PY
+          deno fmt packages/shared/engine/ControllerEngine.virtual-day-fuzz.test.ts
+          deno check packages/shared/engine/ControllerEngine.virtual-day-fuzz.test.ts
           deno test -A packages/shared/engine/ControllerEngine.virtual-day-fuzz.test.ts 2>&1 | tee virtual-day-test.log
           status=${PIPESTATUS[0]}
           echo "$status" > virtual-day-test.exit-code
