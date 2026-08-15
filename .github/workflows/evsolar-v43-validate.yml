@@ -130,12 +130,32 @@ jobs:
           done
           cat /tmp/lint-baseline.tsv
 
-      - name: Apply candidate exactly
+      - name: Extract candidate payload exactly
         shell: bash
         run: |
           set -Eeuo pipefail
           tar -xzf /tmp/evsolar-v43-payload.tar.gz --no-same-owner -C .
-          python3 /tmp/evsolar-v43-transform.py
+
+      - name: Apply candidate transform exactly
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          set +e
+          python3 /tmp/evsolar-v43-transform.py 2>&1 | tee /tmp/evsolar-v43-transform.log
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo '### Candidate transform output'
+            echo '```text'
+            tail -n 100 /tmp/evsolar-v43-transform.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: Record candidate reconstruction
+        shell: bash
+        run: |
+          set -Eeuo pipefail
           git status --short
           git diff --name-only "$BASE_SHA" | sort > /tmp/evsolar-v43-files.txt
 
