@@ -420,44 +420,59 @@ jobs:
           LOCK_GUARD: ${{ steps.lock_guard.outcome }}
         run: |
           set -Eeuo pipefail
-          failures=0
-          reference() {
-            local name="$1"
-            local outcome="$2"
-            printf 'baseline %-15s %s (reference only)\n' "$name" "$outcome"
-          }
-          check() {
-            local name="$1"
-            local outcome="$2"
+
+          printf '\n%-24s %s\n' 'baseline reference' 'outcome'
+          printf '%-24s %s\n' '------------------------' '-------'
+          printf '%-24s %s\n' 'deno-check' "$BASELINE_DENO_CHECK"
+          printf '%-24s %s\n' 'invariants' "$BASELINE_INVARIANTS"
+          printf '%-24s %s\n' 'server-tests' "$BASELINE_SERVER_TESTS"
+          printf '%-24s %s\n' 'client-tests' "$BASELINE_CLIENT_TESTS"
+
+          candidate_results=(
+            "diff-check=$DIFF_CHECK"
+            "format=$FORMAT"
+            "architecture=$ARCHITECTURE"
+            "lint-new=$LINT_NEW"
+            "lint-existing=$LINT_EXISTING"
+            "deno-check=$DENO_CHECK"
+            "pure-tests=$PURE_TESTS"
+            "sunspec-strict=$SUNSPEC_STRICT"
+            "sunspec-stress=$SUNSPEC_STRESS"
+            "targeted-tests=$TARGETED_TESTS"
+            "invariants=$INVARIANTS"
+            "server-tests=$SERVER_TESTS"
+            "client-tests=$CLIENT_TESTS"
+            "client-build=$CLIENT_BUILD"
+            "audit=$AUDIT"
+            "lock-guard=$LOCK_GUARD"
+          )
+
+          printf '\n%-24s %s\n' 'candidate check' 'outcome'
+          printf '%-24s %s\n' '------------------------' '-------'
+          for entry in "${candidate_results[@]}"; do
+            name="${entry%%=*}"
+            outcome="${entry#*=}"
             printf '%-24s %s\n' "$name" "$outcome"
-            if [[ "$outcome" != success ]]; then failures=$((failures + 1)); fi
-          }
-          echo '--- Baseline reference ---'
-          reference deno-check "$BASELINE_DENO_CHECK"
-          reference invariants "$BASELINE_INVARIANTS"
-          reference server-tests "$BASELINE_SERVER_TESTS"
-          reference client-tests "$BASELINE_CLIENT_TESTS"
-          echo '--- Candidate validation ---'
-          check diff-check "$DIFF_CHECK"
-          check format "$FORMAT"
-          check architecture "$ARCHITECTURE"
-          check lint-new "$LINT_NEW"
-          check lint-existing "$LINT_EXISTING"
-          check deno-check "$DENO_CHECK"
-          check pure-tests "$PURE_TESTS"
-          check sunspec-strict "$SUNSPEC_STRICT"
-          check sunspec-stress "$SUNSPEC_STRESS"
-          check targeted-tests "$TARGETED_TESTS"
-          check invariants "$INVARIANTS"
-          check server-tests "$SERVER_TESTS"
-          check client-tests "$CLIENT_TESTS"
-          check client-build "$CLIENT_BUILD"
-          check audit "$AUDIT"
-          check lock-guard "$LOCK_GUARD"
-          echo "Candidate validation failures: $failures"
-          if (( failures > 0 )); then
+          done
+
+          failure_count=0
+          failure_details=()
+          for entry in "${candidate_results[@]}"; do
+            name="${entry%%=*}"
+            outcome="${entry#*=}"
+            if [[ "$outcome" != "success" ]]; then
+              failure_count=$((failure_count + 1))
+              failure_details+=("$name=$outcome")
+            fi
+          done
+
+          echo
+          echo "Candidate validation failures: $failure_count"
+          if (( failure_count > 0 )); then
+            printf '  - %s\n' "${failure_details[@]}"
             exit 1
           fi
+
           echo 'Candidate validation gate: success'
 
       - name: Produce validated patch and manifest
