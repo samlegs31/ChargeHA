@@ -228,6 +228,17 @@ export class VehicleManager {
         this.clearVehicleError(vehicleId);
       }
 
+      // Once fresh telemetry confirms the cable is unplugged, any previous
+      // charging-command failure is obsolete. Do not leave a stale API error
+      // banner or command backoff active for a normal unplug event.
+      if (!state.isPluggedIn) {
+        this.resetCommandBackoff(vehicleId);
+        const commandError = this.vehicleErrors.get(vehicleId);
+        if (commandError?.source === "command") {
+          this.clearVehicleError(vehicleId);
+        }
+      }
+
       return state;
     } catch (error) {
       const cached = entry.middleware.getCachedState();
@@ -339,6 +350,32 @@ export class VehicleManager {
         state: (await this.getState(vehicleId)) ?? undefined,
       };
     } catch (error) {
+      // Tesla middleware refreshes vehicle_data after a rejected command. If
+      // that refresh shows the cable was unplugged after the controller read
+      // its cached snapshot, this is a normal state race rather than an API
+      // fault. Publish the refreshed state and avoid poisoning later commands
+      // with a false error/backoff.
+      const refreshedState = await this.getState(vehicleId);
+      if (state.isPluggedIn && refreshedState?.isPluggedIn === false) {
+        this.resetCommandBackoff(vehicleId);
+        this.clearVehicleError(vehicleId);
+        this.detectTransitions(vehicleId, refreshedState);
+        if (
+          this.lastEmittedUpdatedAt.get(vehicleId) !== refreshedState.lastUpdated
+        ) {
+          this.lastEmittedUpdatedAt.set(vehicleId, refreshedState.lastUpdated);
+          this.eventEmitter.emit("vehicle_update", refreshedState);
+        }
+        this.logger.info(
+          `${refreshedState.vehicleName}: charging command skipped — vehicle was unplugged after cached state was read`,
+        );
+        return {
+          success: false,
+          state: refreshedState,
+          error: "Vehicle unplugged",
+        };
+      }
+
       this.applyCommandBackoff(vehicleId, error);
       return {
         success: false,
