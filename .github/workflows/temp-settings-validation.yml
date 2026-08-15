@@ -35,10 +35,5 @@ jobs:
             packages/client/src/components/pages/Settings/BatterySettings.tsx \
             packages/client/src/components/pages/Settings/InverterSettings.tsx
 
-      - name: Run settings tests
-        run: |
-          deno test -A \
-            packages/client/src/components/pages/Settings/Settings.test.tsx \
-            packages/client/src/components/pages/Settings/SettingsLayout.test.tsx \
-            packages/client/src/components/pages/Settings/BatterySettings.test.tsx \
-            packages/client/src/components/pages/Settings/InverterSettings.test.tsx
+      - name: Run client tests
+        run: deno task test:client
