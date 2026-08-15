@@ -161,12 +161,15 @@ export function InverterSettings() {
     <SettingsSection
       icon={<Zap size={18} />}
       title="My Equipment"
-      description="Configure your inverter or smart meter for energy monitoring."
+      description="Choose the inverter or smart-meter integration that supplies live solar, grid, load, and battery data."
       saveStatus={combinedSaveStatus}
       isDirty={combinedDirty}
       onSave={combinedSave}
     >
-      <SettingsRow label="Energy source">
+      <SettingsRow
+        label="Energy source"
+        help="This is the data source E.V Solar uses for monitoring and automatic charging decisions."
+      >
         <PluginSelect
           value={fields.energyAdapterType ?? ""}
           onChange={(v) => setField("energyAdapterType", v)}
