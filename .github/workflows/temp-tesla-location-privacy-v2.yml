@@ -25,6 +25,9 @@ jobs:
       - name: Apply Tesla location privacy patch
         run: python3 scripts/temp_apply_tesla_location_privacy_v2.py
 
+      - name: Align plug-in polling regression setup
+        run: python3 scripts/temp_adjust_tesla_location_test_v2.py
+
       - name: Format changed files
         run: |
           deno fmt \
