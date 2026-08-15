@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: evsolar-exhaustive-state-space
+  cancel-in-progress: true
+
 jobs:
   exhaustive:
     runs-on: ubuntu-latest
