@@ -1,0 +1,89 @@
+name: E.V Solar v4.3 archive diagnostic
+
+on:
+  push:
+    branches:
+      - agent/evsolar-v43-ci-validation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PAYLOAD_BLOB_SHA: 2d81420475553a9217238405631e8374108138ca
+
+jobs:
+  archive:
+    name: Candidate archive integrity
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout validation branch
+        uses: actions/checkout@v4
+
+      - name: Verify exact payload blob
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git hash-object .github/candidates/evsolar-v43-payload.tar.gz)" = "$PAYLOAD_BLOB_SHA"
+          cp .github/candidates/evsolar-v43-payload.tar.gz /tmp/evsolar-v43-payload.tar.gz
+          stat -c 'bytes=%s' /tmp/evsolar-v43-payload.tar.gz
+          sha256sum /tmp/evsolar-v43-payload.tar.gz
+
+      - id: gzip_gnu
+        name: GNU gzip stream integrity
+        continue-on-error: true
+        run: gzip -tv /tmp/evsolar-v43-payload.tar.gz
+
+      - id: tar_gnu
+        name: GNU tar table integrity
+        continue-on-error: true
+        run: tar -tzf /tmp/evsolar-v43-payload.tar.gz >/dev/null
+
+      - id: gzip_python
+        name: Python gzip stream integrity
+        continue-on-error: true
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import gzip
+          path = '/tmp/evsolar-v43-payload.tar.gz'
+          total = 0
+          with gzip.open(path, 'rb') as stream:
+              while chunk := stream.read(1024 * 1024):
+                  total += len(chunk)
+          print(f'uncompressed_bytes={total}')
+          PY
+
+      - id: tar_python
+        name: Python tar table integrity
+        continue-on-error: true
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import tarfile
+          path = '/tmp/evsolar-v43-payload.tar.gz'
+          with tarfile.open(path, 'r:gz') as archive:
+              members = archive.getmembers()
+          print(f'members={len(members)}')
+          PY
+
+      - name: Archive integrity gate
+        if: always()
+        shell: bash
+        env:
+          GNU_GZIP: ${{ steps.gzip_gnu.outcome }}
+          GNU_TAR: ${{ steps.tar_gnu.outcome }}
+          PY_GZIP: ${{ steps.gzip_python.outcome }}
+          PY_TAR: ${{ steps.tar_python.outcome }}
+        run: |
+          set -Eeuo pipefail
+          printf 'GNU gzip:   %s\n' "$GNU_GZIP"
+          printf 'GNU tar:    %s\n' "$GNU_TAR"
+          printf 'Python gzip:%s\n' "$PY_GZIP"
+          printf 'Python tar: %s\n' "$PY_TAR"
+          [[ "$GNU_GZIP" == success ]]
+          [[ "$GNU_TAR" == success ]]
+          [[ "$PY_GZIP" == success ]]
+          [[ "$PY_TAR" == success ]]
