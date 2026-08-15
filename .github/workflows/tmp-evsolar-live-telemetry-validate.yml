@@ -27,6 +27,7 @@ jobs:
           deno fmt --check \
             packages/plugins/vehicles/tesla/server/TeslaAdapter.ts \
             packages/plugins/vehicles/tesla/server/TeslaVehicleMiddleware.ts \
+            packages/plugins/vehicles/tesla/server/TeslaAdapter.liveTelemetry.test.ts \
             packages/client/src/components/VehicleCard/VehicleCardDetails.tsx
 
       - name: Type check changed modules
@@ -34,6 +35,7 @@ jobs:
           deno check \
             packages/plugins/vehicles/tesla/server/TeslaAdapter.ts \
             packages/plugins/vehicles/tesla/server/TeslaVehicleMiddleware.ts \
+            packages/plugins/vehicles/tesla/server/TeslaAdapter.liveTelemetry.test.ts \
             packages/client/src/components/VehicleCard/VehicleCardDetails.tsx
 
       - name: Tesla server tests
@@ -46,7 +48,8 @@ jobs:
             --allow-ffi \
             --unstable-ffi \
             packages/plugins/vehicles/tesla/server/TeslaAdapter.test.ts \
-            packages/plugins/vehicles/tesla/server/TeslaVehicleMiddleware.test.ts
+            packages/plugins/vehicles/tesla/server/TeslaVehicleMiddleware.test.ts \
+            packages/plugins/vehicles/tesla/server/TeslaAdapter.liveTelemetry.test.ts
 
       - name: Vehicle card tests
         run: deno task --filter client test -- VehicleCard/VehicleCard.test.tsx --run
