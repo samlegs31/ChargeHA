@@ -57,7 +57,9 @@ const REASON_LABELS: Record<string, (detail: string) => string> = {
       /Start charging at (\d+)A \(schedule (\d{2}:\d{2})-(\d{2}:\d{2})\)/,
     );
     if (startMatch) {
-      return `Off-peak charging active · ${startMatch[1]}A · until ${startMatch[3]}`;
+      return `Off-peak charging active · ${startMatch[1]}A · until ${
+        startMatch[3]
+      }`;
     }
 
     const scheduleMatch = detail.match(/schedule (\d{2}:\d{2})-(\d{2}:\d{2})/);
@@ -124,7 +126,8 @@ function requestedAmps(state: VehicleChargeState): number {
 }
 
 function isCurrentRamping(state: VehicleChargeState): boolean {
-  return state.isCharging && Math.abs(requestedAmps(state) - state.chargeAmps) >= 0.5;
+  return state.isCharging &&
+    Math.abs(requestedAmps(state) - state.chargeAmps) >= 0.5;
 }
 
 function ChargeButton(
@@ -195,7 +198,8 @@ function AmpsControl(
           size="1"
           disabled={disabled || !state.isCharging ||
             targetAmps <= state.chargeAmpsMin}
-          onClick={() => onSetAmps(Math.round(targetAmps) - 1)}
+          onClick={() =>
+            onSetAmps(Math.round(targetAmps) - 1)}
         >
           {commandPending === "amps" ? <Spinner /> : "−"}
         </Button>
@@ -205,7 +209,8 @@ function AmpsControl(
           size="1"
           disabled={disabled || !state.isCharging ||
             targetAmps >= state.chargeAmpsMax}
-          onClick={() => onSetAmps(Math.round(targetAmps) + 1)}
+          onClick={() =>
+            onSetAmps(Math.round(targetAmps) + 1)}
         >
           {commandPending === "amps" ? <Spinner /> : "+"}
         </Button>
@@ -232,8 +237,12 @@ export function VehicleCardDetails({
   const targetAmps = requestedAmps(state);
   const ramping = isCurrentRamping(state);
   const currentLabel = ramping
-    ? `${formatAmps(state.chargeAmps)}A actual · ${formatAmps(targetAmps)}A target · ${formatAmps(state.chargeAmpsMax)}A max`
-    : `${formatAmps(state.chargeAmps)}A / ${formatAmps(state.chargeAmpsMax)}A max`;
+    ? `${formatAmps(state.chargeAmps)}A actual · ${
+      formatAmps(targetAmps)
+    }A target · ${formatAmps(state.chargeAmpsMax)}A max`
+    : `${formatAmps(state.chargeAmps)}A / ${
+      formatAmps(state.chargeAmpsMax)
+    }A max`;
 
   return (
     <>
@@ -290,7 +299,8 @@ export function VehicleCardDetails({
                 <div className={styles.detailRow}>
                   <Plug size={14} />
                   <Text size="1" color="gray">
-                    {formatMinutes(state.minutesToFull)} to {chargeLimitPercent}%
+                    {formatMinutes(state.minutesToFull)} to{" "}
+                    {chargeLimitPercent}%
                   </Text>
                 </div>
               )}
