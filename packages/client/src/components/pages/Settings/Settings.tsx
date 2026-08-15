@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Key, Zap } from "lucide-react";
 import { Card, Link, Switch, Text } from "@radix-ui/themes";
 import { trpc } from "../../../trpc.ts";
@@ -28,14 +29,40 @@ function EncryptionWarning() {
             Encryption Key Not Configured
           </Text>
           <Text size="2" color="gray">
-            Secrets (API keys, tokens, passwords) will be stored in plain text
-            instead of encrypted. Add <code>ENCRYPTION_KEY</code> to your{" "}
-            <code>.env</code> file. Generate with:{" "}
-            <code>openssl rand -base64 32</code>
+            Secrets such as API keys, tokens, and passwords are currently stored
+            without encryption. Configure <code>ENCRYPTION_KEY</code> or{" "}
+            <code>ENCRYPTION_KEY_FILE</code> on the server before adding
+            credentials.
           </Text>
         </div>
       </div>
     </Card>
+  );
+}
+
+function SettingsGroup(
+  { title, description, children }: {
+    title: string;
+    description: string;
+    children: ReactNode;
+  },
+) {
+  return (
+    <section
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <Text size="3" weight="bold">{title}</Text>
+        <Text size="2" color="gray">{description}</Text>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        {children}
+      </div>
+    </section>
   );
 }
 
@@ -73,70 +100,71 @@ export function Settings() {
 
   if (chargingLoading) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <Text size="5" weight="bold">Settings</Text>
-        <Text size="2" color="gray">Loading...</Text>
+        <Text size="2" color="gray">Loading settings...</Text>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+    <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <Text size="5" weight="bold">Settings</Text>
+        <Text size="2" color="gray">
+          Configure charging, energy monitoring, solar behaviour, and system
+          services. Changes are saved per section.
+        </Text>
       </div>
 
       {encryptionMissing && <EncryptionWarning />}
 
-      {/* ═══ Charging Control ═══ */}
-      <SettingsSection
-        icon={<Zap size={18} />}
-        title="Charging Control"
-        description="Global enable/disable for all charge automation."
-        saveStatus={chargingSaveStatus}
-        isDirty={chargingDirty}
-        onSave={saveCharging}
+      <SettingsGroup
+        title="Charging & equipment"
+        description="Control charging automation and the hardware connected to E.V Solar."
       >
-        <SettingsRow label="Charging enabled">
-          <Switch
-            size="2"
-            checked={chargingFields?.chargingEnabled ?? true}
-            onCheckedChange={(v) => setChargingField("chargingEnabled", v)}
-          />
-        </SettingsRow>
-      </SettingsSection>
+        <SettingsSection
+          icon={<Zap size={18} />}
+          title="Charging Control"
+          description="Master switch for E.V Solar charging automation."
+          saveStatus={chargingSaveStatus}
+          isDirty={chargingDirty}
+          onSave={saveCharging}
+        >
+          <SettingsRow
+            label="Charging enabled"
+            help="Turn this off to pause automatic charging decisions without changing your other settings."
+          >
+            <Switch
+              size="2"
+              checked={chargingFields?.chargingEnabled ?? true}
+              onCheckedChange={(v) => setChargingField("chargingEnabled", v)}
+            />
+          </SettingsRow>
+        </SettingsSection>
 
-      {/* ═══ My Equipment ═══ */}
-      <InverterSettings />
+        <InverterSettings />
+        <VehicleSettings />
+      </SettingsGroup>
 
-      {/* ═══ Vehicles ═══ */}
-      <VehicleSettings />
+      <SettingsGroup
+        title="Solar & energy"
+        description="Tune solar charging, forecasts, electricity tariffs, and home-battery protection."
+      >
+        <SolarTrackingSettings />
+        <SolarForecastSettings />
+        <TariffSettings />
+        <BatterySettings />
+      </SettingsGroup>
 
-      {/* ═══ Solar Tracking ═══ */}
-      <SolarTrackingSettings />
-
-      {/* ═══ Solar Forecast ═══ */}
-      <SolarForecastSettings />
-
-      {/* ═══ Electricity Tariffs ═══ */}
-      <TariffSettings />
-
-      {/* ═══ Battery ═══ */}
-      <BatterySettings />
-
-      {/* ═══ System + Home Location ═══ */}
-      <GeneralSettings />
-
-      <NotificationSettings />
-
-      {/* ═══ Authentication ═══ */}
-      <AuthSettings />
+      <SettingsGroup
+        title="System & access"
+        description="Manage system behaviour, home location, notifications, and authentication."
+      >
+        <GeneralSettings />
+        <NotificationSettings />
+        <AuthSettings />
+      </SettingsGroup>
 
       <VersionFooter />
     </div>
