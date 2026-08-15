@@ -299,7 +299,7 @@ Deno.test({
         const scheduleBypassesBattery = mode === "auto" && hasChargeSchedule &&
           !hasBlockout;
         if (
-          energy.batterySoc !== null && energy.batterySoc <= 20 &&
+          energy.batterySoc !== null && energy.batterySoc < 20 &&
           (mode === "auto" || mode === "vacation") &&
           !scheduleBypassesBattery && energising
         ) {
