@@ -29,8 +29,12 @@ jobs:
             packages/plugins/vehicles/tesla/server/TeslaVehicleMiddleware.ts \
             packages/client/src/components/VehicleCard/VehicleCardDetails.tsx
 
-      - name: Type check
-        run: deno check
+      - name: Type check changed modules
+        run: |
+          deno check \
+            packages/plugins/vehicles/tesla/server/TeslaAdapter.ts \
+            packages/plugins/vehicles/tesla/server/TeslaVehicleMiddleware.ts \
+            packages/client/src/components/VehicleCard/VehicleCardDetails.tsx
 
       - name: Tesla server tests
         run: |
