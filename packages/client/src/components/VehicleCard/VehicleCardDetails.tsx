@@ -14,10 +14,10 @@ import { kwValue } from "../../utils/Format.ts";
 import { Spinner } from "../ui/Spinner.tsx";
 import styles from "./VehicleCard.module.css";
 
-/** Tesla adds the requested current to the runtime state without changing the
+/** Tesla adds the sensed current to the runtime state without changing the
  * shared adapter contract used by other vehicle plugins. */
-type VehicleStateWithRequestedAmps = VehicleChargeState & {
-  chargeAmpsRequested?: number;
+type VehicleStateWithActualAmps = VehicleChargeState & {
+  chargeAmpsActual?: number;
 };
 
 /** Which controller reasons warrant a visible status row. */
@@ -120,14 +120,13 @@ function formatAmps(amps: number): string {
   return Number.isInteger(amps) ? String(amps) : amps.toFixed(1);
 }
 
-function requestedAmps(state: VehicleChargeState): number {
-  return (state as VehicleStateWithRequestedAmps).chargeAmpsRequested ??
+function actualAmps(state: VehicleChargeState): number {
+  return (state as VehicleStateWithActualAmps).chargeAmpsActual ??
     state.chargeAmps;
 }
 
 function isCurrentRamping(state: VehicleChargeState): boolean {
-  return state.isCharging &&
-    Math.abs(requestedAmps(state) - state.chargeAmps) >= 0.5;
+  return state.isCharging && Math.abs(state.chargeAmps - actualAmps(state)) >= 0.5;
 }
 
 function ChargeButton(
@@ -189,7 +188,7 @@ function AmpsControl(
     onSetAmps: (amps: number) => void;
   },
 ) {
-  const targetAmps = requestedAmps(state);
+  const targetAmps = state.chargeAmps;
   return (
     <Tooltip content="Start charging to adjust amps" hidden={state.isCharging}>
       <div className={styles.ampsControl}>
@@ -198,8 +197,7 @@ function AmpsControl(
           size="1"
           disabled={disabled || !state.isCharging ||
             targetAmps <= state.chargeAmpsMin}
-          onClick={() =>
-            onSetAmps(Math.round(targetAmps) - 1)}
+          onClick={() => onSetAmps(Math.round(targetAmps) - 1)}
         >
           {commandPending === "amps" ? <Spinner /> : "−"}
         </Button>
@@ -209,8 +207,7 @@ function AmpsControl(
           size="1"
           disabled={disabled || !state.isCharging ||
             targetAmps >= state.chargeAmpsMax}
-          onClick={() =>
-            onSetAmps(Math.round(targetAmps) + 1)}
+          onClick={() => onSetAmps(Math.round(targetAmps) + 1)}
         >
           {commandPending === "amps" ? <Spinner /> : "+"}
         </Button>
@@ -234,15 +231,14 @@ export function VehicleCardDetails({
   controllerReason,
   controllerDetail,
 }: VehicleCardDetailsProps) {
-  const targetAmps = requestedAmps(state);
+  const targetAmps = state.chargeAmps;
+  const liveAmps = actualAmps(state);
   const ramping = isCurrentRamping(state);
   const currentLabel = ramping
-    ? `${formatAmps(state.chargeAmps)}A actual · ${
-      formatAmps(targetAmps)
-    }A target · ${formatAmps(state.chargeAmpsMax)}A max`
-    : `${formatAmps(state.chargeAmps)}A / ${
+    ? `${formatAmps(liveAmps)}A actual · ${formatAmps(targetAmps)}A target · ${
       formatAmps(state.chargeAmpsMax)
-    }A max`;
+    }A max`
+    : `${formatAmps(liveAmps)}A / ${formatAmps(state.chargeAmpsMax)}A max`;
 
   return (
     <>
@@ -299,8 +295,7 @@ export function VehicleCardDetails({
                 <div className={styles.detailRow}>
                   <Plug size={14} />
                   <Text size="1" color="gray">
-                    {formatMinutes(state.minutesToFull)} to{" "}
-                    {chargeLimitPercent}%
+                    {formatMinutes(state.minutesToFull)} to {chargeLimitPercent}%
                   </Text>
                 </div>
               )}
