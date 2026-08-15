@@ -157,12 +157,12 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          if git diff --quiet; then
+          if git diff --quiet -- .github/candidates/evsolar-v43-payload.tar.gz; then
             echo 'No payload packaging repair required.'
             exit 0
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .github/candidates/evsolar-v43-payload.tar.gz .github/workflows/evsolar-v43-validate.yml
+          git add .github/candidates/evsolar-v43-payload.tar.gz
           git commit -m 'ci: repair E.V Solar candidate payload container'
           git push origin HEAD:agent/evsolar-v43-ci-validation
