@@ -49,7 +49,7 @@ interface TeslaChargeState {
   battery_level?: number;
   charge_limit_soc?: number;
   charging_state?: string;
-  /** Legacy fallback used by older vehicle_data responses. */
+  /** Legacy current field used by older vehicle_data responses. */
   charge_amps?: number;
   /** Requested charging current. */
   charge_current_request?: number;
@@ -66,8 +66,8 @@ interface TeslaChargeState {
 
 /** Response-only extension kept compatible with the shared vehicle state. */
 type TeslaAdapterChargeState = AdapterVehicleChargeState & {
-  /** Tesla charge_current_request: command/vehicle target, not measured draw. */
-  chargeAmpsRequested: number;
+  /** Tesla charger_actual_current: measured draw, not the control target. */
+  chargeAmpsActual: number;
 };
 
 /** Tesla Fleet API vehicle_state fields used by this adapter. */
@@ -159,15 +159,14 @@ export class TeslaAdapter implements VehicleAdapter {
     const drive = response.drive_state;
     const chargingState = charge.charging_state ?? "Unknown";
 
-    // Tesla exposes two different currents. Keep them separate:
-    // - charger_actual_current = measured AC input current
-    // - charge_current_request = requested charging current
-    // Older responses may only expose charge_amps, so retain it as an actual
-    // current fallback rather than treating a command target as telemetry.
+    // Tesla exposes two different currents. Preserve chargeAmps as the
+    // controller's requested-current value so existing solar regulation keeps
+    // its semantics, while exposing the sensed current separately for UI and
+    // live power calculations.
     const actualChargeAmps = charge.charger_actual_current ??
       charge.charge_amps ?? 0;
     const requestedChargeAmps = charge.charge_current_request ??
-      actualChargeAmps;
+      charge.charge_amps ?? actualChargeAmps;
     const chargerVoltage = charge.charger_voltage ?? 0;
     const chargerPhases = charge.charger_phases ?? 1;
 
@@ -193,8 +192,8 @@ export class TeslaAdapter implements VehicleAdapter {
       isCharging,
       isPluggedIn: chargingState !== "Disconnected",
       isOnline: response.state === "online",
-      chargeAmps: actualChargeAmps,
-      chargeAmpsRequested: requestedChargeAmps,
+      chargeAmps: requestedChargeAmps,
+      chargeAmpsActual: actualChargeAmps,
       chargeAmpsMax: charge.charge_current_request_max ?? 0,
       chargeAmpsMin: MIN_CHARGE_AMPS,
       chargePowerKw: chargerPowerKw,
