@@ -9,6 +9,8 @@ const STAGES = 10;
 const SEQUENCES = RADIX ** STAGES; // 1,048,576 complete stateful paths
 const BASE_TIME = Date.parse("2026-01-01T12:00:00Z");
 
+type ViolationBucket = { count: number; samples: string[] };
+
 function activeSchedule(
   scheduleType: "charge" | "blockout",
 ): EngineSchedule {
@@ -45,11 +47,14 @@ Deno.test({
     let energisingDecisions = 0;
     let stopDecisions = 0;
     let violationCount = 0;
-    const samples: string[] = [];
+    const violations = new Map<string, ViolationBucket>();
 
-    const recordViolation = (message: string) => {
+    const recordViolation = (category: string, message: string) => {
       violationCount++;
-      if (samples.length < 20) samples.push(message);
+      const bucket = violations.get(category) ?? { count: 0, samples: [] };
+      bucket.count++;
+      if (bucket.samples.length < 3) bucket.samples.push(message);
+      violations.set(category, bucket);
     };
 
     for (let path = 0; path < SEQUENCES; path++) {
@@ -242,7 +247,7 @@ Deno.test({
 
         const decision = engine.decide(input).decisions.get("V1");
         if (!decision) {
-          recordViolation(`path=${path} stage=${stage}: missing decision`);
+          recordViolation("missingDecision", `path=${path} stage=${stage}`);
           continue;
         }
 
@@ -256,6 +261,7 @@ Deno.test({
           state.batteryLevel >= state.chargeLimit || mode === "stop";
         if (hardBlock && energising) {
           recordViolation(
+            "hardBlock",
             `path=${path} stage=${stage}: unsafe ${decision.action} reason=${decision.reason} plugged=${state.isPluggedIn} home=${state.isHome} soc=${state.batteryLevel}/${state.chargeLimit} mode=${mode}`,
           );
         }
@@ -263,6 +269,7 @@ Deno.test({
         if (energising) {
           if (decision.targetAmps == null) {
             recordViolation(
+              "missingTargetAmps",
               `path=${path} stage=${stage}: ${decision.action} without target amps`,
             );
           } else if (
@@ -270,6 +277,7 @@ Deno.test({
             decision.targetAmps > state.chargeAmpsMax
           ) {
             recordViolation(
+              "ampBounds",
               `path=${path} stage=${stage}: target ${decision.targetAmps}A outside ${state.chargeAmpsMin}..${state.chargeAmpsMax}A`,
             );
           }
@@ -280,7 +288,8 @@ Deno.test({
           hasBlockout && (mode === "auto" || mode === "vacation") && energising
         ) {
           recordViolation(
-            `path=${path} stage=${stage}: blockout bypassed by mode=${mode}`,
+            "blockout",
+            `path=${path} stage=${stage}: blockout bypassed by mode=${mode} reason=${decision.reason}`,
           );
         }
 
@@ -290,12 +299,13 @@ Deno.test({
         const scheduleBypassesBattery = mode === "auto" && hasChargeSchedule &&
           !hasBlockout;
         if (
-          energy.batterySoc !== null && energy.batterySoc < 20 &&
+          energy.batterySoc !== null && energy.batterySoc <= 20 &&
           (mode === "auto" || mode === "vacation") &&
           !scheduleBypassesBattery && energising
         ) {
           recordViolation(
-            `path=${path} stage=${stage}: home-battery reserve bypassed mode=${mode}`,
+            "batteryReserve",
+            `path=${path} stage=${stage}: reserve bypassed soc=${energy.batterySoc} mode=${mode} reason=${decision.reason}`,
           );
         }
 
@@ -305,25 +315,28 @@ Deno.test({
         ) {
           if (decision.targetAmps !== state.chargeAmpsMax) {
             recordViolation(
-              `path=${path} stage=${stage}: charge_now target=${decision.targetAmps}, expected ${state.chargeAmpsMax}`,
+              "chargeNowTarget",
+              `path=${path} stage=${stage}: target=${decision.targetAmps}, expected ${state.chargeAmpsMax}, action=${decision.action} reason=${decision.reason}`,
             );
           }
           if (!state.isCharging && decision.action !== "start") {
             recordViolation(
-              `path=${path} stage=${stage}: charge_now failed to start (${decision.action})`,
+              "chargeNowStart",
+              `path=${path} stage=${stage}: failed to start (${decision.action}) reason=${decision.reason}`,
             );
           }
         }
 
         if (mode === "vacation" && decision.reason === "schedule") {
           recordViolation(
-            `path=${path} stage=${stage}: vacation mode incorrectly used charge schedule`,
+            "vacationSchedule",
+            `path=${path} stage=${stage}: vacation mode used charge schedule action=${decision.action}`,
           );
         }
 
-        // Apply the controller output so the next event sees the real resulting
-        // charging state. This is what makes every path stateful rather than a
-        // collection of independent snapshots.
+        // Apply the controller output so the next event sees the resulting
+        // charging state. This makes each path stateful rather than a set of
+        // independent snapshots.
         if (decision.action === "start" || decision.action === "adjust_amps") {
           if (decision.targetAmps !== null) {
             state = {
@@ -339,13 +352,16 @@ Deno.test({
     }
 
     console.log(
-      `sequence matrix: ${SEQUENCES.toLocaleString()} paths, ${decisionsChecked.toLocaleString()} decisions, ${energisingDecisions.toLocaleString()} start/adjust, ${stopDecisions.toLocaleString()} stops, ${violationCount} violations`,
+      `sequence matrix: ${SEQUENCES.toLocaleString()} paths, ${decisionsChecked.toLocaleString()} decisions, ${energisingDecisions.toLocaleString()} start/adjust, ${stopDecisions.toLocaleString()} stops, ${violationCount.toLocaleString()} violations`,
     );
 
+    for (const [category, bucket] of violations.entries()) {
+      console.log(`violation ${category}: ${bucket.count.toLocaleString()}`);
+      for (const sample of bucket.samples) console.log(`  sample: ${sample}`);
+    }
+
     if (violationCount > 0) {
-      throw new Error(
-        `${violationCount} sequence invariant violation(s)\n${samples.join("\n")}`,
-      );
+      throw new Error(`${violationCount} sequence invariant violation(s)`);
     }
 
     assertEquals(decisionsChecked, SEQUENCES * STAGES);
