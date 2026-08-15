@@ -1,0 +1,42 @@
+name: Tesla exhaustive state-space tests
+
+on:
+  push:
+    branches:
+      - test/tesla-exhaustive-state-space
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exhaustive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.4
+
+      - name: Install dependencies
+        run: deno install --frozen
+
+      - name: Format check exhaustive harness
+        run: deno fmt --check packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts
+
+      - name: Type-check exhaustive harness
+        run: deno check packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts
+
+      - name: Run exhaustive Tesla strategy matrix
+        run: deno test -A packages/plugins/vehicles/tesla/server/TeslaApiStrategy.exhaustive.test.ts
+
+      - name: Run all Tesla regression tests
+        run: deno test -A packages/plugins/vehicles/tesla/server/*.test.ts packages/server/src/services/VehicleManager.unplugRace.test.ts
+
+      - name: Run complete server test suite
+        run: deno task test:server
+
+      - name: Run complete client test suite
+        run: deno task test:client
