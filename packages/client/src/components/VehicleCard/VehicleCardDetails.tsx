@@ -126,7 +126,8 @@ function actualAmps(state: VehicleChargeState): number {
 }
 
 function isCurrentRamping(state: VehicleChargeState): boolean {
-  return state.isCharging && Math.abs(state.chargeAmps - actualAmps(state)) >= 0.5;
+  return state.isCharging &&
+    Math.abs(state.chargeAmps - actualAmps(state)) >= 0.5;
 }
 
 function ChargeButton(
@@ -197,7 +198,8 @@ function AmpsControl(
           size="1"
           disabled={disabled || !state.isCharging ||
             targetAmps <= state.chargeAmpsMin}
-          onClick={() => onSetAmps(Math.round(targetAmps) - 1)}
+          onClick={() =>
+            onSetAmps(Math.round(targetAmps) - 1)}
         >
           {commandPending === "amps" ? <Spinner /> : "−"}
         </Button>
@@ -207,7 +209,8 @@ function AmpsControl(
           size="1"
           disabled={disabled || !state.isCharging ||
             targetAmps >= state.chargeAmpsMax}
-          onClick={() => onSetAmps(Math.round(targetAmps) + 1)}
+          onClick={() =>
+            onSetAmps(Math.round(targetAmps) + 1)}
         >
           {commandPending === "amps" ? <Spinner /> : "+"}
         </Button>
@@ -295,7 +298,8 @@ export function VehicleCardDetails({
                 <div className={styles.detailRow}>
                   <Plug size={14} />
                   <Text size="1" color="gray">
-                    {formatMinutes(state.minutesToFull)} to {chargeLimitPercent}%
+                    {formatMinutes(state.minutesToFull)} to{" "}
+                    {chargeLimitPercent}%
                   </Text>
                 </div>
               )}
