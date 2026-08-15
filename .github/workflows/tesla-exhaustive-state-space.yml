@@ -110,6 +110,29 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Run multi-month outage/restart chaos
+        if: always()
+        shell: bash
+        run: |
+          deno fmt packages/shared/engine/ControllerEngine.chaos-months.test.ts
+          deno check packages/shared/engine/ControllerEngine.chaos-months.test.ts
+          set +e
+          deno test -A packages/shared/engine/ControllerEngine.chaos-months.test.ts 2>&1 | tee chaos-months-test.log
+          status=${PIPESTATUS[0]}
+          echo "$status" > chaos-months-test.exit-code
+          exit "$status"
+
+      - name: Preserve multi-month chaos diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-month-chaos-diagnostics
+          path: |
+            chaos-months-test.log
+            chaos-months-test.exit-code
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Run exhaustive controller safety matrix
         if: always()
         run: deno test -A packages/shared/engine/ControllerEngine.exhaustive.test.ts
