@@ -130,11 +130,50 @@ jobs:
           done
           cat /tmp/lint-baseline.tsv
 
+      - name: Inspect candidate payload archive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          set +e
+          gzip -tv /tmp/evsolar-v43-payload.tar.gz > /tmp/evsolar-v43-gzip.log 2>&1
+          gzip_status=$?
+          tar -tzvf /tmp/evsolar-v43-payload.tar.gz > /tmp/evsolar-v43-tar-list.log 2>&1
+          tar_status=$?
+          set -e
+          {
+            echo '### Candidate payload gzip check'
+            echo '```text'
+            cat /tmp/evsolar-v43-gzip.log
+            echo '```'
+            echo '### Candidate payload tar listing'
+            echo '```text'
+            tail -n 200 /tmp/evsolar-v43-tar-list.log
+            echo '```'
+            printf 'gzip status: %s  |  tar-list status: %s\n' "$gzip_status" "$tar_status"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if (( gzip_status != 0 || tar_status != 0 )); then
+            cat /tmp/evsolar-v43-gzip.log
+            cat /tmp/evsolar-v43-tar-list.log
+            exit 1
+          fi
+
       - name: Extract candidate payload exactly
         shell: bash
         run: |
           set -Eeuo pipefail
-          tar -xzf /tmp/evsolar-v43-payload.tar.gz --no-same-owner -C .
+          set +e
+          tar -xzvf /tmp/evsolar-v43-payload.tar.gz --no-same-owner -C . > /tmp/evsolar-v43-extract.log 2>&1
+          status=$?
+          set -e
+          {
+            echo '### Candidate payload extraction'
+            echo '```text'
+            tail -n 200 /tmp/evsolar-v43-extract.log
+            echo '```'
+            printf 'extract status: %s\n' "$status"
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/evsolar-v43-extract.log
+          exit "$status"
 
       - name: Apply candidate transform exactly
         shell: bash
