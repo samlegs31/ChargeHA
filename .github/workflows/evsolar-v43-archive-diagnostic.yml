@@ -31,17 +31,17 @@ jobs:
           stat -c 'bytes=%s' /tmp/evsolar-v43-payload.tar.gz
           sha256sum /tmp/evsolar-v43-payload.tar.gz
 
-      - id: gzip_gnu
-        name: Confirm known gzip truncation
+      - name: Confirm known gzip truncation
         continue-on-error: true
         run: gzip -tv /tmp/evsolar-v43-payload.tar.gz
 
-      - name: Verify every candidate member is fully readable
+      - name: Verify every candidate file is fully readable
         shell: bash
         run: |
           set -Eeuo pipefail
           python3 - <<'PY'
           import hashlib
+          import pathlib
           import tarfile
 
           path = '/tmp/evsolar-v43-payload.tar.gz'
@@ -50,10 +50,17 @@ jobs:
               print(f'members={len(members)}')
               if len(members) != 5:
                   raise SystemExit(f'unexpected member count: {len(members)}')
+              files = 0
               for member in members:
+                  pure = pathlib.PurePosixPath(member.name)
+                  if pure.is_absolute() or '..' in pure.parts:
+                      raise SystemExit(f'unsafe path rejected: {member.name!r}')
                   print(f'name={member.name!r} type={member.type!r} size={member.size}')
+                  if member.isdir():
+                      continue
                   if not member.isfile():
                       raise SystemExit(f'non-regular member rejected: {member.name!r}')
+                  files += 1
                   stream = archive.extractfile(member)
                   if stream is None:
                       raise SystemExit(f'cannot open member: {member.name!r}')
@@ -64,4 +71,7 @@ jobs:
                       )
                   digest = hashlib.sha256(data).hexdigest()
                   print(f'sha256={digest}  {member.name}')
+              if files == 0:
+                  raise SystemExit('archive contains no regular files')
+              print(f'regular_files={files}')
           PY
