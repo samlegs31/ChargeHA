@@ -113,8 +113,8 @@ export function AppLayout(
           <span className={styles.logoMark} aria-hidden="true">
             <Zap size={20} />
           </span>
-          <Text size="5" weight="bold" aria-label="E.V Solar">
-            E.V <span className={styles.accent}>Solar</span>
+          <Text size="5" weight="bold" aria-label="E.V. Solar">
+            E.V. <span className={styles.accent}>Solar</span>
           </Text>
         </div>
         <nav className={styles.nav}>
