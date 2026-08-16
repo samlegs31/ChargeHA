@@ -1,5 +1,4 @@
 export const CHARGEHQ_INTERVAL_HEADERS = [
-  "index",
   "start_time_local",
   "start_time_epoch",
   "charged_kwh",
@@ -8,6 +7,11 @@ export const CHARGEHQ_INTERVAL_HEADERS = [
   "from_grid_kwh",
   "away_from_home_kwh",
   "at_home_kwh",
+] as const;
+
+const CHARGEHQ_INDEXED_INTERVAL_HEADERS = [
+  "index",
+  ...CHARGEHQ_INTERVAL_HEADERS,
 ] as const;
 
 const ENERGY_TOLERANCE_KWH = 0.002;
@@ -108,15 +112,22 @@ function assertClose(
   }
 }
 
-function parseInterval(cells: string[], line: number): ChargeHqInterval {
-  if (cells.length !== CHARGEHQ_INTERVAL_HEADERS.length) {
+function parseInterval(
+  cells: string[],
+  line: number,
+  hasIndexColumn: boolean,
+): ChargeHqInterval {
+  const expectedColumns = hasIndexColumn
+    ? CHARGEHQ_INDEXED_INTERVAL_HEADERS.length
+    : CHARGEHQ_INTERVAL_HEADERS.length;
+  if (cells.length !== expectedColumns) {
     throw new ChargeHqCsvError(
-      `Expected ${CHARGEHQ_INTERVAL_HEADERS.length} columns on line ${line}, got ${cells.length}`,
+      `Expected ${expectedColumns} columns on line ${line}, got ${cells.length}`,
     );
   }
 
+  const dataCells = hasIndexColumn ? cells.slice(1) : cells;
   const [
-    index,
     startTimeLocal,
     startTimeEpoch,
     chargedKwh,
@@ -125,14 +136,16 @@ function parseInterval(cells: string[], line: number): ChargeHqInterval {
     fromGridKwh,
     awayFromHomeKwh,
     atHomeKwh,
-  ] = cells;
+  ] = dataCells;
 
   if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(startTimeLocal)) {
     throw new ChargeHqCsvError(`Invalid start_time_local on line ${line}`);
   }
 
   const parsed: ChargeHqInterval = {
-    index: parseInteger(index, "index", line),
+    index: hasIndexColumn
+      ? parseInteger(cells[0], "index", line)
+      : line - 2,
     startTimeLocal,
     startTimeEpoch: parseNonNegativeNumber(
       startTimeEpoch,
@@ -258,14 +271,18 @@ export function parseChargeHqIntervalCsv(csvText: string): ChargeHqParseResult {
 
   const lines = normalized.split("\n").filter((line) => line.trim() !== "");
   const header = parseCsvCells(lines[0]);
-  if (header.join(",") !== CHARGEHQ_INTERVAL_HEADERS.join(",")) {
+  const headerKey = header.join(",");
+  const hasIndexColumn = headerKey ===
+    CHARGEHQ_INDEXED_INTERVAL_HEADERS.join(",");
+  const isRawChargeHqExport = headerKey === CHARGEHQ_INTERVAL_HEADERS.join(",");
+  if (!isRawChargeHqExport && !hasIndexColumn) {
     throw new ChargeHqCsvError(
       "Unsupported ChargeHQ CSV header; export Interval Data from ChargeHQ",
     );
   }
 
   const intervals = lines.slice(1).map((line, index) =>
-    parseInterval(parseCsvCells(line), index + 2)
+    parseInterval(parseCsvCells(line), index + 2, hasIndexColumn)
   );
   assertNoDuplicateEpochs(intervals);
 
