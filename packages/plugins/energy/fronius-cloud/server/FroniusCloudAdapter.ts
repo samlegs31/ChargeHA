@@ -225,7 +225,9 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
 
     try {
       const response = await fetch(
-        `${BASE_URL}/iam/jwt/${encodeURIComponent(this.refreshToken)}?scope=${IAM_SCOPE}`,
+        `${BASE_URL}/iam/jwt/${
+          encodeURIComponent(this.refreshToken)
+        }?scope=${IAM_SCOPE}`,
         {
           method: "PATCH",
           headers: {
