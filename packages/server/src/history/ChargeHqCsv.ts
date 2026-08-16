@@ -143,9 +143,7 @@ function parseInterval(
   }
 
   const parsed: ChargeHqInterval = {
-    index: hasIndexColumn
-      ? parseInteger(cells[0], "index", line)
-      : line - 2,
+    index: hasIndexColumn ? parseInteger(cells[0], "index", line) : line - 2,
     startTimeLocal,
     startTimeEpoch: parseNonNegativeNumber(
       startTimeEpoch,
