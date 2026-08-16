@@ -1,0 +1,69 @@
+name: ChargeHQ targeted validation
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  chargehq:
+    if: github.head_ref == 'feature/chargehq-history-import'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.4
+
+      - name: Install dependencies
+        run: deno install --frozen
+
+      - name: Format check ChargeHQ changes
+        run: |
+          deno fmt --check \
+            packages/server/src/db/HistorySchema.ts \
+            packages/server/src/db/repositories/HistoryRepository.ts \
+            packages/server/src/db/repositories/HistoryRepository.test.ts \
+            packages/server/src/history/ChargeHqCsv.ts \
+            packages/server/src/history/ChargeHqCsv.test.ts \
+            packages/server/src/history/mergeChargeHqStats.ts \
+            packages/server/src/history/mergeChargeHqStats.test.ts \
+            packages/server/src/trpc/root.ts \
+            packages/server/src/trpc/routers/history.ts \
+            packages/server/src/trpc/routers/stats.ts
+
+      - name: Lint ChargeHQ changes
+        run: |
+          deno lint \
+            packages/server/src/db/HistorySchema.ts \
+            packages/server/src/db/repositories/HistoryRepository.ts \
+            packages/server/src/db/repositories/HistoryRepository.test.ts \
+            packages/server/src/history/ChargeHqCsv.ts \
+            packages/server/src/history/ChargeHqCsv.test.ts \
+            packages/server/src/history/mergeChargeHqStats.ts \
+            packages/server/src/history/mergeChargeHqStats.test.ts \
+            packages/server/src/trpc/root.ts \
+            packages/server/src/trpc/routers/history.ts \
+            packages/server/src/trpc/routers/stats.ts
+
+      - name: Type check ChargeHQ path
+        run: |
+          deno check \
+            packages/server/src/db/repositories/HistoryRepository.ts \
+            packages/server/src/history/mergeChargeHqStats.ts \
+            packages/server/src/trpc/routers/history.ts \
+            packages/server/src/trpc/routers/stats.ts
+
+      - name: Run ChargeHQ focused tests
+        run: |
+          deno test \
+            --allow-net \
+            --allow-read \
+            --allow-write \
+            --allow-env \
+            --allow-ffi \
+            --unstable-ffi \
+            packages/server/src/history/ChargeHqCsv.test.ts \
+            packages/server/src/db/repositories/HistoryRepository.test.ts \
+            packages/server/src/history/mergeChargeHqStats.test.ts
