@@ -1,0 +1,42 @@
+name: Fronius Account Check
+
+on:
+  push:
+    branches:
+      - fix/fronius-solarweb-account-guest
+  workflow_dispatch:
+
+jobs:
+  fronius-account:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.4
+      - name: Install dependencies
+        run: deno install --frozen
+      - name: Check formatting
+        run: deno fmt --check packages/plugins/energy/fronius-cloud
+      - name: Lint plugin
+        run: deno lint packages/plugins/energy/fronius-cloud
+      - name: Type-check plugin
+        run: |
+          deno check \
+            packages/plugins/energy/fronius-cloud/server/FroniusCloudAdapter.ts \
+            packages/plugins/energy/fronius-cloud/server/router.ts \
+            packages/plugins/energy/fronius-cloud/client/FroniusCloudForm.tsx \
+            packages/plugins/energy/fronius-cloud/client/FroniusCloudConfig.tsx \
+            packages/plugins/energy/fronius-cloud/client/FroniusCloudSetupStep.tsx
+      - name: Run Fronius cloud tests
+        run: |
+          deno test \
+            --allow-net \
+            --allow-read \
+            --allow-write \
+            --allow-env \
+            --allow-ffi \
+            --unstable-ffi \
+            packages/plugins/energy/fronius-cloud/server/FroniusCloudAdapter.test.ts \
+            packages/plugins/energy/fronius-cloud/server/FroniusCloudEndpoint.test.ts
