@@ -32,10 +32,10 @@ export function mergeChargeHqStats(
   if (historyRows.length === 0) return response;
 
   const buckets = response.buckets.map((bucket) => ({ ...bucket }));
-  for (const row of historyRows) {
+  historyRows.forEach((row) => {
     const index = rowBucketIndex(row, period);
     if (!Number.isInteger(index) || index < 0 || index >= buckets.length) {
-      continue;
+      return;
     }
     const bucket = buckets[index];
     bucket.solarWh += row.solarWh;
@@ -43,7 +43,7 @@ export function mergeChargeHqStats(
     bucket.gridWh += row.gridWh;
     bucket.awayWh += row.awayWh;
     bucket.totalWh += row.totalWh;
-  }
+  });
 
   const totalSolarWh = buckets.reduce((sum, row) => sum + row.solarWh, 0);
   const totalBatteryWh = buckets.reduce((sum, row) => sum + row.batteryWh, 0);
