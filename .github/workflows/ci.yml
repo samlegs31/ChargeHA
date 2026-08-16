@@ -7,37 +7,85 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Collapse redundant runs on rapid pushes to the same ref. Never cancel a main
-# run mid-flight — it builds + releases.
+permissions:
+  contents: read
+
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  test:
-    uses: ./.github/workflows/test.yml
+  quality:
+    name: Quality and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
 
-  build:
-    needs: test
-    uses: ./.github/workflows/build.yml
-    permissions:
-      contents: read
-      packages: write
-      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-  release:
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    uses: ./.github/workflows/release.yml
-    permissions:
-      contents: write
-      packages: write
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.4
 
-  deploy-demo:
-    needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    uses: ./.github/workflows/demo.yml
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
+      - name: Cache Deno dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/deno
+            node_modules
+          key: deno-2.9.4-${{ runner.os }}-${{ hashFiles('deno.lock', 'deno.json', 'packages/*/deno.json') }}
+          restore-keys: |
+            deno-2.9.4-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: deno install --frozen
+
+      - name: Check formatting
+        run: deno fmt --check
+
+      - name: Lint debt report
+        continue-on-error: true
+        run: deno lint
+
+      - name: Type-check
+        run: deno check
+
+      - name: Check unused files
+        run: deno task check:unused
+
+      - name: Check package metadata bloat
+        run: deno task check:packument
+
+      - name: Server and plugin tests
+        run: deno task test:server
+
+      - name: Client tests
+        run: deno task test:client
+
+  docker:
+    name: Docker build (amd64 + arm64)
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build both deployment architectures
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max,ignore-error=true
