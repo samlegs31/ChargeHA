@@ -51,16 +51,17 @@ const normalizeHeaders = (headers?: HeadersInit): Record<string, string> => {
   return Object.fromEntries(new Headers(headers).entries());
 };
 
+const flattenHeaderEntries = (
+  headers?: Record<string, string | string[]>,
+): Array<[string, string]> =>
+  Object.entries(headers ?? {}).flatMap(([name, value]) =>
+    Array.isArray(value)
+      ? value.map((item) => [name, item] as [string, string])
+      : [[name, value]]
+  );
+
 const buildResponse = (resp: MockResp): Response => {
-  const headers = new Headers();
-  const entries = Object.entries(resp.headers ?? {});
-  for (const [name, value] of entries) {
-    if (Array.isArray(value)) {
-      for (const item of value) headers.append(name, item);
-    } else {
-      headers.set(name, value);
-    }
-  }
+  const headers = new Headers(flattenHeaderEntries(resp.headers));
 
   if (resp.json !== undefined && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
