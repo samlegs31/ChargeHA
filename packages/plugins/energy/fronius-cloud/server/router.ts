@@ -6,12 +6,14 @@ import { FRONIUS_CLOUD_SECRET_KEYS, froniusCloudConfigDef } from "./config.ts";
 import { createPluginConfigProcedures } from "../../../createPluginConfigProcedures.ts";
 import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDependencies";
 
+const SECRET_MASK = "********";
+
 // ── Typed Zod schema for Fronius Cloud plugin procedure ─────────────────────
-// Password is deliberately NOT accepted from the browser. getConfig() masks
-// stored secrets as "********", so echoing that value into a connection test
-// would authenticate with the mask instead of the real Solar.web password.
+// A password may be supplied by the first-run setup before it has been saved.
+// Settings deliberately omits it, because getConfig() only exposes SECRET_MASK.
 const testConnectionInput = z.object({
   email: z.string(),
+  password: z.string().optional(),
   pvSystemId: z.string(),
 });
 
@@ -28,9 +30,14 @@ export function createFroniusCloudRouter(deps: PluginDependencies) {
     testConnection: publicProcedure
       .input(testConnectionInput)
       .mutation(async ({ input }) => {
-        // Always read the decrypted password server-side. The browser only ever
-        // sees the secret mask returned by createPluginConfigProcedures().
-        const password = await deps.getSecret("password") ?? "";
+        // First-run setup can test a newly entered password directly. Settings
+        // never sends the masked secret back: it falls through to the encrypted
+        // password stored server-side.
+        const suppliedPassword = input.password && input.password !== SECRET_MASK
+          ? input.password
+          : null;
+        const password = suppliedPassword ?? await deps.getSecret("password") ?? "";
+
         if (!password) {
           return {
             success: false as const,
