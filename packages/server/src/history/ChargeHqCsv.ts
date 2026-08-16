@@ -68,12 +68,18 @@ function parseCsvCells(line: string): string[] {
   // ChargeHQ interval exports contain plain numeric/date cells. Reject quoted
   // commas rather than silently parsing an unexpected export format.
   if (line.includes('"')) {
-    throw new ChargeHqCsvError("Quoted CSV cells are not supported in ChargeHQ interval exports");
+    throw new ChargeHqCsvError(
+      "Quoted CSV cells are not supported in ChargeHQ interval exports",
+    );
   }
   return line.split(",").map((cell) => cell.trim());
 }
 
-function parseNonNegativeNumber(value: string, column: string, line: number): number {
+function parseNonNegativeNumber(
+  value: string,
+  column: string,
+  line: number,
+): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) {
     throw new ChargeHqCsvError(`Invalid ${column} on line ${line}`);
@@ -89,7 +95,12 @@ function parseInteger(value: string, column: string, line: number): number {
   return parsed;
 }
 
-function assertClose(actual: number, expected: number, label: string, line: number): void {
+function assertClose(
+  actual: number,
+  expected: number,
+  label: string,
+  line: number,
+): void {
   if (Math.abs(actual - expected) > ENERGY_TOLERANCE_KWH) {
     throw new ChargeHqCsvError(
       `${label} is inconsistent on line ${line}: ${actual} kWh vs ${expected} kWh`,
@@ -123,11 +134,27 @@ function parseInterval(cells: string[], line: number): ChargeHqInterval {
   const parsed: ChargeHqInterval = {
     index: parseInteger(index, "index", line),
     startTimeLocal,
-    startTimeEpoch: parseNonNegativeNumber(startTimeEpoch, "start_time_epoch", line),
+    startTimeEpoch: parseNonNegativeNumber(
+      startTimeEpoch,
+      "start_time_epoch",
+      line,
+    ),
     chargedKwh: parseNonNegativeNumber(chargedKwh, "charged_kwh", line),
-    fromSolarKwh: parseNonNegativeNumber(fromSolarKwh, "from_solar_kwh", line),
-    fromBatteryKwh: parseNonNegativeNumber(fromBatteryKwh, "from_battery_kwh", line),
-    fromGridKwh: parseNonNegativeNumber(fromGridKwh, "from_grid_kwh", line),
+    fromSolarKwh: parseNonNegativeNumber(
+      fromSolarKwh,
+      "from_solar_kwh",
+      line,
+    ),
+    fromBatteryKwh: parseNonNegativeNumber(
+      fromBatteryKwh,
+      "from_battery_kwh",
+      line,
+    ),
+    fromGridKwh: parseNonNegativeNumber(
+      fromGridKwh,
+      "from_grid_kwh",
+      line,
+    ),
     awayFromHomeKwh: parseNonNegativeNumber(
       awayFromHomeKwh,
       "away_from_home_kwh",
@@ -153,65 +180,78 @@ function parseInterval(cells: string[], line: number): ChargeHqInterval {
 }
 
 function toSqliteUtc(epochSeconds: number): string {
-  return new Date(Math.round(epochSeconds) * 1000).toISOString().slice(0, 19).replace("T", " ");
+  return new Date(Math.round(epochSeconds) * 1000).toISOString().slice(0, 19)
+    .replace("T", " ");
 }
 
 function toWh(kwh: number): number {
   return kwh * 1000;
 }
 
-function toHistoryRows(interval: ChargeHqInterval): ChargeHqHistoryRow[] {
-  const base = {
+function historyBase(interval: ChargeHqInterval) {
+  return {
     source: "chargehq" as const,
     startTimeUtc: toSqliteUtc(interval.startTimeEpoch),
     startTimeLocal: interval.startTimeLocal,
     intervalSeconds: INTERVAL_SECONDS,
   };
-  const epochId = String(Math.round(interval.startTimeEpoch));
-
-  const homeRows: ChargeHqHistoryRow[] = interval.atHomeKwh > 0
-    ? [{
-      ...base,
-      externalId: `${epochId}:home`,
-      chargedWh: toWh(interval.atHomeKwh),
-      solarWh: toWh(interval.fromSolarKwh),
-      batteryWh: toWh(interval.fromBatteryKwh),
-      gridWh: toWh(interval.fromGridKwh),
-      awayWh: 0,
-      atHomeWh: toWh(interval.atHomeKwh),
-    }]
-    : [];
-
-  const awayRows: ChargeHqHistoryRow[] = interval.awayFromHomeKwh > 0
-    ? [{
-      ...base,
-      externalId: `${epochId}:away`,
-      chargedWh: toWh(interval.awayFromHomeKwh),
-      solarWh: 0,
-      batteryWh: 0,
-      gridWh: 0,
-      awayWh: toWh(interval.awayFromHomeKwh),
-      atHomeWh: 0,
-    }]
-    : [];
-
-  return [...homeRows, ...awayRows];
 }
 
-function sum(intervals: ChargeHqInterval[], pick: (row: ChargeHqInterval) => number): number {
+function homeHistoryRows(interval: ChargeHqInterval): ChargeHqHistoryRow[] {
+  if (interval.atHomeKwh <= 0) return [];
+  const epochId = String(Math.round(interval.startTimeEpoch));
+  return [{
+    ...historyBase(interval),
+    externalId: `${epochId}:home`,
+    chargedWh: toWh(interval.atHomeKwh),
+    solarWh: toWh(interval.fromSolarKwh),
+    batteryWh: toWh(interval.fromBatteryKwh),
+    gridWh: toWh(interval.fromGridKwh),
+    awayWh: 0,
+    atHomeWh: toWh(interval.atHomeKwh),
+  }];
+}
+
+function awayHistoryRows(interval: ChargeHqInterval): ChargeHqHistoryRow[] {
+  if (interval.awayFromHomeKwh <= 0) return [];
+  const epochId = String(Math.round(interval.startTimeEpoch));
+  return [{
+    ...historyBase(interval),
+    externalId: `${epochId}:away`,
+    chargedWh: toWh(interval.awayFromHomeKwh),
+    solarWh: 0,
+    batteryWh: 0,
+    gridWh: 0,
+    awayWh: toWh(interval.awayFromHomeKwh),
+    atHomeWh: 0,
+  }];
+}
+
+function toHistoryRows(interval: ChargeHqInterval): ChargeHqHistoryRow[] {
+  return [...homeHistoryRows(interval), ...awayHistoryRows(interval)];
+}
+
+function sum(
+  intervals: ChargeHqInterval[],
+  pick: (row: ChargeHqInterval) => number,
+): number {
   return intervals.reduce((total, row) => total + pick(row), 0);
 }
 
 function assertNoDuplicateEpochs(intervals: ChargeHqInterval[]): void {
-  const sorted = intervals.map((row) => Math.round(row.startTimeEpoch)).toSorted((a, b) => a - b);
-  const duplicate = sorted.find((epoch, index) => index > 0 && epoch === sorted[index - 1]);
+  const sorted = intervals.map((row) => Math.round(row.startTimeEpoch))
+    .toSorted((a, b) => a - b);
+  const duplicate = sorted.find(
+    (epoch, index) => index > 0 && epoch === sorted[index - 1],
+  );
   if (duplicate !== undefined) {
     throw new ChargeHqCsvError(`Duplicate start_time_epoch ${duplicate}`);
   }
 }
 
 export function parseChargeHqIntervalCsv(csvText: string): ChargeHqParseResult {
-  const normalized = csvText.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").trim();
+  const normalized = csvText.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n")
+    .trim();
   if (normalized === "") {
     throw new ChargeHqCsvError("ChargeHQ CSV is empty");
   }
@@ -219,7 +259,9 @@ export function parseChargeHqIntervalCsv(csvText: string): ChargeHqParseResult {
   const lines = normalized.split("\n").filter((line) => line.trim() !== "");
   const header = parseCsvCells(lines[0]);
   if (header.join(",") !== CHARGEHQ_INTERVAL_HEADERS.join(",")) {
-    throw new ChargeHqCsvError("Unsupported ChargeHQ CSV header; export Interval Data from ChargeHQ");
+    throw new ChargeHqCsvError(
+      "Unsupported ChargeHQ CSV header; export Interval Data from ChargeHQ",
+    );
   }
 
   const intervals = lines.slice(1).map((line, index) =>
