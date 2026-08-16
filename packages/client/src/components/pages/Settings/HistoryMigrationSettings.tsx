@@ -389,7 +389,8 @@ function ChargeHqPreview({ summary }: { summary: ChargeHqSummary }) {
       </Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
         Home solar {formatKwh(summary.solarKwh)} kWh · Home battery{" "}
-        {formatKwh(summary.batteryKwh)} kWh · Grid {formatKwh(summary.gridKwh)}{" "}
+        {formatKwh(summary.batteryKwh)} kWh · Grid {formatKwh(summary.gridKwh)}
+        {" "}
         kWh · Away {formatKwh(summary.awayKwh)} kWh
       </Text>
     </Card>
