@@ -106,7 +106,7 @@ describe("FroniusCloudAdapter", () => {
 
       const patchCalls = mock.fetchCalls.filter((c) => c.method === "PATCH");
       const loginCalls = mock.fetchCalls.filter(
-        (c) => c.method === "POST" && c.url.endsWith("/iam/jwt"),
+        (c) => c.method === "POST" && c.url.includes("/iam/jwt"),
       );
       expect(patchCalls.length).toBeGreaterThanOrEqual(1);
       // Initial connect login + fallback re-login after refresh failure.
@@ -137,15 +137,16 @@ describe("FroniusCloudAdapter", () => {
 
       expect(mock.fetchCalls.length).toBeGreaterThan(0);
       mock.fetchCalls.forEach((call) => {
-        expect(call.headers["AccessKeyId"]).toBe(
+        expect(call.headers["accesskeyid"]).toBe(
           "FKIAB4CDA71C0763413DA942DC756742318B",
         );
-        expect(call.headers["AccessKeyValue"]).toBe(
+        expect(call.headers["accesskeyvalue"]).toBe(
           "67315e19-6805-479e-994d-7193ee5f6125",
         );
-        const isLogin = call.method === "POST" && call.url.endsWith("/iam/jwt");
+        const isLogin = call.method === "POST" &&
+          call.url.includes("/iam/jwt");
         if (!isLogin) {
-          expect(call.headers["Authorization"]).toBe(
+          expect(call.headers["authorization"]).toBe(
             "Bearer test-access-token",
           );
         }
@@ -168,7 +169,7 @@ describe("FroniusCloudAdapter", () => {
       await adapter.getRealtimeData();
 
       const loginAfterDisconnect = mock.fetchCalls.find(
-        (c) => c.method === "POST" && c.url.endsWith("/iam/jwt"),
+        (c) => c.method === "POST" && c.url.includes("/iam/jwt"),
       );
       expect(loginAfterDisconnect).toBeDefined();
     });
