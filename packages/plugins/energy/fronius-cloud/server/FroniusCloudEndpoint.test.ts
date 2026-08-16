@@ -3,13 +3,11 @@ import { expect } from "@std/expect";
 import { assertExists } from "@std/assert";
 import {
   type FetchMock,
-  GUEST_ID,
   makeAdapter,
-  RESOLVED_ID,
   setupFetchMock,
 } from "./test-helpers/froniusCloudHarness.ts";
 
-describe("FroniusCloudAdapter Solar.web Guest endpoints", () => {
+describe("FroniusCloudAdapter Solar.web endpoints", () => {
   let mock: FetchMock;
 
   beforeEach(() => {
@@ -20,55 +18,45 @@ describe("FroniusCloudAdapter Solar.web Guest endpoints", () => {
     mock.restore();
   });
 
-  it("uses GuestLogOn plus the same-origin ActualData endpoint", async () => {
+  it("uses the Solar.web SWQAPI IAM host and required scope", async () => {
     await makeAdapter().connect();
 
-    const guestCall = mock.fetchCalls.find((call) =>
-      call.url.includes("/Home/GuestLogOn")
+    const loginCall = mock.fetchCalls.find(
+      (call) => call.method === "POST" && call.url.includes("/iam/jwt"),
     );
-    assertExists(guestCall);
-    expect(guestCall.url).toBe(
-      `https://www.solarweb.com/Home/GuestLogOn?pvSystemId=${GUEST_ID}`,
-    );
+    assertExists(loginCall);
 
-    const actualDataCall = mock.fetchCalls.find((call) =>
-      call.url.includes("/ActualData/GetCompareDataForPvSystem")
+    expect(loginCall.url).toBe(
+      "https://swqapi.solarweb.com/iam/jwt?scope=b454e75844",
     );
-    assertExists(actualDataCall);
-    expect(actualDataCall.url).toBe(
-      `https://www.solarweb.com/ActualData/GetCompareDataForPvSystem?pvSystemId=${RESOLVED_ID}`,
+    expect(loginCall.headers["AccessKeyId"]).toBe(
+      "FKIAB4CDA71C0763413DA942DC756742318B",
     );
-    expect(actualDataCall.headers["x-requested-with"]).toBe("XMLHttpRequest");
-    expect(actualDataCall.headers.referer).toContain(
-      `/PvSystems/PvSystem?pvSystemId=${RESOLVED_ID}`,
+    expect(loginCall.headers["AccessKeyValue"]).toBe(
+      "67315e19-6805-479e-994d-7193ee5f6125",
+    );
+    expect(loginCall.headers["User-Agent"]).toBe("okhttp/4.12.0");
+
+    const systemCall = mock.fetchCalls.find((call) =>
+      call.url.includes("/pvsystems/pv-system-1")
+    );
+    assertExists(systemCall);
+    expect(systemCall.url.startsWith("https://swqapi.solarweb.com/")).toBe(
+      true,
     );
   });
 
-  it("does not call the Solar.web Query API", async () => {
+  it("keeps the IAM scope when refreshing the JWT", async () => {
+    mock.setLoginTokenExpiresIn(30_000);
     await makeAdapter().connect();
 
-    expect(
-      mock.fetchCalls.some((call) =>
-        call.url.includes("swqapi") || call.url.includes("/iam/jwt")
-      ),
-    ).toBe(false);
-  });
-
-  it("can use the guest-link UUID directly when Solar.web does not reveal another ID", async () => {
-    mock.setGuestResponse({
-      status: 200,
-      text: "<html><body>Guest dashboard</body></html>",
-      headers: {
-        "Set-Cookie": ".AspNet.Auth=guest-auth; Path=/; HttpOnly",
-      },
-    });
-
-    await makeAdapter().connect();
-
-    const actualDataCall = mock.fetchCalls.find((call) =>
-      call.url.includes("/ActualData/GetCompareDataForPvSystem")
+    const refreshCall = mock.fetchCalls.find((call) =>
+      call.method === "PATCH" && call.url.includes("/iam/jwt/")
     );
-    assertExists(actualDataCall);
-    expect(actualDataCall.url).toContain(`pvSystemId=${GUEST_ID}`);
+    assertExists(refreshCall);
+
+    expect(refreshCall.url).toBe(
+      "https://swqapi.solarweb.com/iam/jwt/test-refresh-token?scope=b454e75844",
+    );
   });
 });

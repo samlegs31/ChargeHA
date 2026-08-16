@@ -5,12 +5,22 @@ import {
   type SectionType,
 } from "@chargeha/shared/configSections";
 
-// ── Fronius Solar.web guest plugin config section ────────────────────────────
+// ── Fronius Cloud plugin config section ─────────────────────────────────────
 // Keys are relative — PluginDependencies prefixes them with the plugin id.
 
 export const froniusCloudConfigDef = defineSection({
-  froniusCloudGuestUrl: {
-    key: "guest_url",
+  froniusCloudEmail: {
+    key: "email",
+    schema: z.string(),
+    default: "",
+  },
+  froniusCloudPassword: {
+    key: "password",
+    schema: z.string(),
+    default: "",
+  },
+  froniusCloudPvSystemId: {
+    key: "pv_system_id",
     schema: z.string(),
     default: "",
   },
@@ -20,6 +30,6 @@ export type FroniusCloudConfig = SectionType<typeof froniusCloudConfigDef>;
 
 export type FroniusCloudConfigKey = SectionKeys<typeof froniusCloudConfigDef>;
 
-// Guest-link mode stores no Solar.web password or API secret.
-export const FRONIUS_CLOUD_SECRET_KEYS =
-  [] as const satisfies readonly FroniusCloudConfigKey[];
+export const FRONIUS_CLOUD_SECRET_KEYS: readonly FroniusCloudConfigKey[] = [
+  "password",
+] as const satisfies readonly FroniusCloudConfigKey[];

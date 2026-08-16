@@ -6,13 +6,15 @@ import { FRONIUS_CLOUD_SECRET_KEYS, froniusCloudConfigDef } from "./config.ts";
 import { createPluginConfigProcedures } from "../../../createPluginConfigProcedures.ts";
 import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDependencies";
 
-// ── Typed Zod schema for Fronius Solar.web guest procedure ──────────────────
+// ── Typed Zod schema for Fronius Cloud plugin procedure ─────────────────────
 
 const testConnectionInput = z.object({
-  guestUrl: z.string(),
+  email: z.string(),
+  password: z.string(),
+  pvSystemId: z.string(),
 });
 
-// ── Fronius Solar.web guest plugin tRPC router ───────────────────────────────
+// ── Fronius Cloud plugin tRPC router ────────────────────────────────────────
 
 export function createFroniusCloudRouter(deps: PluginDependencies) {
   return router({
@@ -26,7 +28,9 @@ export function createFroniusCloudRouter(deps: PluginDependencies) {
       .input(testConnectionInput)
       .mutation(async ({ input }) => {
         const adapter = new FroniusCloudAdapter(
-          input.guestUrl,
+          input.email,
+          input.password,
+          input.pvSystemId,
           new Logger("FroniusCloud", "error"),
         );
         try {
