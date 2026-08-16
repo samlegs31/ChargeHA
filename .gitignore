@@ -1,31 +1,34 @@
+# Environment and local secrets
 .env
-private-key.pem
-public-key.pem
+.env.*
+!.env.example
+*.pem
+
+# Dependencies and build output
 node_modules/
 packages/server/dist/
 **/.vite/
-data/
-.DS_Store
 packages/client/coverage/
 coverage/
 coverage_*/
-
-# Database files in root (downloaded/backup copies)
-*.db
-*.db.backup
-
-# Devtools build artifacts
 devtools/output/
 
-# Local dev-server logs + test output
+# Runtime data and databases
+data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Logs and local test output
 *.log
 .test-out.txt
 
-
-
+# OS/editor files
+.DS_Store
 .scratch/
 
-# Local backups
+# Local backups and deployment helpers
 backups/
 *.bak
 update-chargeha.sh
