@@ -20,14 +20,14 @@ function froniusCloudNext(
   }
   return {
     kind: "ready",
-    hint: "Next saves your Solar.web settings",
+    hint: "Next saves your Solar.web account settings",
     onNext: () => save(validated),
   };
 }
 
 export const froniusCloudSetupStep: PluginStepDef = {
   id: "fronius-cloud-setup",
-  label: "Fronius Cloud Setup",
+  label: "Fronius Solar.web Account Setup",
   useStep: () => {
     const { data: config } = trpc.plugin.energy.fronius_cloud.getConfig
       .useQuery();
