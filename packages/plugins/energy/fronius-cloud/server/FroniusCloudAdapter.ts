@@ -5,11 +5,11 @@ import type {
 } from "@chargeha/shared";
 import type { Logger } from "@chargeha/server/lib/Logger";
 
-const BASE_URL = "https://swqapi.solarweb.com";
-const IAM_SCOPE = "b454e75844";
+// Solar.web Query API base used by the established Solar.web account client.
+const BASE_URL = "https://api.solarweb.com/swqapi";
 const DEFAULT_ACCESS_KEY_ID = "FKIAB4CDA71C0763413DA942DC756742318B";
 const DEFAULT_ACCESS_KEY_VALUE = "67315e19-6805-479e-994d-7193ee5f6125";
-// Refresh token if within this many seconds of expiry
+const SOLARWEB_USER_AGENT = "Solar.web/921 CFNetwork/1410.0.3 Darwin/22.6.0";
 const TOKEN_REFRESH_MARGIN_SECONDS = 60;
 
 export class FroniusCloudConnectionError extends Error {
@@ -45,7 +45,7 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
 
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
-  private tokenExpiresAt: number = 0; // Unix timestamp in ms
+  private tokenExpiresAt = 0;
 
   constructor(
     loginEmail: string,
@@ -61,11 +61,8 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
 
   async connect(): Promise<void> {
     await this.login();
-    // Validate connection by fetching system info
     try {
-      const response = await this.fetchApi(
-        `/pvsystems/${this.pvSystemId}`,
-      );
+      const response = await this.fetchApi(`/pvsystems/${this.pvSystemId}`);
       if (!response.ok) {
         throw new FroniusCloudConnectionError(
           `Failed to fetch PV system info: HTTP ${response.status}`,
@@ -93,14 +90,12 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
     return Promise.resolve();
   }
 
-  /** Fetch realtime energy flow data from Solar.web flowdata endpoint. */
   async getRealtimeData(): Promise<EnergyData> {
     const response = await this.fetchApi(
       `/pvsystems/${this.pvSystemId}/flowdata`,
     );
     const body = await response.json();
 
-    // Response shape: { status: { isOnline }, data: { channels: [...] } }
     const status = body.status ?? body;
     const data = body.data ?? body;
 
@@ -124,7 +119,7 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
     }> = data.channels ?? [];
 
     const channelMap = new Map<string, number | null>(
-      channels.map((ch) => [ch.channelName, ch.value]),
+      channels.map((channel) => [channel.channelName, channel.value]),
     );
 
     return {
@@ -138,7 +133,6 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
     };
   }
 
-  /** Fetch device/system info from Solar.web. */
   async getDeviceInfo(): Promise<DeviceInfo> {
     const [systemRes, devicesRes] = await Promise.all([
       this.fetchApi(`/pvsystems/${this.pvSystemId}`),
@@ -147,14 +141,12 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
 
     const systemData = await systemRes.json();
     const devicesData = await devicesRes.json();
-
-    // Get inverter model from first device
     const devices: Array<{
       deviceType?: string;
       model?: string;
       name?: string;
     }> = devicesData.devices ?? devicesData ?? [];
-    const inverter = devices.find((d) => d.deviceType === "inverter") ??
+    const inverter = devices.find((device) => device.deviceType === "inverter") ??
       devices[0];
 
     return {
@@ -165,26 +157,24 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
     };
   }
 
-  /** Authenticate with Solar.web via email/password to obtain JWT tokens. */
+  /** Authenticate a Solar.web account and obtain a bearer JWT. */
   async login(): Promise<void> {
     try {
-      const response = await fetch(
-        `${BASE_URL}/iam/jwt?scope=${IAM_SCOPE}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json; charset=UTF-8",
-            "AccessKeyId": DEFAULT_ACCESS_KEY_ID,
-            "AccessKeyValue": DEFAULT_ACCESS_KEY_VALUE,
-            "User-Agent": "okhttp/4.12.0",
-          },
-          body: JSON.stringify({
-            userId: this.loginEmail,
-            password: this.loginPassword,
-          }),
-          signal: AbortSignal.timeout(10000),
+      const response = await fetch(`${BASE_URL}/iam/jwt`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json-patch+json",
+          "AccessKeyId": DEFAULT_ACCESS_KEY_ID,
+          "AccessKeyValue": DEFAULT_ACCESS_KEY_VALUE,
+          "Accept": "application/json",
+          "User-Agent": SOLARWEB_USER_AGENT,
         },
-      );
+        body: JSON.stringify({
+          userId: this.loginEmail,
+          password: this.loginPassword,
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
 
       if (!response.ok) {
         throw new FroniusCloudAuthError(
@@ -199,9 +189,9 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
           "Login returned 200 but no access token — check email/password",
         );
       }
+
       this.accessToken = token;
-      this.refreshToken = data.refreshToken;
-      // jwtTokenExpiration is an ISO timestamp; expiresIn is seconds
+      this.refreshToken = data.refreshToken ?? null;
       if (data.jwtTokenExpiration) {
         this.tokenExpiresAt = new Date(data.jwtTokenExpiration).getTime();
       } else {
@@ -217,7 +207,6 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
     }
   }
 
-  /** Refresh the access token using the refresh token. */
   async refreshAccessToken(): Promise<void> {
     if (!this.refreshToken) {
       throw new FroniusCloudAuthError("No refresh token available");
@@ -225,15 +214,14 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
 
     try {
       const response = await fetch(
-        `${BASE_URL}/iam/jwt/${
-          encodeURIComponent(this.refreshToken)
-        }?scope=${IAM_SCOPE}`,
+        `${BASE_URL}/iam/jwt/${encodeURIComponent(this.refreshToken)}`,
         {
           method: "PATCH",
           headers: {
             "AccessKeyId": DEFAULT_ACCESS_KEY_ID,
             "AccessKeyValue": DEFAULT_ACCESS_KEY_VALUE,
-            "User-Agent": "okhttp/4.12.0",
+            "Accept": "application/json",
+            "User-Agent": SOLARWEB_USER_AGENT,
           },
           signal: AbortSignal.timeout(10000),
         },
@@ -246,8 +234,15 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
       }
 
       const data = await response.json();
-      this.accessToken = data.jwtToken ?? data.accessToken;
-      this.refreshToken = data.refreshToken;
+      const token = data.jwtToken ?? data.accessToken;
+      if (!token) {
+        throw new FroniusCloudAuthError(
+          "Token refresh returned 200 but no access token",
+        );
+      }
+
+      this.accessToken = token;
+      this.refreshToken = data.refreshToken ?? this.refreshToken;
       if (data.jwtTokenExpiration) {
         this.tokenExpiresAt = new Date(data.jwtTokenExpiration).getTime();
       } else {
@@ -263,7 +258,6 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
     }
   }
 
-  /** Ensure a valid access token is available — refresh or re-login as needed. */
   async ensureToken(): Promise<void> {
     if (!this.accessToken) {
       await this.login();
@@ -272,11 +266,9 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
 
     const timeUntilExpiry = this.tokenExpiresAt - Date.now();
     if (timeUntilExpiry > TOKEN_REFRESH_MARGIN_SECONDS * 1000) {
-      // Token is still valid
       return;
     }
 
-    // Token is near expiry — try refresh first, fall back to re-login
     try {
       await this.refreshAccessToken();
     } catch {
@@ -285,7 +277,6 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
     }
   }
 
-  /** Make an authenticated API request to the Solar.web API. */
   async fetchApi(path: string): Promise<Response> {
     await this.ensureToken();
 
@@ -295,7 +286,8 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
           "Authorization": `Bearer ${this.accessToken}`,
           "AccessKeyId": DEFAULT_ACCESS_KEY_ID,
           "AccessKeyValue": DEFAULT_ACCESS_KEY_VALUE,
-          "User-Agent": "okhttp/4.12.0",
+          "Accept": "application/json",
+          "User-Agent": SOLARWEB_USER_AGENT,
         },
         signal: AbortSignal.timeout(10000),
       });
