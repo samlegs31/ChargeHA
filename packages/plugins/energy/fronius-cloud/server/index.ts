@@ -7,29 +7,27 @@ import { FroniusCloudAdapter } from "./FroniusCloudAdapter.ts";
 import { createFroniusCloudRouter } from "./router.ts";
 
 /**
- * Fronius Cloud energy plugin — manages Solar.web API communication behind
- * the EnergyPlugin interface.
+ * Fronius Solar.web guest energy plugin — reads the public read-only guest
+ * dashboard without storing a Solar.web password or using the paid Query API.
  */
 export class FroniusCloudPlugin implements EnergyPlugin {
   readonly id = "fronius_cloud";
-  readonly displayName = "Fronius (Cloud)";
+  readonly displayName = "Fronius (Solar.web Guest)";
   readonly vendor = "Fronius";
   readonly settingsComponentKey = "fronius-cloud-config";
   readonly configDef = froniusCloudConfigDef;
   readonly secretKeys = FRONIUS_CLOUD_SECRET_KEYS;
 
   constructor(private readonly deps: PluginDependencies) {
-    deps.log.info("Fronius Cloud plugin initialized");
+    deps.log.info("Fronius Solar.web guest plugin initialized");
   }
 
   async createAdapter(): Promise<EnergySourceAdapter> {
-    const email = await this.deps.getConfig("email");
-    const password = await this.deps.getSecret("password");
-    const pvSystemId = await this.deps.getConfig("pv_system_id");
-    if (!email || !password || !pvSystemId) {
-      throw new Error("Fronius Cloud credentials incomplete");
+    const guestUrl = await this.deps.getConfig("guest_url");
+    if (!guestUrl) {
+      throw new Error("Solar.web guest link is not configured");
     }
-    return new FroniusCloudAdapter(email, password, pvSystemId, this.deps.log);
+    return new FroniusCloudAdapter(guestUrl, this.deps.log);
   }
 
   shutdown(): Promise<void> {
