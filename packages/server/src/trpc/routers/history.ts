@@ -51,7 +51,10 @@ export const historyRouter = router({
         input.vehicleId,
         parsed.historyRows,
       );
-      const coverage = await repository.getCoverage("chargehq", input.vehicleId);
+      const coverage = await repository.getCoverage(
+        "chargehq",
+        input.vehicleId,
+      );
 
       return {
         ...importResult,
