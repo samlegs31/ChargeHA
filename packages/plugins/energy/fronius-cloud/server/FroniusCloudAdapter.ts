@@ -146,8 +146,9 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
       model?: string;
       name?: string;
     }> = devicesData.devices ?? devicesData ?? [];
-    const inverter = devices.find((device) => device.deviceType === "inverter") ??
-      devices[0];
+    const inverter =
+      devices.find((device) => device.deviceType === "inverter") ??
+        devices[0];
 
     return {
       id: this.pvSystemId,
