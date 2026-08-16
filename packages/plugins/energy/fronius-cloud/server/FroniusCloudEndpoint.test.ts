@@ -18,7 +18,7 @@ describe("FroniusCloudAdapter Solar.web endpoints", () => {
     mock.restore();
   });
 
-  it("uses the Solar.web SWQAPI IAM host and required scope", async () => {
+  it("uses the Solar.web SWQAPI IAM endpoint used by the account client", async () => {
     await makeAdapter().connect();
 
     const loginCall = mock.fetchCalls.find(
@@ -27,7 +27,7 @@ describe("FroniusCloudAdapter Solar.web endpoints", () => {
     assertExists(loginCall);
 
     expect(loginCall.url).toBe(
-      "https://swqapi.solarweb.com/iam/jwt?scope=b454e75844",
+      "https://api.solarweb.com/swqapi/iam/jwt",
     );
     expect(loginCall.headers["AccessKeyId"]).toBe(
       "FKIAB4CDA71C0763413DA942DC756742318B",
@@ -35,18 +35,24 @@ describe("FroniusCloudAdapter Solar.web endpoints", () => {
     expect(loginCall.headers["AccessKeyValue"]).toBe(
       "67315e19-6805-479e-994d-7193ee5f6125",
     );
-    expect(loginCall.headers["User-Agent"]).toBe("okhttp/4.12.0");
+    expect(loginCall.headers["Content-Type"]).toBe(
+      "application/json-patch+json",
+    );
+    expect(loginCall.headers["Accept"]).toBe("application/json");
+    expect(loginCall.headers["User-Agent"]).toBe(
+      "Solar.web/921 CFNetwork/1410.0.3 Darwin/22.6.0",
+    );
 
     const systemCall = mock.fetchCalls.find((call) =>
       call.url.includes("/pvsystems/pv-system-1")
     );
     assertExists(systemCall);
-    expect(systemCall.url.startsWith("https://swqapi.solarweb.com/")).toBe(
-      true,
-    );
+    expect(
+      systemCall.url.startsWith("https://api.solarweb.com/swqapi/"),
+    ).toBe(true);
   });
 
-  it("keeps the IAM scope when refreshing the JWT", async () => {
+  it("refreshes the JWT on the same SWQAPI base without a scope query", async () => {
     mock.setLoginTokenExpiresIn(30_000);
     await makeAdapter().connect();
 
@@ -56,7 +62,7 @@ describe("FroniusCloudAdapter Solar.web endpoints", () => {
     assertExists(refreshCall);
 
     expect(refreshCall.url).toBe(
-      "https://swqapi.solarweb.com/iam/jwt/test-refresh-token?scope=b454e75844",
+      "https://api.solarweb.com/swqapi/iam/jwt/test-refresh-token",
     );
   });
 });
