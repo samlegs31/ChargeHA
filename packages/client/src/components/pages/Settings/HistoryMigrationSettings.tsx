@@ -412,7 +412,8 @@ function ChargeHqPreview({ summary }: { summary: ChargeHqSummary }) {
         kWh total
       </Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-        {summary.firstStartTimeLocal ?? "?"} → {summary.lastStartTimeLocal ?? "?"}
+        {summary.firstStartTimeLocal ?? "?"} →{" "}
+        {summary.lastStartTimeLocal ?? "?"}
       </Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
         Home solar {formatKwh(summary.solarKwh)} kWh · Home battery{" "}
