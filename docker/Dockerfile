@@ -124,12 +124,27 @@ RUN deno eval \
 RUN mkdir -p /app/data && chown 1000:1000 /app/data
 
 COPY docker/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh && \
-    chmod a+r /app/packages/server/src/healthcheck.ts
+
+# Docker COPY preserves the source permission bits from the build context. A
+# restrictive host umask can therefore produce root-owned 0600 source files in
+# the image even though Git records them as regular 100644 files. The runtime
+# intentionally runs as uid 1000, so normalize all application files and
+# directory traversal permissions before switching user.
+RUN chmod 755 /app/entrypoint.sh && \
+    chmod -R a+rX /app/packages /app/drizzle && \
+    chmod a+r /app/deno.json /app/deno.lock
 
 # The service does not need root. Numeric IDs also work with bind-mounted
 # secrets and keep the image independent from host user names.
 USER 1000:1000
+
+# Fail the image build if the non-root runtime user cannot traverse and read
+# dynamically imported server modules. This catches host-permission regressions
+# before an update can replace the healthy container.
+RUN test -x /app/packages/server/src/trpc && \
+    test -r /app/packages/server/src/trpc/root.ts && \
+    test -r /app/packages/server/src/main.ts && \
+    test -r /app/packages/server/src/healthcheck.ts
 
 EXPOSE 8000
 
