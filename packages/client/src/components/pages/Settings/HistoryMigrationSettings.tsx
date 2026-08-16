@@ -81,24 +81,25 @@ export function HistoryMigrationSettings() {
   }, [vehicleId, vehicles]);
 
   const previewTotals = useMemo(
-    () => previews.reduce(
-      (total, preview) => ({
-        intervals: total.intervals + preview.summary.intervalCount,
-        chargedKwh: total.chargedKwh + preview.summary.chargedKwh,
-        solarKwh: total.solarKwh + preview.summary.solarKwh,
-        batteryKwh: total.batteryKwh + preview.summary.batteryKwh,
-        gridKwh: total.gridKwh + preview.summary.gridKwh,
-        awayKwh: total.awayKwh + preview.summary.awayKwh,
-      }),
-      {
-        intervals: 0,
-        chargedKwh: 0,
-        solarKwh: 0,
-        batteryKwh: 0,
-        gridKwh: 0,
-        awayKwh: 0,
-      },
-    ),
+    () =>
+      previews.reduce(
+        (total, preview) => ({
+          intervals: total.intervals + preview.summary.intervalCount,
+          chargedKwh: total.chargedKwh + preview.summary.chargedKwh,
+          solarKwh: total.solarKwh + preview.summary.solarKwh,
+          batteryKwh: total.batteryKwh + preview.summary.batteryKwh,
+          gridKwh: total.gridKwh + preview.summary.gridKwh,
+          awayKwh: total.awayKwh + preview.summary.awayKwh,
+        }),
+        {
+          intervals: 0,
+          chargedKwh: 0,
+          solarKwh: 0,
+          batteryKwh: 0,
+          gridKwh: 0,
+          awayKwh: 0,
+        },
+      ),
     [previews],
   );
 
@@ -131,7 +132,9 @@ export function HistoryMigrationSettings() {
       );
       setPreviews(analyzed);
       addToast(
-        `${analyzed.length} ChargeHQ CSV file${analyzed.length === 1 ? "" : "s"} validated`,
+        `${analyzed.length} ChargeHQ CSV file${
+          analyzed.length === 1 ? "" : "s"
+        } validated`,
         "success",
       );
     } catch (error) {
@@ -150,7 +153,10 @@ export function HistoryMigrationSettings() {
         async (previousPromise, file) => {
           const previous = await previousPromise;
           const csvText = await file.text();
-          const result = await importMutation.mutateAsync({ csvText, vehicleId });
+          const result = await importMutation.mutateAsync({
+            csvText,
+            vehicleId,
+          });
           return {
             files: previous.files + 1,
             parsedIntervals: previous.parsedIntervals + result.parsedIntervals,
@@ -188,7 +194,11 @@ export function HistoryMigrationSettings() {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
           <Text size="2" weight="medium">Destination vehicle</Text>
-          <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
+          <Text
+            size="1"
+            color="gray"
+            style={{ display: "block", marginTop: 2 }}
+          >
             ChargeHQ history is attached to this E.V Solar vehicle. Native E.V
             Solar readings always take priority where the histories overlap.
           </Text>
@@ -211,7 +221,9 @@ export function HistoryMigrationSettings() {
               padding: "0 10px",
             }}
           >
-            {vehicles.length === 0 && <option value="">No vehicle configured</option>}
+            {vehicles.length === 0 && (
+              <option value="">No vehicle configured</option>
+            )}
             {vehicles.map((vehicle) => (
               <option key={vehicle.id} value={vehicle.id}>
                 {vehicle.name}
@@ -222,9 +234,14 @@ export function HistoryMigrationSettings() {
 
         <div>
           <Text size="2" weight="medium">ChargeHQ Interval Data CSV files</Text>
-          <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
-            Select one or several yearly exports. Files are analyzed and imported
-            sequentially, so overlapping exports and repeated imports remain safe.
+          <Text
+            size="1"
+            color="gray"
+            style={{ display: "block", marginTop: 2 }}
+          >
+            Select one or several yearly exports. Files are analyzed and
+            imported sequentially, so overlapping exports and repeated imports
+            remain safe.
           </Text>
           <div
             style={{
@@ -276,10 +293,17 @@ export function HistoryMigrationSettings() {
                     <div style={{ minWidth: 0 }}>
                       <Text size="2" weight="medium">{file.name}</Text>
                       {preview && (
-                        <Text size="1" color="gray" style={{ display: "block" }}>
-                          {preview.summary.firstStartTimeLocal ?? "?"} → {preview.summary.lastStartTimeLocal ?? "?"}
-                          {" · "}{preview.summary.intervalCount} intervals
-                          {" · "}{formatKwh(preview.summary.chargedKwh)} kWh
+                        <Text
+                          size="1"
+                          color="gray"
+                          style={{ display: "block" }}
+                        >
+                          {preview.summary.firstStartTimeLocal ?? "?"} →{" "}
+                          {preview.summary.lastStartTimeLocal ?? "?"}
+                          {" · "}
+                          {preview.summary.intervalCount} intervals
+                          {" · "}
+                          {formatKwh(preview.summary.chargedKwh)} kWh
                         </Text>
                       )}
                     </div>
@@ -297,38 +321,62 @@ export function HistoryMigrationSettings() {
           <Card>
             <Text size="2" weight="bold">Import preview</Text>
             <Text size="2" style={{ display: "block", marginTop: 6 }}>
-              {previewTotals.intervals} intervals · {formatKwh(previewTotals.chargedKwh)} kWh total
+              {previewTotals.intervals} intervals ·{" "}
+              {formatKwh(previewTotals.chargedKwh)} kWh total
             </Text>
-            <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-              Home solar {formatKwh(previewTotals.solarKwh)} kWh · Home battery {formatKwh(previewTotals.batteryKwh)} kWh · Grid {formatKwh(previewTotals.gridKwh)} kWh · Away {formatKwh(previewTotals.awayKwh)} kWh
+            <Text
+              size="1"
+              color="gray"
+              style={{ display: "block", marginTop: 4 }}
+            >
+              Home solar {formatKwh(previewTotals.solarKwh)} kWh · Home battery
+              {" "}
+              {formatKwh(previewTotals.batteryKwh)} kWh · Grid{" "}
+              {formatKwh(previewTotals.gridKwh)} kWh · Away{" "}
+              {formatKwh(previewTotals.awayKwh)} kWh
             </Text>
           </Card>
         )}
 
-        {vehicleId !== "" && coverageQuery.data && coverageQuery.data.rowCount > 0 && (
+        {vehicleId !== "" && coverageQuery.data &&
+          coverageQuery.data.rowCount > 0 && (
           <Card>
             <Text size="2" weight="bold">Existing ChargeHQ archive</Text>
-            <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-              {coverageQuery.data.firstStartTimeLocal ?? "?"} → {coverageQuery.data.lastStartTimeLocal ?? "?"}
-              {" · "}{coverageQuery.data.rowCount} rows
-              {" · "}{formatKwh(coverageQuery.data.chargedWh / 1000)} kWh
+            <Text
+              size="1"
+              color="gray"
+              style={{ display: "block", marginTop: 4 }}
+            >
+              {coverageQuery.data.firstStartTimeLocal ?? "?"} →{" "}
+              {coverageQuery.data.lastStartTimeLocal ?? "?"}
+              {" · "}
+              {coverageQuery.data.rowCount} rows
+              {" · "}
+              {formatKwh(coverageQuery.data.chargedWh / 1000)} kWh
             </Text>
           </Card>
         )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
+          }}
+        >
           <Button
             size="2"
-            disabled={
-              busy || !selectedFilesAreAnalyzed || vehicleId === "" ||
-              vehicles.length === 0
-            }
+            disabled={busy || !selectedFilesAreAnalyzed || vehicleId === "" ||
+              vehicles.length === 0}
             onClick={importFiles}
           >
             <Upload size={15} />
             {isImporting
               ? "Importing..."
-              : `Import ${files.length || ""} file${files.length === 1 ? "" : "s"}`}
+              : `Import ${files.length || ""} file${
+                files.length === 1 ? "" : "s"
+              }`}
           </Button>
           <Text size="1" color="gray">
             Re-importing the same data does not create duplicates.
@@ -338,8 +386,15 @@ export function HistoryMigrationSettings() {
         {lastImport && (
           <Card style={{ borderLeft: "3px solid var(--green-9)" }}>
             <Text size="2" weight="bold">Migration complete</Text>
-            <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-              {lastImport.files} files · {lastImport.parsedIntervals} intervals · {lastImport.insertedRows} rows added · {lastImport.duplicateRows} duplicates skipped · {lastImport.overlapRows} native-overlap rows skipped
+            <Text
+              size="1"
+              color="gray"
+              style={{ display: "block", marginTop: 4 }}
+            >
+              {lastImport.files} files · {lastImport.parsedIntervals}{" "}
+              intervals · {lastImport.insertedRows} rows added ·{" "}
+              {lastImport.duplicateRows} duplicates skipped ·{" "}
+              {lastImport.overlapRows} native-overlap rows skipped
             </Text>
           </Card>
         )}
