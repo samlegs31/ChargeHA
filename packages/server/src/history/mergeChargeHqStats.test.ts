@@ -3,51 +3,51 @@ import { expect } from "@std/expect";
 import type { StatsBucket, StatsResponse } from "@chargeha/shared";
 import { mergeChargeHqStats } from "./mergeChargeHqStats.ts";
 
-function responseWithBuckets(buckets: StatsBucket[]): StatsResponse {
-  return {
-    period: "day",
-    startDate: "2025-01-15",
-    endDate: "2025-01-15",
-    energyBuckets: [],
-    homeSolarProductionWh: 0,
-    homeConsumedWh: 0,
-    homeSolarWh: 0,
-    homeBatteryChargeWh: 0,
-    homeBatteryDischargeWh: 0,
-    homeSolarToBatteryWh: 0,
-    homeGridToBatteryWh: 0,
-    homeGridWh: 0,
-    homeSelfPoweredPercent: 0,
-    solarProductionLine: [],
-    buckets,
-    totalChargedWh: 0,
-    totalSolarWh: 0,
-    totalBatteryWh: 0,
-    totalGridWh: 0,
-    totalAwayWh: 0,
-    selfPoweredPercent: 0,
-    totalCostCents: buckets.reduce(
-      (sum, bucket) => sum + (bucket.costCents ?? 0),
-      0,
-    ),
-    solarSavingsCents: 123,
-    evSolarSavingsCents: 45,
-  };
-}
-
-function emptyBuckets(count: number): StatsBucket[] {
-  return Array.from({ length: count }, (_, index) => ({
-    label: String(index),
-    solarWh: 0,
-    batteryWh: 0,
-    gridWh: 0,
-    awayWh: 0,
-    totalWh: 0,
-    costCents: 0,
-  }));
-}
-
 describe("mergeChargeHqStats", () => {
+  function responseWithBuckets(buckets: StatsBucket[]): StatsResponse {
+    return {
+      period: "day",
+      startDate: "2025-01-15",
+      endDate: "2025-01-15",
+      energyBuckets: [],
+      homeSolarProductionWh: 0,
+      homeConsumedWh: 0,
+      homeSolarWh: 0,
+      homeBatteryChargeWh: 0,
+      homeBatteryDischargeWh: 0,
+      homeSolarToBatteryWh: 0,
+      homeGridToBatteryWh: 0,
+      homeGridWh: 0,
+      homeSelfPoweredPercent: 0,
+      solarProductionLine: [],
+      buckets,
+      totalChargedWh: 0,
+      totalSolarWh: 0,
+      totalBatteryWh: 0,
+      totalGridWh: 0,
+      totalAwayWh: 0,
+      selfPoweredPercent: 0,
+      totalCostCents: buckets.reduce(
+        (sum, bucket) => sum + (bucket.costCents ?? 0),
+        0,
+      ),
+      solarSavingsCents: 123,
+      evSolarSavingsCents: 45,
+    };
+  }
+
+  function emptyBuckets(count: number): StatsBucket[] {
+    return Array.from({ length: count }, (_, index) => ({
+      label: String(index),
+      solarWh: 0,
+      batteryWh: 0,
+      gridWh: 0,
+      awayWh: 0,
+      totalWh: 0,
+      costCents: 0,
+    }));
+  }
+
   it("adds exact ChargeHQ Wh without inventing historical costs", () => {
     const buckets = emptyBuckets(24);
     buckets[13] = {
