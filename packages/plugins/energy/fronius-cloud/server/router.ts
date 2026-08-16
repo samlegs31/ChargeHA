@@ -7,10 +7,11 @@ import { createPluginConfigProcedures } from "../../../createPluginConfigProcedu
 import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDependencies";
 
 // ── Typed Zod schema for Fronius Cloud plugin procedure ─────────────────────
-
+// Password is deliberately NOT accepted from the browser. getConfig() masks
+// stored secrets as "********", so echoing that value into a connection test
+// would authenticate with the mask instead of the real Solar.web password.
 const testConnectionInput = z.object({
   email: z.string(),
-  password: z.string(),
   pvSystemId: z.string(),
 });
 
@@ -27,18 +28,39 @@ export function createFroniusCloudRouter(deps: PluginDependencies) {
     testConnection: publicProcedure
       .input(testConnectionInput)
       .mutation(async ({ input }) => {
+        // Always read the decrypted password server-side. The browser only ever
+        // sees the secret mask returned by createPluginConfigProcedures().
+        const password = await deps.getSecret("password") ?? "";
+        if (!password) {
+          return {
+            success: false as const,
+            error: "Solar.web password is not configured",
+          };
+        }
+
         const adapter = new FroniusCloudAdapter(
           input.email,
-          input.password,
+          password,
           input.pvSystemId,
           new Logger("FroniusCloud", "error"),
         );
         try {
           await adapter.connect();
-          const deviceInfo = await adapter.getDeviceInfo();
+          // Match the Local connection test: validate both device metadata and
+          // the realtime EnergyData path used by Home/charge control.
+          const [device, realtime] = await Promise.all([
+            adapter.getDeviceInfo(),
+            adapter.getRealtimeData(),
+          ]);
           await adapter.disconnect();
-          return { success: true as const, systemName: deviceInfo.name };
+          return {
+            success: true as const,
+            systemName: device.name,
+            device,
+            realtime,
+          };
         } catch (err) {
+          await adapter.disconnect();
           return {
             success: false as const,
             error: err instanceof Error ? err.message : "Connection failed",
