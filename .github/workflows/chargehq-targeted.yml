@@ -6,9 +6,7 @@ on:
 
 jobs:
   chargehq:
-    if: >-
-      github.head_ref == 'feature/chargehq-history-import' ||
-      github.head_ref == 'hotfix/chargehq-raw-export-header'
+    if: github.head_ref == 'feature/chargehq-history-import'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
