@@ -122,7 +122,8 @@ export function FroniusCloudForm({
         Connect to your Fronius inverter through Solar.web. Use a Solar.web
         account that already has <code>guest</code>{" "}
         access to this PV system. An existing guest account is fine for local
-        testing; a dedicated service account can be used later for hosted E.V Solar.
+        testing; a dedicated service account can be used later for hosted E.V
+        Solar.
       </Text>
 
       <CloudFields
