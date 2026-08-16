@@ -102,11 +102,35 @@ function emptyImportTotals(): ImportTotals {
   };
 }
 
+function earliestLocal(
+  current: string | null,
+  candidate: string | null,
+): string | null {
+  if (candidate === null) return current;
+  if (current === null || candidate < current) return candidate;
+  return current;
+}
+
+function latestLocal(
+  current: string | null,
+  candidate: string | null,
+): string | null {
+  if (candidate === null) return current;
+  if (current === null || candidate > current) return candidate;
+  return current;
+}
+
 function summarizePreviews(previews: FilePreview[]): ChargeHqSummary {
   return previews.reduce<ChargeHqSummary>((total, preview) => ({
     intervalCount: total.intervalCount + preview.summary.intervalCount,
-    firstStartTimeLocal: total.firstStartTimeLocal,
-    lastStartTimeLocal: preview.summary.lastStartTimeLocal,
+    firstStartTimeLocal: earliestLocal(
+      total.firstStartTimeLocal,
+      preview.summary.firstStartTimeLocal,
+    ),
+    lastStartTimeLocal: latestLocal(
+      total.lastStartTimeLocal,
+      preview.summary.lastStartTimeLocal,
+    ),
     chargedKwh: total.chargedKwh + preview.summary.chargedKwh,
     solarKwh: total.solarKwh + preview.summary.solarKwh,
     batteryKwh: total.batteryKwh + preview.summary.batteryKwh,
@@ -115,7 +139,7 @@ function summarizePreviews(previews: FilePreview[]): ChargeHqSummary {
     atHomeKwh: total.atHomeKwh + preview.summary.atHomeKwh,
   }), {
     intervalCount: 0,
-    firstStartTimeLocal: previews[0]?.summary.firstStartTimeLocal ?? null,
+    firstStartTimeLocal: null,
     lastStartTimeLocal: null,
     chargedKwh: 0,
     solarKwh: 0,
@@ -386,6 +410,9 @@ function ChargeHqPreview({ summary }: { summary: ChargeHqSummary }) {
       <Text size="2" style={{ display: "block", marginTop: 6 }}>
         {summary.intervalCount} intervals · {formatKwh(summary.chargedKwh)}{" "}
         kWh total
+      </Text>
+      <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
+        {summary.firstStartTimeLocal ?? "?"} → {summary.lastStartTimeLocal ?? "?"}
       </Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
         Home solar {formatKwh(summary.solarKwh)} kWh · Home battery{" "}
