@@ -419,9 +419,8 @@ function importButtonLabel(isImporting: boolean, fileCount: number): string {
 function ImportControls(
   { model }: { model: HistoryMigrationModel },
 ) {
-  const disabled = model.busy || !model.readyToImport ||
-    model.vehicleId === "" ||
-    model.vehicles.length === 0;
+  const hasVehicle = model.vehicleId !== "" && model.vehicles.length > 0;
+  const disabled = model.busy || !model.readyToImport || !hasVehicle;
   return (
     <div
       style={{
