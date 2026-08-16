@@ -8,6 +8,7 @@ import {
 import { publicProcedure, router } from "../trpc.ts";
 
 const csvTextInput = z.string().min(1).max(15_000_000);
+const vehicleIdInput = z.object({ vehicleId: z.string().min(1) });
 
 function parseChargeHqCsv(csvText: string) {
   try {
@@ -29,6 +30,13 @@ export const historyRouter = router({
         summary: parsed.summary,
         historyRowCount: parsed.historyRows.length,
       };
+    }),
+
+  getChargeHqCoverage: publicProcedure
+    .input(vehicleIdInput)
+    .query(async ({ ctx, input }) => {
+      const repository = new HistoryRepository(ctx.db.db);
+      return await repository.getCoverage("chargehq", input.vehicleId);
     }),
 
   importChargeHq: publicProcedure
