@@ -6,6 +6,9 @@ on:
       - feature/fronius-solarweb-guest
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   fronius-guest:
     runs-on: ubuntu-latest
@@ -19,6 +22,21 @@ jobs:
 
       - name: Install dependencies
         run: deno install --frozen
+
+      - name: Format Fronius guest plugin
+        run: deno fmt packages/plugins/energy/fronius-cloud
+
+      - name: Commit formatter changes
+        run: |
+          if git diff --quiet -- packages/plugins/energy/fronius-cloud; then
+            echo "No formatter changes required"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add packages/plugins/energy/fronius-cloud
+            git commit -m "style: format Fronius guest plugin"
+            git push
+          fi
 
       - name: Check Fronius guest formatting
         run: deno fmt --check packages/plugins/energy/fronius-cloud
