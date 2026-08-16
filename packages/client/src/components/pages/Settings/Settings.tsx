@@ -160,7 +160,7 @@ export function Settings() {
 
       <SettingsGroup
         title="History & migration"
-        description="Bring historical charging data into E.V Solar independently from the active Fronius realtime source."
+        description="Bring historical charging data into E.V Solar independently from the active realtime energy source."
       >
         <HistoryMigrationSettings />
       </SettingsGroup>
