@@ -170,22 +170,21 @@ The production host can keep its own deployment helper (for example `update-char
 
 `main` is the deployable branch. Feature and maintenance work should be done on short-lived branches and merged through pull requests after validation.
 
-GitHub Actions now uses one CI workflow that performs:
+GitHub Actions now uses one CI workflow. The blocking quality gate performs:
 
-- formatting verification,
 - TypeScript/Deno type-checking,
 - repository invariant checks,
 - server/plugin tests,
 - client tests,
 - Docker smoke builds for both `linux/amd64` and `linux/arm64`.
 
-The repository currently has inherited/custom lint debt. Lint still runs and remains visible in CI, but is temporarily non-blocking while those violations are cleaned progressively. Strict local validation remains available through:
+Formatting and custom lint debt are also reported on every CI run, but are temporarily non-blocking while inherited violations are cleaned progressively. Strict local validation of formatting, lint, types and tests remains available through:
 
 ```bash
 deno task check:all
 ```
 
-A CI-equivalent blocking validation without the known lint debt is available through:
+The CI-equivalent blocking quality gate is available through:
 
 ```bash
 deno task check:ci
@@ -217,7 +216,7 @@ SQLite is configured for reliable long-running operation with WAL/busy-timeout h
 - Continue forecast calibration using real production and charging history.
 - Improve Tesla API efficiency and state-race handling.
 - Automated survival backup / disaster-recovery packaging.
-- Progressive cleanup of inherited lint and legacy ChargeHA code.
+- Progressive cleanup of inherited formatting, lint and legacy ChargeHA code.
 
 ## Project origin and licence
 
