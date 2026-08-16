@@ -1,16 +1,14 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import {
-  ChargeHqCsvError,
-  parseChargeHqIntervalCsv,
-} from "./ChargeHqCsv.ts";
+import { ChargeHqCsvError, parseChargeHqIntervalCsv } from "./ChargeHqCsv.ts";
 
 describe("parseChargeHqIntervalCsv", () => {
   const header =
     "index,start_time_local,start_time_epoch,charged_kwh,from_solar_kwh,from_battery_kwh,from_grid_kwh,away_from_home_kwh,at_home_kwh";
 
   it("parses a 15-minute home interval without losing energy", () => {
-    const csv = `${header}\n0,2026-01-04 12:00:00,1767524400.0,0.521,0.432,0.059,0.030,0.0,0.521`;
+    const csv =
+      `${header}\n0,2026-01-04 12:00:00,1767524400.0,0.521,0.432,0.059,0.030,0.0,0.521`;
     const result = parseChargeHqIntervalCsv(csv);
 
     expect(result.summary.intervalCount).toBe(1);
@@ -31,7 +29,8 @@ describe("parseChargeHqIntervalCsv", () => {
   });
 
   it("keeps away charging separate from home energy attribution", () => {
-    const csv = `${header}\n0,2026-01-08 07:15:00,1767852900.0,0.438,0.0,0.0,0.0,0.438,0.0`;
+    const csv =
+      `${header}\n0,2026-01-08 07:15:00,1767852900.0,0.438,0.0,0.0,0.0,0.438,0.0`;
     const result = parseChargeHqIntervalCsv(csv);
 
     expect(result.historyRows).toEqual([{
@@ -50,7 +49,8 @@ describe("parseChargeHqIntervalCsv", () => {
   });
 
   it("splits a mixed interval into home and away rows", () => {
-    const csv = `${header}\n0,2026-01-08 07:15:00,1767852900,1.000,0.200,0.100,0.200,0.500,0.500`;
+    const csv =
+      `${header}\n0,2026-01-08 07:15:00,1767852900,1.000,0.200,0.100,0.200,0.500,0.500`;
     const result = parseChargeHqIntervalCsv(csv);
 
     expect(result.historyRows).toHaveLength(2);
@@ -77,7 +77,8 @@ describe("parseChargeHqIntervalCsv", () => {
   });
 
   it("accepts BOM and CRLF exports", () => {
-    const csv = `\uFEFF${header}\r\n0,2025-01-01 11:00:00,1735725600.0,0.269,0.269,0.0,0.0,0.0,0.269\r\n`;
+    const csv =
+      `\uFEFF${header}\r\n0,2025-01-01 11:00:00,1735725600.0,0.269,0.269,0.0,0.0,0.0,0.269\r\n`;
     expect(parseChargeHqIntervalCsv(csv).summary.intervalCount).toBe(1);
   });
 
@@ -91,14 +92,16 @@ describe("parseChargeHqIntervalCsv", () => {
   });
 
   it("rejects rows where charged energy does not equal home plus away", () => {
-    const csv = `${header}\n0,2026-01-04 12:00:00,1767524400,1.000,0.400,0.0,0.100,0.0,0.500`;
+    const csv =
+      `${header}\n0,2026-01-04 12:00:00,1767524400,1.000,0.400,0.0,0.100,0.0,0.500`;
     expect(() => parseChargeHqIntervalCsv(csv)).toThrow(
       /charged_kwh is inconsistent/,
     );
   });
 
   it("rejects rows where home attribution is inconsistent", () => {
-    const csv = `${header}\n0,2026-01-04 12:00:00,1767524400,0.500,0.100,0.0,0.100,0.0,0.500`;
+    const csv =
+      `${header}\n0,2026-01-04 12:00:00,1767524400,0.500,0.100,0.0,0.100,0.0,0.500`;
     expect(() => parseChargeHqIntervalCsv(csv)).toThrow(
       /at_home_kwh is inconsistent/,
     );
