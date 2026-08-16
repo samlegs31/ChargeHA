@@ -1,0 +1,75 @@
+name: Post-lint comparison
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  compare:
+    if: github.head_ref == 'feature/chargehq-history-import'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: main
+            ref: 8a9fea0c48b4361987161a59a4ae30b9fcde3f97
+          - label: pr10
+            ref: 6345be050bd8098019936423a82636aa703b6aaf
+    name: post-lint (${{ matrix.label }})
+    steps:
+      - name: Checkout ${{ matrix.label }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.ref }}
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.4
+
+      - name: Install dependencies
+        id: install
+        run: deno install --frozen
+
+      - name: Type check
+        id: typecheck
+        continue-on-error: true
+        run: deno check
+
+      - name: Check unused files
+        id: unused
+        continue-on-error: true
+        run: deno task check:unused
+
+      - name: Check packument bloat
+        id: packument
+        continue-on-error: true
+        run: deno task check:packument
+
+      - name: Server tests
+        id: server
+        continue-on-error: true
+        run: deno task test:server
+
+      - name: Client tests
+        id: client
+        continue-on-error: true
+        run: deno task test:client
+
+      - name: Summarize comparison result
+        if: always()
+        shell: bash
+        run: |
+          echo "typecheck=${{ steps.typecheck.outcome }}"
+          echo "unused=${{ steps.unused.outcome }}"
+          echo "packument=${{ steps.packument.outcome }}"
+          echo "server=${{ steps.server.outcome }}"
+          echo "client=${{ steps.client.outcome }}"
+          if [[ "${{ steps.typecheck.outcome }}" != "success" || \
+                "${{ steps.unused.outcome }}" != "success" || \
+                "${{ steps.packument.outcome }}" != "success" || \
+                "${{ steps.server.outcome }}" != "success" || \
+                "${{ steps.client.outcome }}" != "success" ]]; then
+            exit 1
+          fi
