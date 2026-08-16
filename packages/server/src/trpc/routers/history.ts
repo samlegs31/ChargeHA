@@ -47,7 +47,7 @@ export const historyRouter = router({
 
       const parsed = parseChargeHqCsv(input.csvText);
       const repository = new HistoryRepository(ctx.db.db);
-      const importResult = repository.importChargeHqRows(
+      const importResult = await repository.importChargeHqRows(
         input.vehicleId,
         parsed.historyRows,
       );
