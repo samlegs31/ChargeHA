@@ -19,62 +19,39 @@ export function FroniusCloudConfig(): JSX.Element | null {
   return (
     <>
       <Text size="1" color="gray">
-        Use a Solar.web account that has <code>guest</code>{" "}
-        access to this PV system. An existing guest account is fine for local
-        testing; a dedicated service account can be used later for hosted E.V Solar.
+        Solar.web → Settings → Permissions → enable{" "}
+        <strong>Guest access via link</strong>, then paste the complete
+        GuestLogOn link below. E.V Solar only receives read-only monitoring
+        data; no Solar.web email, password or Query API key is stored.
       </Text>
 
-      <SettingsRow label="Email">
-        <TextField.Root
-          size="2"
-          placeholder="guest@email.com"
-          value={config.froniusCloudEmail}
-          onChange={(e: { target: { value: string } }) =>
-            configMutation.mutate({ froniusCloudEmail: e.target.value })}
-          style={{ width: 220 }}
-        />
-      </SettingsRow>
-
-      <SettingsRow label="Password">
-        <TextField.Root
-          size="2"
-          type="password"
-          placeholder="Solar.web password"
-          value={config.froniusCloudPassword}
-          onChange={(e: { target: { value: string } }) =>
-            configMutation.mutate({ froniusCloudPassword: e.target.value })}
-          style={{ width: 220 }}
-        />
-      </SettingsRow>
-
       <SettingsRow
-        label="PV System ID"
-        help="Enter only the value after pvSystemId= in your logged-in Solar.web URL (not the guest-link ID and not the full URL)."
+        label="Solar.web Guest Link"
+        help="Paste the complete https://www.solarweb.com/Home/GuestLogOn?pvSystemId=... link. Keep guest access enabled in Solar.web while E.V Solar uses this connection."
       >
         <TextField.Root
           size="2"
-          placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-          value={config.froniusCloudPvSystemId}
+          placeholder="https://www.solarweb.com/Home/GuestLogOn?pvSystemId=..."
+          value={config.froniusCloudGuestUrl}
           onChange={(e: { target: { value: string } }) =>
-            configMutation.mutate({ froniusCloudPvSystemId: e.target.value })}
-          style={{ width: 320 }}
+            configMutation.mutate({ froniusCloudGuestUrl: e.target.value })}
+          style={{ width: 520, maxWidth: "100%" }}
         />
       </SettingsRow>
 
-      {/* Test connection */}
+      <Text size="1" color="gray" style={{ fontStyle: "italic" }}>
+        The link is read-only, but anyone who has it can view the shared
+        Solar.web installation. Treat it as a private sharing link.
+      </Text>
+
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Button
           size="2"
           variant="soft"
-          disabled={!config.froniusCloudEmail ||
-            !config.froniusCloudPassword ||
-            !config.froniusCloudPvSystemId ||
-            testMutation.isPending}
+          disabled={!config.froniusCloudGuestUrl || testMutation.isPending}
           onClick={() =>
             testMutation.mutate({
-              email: config.froniusCloudEmail,
-              password: config.froniusCloudPassword,
-              pvSystemId: config.froniusCloudPvSystemId,
+              guestUrl: config.froniusCloudGuestUrl,
             })}
         >
           {testMutation.isPending ? "Testing..." : "Test Connection"}

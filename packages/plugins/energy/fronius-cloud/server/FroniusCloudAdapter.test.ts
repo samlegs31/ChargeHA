@@ -4,15 +4,18 @@ import { assertExists } from "@std/assert";
 import {
   FroniusCloudAuthError,
   FroniusCloudConnectionError,
+  FroniusCloudParseError,
 } from "./FroniusCloudAdapter.ts";
 import {
   type FetchMock,
-  flowdataResponse,
+  GUEST_ID,
+  GUEST_URL,
   makeAdapter,
+  RESOLVED_ID,
   setupFetchMock,
 } from "./test-helpers/froniusCloudHarness.ts";
 
-describe("FroniusCloudAdapter", () => {
+describe("FroniusCloudAdapter — Solar.web Guest Link", () => {
   let mock: FetchMock;
 
   beforeEach(() => {
@@ -24,12 +27,12 @@ describe("FroniusCloudAdapter", () => {
   });
 
   describe("error classes", () => {
-    const errorCases: Array<
-      [new (msg: string) => Error, string]
-    > = [
+    const errorCases: Array<[new (msg: string) => Error, string]> = [
       [FroniusCloudConnectionError, "FroniusCloudConnectionError"],
       [FroniusCloudAuthError, "FroniusCloudAuthError"],
+      [FroniusCloudParseError, "FroniusCloudParseError"],
     ];
+
     errorCases.forEach(([ErrorClass, expectedName]) => {
       it(`${expectedName} sets name and message`, () => {
         const err = new ErrorClass("test");
@@ -39,195 +42,142 @@ describe("FroniusCloudAdapter", () => {
     });
   });
 
-  describe("pollIntervalSeconds", () => {
-    it("is 30 seconds", () => {
-      expect(makeAdapter().pollIntervalSeconds()).toBe(30);
-    });
+  it("polls Solar.web every 30 seconds", () => {
+    expect(makeAdapter().pollIntervalSeconds()).toBe(30);
   });
 
-  describe("connect", () => {
-    it("calls POST /iam/jwt with email and password", async () => {
-      await makeAdapter({ email: "user@example.com", password: "secret123" })
-        .connect();
-
-      const loginCall = mock.fetchCalls.find(
-        (c) => c.url.includes("/iam/jwt") && c.method === "POST",
-      );
-      assertExists(loginCall);
-      expect(loginCall.body).toContain("user@example.com");
-      expect(loginCall.body).toContain("secret123");
-    });
-
-    it("throws on invalid credentials (401 response)", async () => {
-      mock.setLoginResponse({
-        ok: false,
-        status: 401,
-        json: { error: "Unauthorized" },
-      });
-
-      await expect(makeAdapter().connect()).rejects.toBeInstanceOf(
-        FroniusCloudAuthError,
-      );
-    });
-
-    it("throws when login returns 200 but no token", async () => {
-      mock.setLoginResponse({
-        ok: true,
-        status: 200,
-        json: { error: "something wrong" },
-      });
-
-      await expect(makeAdapter().connect()).rejects.toThrow(/no access token/);
-    });
-  });
-
-  describe("ensureToken (driven through public API)", () => {
-    it("refreshes token via PATCH when login token is near expiry", async () => {
-      // Login returns a token expiring in 30s — under the 60s refresh margin.
-      // The validate-system call inside connect() triggers the refresh.
-      mock.setLoginTokenExpiresIn(30_000);
+  describe("guest session", () => {
+    it("opens GuestLogOn, follows the PV-system redirect and reads ActualData", async () => {
       await makeAdapter().connect();
 
-      const refreshCall = mock.fetchCalls.find(
-        (c) => c.method === "PATCH" && c.url.includes("/iam/jwt/"),
+      const guestCall = mock.fetchCalls.find((call) =>
+        call.url.includes("/Home/GuestLogOn")
       );
-      expect(refreshCall).toBeDefined();
+      assertExists(guestCall);
+      expect(guestCall.url).toContain(`pvSystemId=${GUEST_ID}`);
+      expect(guestCall.method).toBe("GET");
+      expect(guestCall.redirect).toBe("manual");
+
+      const pvPageCall = mock.fetchCalls.find((call) =>
+        call.url.includes("/PvSystems/PvSystem")
+      );
+      assertExists(pvPageCall);
+      expect(pvPageCall.url).toContain(`pvSystemId=${RESOLVED_ID}`);
+      expect(pvPageCall.headers.cookie).toContain(".AspNet.Auth=guest-auth");
+
+      const dataCall = mock.fetchCalls.find((call) =>
+        call.url.includes("/ActualData/GetCompareDataForPvSystem")
+      );
+      assertExists(dataCall);
+      expect(dataCall.url).toContain(`pvSystemId=${RESOLVED_ID}`);
+      expect(dataCall.headers.cookie).toContain(".AspNet.Auth=guest-auth");
+      expect(dataCall.headers["x-requested-with"]).toBe("XMLHttpRequest");
     });
 
-    it("falls back to re-login (POST) when refresh fails", async () => {
-      mock.setLoginTokenExpiresIn(30_000);
-      mock.setRefreshResponse({
-        ok: false,
-        status: 401,
-        json: { error: "Token expired" },
-      });
-
+    it("never sends Solar.web email/password or SWQAPI access-key headers", async () => {
       await makeAdapter().connect();
 
-      const patchCalls = mock.fetchCalls.filter((c) => c.method === "PATCH");
-      const loginCalls = mock.fetchCalls.filter(
-        (c) => c.method === "POST" && c.url.endsWith("/iam/jwt"),
-      );
-      expect(patchCalls.length).toBeGreaterThanOrEqual(1);
-      // Initial connect login + fallback re-login after refresh failure.
-      expect(loginCalls.length).toBeGreaterThanOrEqual(2);
-    });
-
-    it("logs in when no access token exists yet", async () => {
-      // Fresh adapter — never connected. A public data call must trigger login.
-      const adapter = makeAdapter();
-      mock.setPathResponse(
-        "/pvsystems/pv-system-1/flowdata",
-        flowdataResponse([]),
-      );
-
-      await adapter.getRealtimeData();
-
-      const loginCall = mock.fetchCalls.find(
-        (c) => c.method === "POST" && c.url.includes("/iam/jwt"),
-      );
-      expect(loginCall).toBeDefined();
-    });
-  });
-
-  describe("request headers", () => {
-    it("every outbound request carries auth headers", async () => {
-      const adapter = makeAdapter();
-      await adapter.connect();
-
-      expect(mock.fetchCalls.length).toBeGreaterThan(0);
       mock.fetchCalls.forEach((call) => {
-        expect(call.headers["AccessKeyId"]).toBe(
-          "FKIAB4CDA71C0763413DA942DC756742318B",
-        );
-        expect(call.headers["AccessKeyValue"]).toBe(
-          "67315e19-6805-479e-994d-7193ee5f6125",
-        );
-        const isLogin = call.method === "POST" && call.url.endsWith("/iam/jwt");
-        if (!isLogin) {
-          expect(call.headers["Authorization"]).toBe(
-            "Bearer test-access-token",
-          );
-        }
+        expect(call.url.includes("/iam/jwt")).toBe(false);
+        expect(call.headers.authorization).toBeUndefined();
+        expect(call.headers.accesskeyid).toBeUndefined();
+        expect(call.headers.accesskeyvalue).toBeUndefined();
       });
     });
-  });
 
-  describe("disconnect", () => {
-    it("clears tokens so subsequent calls re-authenticate", async () => {
+    it("rejects links that are not Solar.web GuestLogOn links", async () => {
+      const adapter = makeAdapter({
+        guestUrl: "https://example.com/Home/GuestLogOn?pvSystemId=" + GUEST_ID,
+      });
+
+      await expect(adapter.connect()).rejects.toThrow(
+        /Invalid Solar\.web guest link/,
+      );
+      expect(mock.fetchCalls.length).toBe(0);
+    });
+
+    it("rejects a guest link without a valid pvSystemId", async () => {
+      const adapter = makeAdapter({
+        guestUrl: "https://www.solarweb.com/Home/GuestLogOn?pvSystemId=bad-id",
+      });
+
+      await expect(adapter.connect()).rejects.toThrow(/pvSystemId/);
+    });
+
+    it("re-opens the guest link when the Solar.web session expires", async () => {
       const adapter = makeAdapter();
       await adapter.connect();
-      await adapter.disconnect();
 
-      mock.setPathResponse(
-        "/pvsystems/pv-system-1/flowdata",
-        flowdataResponse([]),
-      );
-      mock.fetchCalls.length = 0;
+      // Both candidate IDs fail once, forcing a fresh GuestLogOn session.
+      mock.queueActualDataResponse({
+        status: 302,
+        headers: { Location: "/Account/Login" },
+      });
+      mock.queueActualDataResponse({
+        status: 302,
+        headers: { Location: "/Account/Login" },
+      });
 
       await adapter.getRealtimeData();
 
-      const loginAfterDisconnect = mock.fetchCalls.find(
-        (c) => c.method === "POST" && c.url.endsWith("/iam/jwt"),
+      const guestCalls = mock.fetchCalls.filter((call) =>
+        call.url.includes("/Home/GuestLogOn")
       );
-      expect(loginAfterDisconnect).toBeDefined();
+      expect(guestCalls.length).toBe(2);
     });
   });
 
   describe("getRealtimeData", () => {
-    const fullChannels = [
-      { channelName: "PowerPV", channelType: "Power", value: 3500, unit: "W" },
-      {
-        channelName: "PowerFeedIn",
-        channelType: "Power",
-        value: -200,
-        unit: "W",
-      },
-      {
-        channelName: "PowerLoad",
-        channelType: "Power",
-        value: -3300,
-        unit: "W",
-      },
-      {
-        channelName: "PowerBattCharge",
-        channelType: "Power",
-        value: 500,
-        unit: "W",
-      },
-      { channelName: "SOC", channelType: "Percent", value: 75, unit: "%" },
-    ];
-
-    const mappingCases = [
-      { field: "solarProductionW", expected: 3500 },
-      { field: "gridPowerW", expected: -200 },
-      { field: "homeConsumptionW", expected: 3300 }, // abs(-3300)
-      { field: "batteryPowerW", expected: 500 },
-      { field: "batterySoc", expected: 75 },
-    ] as const;
-    mappingCases.forEach(({ field, expected }) => {
-      it(`maps channels → ${field} = ${expected}`, async () => {
-        const adapter = makeAdapter();
-        await adapter.connect();
-        mock.setPathResponse(
-          "/pvsystems/pv-system-1/flowdata",
-          flowdataResponse(fullChannels),
-        );
-
-        const data = await adapter.getRealtimeData();
-        expect(data[field]).toBe(expected);
-      });
-    });
-
-    it("returns zeros when isOnline=false", async () => {
+    it("maps Solar.web P_PV, P_Grid, P_Load, P_Akku and SOC", async () => {
       const adapter = makeAdapter();
       await adapter.connect();
-      mock.setPathResponse(
-        "/pvsystems/pv-system-1/flowdata",
-        flowdataResponse([], false),
-      );
-
       const data = await adapter.getRealtimeData();
+
+      expect(data.solarProductionW).toBe(3500);
+      expect(data.gridPowerW).toBe(-200);
+      expect(data.homeConsumptionW).toBe(3300);
+      expect(data.batteryPowerW).toBe(500);
+      expect(data.batterySoc).toBe(75);
+      expect(data.gridVoltageV).toBeNull();
+    });
+
+    it("uses StateOfCharge_Relative when Solar.web does not expose SOC", async () => {
+      mock.setActualDataResponse({
+        status: 200,
+        json: {
+          P_PV: 2100,
+          P_Grid: 100,
+          P_Load: -1800,
+          P_Akku: -400,
+          StateOfCharge_Relative: 82,
+          IsOnline: true,
+        },
+      });
+
+      const adapter = makeAdapter();
+      await adapter.connect();
+      const data = await adapter.getRealtimeData();
+      expect(data.batterySoc).toBe(82);
+      expect(data.batteryPowerW).toBe(-400);
+    });
+
+    it("returns safe zero values when Solar.web reports the system offline", async () => {
+      mock.setActualDataResponse({
+        status: 200,
+        json: {
+          P_PV: 0,
+          P_Grid: 0,
+          P_Load: 0,
+          P_Akku: null,
+          SOC: 65,
+          IsOnline: false,
+        },
+      });
+
+      const adapter = makeAdapter();
+      await adapter.connect();
+      const data = await adapter.getRealtimeData();
+
       expect(data.solarProductionW).toBe(0);
       expect(data.gridPowerW).toBe(0);
       expect(data.homeConsumptionW).toBe(0);
@@ -235,84 +185,50 @@ describe("FroniusCloudAdapter", () => {
       expect(data.batterySoc).toBeNull();
     });
 
-    it("handles missing channels gracefully (return 0 for missing)", async () => {
-      const adapter = makeAdapter();
-      await adapter.connect();
-      mock.setPathResponse(
-        "/pvsystems/pv-system-1/flowdata",
-        flowdataResponse([
-          {
-            channelName: "PowerPV",
-            channelType: "Power",
-            value: 1000,
-            unit: "W",
-          },
-        ]),
+    it("fails connection when the guest page does not expose realtime power data", async () => {
+      mock.setActualDataResponse({
+        status: 200,
+        json: { IsOnline: true, Name: "PV system" },
+      });
+
+      await expect(makeAdapter().connect()).rejects.toBeInstanceOf(
+        FroniusCloudParseError,
       );
-
-      const data = await adapter.getRealtimeData();
-      expect(data.solarProductionW).toBe(1000);
-      expect(data.gridPowerW).toBe(0);
-      expect(data.homeConsumptionW).toBe(0);
-      expect(data.batteryPowerW).toBeNull();
-      expect(data.batterySoc).toBeNull();
-    });
-
-    it("handles null battery value", async () => {
-      const adapter = makeAdapter();
-      await adapter.connect();
-      mock.setPathResponse(
-        "/pvsystems/pv-system-1/flowdata",
-        flowdataResponse([
-          {
-            channelName: "PowerPV",
-            channelType: "Power",
-            value: 1000,
-            unit: "W",
-          },
-          {
-            channelName: "PowerBattCharge",
-            channelType: "Power",
-            value: null,
-            unit: "W",
-          },
-        ]),
-      );
-
-      const data = await adapter.getRealtimeData();
-      expect(data.batteryPowerW).toBeNull();
     });
   });
 
-  describe("getDeviceInfo", () => {
-    it("returns system name and inverter model", async () => {
+  describe("lifecycle and device info", () => {
+    it("re-opens GuestLogOn after disconnect", async () => {
       const adapter = makeAdapter();
       await adapter.connect();
+      await adapter.disconnect();
 
-      mock.setPathResponse("/pvsystems/pv-system-1/devices", {
-        ok: true,
-        status: 200,
-        json: {
-          devices: [
-            {
-              deviceType: "inverter",
-              model: "Primo 5.0-1",
-              name: "Inverter 1",
-            },
-            {
-              deviceType: "meter",
-              model: "Smart Meter TS 65A-3",
-              name: "Meter 1",
-            },
-          ],
-        },
-      });
+      const before =
+        mock.fetchCalls.filter((call) => call.url.includes("/Home/GuestLogOn"))
+          .length;
 
-      const info = await adapter.getDeviceInfo();
-      expect(info.id).toBe("pv-system-1");
-      expect(info.name).toBe("My PV System");
-      expect(info.manufacturer).toBe("Fronius");
-      expect(info.model).toBe("Primo 5.0-1");
+      await adapter.getRealtimeData();
+
+      const after =
+        mock.fetchCalls.filter((call) => call.url.includes("/Home/GuestLogOn"))
+          .length;
+      expect(after).toBe(before + 1);
     });
+
+    it("returns a read-only Solar.web device identity", async () => {
+      const adapter = makeAdapter();
+      await adapter.connect();
+      const info = await adapter.getDeviceInfo();
+
+      expect(info.id).toBe(RESOLVED_ID);
+      expect(info.name).toBe("Fronius Solar.web Guest");
+      expect(info.manufacturer).toBe("Fronius");
+      expect(info.model).toBe("Solar.web Guest");
+    });
+  });
+
+  it("accepts the exact GuestLogOn URL format shown by Solar.web", async () => {
+    const adapter = makeAdapter({ guestUrl: GUEST_URL });
+    await expect(adapter.connect()).resolves.toBeUndefined();
   });
 });
