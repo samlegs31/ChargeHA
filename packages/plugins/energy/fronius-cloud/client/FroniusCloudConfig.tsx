@@ -21,7 +21,8 @@ export function FroniusCloudConfig(): JSX.Element | null {
       <Text size="1" color="gray">
         Use a Solar.web account that has <code>guest</code>{" "}
         access to this PV system. An existing guest account is fine for local
-        testing; a dedicated service account can be used later for hosted E.V Solar.
+        testing; a dedicated service account can be used later for hosted E.V
+        Solar.
       </Text>
 
       <SettingsRow label="Email">
