@@ -18,10 +18,10 @@ export interface HistoryCoverage {
 export class HistoryRepository {
   constructor(private db: BetterSQLite3Database) {}
 
-  async importChargeHqRows(
+  importChargeHqRows(
     vehicleId: string,
     rows: readonly ChargeHqHistoryRow[],
-  ): Promise<HistoryImportResult> {
+  ): HistoryImportResult {
     const insertedRows = this.db.transaction((tx) =>
       rows.reduce((inserted, row) => {
         const result = tx.insert(vehicleChargeHistory).values({
