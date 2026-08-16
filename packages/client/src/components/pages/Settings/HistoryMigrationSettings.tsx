@@ -181,7 +181,9 @@ function useHistoryMigrationModel(): HistoryMigrationModel {
   );
 
   useEffect(() => {
-    if (vehicleId === "" && vehicles.length > 0) setVehicleIdState(vehicles[0].id);
+    if (vehicleId === "" && vehicles.length > 0) {
+      setVehicleIdState(vehicles[0].id);
+    }
   }, [vehicleId, vehicles]);
 
   const resetImportState = () => {
@@ -201,7 +203,10 @@ function useHistoryMigrationModel(): HistoryMigrationModel {
     setIsAnalyzing(true);
     resetImportState();
     try {
-      const result = await analyzeChargeHqFiles(files, previewMutation.mutateAsync);
+      const result = await analyzeChargeHqFiles(
+        files,
+        previewMutation.mutateAsync,
+      );
       setPreviews(result);
       addToast(`${result.length} ChargeHQ CSV file(s) validated`, "success");
     } catch (error) {
@@ -222,7 +227,10 @@ function useHistoryMigrationModel(): HistoryMigrationModel {
       );
       setLastImport(result);
       await coverageQuery.refetch();
-      addToast(`${result.insertedRows} ChargeHQ history rows imported`, "success");
+      addToast(
+        `${result.insertedRows} ChargeHQ history rows imported`,
+        "success",
+      );
     } catch (error) {
       await coverageQuery.refetch();
       addToast(`${errorMessage(error)}. Safe to retry.`, "error");
@@ -281,7 +289,9 @@ function DestinationVehicle(
           padding: "0 10px",
         }}
       >
-        {vehicles.length === 0 && <option value="">No vehicle configured</option>}
+        {vehicles.length === 0 && (
+          <option value="">No vehicle configured</option>
+        )}
         {vehicles.map((vehicle) => (
           <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>
         ))}
@@ -303,8 +313,8 @@ function ChargeHqFilePicker(
     <div>
       <Text size="2" weight="medium">ChargeHQ Interval Data CSV files</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
-        Select one or several exports. Overlapping files and repeated imports are
-        safe because imported rows are deduplicated.
+        Select one or several exports. Overlapping files and repeated imports
+        are safe because imported rows are deduplicated.
       </Text>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
         <input
@@ -374,12 +384,13 @@ function ChargeHqPreview({ summary }: { summary: ChargeHqSummary }) {
     <Card>
       <Text size="2" weight="bold">Import preview</Text>
       <Text size="2" style={{ display: "block", marginTop: 6 }}>
-        {summary.intervalCount} intervals · {formatKwh(summary.chargedKwh)} kWh total
+        {summary.intervalCount} intervals · {formatKwh(summary.chargedKwh)}{" "}
+        kWh total
       </Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
         Home solar {formatKwh(summary.solarKwh)} kWh · Home battery{" "}
-        {formatKwh(summary.batteryKwh)} kWh · Grid {formatKwh(summary.gridKwh)} kWh · Away{" "}
-        {formatKwh(summary.awayKwh)} kWh
+        {formatKwh(summary.batteryKwh)} kWh · Grid {formatKwh(summary.gridKwh)}{" "}
+        kWh · Away {formatKwh(summary.awayKwh)} kWh
       </Text>
     </Card>
   );
@@ -391,8 +402,9 @@ function ExistingArchive({ coverage }: { coverage: HistoryCoverage | null }) {
     <Card>
       <Text size="2" weight="bold">Existing ChargeHQ archive</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-        {coverage.firstStartTimeLocal ?? "?"} → {coverage.lastStartTimeLocal ?? "?"} ·{" "}
-        {coverage.rowCount} rows · {formatKwh(coverage.chargedWh / 1000)} kWh
+        {coverage.firstStartTimeLocal ?? "?"} →{" "}
+        {coverage.lastStartTimeLocal ?? "?"} · {coverage.rowCount} rows ·{" "}
+        {formatKwh(coverage.chargedWh / 1000)} kWh
       </Text>
     </Card>
   );
@@ -406,10 +418,18 @@ function importButtonLabel(isImporting: boolean, fileCount: number): string {
 function ImportControls(
   { model }: { model: HistoryMigrationModel },
 ) {
-  const disabled = model.busy || !model.readyToImport || model.vehicleId === "" ||
+  const disabled = model.busy || !model.readyToImport ||
+    model.vehicleId === "" ||
     model.vehicles.length === 0;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+      }}
+    >
       <Button size="2" disabled={disabled} onClick={model.importHistory}>
         <Upload size={15} />
         {importButtonLabel(model.isImporting, model.files.length)}
@@ -428,8 +448,8 @@ function ImportResultCard({ result }: { result: ImportTotals | null }) {
       <Text size="2" weight="bold">Migration complete</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
         {result.files} files · {result.parsedIntervals} intervals ·{" "}
-        {result.insertedRows} rows added · {result.duplicateRows} duplicates skipped ·{" "}
-        {result.overlapRows} native-overlap rows skipped
+        {result.insertedRows} rows added · {result.duplicateRows}{" "}
+        duplicates skipped · {result.overlapRows} native-overlap rows skipped
       </Text>
     </Card>
   );
@@ -457,7 +477,9 @@ function HistoryMigrationView({ model }: { model: HistoryMigrationModel }) {
           onAnalyze={model.analyze}
         />
         <ChargeHqFileList files={model.files} previews={model.previews} />
-        {model.readyToImport && <ChargeHqPreview summary={model.previewTotals} />}
+        {model.readyToImport && (
+          <ChargeHqPreview summary={model.previewTotals} />
+        )}
         <ExistingArchive coverage={model.coverage} />
         <ImportControls model={model} />
         <ImportResultCard result={model.lastImport} />
