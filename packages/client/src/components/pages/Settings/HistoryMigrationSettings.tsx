@@ -165,7 +165,7 @@ async function importChargeHqFiles(
 
 function useHistoryMigrationModel(): HistoryMigrationModel {
   const { addToast } = useToast();
-  const vehiclesQuery = trpc.vehicles.list.useQuery();
+  const vehiclesQuery = trpc.vehicle.list.useQuery();
   const vehicles = vehiclesQuery.data?.vehicles ?? [];
   const [vehicleId, setVehicleIdState] = useState("");
   const [files, setFiles] = useState<File[]>([]);
