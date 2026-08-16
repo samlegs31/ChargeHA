@@ -58,13 +58,11 @@ const asObject = (value: unknown): JsonObject | null =>
     ? value as JsonObject
     : null;
 
-const firstFiniteNumber = (...values: unknown[]): number | null => {
-  for (const value of values) {
-    const parsed = asFiniteNumber(value);
-    if (parsed !== null) return parsed;
-  }
-  return null;
-};
+const firstFiniteNumber = (...values: unknown[]): number | null =>
+  values.map(asFiniteNumber).find((value) => value !== null) ?? null;
+
+const asError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(String(error));
 
 export class FroniusCloudAdapter implements EnergySourceAdapter {
   pollIntervalSeconds(): number {
@@ -179,15 +177,7 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
   }
 
   private parseGuestUrl(): { normalizedUrl: string; guestId: string } {
-    let parsed: URL;
-    try {
-      parsed = new URL(this.guestUrl);
-    } catch (error) {
-      throw new FroniusCloudConnectionError(
-        "Invalid Solar.web guest link. Paste the full GuestLogOn URL from Solar.web Settings → Permissions.",
-        error instanceof Error ? error : undefined,
-      );
-    }
+    const parsed = this.parseGuestUrlValue();
 
     if (
       parsed.protocol !== "https:" ||
@@ -212,69 +202,84 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
     return { normalizedUrl: normalized.toString(), guestId };
   }
 
+  private parseGuestUrlValue(): URL {
+    try {
+      return new URL(this.guestUrl);
+    } catch (error) {
+      throw new FroniusCloudConnectionError(
+        "Invalid Solar.web guest link. Paste the full GuestLogOn URL from Solar.web Settings → Permissions.",
+        asError(error),
+      );
+    }
+  }
+
   private async establishGuestSession(): Promise<void> {
     const { normalizedUrl, guestId } = this.parseGuestUrl();
     this.guestPvSystemId = guestId;
     this.resolvedPvSystemId = null;
     this.cookies.clear();
 
-    let currentUrl = new URL(normalizedUrl);
-    let reachedPage = false;
+    const response = await this.followGuestRedirects(
+      new URL(normalizedUrl),
+      MAX_REDIRECTS,
+    );
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("text/html")) {
+      const html = await response.text();
+      this.captureResolvedPvSystemIdFromHtml(html);
+    }
+  }
 
-    for (
-      let redirectCount = 0;
-      redirectCount <= MAX_REDIRECTS;
-      redirectCount++
-    ) {
-      let response: Response;
-      try {
-        response = await fetch(currentUrl, {
-          method: "GET",
-          redirect: "manual",
-          headers: this.browserHeaders(),
-          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        });
-      } catch (error) {
+  private async followGuestRedirects(
+    currentUrl: URL,
+    redirectsRemaining: number,
+  ): Promise<Response> {
+    const response = await this.requestGuestPage(currentUrl);
+    this.storeResponseCookies(response.headers);
+    this.captureResolvedPvSystemId(currentUrl);
+
+    const location = response.headers.get("location");
+    const isRedirect = response.status >= 300 && response.status < 400 &&
+      location !== null;
+
+    if (isRedirect) {
+      if (redirectsRemaining <= 0) {
         throw new FroniusCloudConnectionError(
-          "Unable to open the Solar.web guest link",
-          error instanceof Error ? error : undefined,
+          "Solar.web guest link redirected too many times",
         );
       }
 
-      this.storeResponseCookies(response.headers);
-      this.captureResolvedPvSystemId(currentUrl);
-
-      const location = response.headers.get("location");
-      if (response.status >= 300 && response.status < 400 && location) {
-        const nextUrl = new URL(location, currentUrl);
-        if (!isSolarWebHost(nextUrl.hostname)) {
-          throw new FroniusCloudConnectionError(
-            `Solar.web guest link redirected to an unexpected host: ${nextUrl.hostname}`,
-          );
-        }
-        this.captureResolvedPvSystemId(nextUrl);
-        currentUrl = nextUrl;
-        continue;
-      }
-
-      if (!response.ok) {
+      const nextUrl = new URL(location, currentUrl);
+      if (!isSolarWebHost(nextUrl.hostname)) {
         throw new FroniusCloudConnectionError(
-          `Solar.web guest link returned HTTP ${response.status}`,
+          `Solar.web guest link redirected to an unexpected host: ${nextUrl.hostname}`,
         );
       }
-
-      reachedPage = true;
-      const contentType = response.headers.get("content-type") ?? "";
-      if (contentType.includes("text/html")) {
-        const html = await response.text();
-        this.captureResolvedPvSystemIdFromHtml(html);
-      }
-      break;
+      this.captureResolvedPvSystemId(nextUrl);
+      return await this.followGuestRedirects(nextUrl, redirectsRemaining - 1);
     }
 
-    if (!reachedPage) {
+    if (!response.ok) {
       throw new FroniusCloudConnectionError(
-        "Solar.web guest link redirected too many times",
+        `Solar.web guest link returned HTTP ${response.status}`,
+      );
+    }
+
+    return response;
+  }
+
+  private async requestGuestPage(url: URL): Promise<Response> {
+    try {
+      return await fetch(url, {
+        method: "GET",
+        redirect: "manual",
+        headers: this.browserHeaders(),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw new FroniusCloudConnectionError(
+        "Unable to open the Solar.web guest link",
+        asError(error),
       );
     }
   }
@@ -316,51 +321,56 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
   ): Promise<JsonObject> {
     if (!this.guestPvSystemId) await this.establishGuestSession();
 
-    let lastError: Error | null = null;
-
-    for (const pvSystemId of this.candidatePvSystemIds()) {
-      try {
-        const data = await this.fetchActualDataForId(pvSystemId);
-        // The guest-link UUID itself is accepted by some Solar.web versions;
-        // other versions redirect to the internal PV system UUID. Remember
-        // whichever identifier actually returned realtime data.
-        this.resolvedPvSystemId = pvSystemId;
-        return data;
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
+    try {
+      return await this.fetchActualDataFromCandidates(
+        this.candidatePvSystemIds(),
+      );
+    } catch (error) {
+      if (allowSessionRefresh) {
+        await this.establishGuestSession();
+        return await this.fetchActualData(false);
       }
+      if (error instanceof FroniusCloudConnectionError) throw error;
+      throw new FroniusCloudConnectionError(
+        "Unable to read realtime data from the Solar.web guest link",
+        asError(error),
+      );
+    }
+  }
+
+  private async fetchActualDataFromCandidates(
+    candidates: string[],
+  ): Promise<JsonObject> {
+    const [pvSystemId, ...remaining] = candidates;
+    if (!pvSystemId) {
+      throw new FroniusCloudConnectionError(
+        "Unable to read realtime data from the Solar.web guest link",
+      );
     }
 
-    if (allowSessionRefresh) {
-      await this.establishGuestSession();
-      return await this.fetchActualData(false);
+    try {
+      const data = await this.fetchActualDataForId(pvSystemId);
+      // The guest-link UUID itself is accepted by some Solar.web versions;
+      // other versions redirect to the internal PV system UUID. Remember
+      // whichever identifier actually returned realtime data.
+      this.resolvedPvSystemId = pvSystemId;
+      return data;
+    } catch (error) {
+      if (remaining.length > 0) {
+        return await this.fetchActualDataFromCandidates(remaining);
+      }
+      throw new FroniusCloudConnectionError(
+        "Unable to read realtime data from the Solar.web guest link",
+        asError(error),
+      );
     }
-
-    throw new FroniusCloudConnectionError(
-      "Unable to read realtime data from the Solar.web guest link",
-      lastError ?? undefined,
-    );
   }
 
   private async fetchActualDataForId(pvSystemId: string): Promise<JsonObject> {
     const url = new URL(ACTUAL_DATA_PATH, SOLAR_WEB_ORIGIN);
     url.searchParams.set("pvSystemId", pvSystemId);
 
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: "GET",
-        redirect: "manual",
-        headers: this.ajaxHeaders(pvSystemId),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-    } catch (error) {
-      throw new FroniusCloudConnectionError(
-        "Failed to request Solar.web realtime data",
-        error instanceof Error ? error : undefined,
-      );
-    }
-
+    const response = await this.requestActualData(url, pvSystemId);
     this.storeResponseCookies(response.headers);
 
     if (response.status >= 300 && response.status < 400) {
@@ -390,6 +400,25 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
         `Unable to parse Solar.web realtime data: ${
           error instanceof Error ? error.message : "invalid JSON"
         }`,
+      );
+    }
+  }
+
+  private async requestActualData(
+    url: URL,
+    pvSystemId: string,
+  ): Promise<Response> {
+    try {
+      return await fetch(url, {
+        method: "GET",
+        redirect: "manual",
+        headers: this.ajaxHeaders(pvSystemId),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw new FroniusCloudConnectionError(
+        "Failed to request Solar.web realtime data",
+        asError(error),
       );
     }
   }
@@ -433,16 +462,16 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
       ? extendedHeaders.getSetCookie()
       : this.splitSetCookieHeader(headers.get("set-cookie"));
 
-    for (const setCookie of setCookies) {
+    setCookies.forEach((setCookie) => {
       const firstPart = setCookie.split(";", 1)[0]?.trim() ?? "";
       const equals = firstPart.indexOf("=");
-      if (equals <= 0) continue;
+      if (equals <= 0) return;
       const name = firstPart.slice(0, equals).trim();
       const value = firstPart.slice(equals + 1).trim();
-      if (!name) continue;
+      if (!name) return;
       if (value === "") this.cookies.delete(name);
       else this.cookies.set(name, value);
-    }
+    });
   }
 
   private splitSetCookieHeader(value: string | null): string[] {
