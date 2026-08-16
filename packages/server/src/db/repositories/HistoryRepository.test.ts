@@ -4,33 +4,38 @@ import { AppDatabase } from "../AppDatabase.ts";
 import { HistoryRepository } from "./HistoryRepository.ts";
 import type { ChargeHqHistoryRow } from "../../history/ChargeHqCsv.ts";
 
-function historyRow(
-  externalId: string,
-  startTimeUtc: string,
-  startTimeLocal: string,
-  values: Partial<
-    Pick<
-      ChargeHqHistoryRow,
-      "chargedWh" | "solarWh" | "batteryWh" | "gridWh" | "awayWh" | "atHomeWh"
-    >
-  > = {},
-): ChargeHqHistoryRow {
-  return {
-    source: "chargehq",
-    externalId,
-    startTimeUtc,
-    startTimeLocal,
-    intervalSeconds: 900,
-    chargedWh: values.chargedWh ?? 1000,
-    solarWh: values.solarWh ?? 400,
-    batteryWh: values.batteryWh ?? 100,
-    gridWh: values.gridWh ?? 500,
-    awayWh: values.awayWh ?? 0,
-    atHomeWh: values.atHomeWh ?? 1000,
-  };
-}
-
 describe("HistoryRepository", () => {
+  function historyRow(
+    externalId: string,
+    startTimeUtc: string,
+    startTimeLocal: string,
+    values: Partial<
+      Pick<
+        ChargeHqHistoryRow,
+        | "chargedWh"
+        | "solarWh"
+        | "batteryWh"
+        | "gridWh"
+        | "awayWh"
+        | "atHomeWh"
+      >
+    > = {},
+  ): ChargeHqHistoryRow {
+    return {
+      source: "chargehq",
+      externalId,
+      startTimeUtc,
+      startTimeLocal,
+      intervalSeconds: 900,
+      chargedWh: values.chargedWh ?? 1000,
+      solarWh: values.solarWh ?? 400,
+      batteryWh: values.batteryWh ?? 100,
+      gridWh: values.gridWh ?? 500,
+      awayWh: values.awayWh ?? 0,
+      atHomeWh: values.atHomeWh ?? 1000,
+    };
+  }
+
   let db: AppDatabase;
   let repository: HistoryRepository;
 
