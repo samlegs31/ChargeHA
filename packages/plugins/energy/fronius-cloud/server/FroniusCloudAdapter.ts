@@ -10,8 +10,7 @@ const GUEST_PATH = "/Home/GuestLogOn";
 const ACTUAL_DATA_PATH = "/ActualData/GetCompareDataForPvSystem";
 const MAX_REDIRECTS = 8;
 const REQUEST_TIMEOUT_MS = 10000;
-const USER_AGENT =
-  "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
+const USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -222,7 +221,11 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
     let currentUrl = new URL(normalizedUrl);
     let reachedPage = false;
 
-    for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount++) {
+    for (
+      let redirectCount = 0;
+      redirectCount <= MAX_REDIRECTS;
+      redirectCount++
+    ) {
       let response: Response;
       try {
         response = await fetch(currentUrl, {
@@ -393,7 +396,8 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
 
   private browserHeaders(): Record<string, string> {
     const headers: Record<string, string> = {
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept":
+        "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "User-Agent": USER_AGENT,
     };
     const cookie = this.cookieHeader();
@@ -404,7 +408,9 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
   private ajaxHeaders(pvSystemId: string): Record<string, string> {
     const headers: Record<string, string> = {
       "Accept": "application/json, text/javascript, */*; q=0.01",
-      "Referer": `${SOLAR_WEB_ORIGIN}/PvSystems/PvSystem?pvSystemId=${encodeURIComponent(pvSystemId)}`,
+      "Referer": `${SOLAR_WEB_ORIGIN}/PvSystems/PvSystem?pvSystemId=${
+        encodeURIComponent(pvSystemId)
+      }`,
       "User-Agent": USER_AGENT,
       "X-Requested-With": "XMLHttpRequest",
     };

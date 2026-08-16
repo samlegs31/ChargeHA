@@ -19,10 +19,10 @@ export function FroniusCloudConfig(): JSX.Element | null {
   return (
     <>
       <Text size="1" color="gray">
-        Solar.web → Settings → Permissions → enable <strong>Guest access via link</strong>,
-        then paste the complete GuestLogOn link below. E.V Solar only receives
-        read-only monitoring data; no Solar.web email, password or Query API key
-        is stored.
+        Solar.web → Settings → Permissions → enable{" "}
+        <strong>Guest access via link</strong>, then paste the complete
+        GuestLogOn link below. E.V Solar only receives read-only monitoring
+        data; no Solar.web email, password or Query API key is stored.
       </Text>
 
       <SettingsRow
@@ -40,8 +40,8 @@ export function FroniusCloudConfig(): JSX.Element | null {
       </SettingsRow>
 
       <Text size="1" color="gray" style={{ fontStyle: "italic" }}>
-        The link is read-only, but anyone who has it can view the shared Solar.web
-        installation. Treat it as a private sharing link.
+        The link is read-only, but anyone who has it can view the shared
+        Solar.web installation. Treat it as a private sharing link.
       </Text>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

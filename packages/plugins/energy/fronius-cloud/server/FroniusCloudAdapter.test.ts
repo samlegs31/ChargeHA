@@ -90,7 +90,9 @@ describe("FroniusCloudAdapter — Solar.web Guest Link", () => {
         guestUrl: "https://example.com/Home/GuestLogOn?pvSystemId=" + GUEST_ID,
       });
 
-      await expect(adapter.connect()).rejects.toThrow(/Invalid Solar\.web guest link/);
+      await expect(adapter.connect()).rejects.toThrow(
+        /Invalid Solar\.web guest link/,
+      );
       expect(mock.fetchCalls.length).toBe(0);
     });
 
@@ -201,15 +203,15 @@ describe("FroniusCloudAdapter — Solar.web Guest Link", () => {
       await adapter.connect();
       await adapter.disconnect();
 
-      const before = mock.fetchCalls.filter((call) =>
-        call.url.includes("/Home/GuestLogOn")
-      ).length;
+      const before =
+        mock.fetchCalls.filter((call) => call.url.includes("/Home/GuestLogOn"))
+          .length;
 
       await adapter.getRealtimeData();
 
-      const after = mock.fetchCalls.filter((call) =>
-        call.url.includes("/Home/GuestLogOn")
-      ).length;
+      const after =
+        mock.fetchCalls.filter((call) => call.url.includes("/Home/GuestLogOn"))
+          .length;
       expect(after).toBe(before + 1);
     });
 

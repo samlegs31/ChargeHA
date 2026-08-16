@@ -51,8 +51,9 @@ export function FroniusCloudForm({
     <>
       <Text as="p" size="3" color="gray">
         Connect E.V Solar to Fronius Solar.web without sharing your account
-        credentials. In Solar.web, open <strong>Settings → Permissions</strong>,
-        enable <strong>Guest access via link</strong>, then copy the complete link.
+        credentials. In Solar.web, open{" "}
+        <strong>Settings → Permissions</strong>, enable{" "}
+        <strong>Guest access via link</strong>, then copy the complete link.
       </Text>
 
       <div className={styles.fieldGroup}>
@@ -60,8 +61,9 @@ export function FroniusCloudForm({
           Solar.web Guest Link
         </Text>
         <Text size="1" color="gray">
-          Paste the full <code>GuestLogOn</code> URL. E.V Solar uses it only to
-          read live production, home load, grid flow and battery information.
+          Paste the full <code>GuestLogOn</code>{" "}
+          URL. E.V Solar uses it only to read live production, home load, grid
+          flow and battery information.
         </Text>
         <TextField.Root
           size="2"
@@ -74,8 +76,9 @@ export function FroniusCloudForm({
       </div>
 
       <Text size="1" color="gray" style={{ fontStyle: "italic" }}>
-        No Solar.web email, password or Query API key is required. The guest link
-        is read-only, but anyone who has the link can view the shared installation.
+        No Solar.web email, password or Query API key is required. The guest
+        link is read-only, but anyone who has the link can view the shared
+        installation.
       </Text>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

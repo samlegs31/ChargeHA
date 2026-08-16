@@ -102,26 +102,30 @@ export const setupFetchMock = (): FetchMock => {
     });
 
     if (url.includes("/Home/GuestLogOn")) {
-      return Promise.resolve(buildResponse(state.guestResponse ?? {
-        status: 302,
-        headers: {
-          "Location": `/PvSystems/PvSystem?pvSystemId=${RESOLVED_ID}`,
-          "Set-Cookie": [
-            ".AspNet.Auth=guest-auth; Path=/; HttpOnly",
-            "Culture=en-US; Path=/",
-          ],
+      return Promise.resolve(buildResponse(
+        state.guestResponse ?? {
+          status: 302,
+          headers: {
+            "Location": `/PvSystems/PvSystem?pvSystemId=${RESOLVED_ID}`,
+            "Set-Cookie": [
+              ".AspNet.Auth=guest-auth; Path=/; HttpOnly",
+              "Culture=en-US; Path=/",
+            ],
+          },
         },
-      }));
+      ));
     }
 
     if (url.includes("/PvSystems/PvSystem")) {
-      return Promise.resolve(buildResponse(state.pvPageResponse ?? {
-        status: 200,
-        text: `<html><body data-pv-system-id="${RESOLVED_ID}"></body></html>`,
-        headers: {
-          "Set-Cookie": "TimeFormat=HH:mm; Path=/",
+      return Promise.resolve(buildResponse(
+        state.pvPageResponse ?? {
+          status: 200,
+          text: `<html><body data-pv-system-id="${RESOLVED_ID}"></body></html>`,
+          headers: {
+            "Set-Cookie": "TimeFormat=HH:mm; Path=/",
+          },
         },
-      }));
+      ));
     }
 
     if (url.includes("/ActualData/GetCompareDataForPvSystem")) {

@@ -21,4 +21,5 @@ export type FroniusCloudConfig = SectionType<typeof froniusCloudConfigDef>;
 export type FroniusCloudConfigKey = SectionKeys<typeof froniusCloudConfigDef>;
 
 // Guest-link mode stores no Solar.web password or API secret.
-export const FRONIUS_CLOUD_SECRET_KEYS = [] as const satisfies readonly FroniusCloudConfigKey[];
+export const FRONIUS_CLOUD_SECRET_KEYS =
+  [] as const satisfies readonly FroniusCloudConfigKey[];
