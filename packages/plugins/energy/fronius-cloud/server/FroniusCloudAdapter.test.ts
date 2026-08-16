@@ -77,12 +77,12 @@ describe("FroniusCloudAdapter — Solar.web Guest Link", () => {
     it("never sends Solar.web email/password or SWQAPI access-key headers", async () => {
       await makeAdapter().connect();
 
-      for (const call of mock.fetchCalls) {
+      mock.fetchCalls.forEach((call) => {
         expect(call.url.includes("/iam/jwt")).toBe(false);
         expect(call.headers.authorization).toBeUndefined();
         expect(call.headers.accesskeyid).toBeUndefined();
         expect(call.headers.accesskeyvalue).toBeUndefined();
-      }
+      });
     });
 
     it("rejects links that are not Solar.web GuestLogOn links", async () => {
