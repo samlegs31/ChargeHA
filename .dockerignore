@@ -1,17 +1,18 @@
-node_modules
-.git
+node_modules/
+.git/
 .env
-data
+.env.*
+data/
 backups/
 
-coverage
-coverage_*
+coverage/
+coverage_*/
 *.log
 *.db
-*.db-wal
-*.db-shm
+*.db-*
+*.sqlite
+*.sqlite3
 
-# Not needed in Docker build
+# Not required in the production image build context
 docs/
-prds/
 devtools/
