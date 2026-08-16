@@ -19,15 +19,15 @@ export function FroniusCloudConfig(): JSX.Element | null {
   return (
     <>
       <Text size="1" color="gray">
-        We recommend creating a dedicated <code>guest</code>{" "}
-        user for ChargeHA: log in to <strong>solarweb.com</strong>{" "}
-        → Settings → Permissions → add a new user as <code>guest</code>.
+        Use a Solar.web account that has <code>guest</code>{" "}
+        access to this PV system. An existing guest account is fine for local
+        testing; a dedicated service account can be used later for hosted E.V Solar.
       </Text>
 
       <SettingsRow label="Email">
         <TextField.Root
           size="2"
-          placeholder="your@email.com"
+          placeholder="guest@email.com"
           value={config.froniusCloudEmail}
           onChange={(e: { target: { value: string } }) =>
             configMutation.mutate({ froniusCloudEmail: e.target.value })}
@@ -49,7 +49,7 @@ export function FroniusCloudConfig(): JSX.Element | null {
 
       <SettingsRow
         label="PV System ID"
-        help="Find this in your Solar.web URL: solarweb.com/PvSystems/PvSystem?pvSystemId=this-value"
+        help="Enter only the value after pvSystemId= in your logged-in Solar.web URL (not the guest-link ID and not the full URL)."
       >
         <TextField.Root
           size="2"

@@ -36,7 +36,7 @@ function CloudFields(
         <TextField.Root
           size="2"
           type="email"
-          placeholder="your@email.com"
+          placeholder="guest@email.com"
           value={cloudEmail}
           onChange={(e: { target: { value: string } }) =>
             setCloudEmail(e.target.value)}
@@ -58,10 +58,9 @@ function CloudFields(
       <div className={styles.fieldGroup}>
         <Text as="label" size="2" weight="medium">PV System ID</Text>
         <Text size="1" color="gray">
-          Find this in your Solar.web URL:
-          solarweb.com/PvSystems/PvSystem?pvSystemId=<strong>
-            this-value
-          </strong>
+          Enter only the value after <code>pvSystemId=</code>{" "}
+          in your logged-in Solar.web URL. Do not paste the full URL or the
+          separate guest-link ID.
         </Text>
         <TextField.Root
           size="2"
@@ -120,10 +119,10 @@ export function FroniusCloudForm({
   return (
     <>
       <Text as="p" size="3" color="gray">
-        Connect to your Fronius inverter via the Solar.web cloud API. We
-        recommend creating a dedicated <code>guest</code>{" "}
-        user for ChargeHA: log in to <strong>solarweb.com</strong>{" "}
-        → Settings → Permissions → add a new user as <code>guest</code>.
+        Connect to your Fronius inverter through Solar.web. Use a Solar.web
+        account that already has <code>guest</code>{" "}
+        access to this PV system. An existing guest account is fine for local
+        testing; a dedicated service account can be used later for hosted E.V Solar.
       </Text>
 
       <CloudFields
@@ -136,8 +135,7 @@ export function FroniusCloudForm({
       />
 
       <Text size="1" color="gray" style={{ fontStyle: "italic" }}>
-        Use a dedicated <code>guest</code>{" "}
-        account rather than your primary Solar.web login
+        Guest rights are sufficient for read-only monitoring.
       </Text>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
