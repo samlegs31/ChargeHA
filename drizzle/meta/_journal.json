@@ -57,6 +57,13 @@
       "when": 1786545072041,
       "tag": "0007_public_karen_page",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1786893780000,
+      "tag": "0008_vehicle_charge_history",
+      "breakpoints": true
     }
   ]
 }
