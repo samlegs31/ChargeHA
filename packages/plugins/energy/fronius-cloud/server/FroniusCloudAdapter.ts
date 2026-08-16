@@ -5,7 +5,8 @@ import type {
 } from "@chargeha/shared";
 import type { Logger } from "@chargeha/server/lib/Logger";
 
-const BASE_URL = "https://api.solarweb.com/swqapi";
+const BASE_URL = "https://swqapi.solarweb.com";
+const IAM_SCOPE = "b454e75844";
 const DEFAULT_ACCESS_KEY_ID = "FKIAB4CDA71C0763413DA942DC756742318B";
 const DEFAULT_ACCESS_KEY_VALUE = "67315e19-6805-479e-994d-7193ee5f6125";
 // Refresh token if within this many seconds of expiry
@@ -167,19 +168,23 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
   /** Authenticate with Solar.web via email/password to obtain JWT tokens. */
   async login(): Promise<void> {
     try {
-      const response = await fetch(`${BASE_URL}/iam/jwt`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "AccessKeyId": DEFAULT_ACCESS_KEY_ID,
-          "AccessKeyValue": DEFAULT_ACCESS_KEY_VALUE,
+      const response = await fetch(
+        `${BASE_URL}/iam/jwt?scope=${IAM_SCOPE}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json; charset=UTF-8",
+            "AccessKeyId": DEFAULT_ACCESS_KEY_ID,
+            "AccessKeyValue": DEFAULT_ACCESS_KEY_VALUE,
+            "User-Agent": "okhttp/4.12.0",
+          },
+          body: JSON.stringify({
+            userId: this.loginEmail,
+            password: this.loginPassword,
+          }),
+          signal: AbortSignal.timeout(10000),
         },
-        body: JSON.stringify({
-          userId: this.loginEmail,
-          password: this.loginPassword,
-        }),
-        signal: AbortSignal.timeout(10000),
-      });
+      );
 
       if (!response.ok) {
         throw new FroniusCloudAuthError(
@@ -220,12 +225,13 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
 
     try {
       const response = await fetch(
-        `${BASE_URL}/iam/jwt/${this.refreshToken}`,
+        `${BASE_URL}/iam/jwt/${encodeURIComponent(this.refreshToken)}?scope=${IAM_SCOPE}`,
         {
           method: "PATCH",
           headers: {
             "AccessKeyId": DEFAULT_ACCESS_KEY_ID,
             "AccessKeyValue": DEFAULT_ACCESS_KEY_VALUE,
+            "User-Agent": "okhttp/4.12.0",
           },
           signal: AbortSignal.timeout(10000),
         },
@@ -287,6 +293,7 @@ export class FroniusCloudAdapter implements EnergySourceAdapter {
           "Authorization": `Bearer ${this.accessToken}`,
           "AccessKeyId": DEFAULT_ACCESS_KEY_ID,
           "AccessKeyValue": DEFAULT_ACCESS_KEY_VALUE,
+          "User-Agent": "okhttp/4.12.0",
         },
         signal: AbortSignal.timeout(10000),
       });
