@@ -10,39 +10,48 @@ import { FroniusCloudForm } from "./FroniusCloudForm.tsx";
 /** Only the tested-connection branch carries a handler, so there is no
  *  "save without a validated connection" state to guard against. */
 function froniusCloudNext(
-  validated: { guestUrl: string } | null,
-  save: (v: { guestUrl: string }) => Promise<void>,
+  validated: { email: string; password: string; pvSystemId: string } | null,
+  save: (
+    v: { email: string; password: string; pvSystemId: string },
+  ) => Promise<void>,
 ): WizardNext {
   if (!validated) {
     return { kind: "blocked", reason: "Test the connection to continue" };
   }
   return {
     kind: "ready",
-    hint: "Next saves your Solar.web guest link",
+    hint: "Next saves your Solar.web account settings",
     onNext: () => save(validated),
   };
 }
 
 export const froniusCloudSetupStep: PluginStepDef = {
   id: "fronius-cloud-setup",
-  label: "Fronius Solar.web Guest Setup",
+  label: "Fronius Solar.web Account Setup",
   useStep: () => {
     const { data: config } = trpc.plugin.energy.fronius_cloud.getConfig
       .useQuery();
     const saveMutation = trpc.plugin.energy.fronius_cloud.setConfig
       .useMutation();
 
-    const [validated, setValidated] = useState<{ guestUrl: string } | null>(
-      null,
+    const [validated, setValidated] = useState<
+      { email: string; password: string; pvSystemId: string } | null
+    >(null);
+
+    const handleTestSuccess = useCallback(
+      (email: string, password: string, pvSystemId: string) => {
+        setValidated({ email, password, pvSystemId });
+      },
+      [],
     );
 
-    const handleTestSuccess = useCallback((guestUrl: string) => {
-      setValidated({ guestUrl });
-    }, []);
-
-    const save = async (v: { guestUrl: string }) => {
+    const save = async (
+      v: { email: string; password: string; pvSystemId: string },
+    ) => {
       await saveMutation.mutateAsync({
-        froniusCloudGuestUrl: v.guestUrl,
+        froniusCloudEmail: v.email,
+        froniusCloudPassword: v.password,
+        froniusCloudPvSystemId: v.pvSystemId,
       });
     };
 
@@ -51,7 +60,8 @@ export const froniusCloudSetupStep: PluginStepDef = {
       view: (
         <div className={styles.stepContainer}>
           <FroniusCloudForm
-            initialGuestUrl={config?.froniusCloudGuestUrl || ""}
+            initialEmail={config?.froniusCloudEmail || ""}
+            initialPvSystemId={config?.froniusCloudPvSystemId || ""}
             onTestSuccess={handleTestSuccess}
           />
         </div>
