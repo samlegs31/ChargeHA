@@ -93,9 +93,15 @@ export class HistoryRepository {
   ): Promise<HistoryCoverage> {
     const rows = await this.db.select({
       rowCount: sql<number>`count(*)`,
-      firstStartTimeLocal: sql<string | null>`min(${vehicleChargeHistory.startTimeLocal})`,
-      lastStartTimeLocal: sql<string | null>`max(${vehicleChargeHistory.startTimeLocal})`,
-      chargedWh: sql<number>`coalesce(sum(${vehicleChargeHistory.chargedWh}), 0)`,
+      firstStartTimeLocal: sql<
+        string | null
+      >`min(${vehicleChargeHistory.startTimeLocal})`,
+      lastStartTimeLocal: sql<
+        string | null
+      >`max(${vehicleChargeHistory.startTimeLocal})`,
+      chargedWh: sql<
+        number
+      >`coalesce(sum(${vehicleChargeHistory.chargedWh}), 0)`,
     }).from(vehicleChargeHistory).where(and(
       eq(vehicleChargeHistory.source, source),
       eq(vehicleChargeHistory.vehicleId, vehicleId),
