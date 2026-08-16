@@ -74,7 +74,6 @@ export function FroniusCloudConfig(): JSX.Element | null {
           onClick={() =>
             testMutation.mutate({
               email: config.froniusCloudEmail,
-              password: config.froniusCloudPassword,
               pvSystemId: config.froniusCloudPvSystemId,
             })}
         >
