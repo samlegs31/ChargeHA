@@ -141,4 +141,66 @@ describe("fetchSolarWebHomeEvHistory", () => {
     expect(result.rows).toEqual([]);
     expect(result.chargedWh).toBe(0);
   });
+
+  it("retries a rate-limited Solar.web login instead of reporting bad credentials", async () => {
+    let loginCalls = 0;
+    const fetchFn = (input: string | URL | Request): Promise<Response> => {
+      const url = requestUrl(input);
+      if (url.includes("/iam/jwt")) {
+        loginCalls += 1;
+        if (loginCalls === 1) {
+          return Promise.resolve(jsonResponse({
+            responseError: 1011,
+            responseMessage:
+              "API calls quota exceeded. Maximum admitted 10 per 1m. Retry after: 0",
+          }, 429));
+        }
+        return Promise.resolve(jsonResponse({ jwtToken: "token" }));
+      }
+      return Promise.resolve(jsonResponse({ data: [] }));
+    };
+
+    const result = await fetchSolarWebHomeEvHistory({
+      email: "user@example.com",
+      password: "secret",
+      pvSystemId: "pv-system-1",
+      from: "2026-08-01",
+      to: "2026-08-01",
+    }, fetchFn);
+
+    expect(loginCalls).toBe(2);
+    expect(result.rows).toEqual([]);
+  });
+
+  it("retries a rate-limited Solar.web history request and resumes the import", async () => {
+    let historyCalls = 0;
+    const fetchFn = (input: string | URL | Request): Promise<Response> => {
+      const url = requestUrl(input);
+      if (url.includes("/iam/jwt")) {
+        return Promise.resolve(jsonResponse({ accessToken: "token" }));
+      }
+
+      historyCalls += 1;
+      if (historyCalls === 1) {
+        return Promise.resolve(jsonResponse({
+          responseError: 1011,
+          responseMessage:
+            "API calls quota exceeded. Maximum admitted 10 per 1m. Retry after: 0",
+        }, 429));
+      }
+      return Promise.resolve(jsonResponse({ data: [] }));
+    };
+
+    const result = await fetchSolarWebHomeEvHistory({
+      email: "user@example.com",
+      password: "secret",
+      pvSystemId: "pv-system-1",
+      from: "2026-08-01",
+      to: "2026-08-01",
+    }, fetchFn);
+
+    expect(historyCalls).toBe(4);
+    expect(result.rows).toEqual([]);
+    expect(result.samplesRead).toBe(0);
+  });
 });
