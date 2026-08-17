@@ -108,6 +108,9 @@ export function SolarWebHistoryImport() {
   const [pvSystemId, setPvSystemId] = useState("");
   const [from, setFrom] = useState(oneYearAgoIsoDate);
   const [to, setTo] = useState(todayIsoDate);
+
+  if (!trpc.history?.importSolarWeb) return null;
+
   const mutation = trpc.history.importSolarWeb.useMutation();
   const ready = email !== "" && password !== "" && pvSystemId !== "" &&
     from !== "" && to !== "" && from <= to && !mutation.isPending;
