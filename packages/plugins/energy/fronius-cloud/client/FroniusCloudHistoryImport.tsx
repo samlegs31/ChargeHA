@@ -38,8 +38,8 @@ interface HistoryFieldsProps {
 function HistoryFields(props: HistoryFieldsProps): JSX.Element {
   return (
     <>
-      <SettingsRow label="Vehicle">
-        <Badge size="2" color="green">Edith — Wattpilot history</Badge>
+      <SettingsRow label="Scope">
+        <Badge size="2" color="green">All EVs — Wattpilot energy</Badge>
       </SettingsRow>
       <SettingsRow label="From">
         <TextField.Root
@@ -78,26 +78,25 @@ export function FroniusCloudHistoryImport(): JSX.Element | null {
     <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--gray-a5)" }}>
       <Text size="2" weight="bold">Import Solar.web EV history</Text>
       <Text as="p" size="1" color="gray" mt="1">
-        Your Wattpilot has only charged Edith, so Solar.web history is locked to Edith.
-        Imported energy is split into solar, home-battery and grid contributions.
+        Import the energy delivered by the Wattpilot to EVs, regardless of which vehicle was charging.
+        Solar.web keeps the solar, home-battery and grid split for global Stats.
       </Text>
       <HistoryFields from={from} to={to} pending={mutation.isPending} setFrom={setFrom} setTo={setTo} />
       <Text as="p" size="1" color="gray">
-        Re-importing a period is safe and native E.V Solar data keeps priority. For large archives,
-        import year by year.
+        This history is not assigned to a vehicle. Re-importing a period is safe and native E.V Solar
+        data keeps priority. For large archives, import year by year.
       </Text>
       <Button
         size="2" variant="soft" disabled={!canImport}
         onClick={() => mutation.mutate({ from, to })}
       >
-        {mutation.isPending ? "Importing Edith history..." : "Import Edith Solar.web history"}
+        {mutation.isPending ? "Importing Solar.web history..." : "Import Solar.web EV history"}
       </Button>
       {mutation.isSuccess && (
         <Text as="p" size="1" color="gray" mt="2">
           <Badge color="green" size="2">{mutation.data.insertedRows} intervals imported</Badge>{" "}
-          {formatKwh(mutation.data.chargedWh)} charged to {mutation.data.vehicleName} —{" "}
-          {formatKwh(mutation.data.solarWh)} solar, {formatKwh(mutation.data.batteryWh)} battery,
-          {" "}{formatKwh(mutation.data.gridWh)} grid.
+          {formatKwh(mutation.data.chargedWh)} delivered to EVs — {formatKwh(mutation.data.solarWh)} solar,
+          {" "}{formatKwh(mutation.data.batteryWh)} battery, {formatKwh(mutation.data.gridWh)} grid.
         </Text>
       )}
       {mutation.isError && <Text as="p" size="2" color="red">{mutation.error.message}</Text>}
