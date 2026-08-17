@@ -24,9 +24,12 @@ interface SolarWebHistoryResponse {
   data?: SolarWebHistorySample[];
 }
 
-export interface FroniusCloudHistoryResult {
+interface HistoryPagesResult {
   samplesRead: number;
   rows: VehicleChargeHistoryRowInput[];
+}
+
+export interface FroniusCloudHistoryResult extends HistoryPagesResult {
   chargedWh: number;
   solarWh: number;
   batteryWh: number;
@@ -85,6 +88,60 @@ function sampleToRow(
   };
 }
 
+function toHistoryRows(
+  pvSystemId: string,
+  samples: readonly SolarWebHistorySample[],
+): VehicleChargeHistoryRowInput[] {
+  return samples
+    .map((sample) => sampleToRow(pvSystemId, sample))
+    .filter((row): row is VehicleChargeHistoryRowInput => row !== null);
+}
+
+async function fetchHistoryPages(
+  adapter: FroniusCloudAdapter,
+  pvSystemId: string,
+  fromIso: string,
+  toIso: string,
+  page = 0,
+): Promise<HistoryPagesResult> {
+  if (page >= MAX_PAGES) {
+    throw new Error(
+      "Solar.web history exceeded the safe pagination limit; import a smaller date range",
+    );
+  }
+
+  const params = new URLSearchParams({
+    from: fromIso,
+    to: toIso,
+    timezone: "local",
+    channel: HISTORY_CHANNELS.join(","),
+    offset: String(page * PAGE_SIZE),
+    limit: String(PAGE_SIZE),
+  });
+  const response = await adapter.fetchApi(
+    `/pvsystems/${pvSystemId}/histdata?${params.toString()}`,
+  );
+  const body = await response.json() as SolarWebHistoryResponse;
+  const samples = Array.isArray(body.data) ? body.data : [];
+  const currentRows = toHistoryRows(pvSystemId, samples);
+
+  if (samples.length < PAGE_SIZE) {
+    return { samplesRead: samples.length, rows: currentRows };
+  }
+
+  const remaining = await fetchHistoryPages(
+    adapter,
+    pvSystemId,
+    fromIso,
+    toIso,
+    page + 1,
+  );
+  return {
+    samplesRead: samples.length + remaining.samplesRead,
+    rows: [...currentRows, ...remaining.rows],
+  };
+}
+
 /**
  * Read Wattpilot charging energy from the Solar.web historical PV-system
  * endpoint. Fronius exposes generator, battery and grid contribution as
@@ -97,44 +154,17 @@ export async function fetchFroniusCloudEvHistory(
   fromIso: string,
   toIso: string,
 ): Promise<FroniusCloudHistoryResult> {
-  const rows: VehicleChargeHistoryRowInput[] = [];
-  let samplesRead = 0;
-
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const params = new URLSearchParams({
-      from: fromIso,
-      to: toIso,
-      timezone: "local",
-      channel: HISTORY_CHANNELS.join(","),
-      offset: String(page * PAGE_SIZE),
-      limit: String(PAGE_SIZE),
-    });
-    const response = await adapter.fetchApi(
-      `/pvsystems/${pvSystemId}/histdata?${params.toString()}`,
-    );
-    const body = await response.json() as SolarWebHistoryResponse;
-    const samples = Array.isArray(body.data) ? body.data : [];
-    samplesRead += samples.length;
-
-    for (const sample of samples) {
-      const row = sampleToRow(pvSystemId, sample);
-      if (row) rows.push(row);
-    }
-
-    if (samples.length < PAGE_SIZE) break;
-    if (page === MAX_PAGES - 1) {
-      throw new Error(
-        "Solar.web history exceeded the safe pagination limit; import a smaller date range",
-      );
-    }
-  }
-
+  const history = await fetchHistoryPages(
+    adapter,
+    pvSystemId,
+    fromIso,
+    toIso,
+  );
   return {
-    samplesRead,
-    rows,
-    chargedWh: rows.reduce((sum, row) => sum + row.chargedWh, 0),
-    solarWh: rows.reduce((sum, row) => sum + row.solarWh, 0),
-    batteryWh: rows.reduce((sum, row) => sum + row.batteryWh, 0),
-    gridWh: rows.reduce((sum, row) => sum + row.gridWh, 0),
+    ...history,
+    chargedWh: history.rows.reduce((sum, row) => sum + row.chargedWh, 0),
+    solarWh: history.rows.reduce((sum, row) => sum + row.solarWh, 0),
+    batteryWh: history.rows.reduce((sum, row) => sum + row.batteryWh, 0),
+    gridWh: history.rows.reduce((sum, row) => sum + row.gridWh, 0),
   };
 }
