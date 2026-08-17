@@ -3,6 +3,20 @@ import { and, eq, sql } from "drizzle-orm";
 import { vehicleChargeHistory } from "../HistorySchema.ts";
 import type { ChargeHqHistoryRow } from "../../history/ChargeHqCsv.ts";
 
+export interface VehicleChargeHistoryRowInput {
+  source: string;
+  externalId: string;
+  startTimeUtc: string;
+  startTimeLocal: string;
+  intervalSeconds: number;
+  chargedWh: number;
+  solarWh: number;
+  batteryWh: number;
+  gridWh: number;
+  awayWh: number;
+  atHomeWh: number;
+}
+
 export interface HistoryImportResult {
   insertedRows: number;
   skippedRows: number;
@@ -46,16 +60,17 @@ export class HistoryRepository {
   constructor(private db: BetterSQLite3Database) {}
 
   /**
-   * Import ChargeHQ archive rows without overwriting native E.V Solar history.
+   * Import archived vehicle charging intervals without overwriting native
+   * E.V Solar history.
    *
    * If native one-minute readings already exist for this vehicle, imported rows
    * at or after the first native timestamp are intentionally ignored. This
    * makes the migration boundary stable even if native retention later prunes
    * old one-minute readings.
    */
-  async importChargeHqRows(
+  async importRows(
     vehicleId: string,
-    rows: readonly ChargeHqHistoryRow[],
+    rows: readonly VehicleChargeHistoryRowInput[],
   ): Promise<HistoryImportResult> {
     const cutoffRows = await this.db.all<{ timestamp: string | null }>(sql`
       SELECT MIN(timestamp) AS timestamp
@@ -87,6 +102,13 @@ export class HistoryRepository {
     };
   }
 
+  async importChargeHqRows(
+    vehicleId: string,
+    rows: readonly ChargeHqHistoryRow[],
+  ): Promise<HistoryImportResult> {
+    return await this.importRows(vehicleId, rows);
+  }
+
   async getCoverage(
     source: string,
     vehicleId: string,
@@ -116,7 +138,7 @@ export class HistoryRepository {
     };
   }
 
-  /** ChargeHQ archive grouped by local hour. */
+  /** Imported archives grouped by local hour. */
   async getChargeHqStatsDay(
     date: string,
     vehicleId?: string,
@@ -131,7 +153,7 @@ export class HistoryRepository {
         SUM(h.away_wh) AS away_wh,
         SUM(h.charged_wh) AS total_wh
       FROM vehicle_charge_history h
-      WHERE h.source = 'chargehq'
+      WHERE h.source IN ('chargehq', 'solarweb')
         AND substr(h.start_time_local, 1, 10) = ${date}
         ${vehicleFilter}
         ${this.nativePriorityFilter()}
@@ -141,7 +163,7 @@ export class HistoryRepository {
     return rows.map((row) => this.mapStatsRow(row));
   }
 
-  /** ChargeHQ archive grouped by its native 15-minute local intervals. */
+  /** Imported archives grouped by 15-minute local intervals. */
   async getChargeHqStatsDayDetailed(
     date: string,
     vehicleId?: string,
@@ -157,7 +179,7 @@ export class HistoryRepository {
         SUM(h.away_wh) AS away_wh,
         SUM(h.charged_wh) AS total_wh
       FROM vehicle_charge_history h
-      WHERE h.source = 'chargehq'
+      WHERE h.source IN ('chargehq', 'solarweb')
         AND substr(h.start_time_local, 1, 10) = ${date}
         ${vehicleFilter}
         ${this.nativePriorityFilter()}
@@ -170,7 +192,7 @@ export class HistoryRepository {
     }));
   }
 
-  /** ChargeHQ archive grouped by local day for a month. */
+  /** Imported archives grouped by local day for a month. */
   async getChargeHqStatsMonth(
     year: number,
     month: number,
@@ -187,7 +209,7 @@ export class HistoryRepository {
         SUM(h.away_wh) AS away_wh,
         SUM(h.charged_wh) AS total_wh
       FROM vehicle_charge_history h
-      WHERE h.source = 'chargehq'
+      WHERE h.source IN ('chargehq', 'solarweb')
         AND substr(h.start_time_local, 1, 7) = ${yearMonth}
         ${vehicleFilter}
         ${this.nativePriorityFilter()}
@@ -197,7 +219,7 @@ export class HistoryRepository {
     return rows.map((row) => this.mapStatsRow(row));
   }
 
-  /** ChargeHQ archive grouped by local month for a year. */
+  /** Imported archives grouped by local month for a year. */
   async getChargeHqStatsYear(
     year: number,
     vehicleId?: string,
@@ -213,7 +235,7 @@ export class HistoryRepository {
         SUM(h.away_wh) AS away_wh,
         SUM(h.charged_wh) AS total_wh
       FROM vehicle_charge_history h
-      WHERE h.source = 'chargehq'
+      WHERE h.source IN ('chargehq', 'solarweb')
         AND substr(h.start_time_local, 1, 4) = ${yearString}
         ${vehicleFilter}
         ${this.nativePriorityFilter()}
@@ -253,8 +275,8 @@ export class HistoryRepository {
       gridWh: Number(row.grid_wh ?? 0),
       awayWh: Number(row.away_wh ?? 0),
       totalWh: Number(row.total_wh ?? 0),
-      // ChargeHQ CSVs do not contain historical tariff prices. Do not invent
-      // costs or savings from today's tariff configuration.
+      // Imported archives do not contain historical tariff prices. Do not
+      // invent costs or savings from today's tariff configuration.
       costCents: 0,
       solarSavingsCents: 0,
     };
