@@ -235,12 +235,10 @@ export class HistoryRepository {
   }
 
   /**
-   * EV Stats intentionally show home charging only. Per-vehicle Stats use
-   * vehicle-attributed ChargeHQ home rows. Global Stats combine every vehicle's
-   * ChargeHQ home history with Solar.web's installation-level Wattpilot history.
-   * ChargeHQ home intervals are suppressed whenever an overlapping Solar.web
-   * interval exists so the same home charge is not counted twice. Away charging
-   * is never included in these Stats.
+   * Per-vehicle Stats use vehicle-attributed ChargeHQ rows, including away
+   * charging. Global Stats combine Solar.web home history with ChargeHQ history.
+   * ChargeHQ home intervals are suppressed when overlapping Solar.web intervals,
+   * while away energy is kept only for vehicles currently configured in E.V Solar.
    */
   private archiveRows(vehicleId?: string) {
     if (vehicleId) {
@@ -252,6 +250,15 @@ export class HistoryRepository {
         WHERE h.source = 'chargehq'
           AND h.vehicle_id = ${vehicleId}
           AND h.at_home_wh > 0
+          ${this.nativeVehiclePriorityFilter()}
+        UNION ALL
+        SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
+          h.away_wh AS charged_wh, 0.0 AS solar_wh, 0.0 AS battery_wh,
+          0.0 AS grid_wh, h.away_wh, 0.0 AS at_home_wh
+        FROM vehicle_charge_history h
+        WHERE h.source = 'chargehq'
+          AND h.vehicle_id = ${vehicleId}
+          AND h.away_wh > 0
           ${this.nativeVehiclePriorityFilter()}
       `;
     }
@@ -273,6 +280,15 @@ export class HistoryRepository {
               sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
             ) > datetime(h.start_time_utc)
         )
+      UNION ALL
+      SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
+        h.away_wh AS charged_wh, 0.0 AS solar_wh, 0.0 AS battery_wh,
+        0.0 AS grid_wh, h.away_wh, 0.0 AS at_home_wh
+      FROM vehicle_charge_history h
+      WHERE h.source = 'chargehq'
+        AND h.away_wh > 0
+        ${this.nativeVehiclePriorityFilter()}
+        AND EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
       UNION ALL
       SELECT a.start_time_utc, a.start_time_local, a.interval_seconds,
         a.charged_wh, a.solar_wh, a.battery_wh, a.grid_wh, 0.0 AS away_wh,
