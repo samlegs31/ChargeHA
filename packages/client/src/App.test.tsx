@@ -102,42 +102,6 @@ vi.mock("./hooks/useWizardState.ts", () => ({
 
 type AuthMode = "none" | "local" | "oidc";
 
-function mockMatchMedia(initialMatches: boolean) {
-  const listeners = new Set<(event: MediaQueryListEvent) => void>();
-  const media = {
-    matches: initialMatches,
-    media: "(prefers-color-scheme: dark)",
-    onchange: null,
-    addEventListener: vi.fn(
-      (_type: string, listener: EventListenerOrEventListenerObject) => {
-        if (typeof listener === "function") {
-          listeners.add(listener as (event: MediaQueryListEvent) => void);
-        }
-      },
-    ),
-    removeEventListener: vi.fn(
-      (_type: string, listener: EventListenerOrEventListenerObject) => {
-        if (typeof listener === "function") {
-          listeners.delete(listener as (event: MediaQueryListEvent) => void);
-        }
-      },
-    ),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(() => true),
-  };
-
-  globalThis.matchMedia = vi.fn().mockReturnValue(media);
-
-  return {
-    emit(matches: boolean) {
-      media.matches = matches;
-      const event = { matches, media: media.media } as MediaQueryListEvent;
-      for (const listener of listeners) listener(event);
-    },
-  };
-}
-
 const mocks = vi.hoisted(() => {
   const logoutMutate = vi.fn();
   return {
@@ -227,6 +191,42 @@ vi.mock("./trpc.ts", () => ({
 import { App } from "./App.tsx";
 
 describe("App", () => {
+  function mockMatchMedia(initialMatches: boolean) {
+    const listeners = new Set<(event: MediaQueryListEvent) => void>();
+    const media = {
+      matches: initialMatches,
+      media: "(prefers-color-scheme: dark)",
+      onchange: null,
+      addEventListener: vi.fn(
+        (_type: string, listener: EventListenerOrEventListenerObject) => {
+          if (typeof listener === "function") {
+            listeners.add(listener as (event: MediaQueryListEvent) => void);
+          }
+        },
+      ),
+      removeEventListener: vi.fn(
+        (_type: string, listener: EventListenerOrEventListenerObject) => {
+          if (typeof listener === "function") {
+            listeners.delete(listener as (event: MediaQueryListEvent) => void);
+          }
+        },
+      ),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(() => true),
+    };
+
+    globalThis.matchMedia = vi.fn().mockReturnValue(media);
+
+    return {
+      emit(matches: boolean) {
+        media.matches = matches;
+        const event = { matches, media: media.media } as MediaQueryListEvent;
+        listeners.forEach((listener) => listener(event));
+      },
+    };
+  }
+
   const setAuth = (p: {
     authenticated: boolean;
     authMode: AuthMode;
