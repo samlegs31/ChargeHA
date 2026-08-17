@@ -1,7 +1,10 @@
 import { MoonStar, SunMedium } from "lucide-react";
 import { Text } from "@radix-ui/themes";
 import type { VehicleMode } from "@chargeha/shared";
-import type { SolarChargeForecastResult } from "@chargeha/shared/forecast";
+import type {
+  SolarChargeForecast,
+  SolarChargeForecastResult,
+} from "@chargeha/shared/forecast";
 
 function formatTime(iso: string | null, timezone: string): string {
   if (!iso) return "—";
@@ -46,7 +49,7 @@ function unavailableStatus(data: SolarChargeForecastResult): string | null {
   return null;
 }
 
-function solarForecastText(data: SolarChargeForecastResult): string {
+function solarForecastText(data: SolarChargeForecast): string {
   if (data.solarEndAt) {
     return `Solar ends ${formatTime(data.solarEndAt, data.timezone)} · +${
       data.solarChargeRemainingKwh.toFixed(1)
@@ -57,7 +60,7 @@ function solarForecastText(data: SolarChargeForecastResult): string {
 
 function scheduleForecastText(
   mode: VehicleMode,
-  data: SolarChargeForecastResult,
+  data: SolarChargeForecast,
 ): string | null {
   if (mode !== "auto" || data.schedule === null) return null;
 
