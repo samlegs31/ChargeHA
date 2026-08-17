@@ -7,6 +7,7 @@ import {
   homeConfigDef,
   notificationConfigDef,
   solarConfigDef,
+  solarForecastConfigDef,
   systemConfigDef,
 } from "@chargeha/shared/configSections";
 import { geocodeAddress, geocodeAutocomplete } from "@chargeha/shared/geocode";
@@ -16,6 +17,8 @@ export const configHandlers: Record<string, QueryHandler> = {
   "config.charging.get": (_i, s) =>
     deserializeSection(chargingConfigDef, s.config),
   "config.solar.get": (_i, s) => deserializeSection(solarConfigDef, s.config),
+  "config.solarForecast.get": (_i, s) =>
+    deserializeSection(solarForecastConfigDef, s.config),
   "config.battery.get": (_i, s) =>
     deserializeSection(batteryConfigDef, s.config),
   "config.home.get": (_i, s) => deserializeSection(homeConfigDef, s.config),
