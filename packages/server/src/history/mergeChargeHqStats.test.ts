@@ -89,7 +89,7 @@ describe("mergeChargeHqStats", () => {
     expect(merged.evSolarSavingsCents).toBe(45);
   });
 
-  it("removes native away charging even when there is no archive", () => {
+  it("preserves native away charging", () => {
     const buckets = emptyBuckets(24);
     buckets[8] = {
       ...buckets[8],
@@ -100,10 +100,28 @@ describe("mergeChargeHqStats", () => {
     };
 
     const merged = mergeChargeHqStats(responseWithBuckets(buckets), [], "day");
-    expect(merged.buckets[8].awayWh).toBe(0);
-    expect(merged.buckets[8].totalWh).toBe(500);
-    expect(merged.totalAwayWh).toBe(0);
-    expect(merged.totalChargedWh).toBe(500);
+    expect(merged.buckets[8].awayWh).toBe(1500);
+    expect(merged.buckets[8].totalWh).toBe(2000);
+    expect(merged.totalAwayWh).toBe(1500);
+    expect(merged.totalChargedWh).toBe(2000);
+  });
+
+  it("merges attributed away archive energy", () => {
+    const response = responseWithBuckets(emptyBuckets(24));
+    const merged = mergeChargeHqStats(response, [{
+      bucket: "18",
+      solarWh: 0,
+      batteryWh: 0,
+      gridWh: 0,
+      awayWh: 1250,
+      totalWh: 1250,
+      costCents: 0,
+      solarSavingsCents: 0,
+    }], "day");
+
+    expect(merged.buckets[18].awayWh).toBe(1250);
+    expect(merged.totalAwayWh).toBe(1250);
+    expect(merged.totalChargedWh).toBe(1250);
   });
 
   it("maps month and year bucket numbers to zero-based response positions", () => {
