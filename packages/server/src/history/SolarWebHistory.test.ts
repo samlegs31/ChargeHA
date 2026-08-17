@@ -16,6 +16,16 @@ describe("fetchSolarWebHomeEvHistory", () => {
     return input.url;
   }
 
+  function expectMax24HourRange(historyUrl: URL): void {
+    const fromParam = historyUrl.searchParams.get("from");
+    const toParam = historyUrl.searchParams.get("to");
+    expect(fromParam).not.toBeNull();
+    expect(toParam).not.toBeNull();
+    const from = new Date(fromParam ?? "").getTime();
+    const to = new Date(toParam ?? "").getTime();
+    expect(to - from).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
+  }
+
   it("authenticates once and maps Wattpilot home energy", async () => {
     const calls: string[] = [];
     const fetchFn = (input: string | URL | Request): Promise<Response> => {
@@ -67,16 +77,14 @@ describe("fetchSolarWebHomeEvHistory", () => {
     });
 
     const historyUrls = calls.slice(1).map((call) => new URL(call));
-    for (const historyUrl of historyUrls) {
+    historyUrls.forEach((historyUrl) => {
       expect(historyUrl.searchParams.get("channel")).toBe(
         "EnergyEVCCharge,EnergyEVCChargeBatt,EnergyEVCChargeGrid",
       );
       expect(historyUrl.searchParams.get("timezone")).toBe("local");
       expect(historyUrl.searchParams.get("limit")).toBe("1000");
-      const from = new Date(historyUrl.searchParams.get("from")!).getTime();
-      const to = new Date(historyUrl.searchParams.get("to")!).getTime();
-      expect(to - from).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
-    }
+      expectMax24HourRange(historyUrl);
+    });
   });
 
   it("splits multi-day imports into Solar.web-compatible 24 hour requests", async () => {
@@ -99,11 +107,7 @@ describe("fetchSolarWebHomeEvHistory", () => {
     }, fetchFn);
 
     expect(historyCalls).toHaveLength(5);
-    for (const historyUrl of historyCalls) {
-      const from = new Date(historyUrl.searchParams.get("from")!).getTime();
-      const to = new Date(historyUrl.searchParams.get("to")!).getTime();
-      expect(to - from).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
-    }
+    historyCalls.forEach(expectMax24HourRange);
   });
 
   it("filters zero-energy and out-of-range samples", async () => {
