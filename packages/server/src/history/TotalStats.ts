@@ -14,6 +14,16 @@ export type TotalStatsResponse = Omit<StatsResponse, "period"> & {
   period: "total";
 };
 
+function aggregateYearsQuery(vehicleId?: string) {
+  if (vehicleId) return sql``;
+  return sql`
+    UNION
+    SELECT substr(start_time_local, 1, 4) AS year
+    FROM aggregate_ev_charge_history
+    WHERE source = 'solarweb' AND at_home_wh > 0
+  `;
+}
+
 async function availableYears(
   db: AppDatabase,
   tz: number,
@@ -26,14 +36,6 @@ async function availableYears(
   const archiveVehicle = vehicleId
     ? sql`AND vehicle_id = ${vehicleId}`
     : sql``;
-  const aggregateYears = vehicleId
-    ? sql``
-    : sql`
-      UNION
-      SELECT substr(start_time_local, 1, 4) AS year
-      FROM aggregate_ev_charge_history
-      WHERE source = 'solarweb' AND at_home_wh > 0
-    `;
   const rows = await db.db.all<{ year: string | null }>(sql`
     SELECT year FROM (
       SELECT strftime('%Y', timestamp, ${offset}) AS year
@@ -43,7 +45,7 @@ async function availableYears(
       SELECT substr(start_time_local, 1, 4) AS year
       FROM vehicle_charge_history
       WHERE source = 'chargehq' AND at_home_wh > 0 ${archiveVehicle}
-      ${aggregateYears}
+      ${aggregateYearsQuery(vehicleId)}
     )
     WHERE year IS NOT NULL AND length(year) = 4
     ORDER BY year
