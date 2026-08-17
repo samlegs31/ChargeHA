@@ -43,17 +43,7 @@ jobs:
         run: deno lint
 
       - name: Type check
-        run: |
-          set -o pipefail
-          deno check 2>&1 | tee deno-check.log
-
-      - name: Upload type-check diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deno-check-diagnostics
-          path: deno-check.log
-          retention-days: 1
+        run: deno check
 
       - name: Check unused files
         run: deno task check:unused
@@ -62,27 +52,7 @@ jobs:
         run: deno task check:packument
 
       - name: Server tests
-        run: |
-          set -o pipefail
-          deno task test:server 2>&1 | tee server-tests.log
-
-      - name: Upload server-test diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: server-test-diagnostics
-          path: server-tests.log
-          retention-days: 1
+        run: deno task test:server
 
       - name: Client tests
-        run: |
-          set -o pipefail
-          deno task test:client 2>&1 | tee client-tests.log
-
-      - name: Upload client-test diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: client-test-diagnostics
-          path: client-tests.log
-          retention-days: 1
+        run: deno task test:client
