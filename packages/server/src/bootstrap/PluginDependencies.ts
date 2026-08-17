@@ -11,6 +11,10 @@ import {
 } from "../services/VehicleService.ts";
 import { createLogger, Logger } from "../lib/Logger.ts";
 import { PluginDbLogger } from "@chargeha/plugins/PluginDbLogger";
+import {
+  HistoryRepository,
+  type VehicleChargeHistoryRowInput,
+} from "../db/repositories/HistoryRepository.ts";
 
 /** Tunnel lifecycle exposed to plugins. URLs are live state, never persisted
  *  — quick-tunnel URLs change on every start. */
@@ -175,6 +179,29 @@ export class PluginDependencies<K extends string = string> {
       );
     }
     await this.vehicleManager.deleteVehicle(id);
+  }
+
+  // ── Archived charging history (energy plugins) ──────────────────────
+
+  /**
+   * Import charging intervals produced by an energy-source plugin for an
+   * existing vehicle. Native E.V Solar readings retain priority over imports.
+   */
+  async importVehicleChargeHistoryRows(
+    vehicleId: string,
+    rows: readonly VehicleChargeHistoryRowInput[],
+  ) {
+    const vehicle = await this.db.getVehicle(vehicleId);
+    if (vehicle === null) {
+      throw new Error(`Vehicle ${vehicleId} not found`);
+    }
+    const repository = new HistoryRepository(this.db.db);
+    return await repository.importRows(vehicleId, rows);
+  }
+
+  async getVehicleChargeHistoryCoverage(source: string, vehicleId: string) {
+    const repository = new HistoryRepository(this.db.db);
+    return await repository.getCoverage(source, vehicleId);
   }
 
   // ── Simulated load (Simulated plugin only) ───────────────────────────
