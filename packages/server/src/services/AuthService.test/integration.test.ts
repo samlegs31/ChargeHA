@@ -54,7 +54,7 @@ describe("AuthService (integration)", () => {
   // ── Helper: set up local auth mode with a user ────────────────────────────
   async function setupLocalAuth(
     username = "admin",
-    password = "password123",
+    password = "password123456789",
   ): Promise<void> {
     await authService.changeMode({
       newMode: "local",
@@ -66,14 +66,14 @@ describe("AuthService (integration)", () => {
   describe("Integration: local login → session → logout → 401", () => {
     it("full local auth lifecycle", async () => {
       // Set up local auth
-      await setupLocalAuth("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
 
       // Verify auth mode is local
       const internal = await configService.getInternal();
       expect(internal.authMode).toBe("local");
 
       // Login
-      const sessionId = await authService.login("admin", "password123");
+      const sessionId = await authService.login("admin", "password123456789");
       expect(typeof sessionId).toBe("string");
       expect(sessionId.length).toBeGreaterThan(0);
 
@@ -101,7 +101,7 @@ describe("AuthService (integration)", () => {
     });
 
     it("login fails with wrong password", async () => {
-      await setupLocalAuth("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
 
       await expect(authService.login("admin", "wrongpassword")).rejects.toThrow(
         "Invalid credentials",
@@ -109,10 +109,10 @@ describe("AuthService (integration)", () => {
     });
 
     it("login fails with non-existent user", async () => {
-      await setupLocalAuth("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
 
-      await expect(authService.login("nonexistent", "password123")).rejects
-        .toThrow("Invalid credentials");
+      await expect(authService.login("nonexistent", "password123456789"))
+        .rejects.toThrow("Invalid credentials");
     });
   });
 
@@ -249,7 +249,7 @@ describe("AuthService (integration)", () => {
     });
 
     it("rejects mode change from local without current password", async () => {
-      await setupLocalAuth("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
 
       await expect(authService.changeMode({ newMode: "none" })).rejects.toThrow(
         "Current password required for re-authentication",
@@ -257,7 +257,7 @@ describe("AuthService (integration)", () => {
     });
 
     it("rejects mode change from local with wrong password", async () => {
-      await setupLocalAuth("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
 
       await expect(
         authService.changeMode(
@@ -322,11 +322,11 @@ describe("AuthService (integration)", () => {
   // ── 4. Password change → old rejected → new works → sessions invalidated ─
   describe("Integration: password change with session invalidation", () => {
     it("changes password and invalidates other sessions", async () => {
-      await setupLocalAuth("admin", "oldpassword1");
+      await setupLocalAuth("admin", "old-password-12345");
 
       // Create two sessions (simulating two devices)
-      const session1 = await authService.login("admin", "oldpassword1");
-      const session2 = await authService.login("admin", "oldpassword1");
+      const session1 = await authService.login("admin", "old-password-12345");
+      const session2 = await authService.login("admin", "old-password-12345");
 
       // Both sessions valid
       expect(await authService.validateSession(session1)).not.toBeNull();
@@ -334,7 +334,7 @@ describe("AuthService (integration)", () => {
 
       // Change password using session1
       await authService.changePassword(
-        "oldpassword1",
+        "old-password-12345",
         "new-secure-password-123",
         session1,
       );
@@ -346,9 +346,8 @@ describe("AuthService (integration)", () => {
       expect(await authService.validateSession(session2)).toBeNull();
 
       // Old password no longer works
-      await expect(authService.login("admin", "oldpassword1")).rejects.toThrow(
-        "Invalid credentials",
-      );
+      await expect(authService.login("admin", "old-password-12345")).rejects
+        .toThrow("Invalid credentials");
 
       // New password works
       const session3 = await authService.login(
@@ -360,8 +359,8 @@ describe("AuthService (integration)", () => {
     });
 
     it("rejects password change with wrong current password", async () => {
-      await setupLocalAuth("admin", "password123");
-      const sessionId = await authService.login("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
+      const sessionId = await authService.login("admin", "password123456789");
 
       await expect(
         authService.changePassword(
@@ -373,20 +372,20 @@ describe("AuthService (integration)", () => {
     });
 
     it("rejects empty password", async () => {
-      await setupLocalAuth("admin", "password123");
-      const sessionId = await authService.login("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
+      const sessionId = await authService.login("admin", "password123456789");
 
       await expect(
-        authService.changePassword("password123", "", sessionId),
+        authService.changePassword("password123456789", "", sessionId),
       ).rejects.toThrow(/at least 15 characters/);
     });
 
     it("rejects password change with invalid session", async () => {
-      await setupLocalAuth("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
 
       await expect(
         authService.changePassword(
-          "password123",
+          "password123456789",
           "new-secure-password-123",
           "nonexistent-session",
         ),
@@ -441,7 +440,7 @@ describe("AuthService (integration)", () => {
     });
 
     it("rate limiting with real auth service login failures", async () => {
-      await setupLocalAuth("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
       const rateLimiter = new RateLimiter();
       const ip = "10.0.0.50";
 
@@ -461,7 +460,7 @@ describe("AuthService (integration)", () => {
       expect(check.retryAfter).toBeGreaterThan(0);
 
       // Successful login (bypassing rate limiter) resets counter
-      const sessionId = await authService.login("admin", "password123");
+      const sessionId = await authService.login("admin", "password123456789");
       rateLimiter.recordSuccess(ip);
 
       expect(typeof sessionId).toBe("string");
@@ -493,7 +492,7 @@ describe("AuthService (integration)", () => {
   // ── 6. Lazy session cleanup on login ──────────────────────────────────────
   describe("Integration: lazy session cleanup on login", () => {
     it("deletes expired sessions on successful login", async () => {
-      await setupLocalAuth("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
 
       // Create an expired session directly in the DB
       const expiredId = "expired-session-123";
@@ -523,7 +522,10 @@ describe("AuthService (integration)", () => {
       expect(await db.getSession(expiredId2)).not.toBeNull();
 
       // Login triggers lazy cleanup of expired sessions
-      const newSessionId = await authService.login("admin", "password123");
+      const newSessionId = await authService.login(
+        "admin",
+        "password123456789",
+      );
 
       // New session is valid
       expect(await authService.validateSession(newSessionId)).not.toBeNull();
@@ -534,7 +536,7 @@ describe("AuthService (integration)", () => {
     });
 
     it("does not delete non-expired sessions during cleanup", async () => {
-      await setupLocalAuth("admin", "password123");
+      await setupLocalAuth("admin", "password123456789");
 
       // Create a valid (non-expired) session
       const validId = "valid-session-789";
@@ -560,7 +562,7 @@ describe("AuthService (integration)", () => {
       });
 
       // Login
-      await authService.login("admin", "password123");
+      await authService.login("admin", "password123456789");
 
       // Valid session still exists
       expect(await db.getSession(validId)).not.toBeNull();
