@@ -112,10 +112,10 @@ export function AppLayout(
         >
           <picture className={styles.brandLogo}>
             <source
-              srcSet="/ev-solar-logo-dark.svg"
+              srcSet="/ev-solar-logo-dark-v2.webp"
               media="(prefers-color-scheme: dark)"
             />
-            <img src="/ev-solar-logo.svg" alt="E.V. Solar" />
+            <img src="/ev-solar-logo-v2.webp" alt="E.V. Solar" />
           </picture>
         </div>
         <nav className={styles.nav}>
