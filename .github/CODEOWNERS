@@ -1,0 +1,9 @@
+# E.V. Solar code ownership
+# This file becomes enforceable when branch protection/rulesets require Code Owner review.
+
+* @samlegs31
+
+/.github/ @samlegs31
+/SECURITY.md @samlegs31
+/NOTICE.md @samlegs31
+/LICENSE @samlegs31
