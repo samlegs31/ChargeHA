@@ -74,7 +74,7 @@ function shiftCursor(
       d.setDate(d.getDate() + direction);
       break;
     case "month":
-      d.setDate(1); // Prevent day-of-month overflow (e.g. Mar 31 → Feb 31 → Mar 3)
+      d.setDate(1);
       d.setMonth(d.getMonth() + direction);
       break;
     case "year":
@@ -161,13 +161,11 @@ export function useStats() {
     setCursor(new Date());
   }, []);
 
-  // Reset cursor to today when period changes
   const changePeriod = useCallback((p: StatsViewPeriod) => {
     setPeriod(p);
     setCursor(new Date());
   }, []);
 
-  // Drill into a specific date/month/year from a chart click
   const drillDown = useCallback((p: StatsViewPeriod, date: Date) => {
     setPeriod(p);
     setCursor(date);
