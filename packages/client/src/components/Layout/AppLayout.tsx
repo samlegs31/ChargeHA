@@ -40,6 +40,9 @@ const NAV_ITEMS: { page: Page; label: string; icon: LucideIcon }[] = [
   { page: "settings", label: "Settings", icon: Settings },
 ];
 
+const SOURCE_URL = "https://github.com/samlegs31/ChargeHA";
+const LICENSE_URL = "https://github.com/samlegs31/ChargeHA/blob/main/LICENSE";
+
 function MobileMenu(
   { activePage, authMode, onLogout, handleNavigate }: {
     activePage: Page;
@@ -174,6 +177,15 @@ export function AppLayout(
         />
       )}
       <main className={styles.main}>{children}</main>
+      <footer className={styles.footer}>
+        <Text size="1" color="gray">
+          E.V. Solar · {" "}
+          <a href={SOURCE_URL} target="_blank" rel="noreferrer">Source code</a>
+          {" · "}
+          <a href={LICENSE_URL} target="_blank" rel="noreferrer">AGPL-3.0</a>
+          {" · Provided without warranty"}
+        </Text>
+      </footer>
     </div>
   );
 }
