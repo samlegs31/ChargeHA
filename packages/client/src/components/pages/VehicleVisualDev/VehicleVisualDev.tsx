@@ -1,6 +1,15 @@
-import { BatteryCharging, CarFront, Database, ShieldCheck, Sparkles } from "lucide-react";
+import {
+  BatteryCharging,
+  CarFront,
+  Database,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { useMemo } from "react";
 import { useVehicles } from "../../../hooks/useVehicles.ts";
+import { trpc } from "../../../trpc.ts";
 import styles from "./VehicleVisualDev.module.css";
 
 function readableModel(carType?: string | null): string {
@@ -42,11 +51,19 @@ export function VehicleVisualDev() {
   const { vehicles, loading, error } = useVehicles();
   const vehicle = vehicles.find((item) => item.adapterType === "tesla") ?? vehicles[0];
   const state = vehicle?.state;
+  const configProbe = trpc.plugin.vehicle.tesla.vehicleVisualConfig.useMutation();
+  const config = configProbe.data;
 
-  const model = readableModel(state?.carType);
+  const model = readableModel(config?.carType);
   const visualKey = useMemo(
-    () => `tesla__${slugPart(state?.carType)}`,
-    [state?.carType],
+    () => [
+      "tesla",
+      slugPart(config?.carType),
+      slugPart(config?.exteriorColor),
+      slugPart(config?.wheelType),
+      slugPart(config?.trim),
+    ].join("__"),
+    [config?.carType, config?.exteriorColor, config?.wheelType, config?.trim],
   );
 
   if (loading) {
@@ -60,6 +77,12 @@ export function VehicleVisualDev() {
   if (!vehicle) {
     return <div className={styles.stateMessage}>Aucun véhicule configuré.</div>;
   }
+
+  const isTesla = vehicle.adapterType === "tesla";
+  const runProbe = () => {
+    if (!isTesla || configProbe.isPending) return;
+    configProbe.mutate({ vin: vehicle.id });
+  };
 
   return (
     <section className={styles.page}>
@@ -96,37 +119,63 @@ export function VehicleVisualDev() {
         </div>
       </div>
 
+      <div className={styles.probeBar}>
+        <div>
+          <strong>Configuration Tesla officielle</strong>
+          <span>1 lecture manuelle de vehicle_config · aucun wake_up</span>
+        </div>
+        <button
+          type="button"
+          className={styles.probeButton}
+          onClick={runProbe}
+          disabled={!isTesla || configProbe.isPending}
+        >
+          {configProbe.isPending
+            ? <><Loader2 size={16} className={styles.spinner} /> Lecture…</>
+            : <><RefreshCw size={16} /> Tester</>}
+        </button>
+      </div>
+
+      {configProbe.error && (
+        <div className={styles.probeError}>
+          Tesla n’a pas fourni la configuration : {configProbe.error.message}
+          <span>Si le véhicule dort, réessaye lorsqu’il sera naturellement en ligne.</span>
+        </div>
+      )}
+
       <div className={styles.grid}>
         <article className={styles.panel}>
           <h2><Database size={18} /> Configuration détectée</h2>
           <DataRow label="Nom" value={state?.vehicleName || vehicle.name} />
-          <DataRow label="Modèle / CarType" value={state?.carType ? model : null} />
-          <DataRow label="Couleur extérieure" value={null} />
-          <DataRow label="Jantes / WheelType" value={null} />
-          <DataRow label="Finition / Trim" value={null} />
+          <DataRow label="Modèle / CarType" value={config?.carType ? model : null} />
+          <DataRow label="Couleur extérieure" value={config?.exteriorColor} />
+          <DataRow label="Jantes / WheelType" value={config?.wheelType} />
+          <DataRow label="Finition / Trim" value={config?.trim} />
+          <DataRow label="Toit" value={config?.roofColor} />
+          <DataRow label="Spoiler" value={config?.spoilerType} />
         </article>
 
         <article className={styles.panel}>
           <h2><CarFront size={18} /> Mapping visuel</h2>
-          <DataRow label="Clé E.V. Solar" value={visualKey} />
+          <DataRow label="Clé E.V. Solar" value={config ? visualKey : null} />
           <DataRow label="Adaptateur" value={vehicle.adapterType} />
           <DataRow label="État" value={state?.isOnline ? "En ligne" : "Hors ligne"} />
-          <DataRow label="Source modèle" value={state?.carType ? "Tesla vehicle_state" : null} />
+          <DataRow label="Source" value={config ? "Tesla Fleet API · vehicle_config" : null} />
         </article>
       </div>
 
       <div className={styles.notice}>
         <ShieldCheck size={20} />
         <div>
-          <strong>Test sans appel Tesla supplémentaire</strong>
+          <strong>POC volontairement sans maquette 3D Tesla privée</strong>
           <p>
-            Cette page réutilise uniquement les données déjà récupérées par E.V. Solar. Elle ne réveille pas le véhicule et n’utilise aucun endpoint Tesla privé ou non documenté.
+            Le bouton utilise uniquement l’endpoint Fleet API vehicle_config documenté. Aucun wake_up n’est envoyé et aucune image interne de l’app Tesla n’est appelée. Les valeurs absentes restent « Non disponible ».
           </p>
         </div>
       </div>
 
       <p className={styles.footnote}>
-        Couleur, jantes et finition restent volontairement « Non disponible » tant qu’E.V. Solar ne les reçoit pas proprement. Aucun attribut n’est inventé.
+        Si le test renvoie correctement modèle, couleur, jantes et finition, l’étape suivante sera de relier cette clé de configuration à un rendu E.V. Solar mis en cache.
       </p>
     </section>
   );
