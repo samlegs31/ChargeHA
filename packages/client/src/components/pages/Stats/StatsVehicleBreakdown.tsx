@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Battery, DollarSign, Sun, Zap } from "lucide-react";
+import { Battery, DollarSign, MapPin, Sun, Zap } from "lucide-react";
 import { Card, Text } from "@radix-ui/themes";
 import type {
   DayResolution,
@@ -25,13 +25,15 @@ function sourcePercentages(
   solarWh: number,
   batteryWh: number,
   gridWh: number,
+  awayWh: number,
 ) {
-  const totalWh = solarWh + batteryWh + gridWh;
-  if (totalWh <= 0) return { solar: 0, battery: 0, grid: 0 };
+  const totalWh = solarWh + batteryWh + gridWh + awayWh;
+  if (totalWh <= 0) return { solar: 0, battery: 0, grid: 0, away: 0 };
   return {
     solar: Math.round((solarWh / totalWh) * 100),
     battery: Math.round((batteryWh / totalWh) * 100),
     grid: Math.round((gridWh / totalWh) * 100),
+    away: Math.round((awayWh / totalWh) * 100),
   };
 }
 
@@ -109,6 +111,7 @@ function VehicleChargingCard({
   solarWh,
   batteryWh,
   gridWh,
+  awayWh,
   costCents,
   solarSavingsCents,
   currencySymbol,
@@ -117,12 +120,13 @@ function VehicleChargingCard({
   solarWh: number;
   batteryWh: number;
   gridWh: number;
+  awayWh: number;
   costCents: number;
   solarSavingsCents: number;
   currencySymbol: string;
 }) {
-  const totalWh = solarWh + batteryWh + gridWh;
-  const pct = sourcePercentages(solarWh, batteryWh, gridWh);
+  const totalWh = solarWh + batteryWh + gridWh + awayWh;
+  const pct = sourcePercentages(solarWh, batteryWh, gridWh, awayWh);
   return (
     <Card className={styles.breakdownCard}>
       <Text size="2" weight="bold">{title}</Text>
@@ -155,6 +159,13 @@ function VehicleChargingCard({
         pct={pct.grid}
         color="var(--color-grid-car)"
         icon={<Zap size={16} style={{ color: "var(--color-grid-car)" }} />}
+      />
+      <EnergyBreakdownRow
+        label="Away"
+        valueWh={awayWh}
+        pct={pct.away}
+        color="var(--color-away)"
+        icon={<MapPin size={16} style={{ color: "var(--color-away)" }} />}
       />
       <ChargingCostRows
         costCents={costCents}
@@ -189,6 +200,7 @@ function VehicleCards({
             solarWh={vehicle.totalSolarWh}
             batteryWh={vehicle.totalBatteryWh}
             gridWh={vehicle.totalGridWh}
+            awayWh={vehicle.totalAwayWh}
             costCents={vehicle.totalCostCents}
             solarSavingsCents={vehicle.evSolarSavingsCents}
             currencySymbol={currencySymbol}
@@ -204,6 +216,7 @@ function VehicleCards({
       solarWh={data.totalSolarWh}
       batteryWh={data.totalBatteryWh}
       gridWh={data.totalGridWh}
+      awayWh={data.totalAwayWh}
       costCents={data.totalCostCents ?? 0}
       solarSavingsCents={data.evSolarSavingsCents ?? 0}
       currencySymbol={currencySymbol}
