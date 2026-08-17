@@ -101,8 +101,8 @@ describe("Stats", () => {
         solarWh: 800,
         batteryWh: 0,
         gridWh: 200,
-        awayWh: 0,
-        totalWh: 1000,
+        awayWh: 300,
+        totalWh: 1300,
       },
       {
         label: "11",
@@ -113,11 +113,11 @@ describe("Stats", () => {
         totalWh: 700,
       },
     ],
-    totalChargedWh: 1700,
+    totalChargedWh: 2000,
     totalSolarWh: 1400,
     totalBatteryWh: 0,
     totalGridWh: 300,
-    totalAwayWh: 0,
+    totalAwayWh: 300,
     selfPoweredPercent: 82,
   };
 
@@ -177,27 +177,29 @@ describe("Stats", () => {
 
   it("shows only EV charging summary metrics", () => {
     renderStats();
+    expect(screen.getByText("Total Charged")).toBeInTheDocument();
     expect(screen.getByText("Charged at Home")).toBeInTheDocument();
     expect(screen.getByText("From Solar")).toBeInTheDocument();
     expect(screen.getByText("From Battery")).toBeInTheDocument();
     expect(screen.getByText("From Grid")).toBeInTheDocument();
+    expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Solar Share")).toBeInTheDocument();
     expect(screen.queryByText("Solar Produced")).not.toBeInTheDocument();
     expect(screen.queryByText("Total Consumed")).not.toBeInTheDocument();
     expect(screen.queryByText("Self Powered")).not.toBeInTheDocument();
   });
 
-  it("shows five summary placeholders while loading", () => {
+  it("shows seven summary placeholders while loading", () => {
     setStats({ loading: true });
     renderStats();
-    expect(screen.getAllByText("—")).toHaveLength(5);
+    expect(screen.getAllByText("—")).toHaveLength(7);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 
-  it("renders EV solar share from charged energy", () => {
+  it("calculates solar share from total charging including Away", () => {
     setStats({ isAtPresent: false, data: mockStatsData });
     renderStats();
-    expect(screen.getAllByText("82%").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("70%").length).toBeGreaterThanOrEqual(1);
   });
 
   it("does not render home energy or home battery cards", () => {
@@ -230,31 +232,18 @@ describe("Stats", () => {
     expect(screen.getByText("Solar → Car")).toBeInTheDocument();
     expect(screen.getByText("Battery → Car")).toBeInTheDocument();
     expect(screen.getByText("Grid → Car")).toBeInTheDocument();
+    expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText("Solar → Home")).not.toBeInTheDocument();
     expect(screen.queryByText("Grid → Home")).not.toBeInTheDocument();
     expect(screen.queryByText("Solar Production")).not.toBeInTheDocument();
     expect(screen.queryByText("Total Consumption")).not.toBeInTheDocument();
   });
 
-  it("renders a home-only vehicle charging fallback", async () => {
+  it("renders complete vehicle charging including Away", async () => {
     setStats({ isAtPresent: false, data: mockStatsData });
     renderStats();
     expect(await screen.findByText("Vehicle Charging")).toBeInTheDocument();
-    expect(screen.queryByText("Away")).not.toBeInTheDocument();
-  });
-
-  it("never renders away charging even if stale data contains it", async () => {
-    setStats({
-      isAtPresent: false,
-      data: {
-        ...mockStatsData,
-        totalAwayWh: 500,
-        totalChargedWh: 2200,
-      },
-    });
-    renderStats();
-    expect(await screen.findByText("Vehicle Charging")).toBeInTheDocument();
-    expect(screen.queryByText("Away")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(2);
   });
 
   it("uses EV-only cost and savings metrics", () => {
