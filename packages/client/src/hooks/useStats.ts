@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
-import type { StatsPeriod } from "@chargeha/shared";
+import type { StatsPeriod, StatsResponse } from "@chargeha/shared";
 import { trpc } from "../trpc.ts";
 
 const MONTH_NAMES = [
@@ -18,7 +18,12 @@ const MONTH_NAMES = [
   "December",
 ];
 
-function formatCursorLabel(period: StatsPeriod, cursor: Date): string {
+export type StatsViewPeriod = StatsPeriod | "total";
+export type StatsViewResponse = Omit<StatsResponse, "period"> & {
+  period: StatsViewPeriod;
+};
+
+function formatCursorLabel(period: StatsViewPeriod, cursor: Date): string {
   switch (period) {
     case "day": {
       const options: Intl.DateTimeFormatOptions = {
@@ -33,10 +38,12 @@ function formatCursorLabel(period: StatsPeriod, cursor: Date): string {
       return `${MONTH_NAMES[cursor.getMonth()]} ${cursor.getFullYear()}`;
     case "year":
       return String(cursor.getFullYear());
+    case "total":
+      return "All years";
   }
 }
 
-function isSamePeriod(period: StatsPeriod, a: Date, b: Date): boolean {
+function isSamePeriod(period: StatsViewPeriod, a: Date, b: Date): boolean {
   switch (period) {
     case "day":
       return (
@@ -51,11 +58,13 @@ function isSamePeriod(period: StatsPeriod, a: Date, b: Date): boolean {
       );
     case "year":
       return a.getFullYear() === b.getFullYear();
+    case "total":
+      return true;
   }
 }
 
 function shiftCursor(
-  period: StatsPeriod,
+  period: StatsViewPeriod,
   cursor: Date,
   direction: -1 | 1,
 ): Date {
@@ -70,6 +79,8 @@ function shiftCursor(
       break;
     case "year":
       d.setFullYear(d.getFullYear() + direction);
+      break;
+    case "total":
       break;
   }
   return d;
@@ -86,7 +97,7 @@ function cursorToDateStr(cursor: Date): string {
 export type DayResolution = "15m" | "1h";
 
 export function useStats() {
-  const [period, setPeriod] = useState<StatsPeriod>("day");
+  const [period, setPeriod] = useState<StatsViewPeriod>("day");
   const [resolution, setResolution] = useState<DayResolution>("1h");
   const [cursor, setCursor] = useState<Date>(() => new Date());
 
@@ -111,10 +122,20 @@ export function useStats() {
     { enabled: period === "year", placeholderData: keepPreviousData },
   );
 
-  const queries = { day: dayQuery, month: monthQuery, year: yearQuery };
-  const activeQuery = queries[period];
+  const totalQuery = trpc.stats.total.useQuery(
+    { tz },
+    { enabled: period === "total", placeholderData: keepPreviousData },
+  );
 
-  const { data, isLoading, error } = activeQuery;
+  const queries = {
+    day: dayQuery,
+    month: monthQuery,
+    year: yearQuery,
+    total: totalQuery,
+  };
+  const activeQuery = queries[period];
+  const data = activeQuery.data as StatsViewResponse | undefined;
+  const { isLoading, error } = activeQuery;
 
   const isAtPresent = useMemo(
     () => isSamePeriod(period, cursor, new Date()),
@@ -141,13 +162,13 @@ export function useStats() {
   }, []);
 
   // Reset cursor to today when period changes
-  const changePeriod = useCallback((p: StatsPeriod) => {
+  const changePeriod = useCallback((p: StatsViewPeriod) => {
     setPeriod(p);
     setCursor(new Date());
   }, []);
 
-  // Drill into a specific date/month from a chart click
-  const drillDown = useCallback((p: StatsPeriod, date: Date) => {
+  // Drill into a specific date/month/year from a chart click
+  const drillDown = useCallback((p: StatsViewPeriod, date: Date) => {
     setPeriod(p);
     setCursor(date);
   }, []);
