@@ -9,8 +9,6 @@ import type { VehicleChargeHistoryRowInput } from "@chargeha/server/db/repositor
 import { resolveFroniusCloudTestPassword } from "./resolveTestPassword.ts";
 import { fetchFroniusCloudEvHistory } from "./FroniusCloudHistory.ts";
 
-const WATTPILOT_VEHICLE_NAME = "Edith";
-
 // ── Typed Zod schemas for Fronius Cloud plugin procedures ───────────────────
 
 const testConnectionInput = z.object({
@@ -96,20 +94,14 @@ export function createFroniusCloudRouter(deps: PluginDependencies) {
     importEvHistory: publicProcedure
       .input(importHistoryInput)
       .mutation(async ({ input }) => {
-        const [email, password, pvSystemId, vehicle] = await Promise.all([
+        const [email, password, pvSystemId] = await Promise.all([
           deps.getConfig("email"),
           deps.getSecret("password"),
           deps.getConfig("pv_system_id"),
-          deps.findVehicleByName(WATTPILOT_VEHICLE_NAME),
         ]);
         if (!email || !password || !pvSystemId) {
           throw new Error(
             "Configure and save the Solar.web email, password and PV System ID before importing history",
-          );
-        }
-        if (vehicle === null) {
-          throw new Error(
-            `Vehicle "${WATTPILOT_VEHICLE_NAME}" was not found. Solar.web Wattpilot history is reserved for Edith.`,
           );
         }
 
@@ -130,19 +122,13 @@ export function createFroniusCloudRouter(deps: PluginDependencies) {
             shiftedDayIso(input.to, 2),
           );
           const rows = rowsInLocalDateRange(history.rows, input.from, input.to);
-          const importResult = await deps.importVehicleChargeHistoryRows(
-            vehicle.id,
-            rows,
-          );
-          const coverage = await deps.getVehicleChargeHistoryCoverage(
+          const importResult = await deps.importAggregateEvChargeHistoryRows(rows);
+          const coverage = await deps.getAggregateEvChargeHistoryCoverage(
             "solarweb",
-            vehicle.id,
           );
 
           return {
             ...importResult,
-            vehicleId: vehicle.id,
-            vehicleName: vehicle.name,
             samplesRead: history.samplesRead,
             chargingIntervals: rows.length,
             chargedWh: sumWh(rows, (row) => row.chargedWh),
