@@ -1,7 +1,8 @@
-import { type ComponentProps, useMemo } from "react";
+import { type ComponentProps, type ReactNode, useMemo } from "react";
 import { Car, Settings, Zap } from "lucide-react";
 import { Button, Card, Text } from "@radix-ui/themes";
 import type { VehicleMode } from "@chargeha/shared";
+import type { SolarChargeForecastResult } from "@chargeha/shared/forecast";
 import { isHome } from "@chargeha/shared/geo";
 import {
   useChargingConfig,
@@ -17,6 +18,24 @@ import { trpc } from "../../../trpc.ts";
 import { useVehicleSolarGrid } from "./energyHelpers.ts";
 
 type VehicleCardProps = ComponentProps<typeof VehicleCard>;
+
+function renderSolarForecast(
+  eligible: boolean,
+  mode: VehicleMode,
+  data: SolarChargeForecastResult | undefined,
+  isLoading: boolean,
+  isError: boolean,
+): ReactNode {
+  if (!eligible) return null;
+  return (
+    <SolarForecastInline
+      mode={mode}
+      data={data}
+      isLoading={isLoading}
+      isError={isError}
+    />
+  );
+}
 
 /** Wraps VehicleCard with a per-vehicle commandStatus query. */
 function ConnectedVehicleCard(
@@ -39,22 +58,20 @@ function ConnectedVehicleCard(
       retry: 1,
     },
   );
+  const forecastContent = renderSolarForecast(
+    forecastEligible,
+    props.mode,
+    forecast.data,
+    forecast.isLoading,
+    forecast.isError,
+  );
 
   return (
     <VehicleCard
       {...props}
       commandsDisabled={cmdStatus?.commandsDisabled ?? false}
       commandsDisabledReason={cmdStatus?.reason ?? undefined}
-      forecastContent={forecastEligible
-        ? (
-          <SolarForecastInline
-            mode={props.mode}
-            data={forecast.data}
-            isLoading={forecast.isLoading}
-            isError={forecast.isError}
-          />
-        )
-        : null}
+      forecastContent={forecastContent}
     />
   );
 }
@@ -203,7 +220,10 @@ function VehicleCards(
     vehiclesLoading: boolean;
     commandPending: Record<string, string | false>;
     vehicleErrors: Record<string, string | undefined>;
-    vehicleSolarGrid: Record<string, { solarW: number; batteryW: number; gridW: number }>;
+    vehicleSolarGrid: Record<
+      string,
+      { solarW: number; batteryW: number; gridW: number }
+    >;
     allocationStatus: Record<string, string>;
     controllerStatuses: ReturnType<typeof useControllerStatuses>;
     wakeMutation: ReturnType<typeof trpc.vehicle.command.useMutation>;
@@ -245,7 +265,8 @@ function VehicleCards(
               controllerReason={controllerStatuses[v.id]?.reason ?? null}
               controllerDetail={controllerStatuses[v.id]?.detail ?? null}
               onNavigateSettings={onNavigateSettings}
-              onRefresh={() => refreshMutation.mutateAsync({ vehicleId: v.id })}
+              onRefresh={() =>
+                refreshMutation.mutateAsync({ vehicleId: v.id })}
             />
           );
         }

@@ -62,6 +62,10 @@ vi.mock("./SolarForecastSettings.tsx", () => ({
   SolarForecastSettings: () => <div data-testid="solar-forecast-settings" />,
 }));
 
+vi.mock("./HistoryMigrationSettings.tsx", () => ({
+  HistoryMigrationSettings: () => <div data-testid="history-migration-settings" />,
+}));
+
 const {
   mockLocationFetch,
   mockSetBulkMutate,
@@ -244,7 +248,6 @@ describe("Settings", () => {
     }));
     Element.prototype.scrollIntoView = vi.fn();
 
-    // Reset mockAc to defaults
     mockAc.query = "";
     mockAc.suggestions = [];
     mockAc.open = false;
@@ -253,7 +256,6 @@ describe("Settings", () => {
     mockAc.setOpen.mockClear();
     mockAc.clear.mockClear();
 
-    // Reset to defaults
     mockConfigGetAllUseQuery.mockReturnValue({
       data: { ...defaultConfig },
       isLoading: false,

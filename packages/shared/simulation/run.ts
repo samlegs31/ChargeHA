@@ -70,6 +70,21 @@ function buildControllerConfig(opts: SimulationOptions): ControllerConfig {
   };
 }
 
+function buildSimulationSchedules(opts: SimulationOptions): EngineSchedule[] {
+  if (!opts.scheduleEnabled) return [];
+  return [{
+    id: "SIM_HC",
+    vehicleId: null,
+    scheduleType: "charge",
+    startTime: opts.scheduleStart,
+    endTime: opts.scheduleEnd,
+    days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+    chargeAmps: opts.scheduleAmps,
+    chargeLimitPct: opts.scheduleTargetPct,
+    enabled: true,
+  }];
+}
+
 function initVehicleStates(
   vehicleConfigs: VehicleConfig[],
 ): Map<string, VehicleChargeState> {
@@ -236,20 +251,7 @@ export function runSimulation(
   const engine = new ControllerEngine();
   const events: ControllerEvent[] = [];
   const results: SimResult[] = [];
-
-  const simulationSchedules: EngineSchedule[] = opts.scheduleEnabled
-    ? [{
-      id: "SIM_HC",
-      vehicleId: null,
-      scheduleType: "charge",
-      startTime: opts.scheduleStart,
-      endTime: opts.scheduleEnd,
-      days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
-      chargeAmps: opts.scheduleAmps,
-      chargeLimitPct: opts.scheduleTargetPct,
-      enabled: true,
-    }]
-    : [];
+  const simulationSchedules = buildSimulationSchedules(opts);
 
   const solarDay = generateSolarDay({
     seed: opts.seed,

@@ -35,6 +35,12 @@ const VEHICLE_NAMES = ["EV 1", "EV 2"].slice(0, vehicleCount);
 
 const { results } = runSimulation({
   seed,
+  vehicleMode: "auto",
+  scheduleEnabled: false,
+  scheduleStart: "22:00",
+  scheduleEnd: "06:00",
+  scheduleAmps: 16,
+  scheduleTargetPct: 80,
   vehicleCount,
   waterfall,
   minGenKw: "1",

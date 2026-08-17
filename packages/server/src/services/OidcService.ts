@@ -4,6 +4,8 @@ import type { OidcConfigRow } from "../db/types.ts";
 import { decrypt } from "../lib/Encryption.ts";
 import type { Logger } from "../lib/Logger.ts";
 
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
 function parseAllowedOidcIssuer(raw: string): URL {
   const issuer = new URL(raw);
   if (issuer.username || issuer.password) {
@@ -11,10 +13,7 @@ function parseAllowedOidcIssuer(raw: string): URL {
   }
   if (issuer.protocol === "https:") return issuer;
 
-  const localHost = issuer.hostname === "localhost" ||
-    issuer.hostname === "127.0.0.1" ||
-    issuer.hostname === "::1" ||
-    issuer.hostname === "[::1]";
+  const localHost = LOOPBACK_HOSTS.has(issuer.hostname);
   if (issuer.protocol === "http:" && localHost) return issuer;
 
   throw new Error(

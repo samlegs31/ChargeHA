@@ -44,8 +44,6 @@ function renderRoute(
   route: Route,
   navigate: (r: Route) => void,
   layout: {
-    appearance: Appearance;
-    onToggleAppearance: () => void;
     onNavigate: (page: Page) => void;
     authMode: string;
     onLogout: () => void;

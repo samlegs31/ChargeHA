@@ -71,8 +71,6 @@ vi.mock("../../../lib/featureFlags.ts", async (orig) => {
   };
 });
 
-// ---- Tests ----
-
 describe("InverterTypeStep", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -93,8 +91,6 @@ describe("InverterTypeStep", () => {
     cleanup();
   });
 
-  // ---- Initial render ----
-
   it("disables Fronius options in demo mode", () => {
     mockIsDemoMode.mockReturnValue(true);
     renderWithProviders(
@@ -111,19 +107,17 @@ describe("InverterTypeStep", () => {
     expect(mockMutate).not.toHaveBeenCalled();
   });
 
-  it("renders three options: Fronius Local, Fronius Cloud, None/Skip", () => {
+  it("renders Fronius Local, Solar.web Account and None/Skip", () => {
     renderWithProviders(
       <StepNextHarness def={inverterTypeStep} onAdvance={mockAdvance} />,
     );
 
     expect(screen.getByText("Fronius (Local)")).toBeInTheDocument();
     expect(
-      screen.getByText("Fronius (Cloud / Solar.web)"),
+      screen.getByText("Fronius (Solar.web Account)"),
     ).toBeInTheDocument();
     expect(screen.getByText("None / Skip")).toBeInTheDocument();
   });
-
-  // ---- User interactions / API calls ----
 
   it("selecting None persists an empty adapter type and advances", async () => {
     renderWithProviders(
@@ -139,13 +133,12 @@ describe("InverterTypeStep", () => {
       );
     });
 
-    // "" is a real selection, not an absent one — it advances like any other.
     expect(mockAdvance).toHaveBeenCalledWith({ energyType: "" });
   });
 
   it.each<[string, string]>([
     ["Fronius (Local)", "fronius_local"],
-    ["Fronius (Cloud / Solar.web)", "fronius_cloud"],
+    ["Fronius (Solar.web Account)", "fronius_cloud"],
   ])(
     "selecting %s persists adapter %s and commits it without naming a next step",
     async (label, adapterType) => {
@@ -162,13 +155,11 @@ describe("InverterTypeStep", () => {
         );
       });
 
-      // The step reports what was chosen; the flow decides where that leads.
       expect(mockAdvance).toHaveBeenCalledWith({ energyType: adapterType });
     },
   );
 
   it("Next commits the saved adapter type when the wizard state has none", async () => {
-    // Re-opened wizard: the saved source shows selected while state.energyType is still "", so Next must write it.
     mockEquipmentGet.mockReturnValue({
       data: { energyAdapterType: "fronius_local" },
       isLoading: false,
@@ -180,7 +171,6 @@ describe("InverterTypeStep", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Next/ }));
 
-    // The selection comes back from an async Next handler, so the move lands a microtask later.
     await waitFor(() => {
       expect(mockAdvance).toHaveBeenCalledWith({ energyType: "fronius_local" });
     });

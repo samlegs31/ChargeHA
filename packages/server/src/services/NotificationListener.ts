@@ -274,10 +274,8 @@ export class NotificationListener {
       return;
     }
 
-    const crossedTarget =
-      this.lastBatterySoc !== null &&
-      this.lastBatterySoc < limit &&
-      soc >= limit;
+    const previousSoc = this.lastBatterySoc;
+    const crossedTarget = previousSoc !== null && previousSoc < limit && soc >= limit;
 
     if (crossedTarget && !this.batteryTargetReached) {
       this.batteryTargetReached = true;

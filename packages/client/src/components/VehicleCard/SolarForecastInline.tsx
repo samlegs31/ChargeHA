@@ -1,7 +1,10 @@
 import { MoonStar, SunMedium } from "lucide-react";
 import { Text } from "@radix-ui/themes";
 import type { VehicleMode } from "@chargeha/shared";
-import type { SolarChargeForecastResult } from "@chargeha/shared/forecast";
+import type {
+  SolarChargeForecast,
+  SolarChargeForecastResult,
+} from "@chargeha/shared/forecast";
 
 function formatTime(iso: string | null, timezone: string): string {
   if (!iso) return "—";
@@ -26,6 +29,53 @@ const rowStyle: React.CSSProperties = {
   minWidth: 0,
 };
 
+function ForecastStatus({ text }: { text: string }) {
+  return (
+    <div data-testid="solar-forecast-inline" style={{ ...rowStyle, marginTop: 6 }}>
+      <SunMedium size={13} style={{ color: "var(--yellow-10)", flexShrink: 0 }} />
+      <Text size="1" color="gray">{text}</Text>
+    </div>
+  );
+}
+
+function unavailableStatus(data: SolarChargeForecastResult): string | null {
+  if (data.available) return null;
+  if (data.reason === "not_configured") {
+    return "Solar forecast: configure in Settings";
+  }
+  if (data.reason === "weather_unavailable" || data.reason === "energy_unavailable") {
+    return "Solar forecast temporarily unavailable";
+  }
+  return null;
+}
+
+function solarForecastText(data: SolarChargeForecast): string {
+  if (data.solarEndAt) {
+    return `Solar ends ${formatTime(data.solarEndAt, data.timezone)} · +${
+      data.solarChargeRemainingKwh.toFixed(1)
+    } kWh to car · ${Math.round(data.socAtSolarEnd)}% tonight`;
+  }
+  return `No more solar charging expected today · ${Math.round(data.socAtSolarEnd)}% tonight`;
+}
+
+function scheduleForecastText(
+  mode: VehicleMode,
+  data: SolarChargeForecast,
+): string | null {
+  if (mode !== "auto" || data.schedule === null) return null;
+
+  const schedule = data.schedule;
+  const targetReached = data.finalSoc >= schedule.targetPercent - 0.05;
+  if (targetReached) {
+    return `Target ${schedule.targetPercent}% around ${
+      formatTime(schedule.expectedFinishAt ?? schedule.endAt, data.timezone)
+    }`;
+  }
+  return `Schedule to ${formatTime(schedule.endAt, data.timezone)} · ${
+    Math.round(data.finalSoc)
+  }% expected`;
+}
+
 export function SolarForecastInline({
   mode,
   data,
@@ -38,51 +88,17 @@ export function SolarForecastInline({
   isError: boolean;
 }) {
   if (isLoading) {
-    return (
-      <div data-testid="solar-forecast-inline" style={{ ...rowStyle, marginTop: 6 }}>
-        <SunMedium size={13} style={{ color: "var(--yellow-10)", flexShrink: 0 }} />
-        <Text size="1" color="gray">Calculating today's solar forecast…</Text>
-      </div>
-    );
+    return <ForecastStatus text="Calculating today's solar forecast…" />;
   }
-
   if (isError || !data) return null;
 
+  const unavailableText = unavailableStatus(data);
   if (!data.available) {
-    if (data.reason === "not_configured") {
-      return (
-        <div data-testid="solar-forecast-inline" style={{ ...rowStyle, marginTop: 6 }}>
-          <SunMedium size={13} style={{ color: "var(--yellow-10)", flexShrink: 0 }} />
-          <Text size="1" color="gray">Solar forecast: configure in Settings</Text>
-        </div>
-      );
-    }
-    if (data.reason === "weather_unavailable" || data.reason === "energy_unavailable") {
-      return (
-        <div data-testid="solar-forecast-inline" style={{ ...rowStyle, marginTop: 6 }}>
-          <SunMedium size={13} style={{ color: "var(--yellow-10)", flexShrink: 0 }} />
-          <Text size="1" color="gray">Solar forecast temporarily unavailable</Text>
-        </div>
-      );
-    }
-    return null;
+    return unavailableText ? <ForecastStatus text={unavailableText} /> : null;
   }
 
-  const solarEnd = data.solarEndAt
-    ? formatTime(data.solarEndAt, data.timezone)
-    : null;
-  const solarText = solarEnd
-    ? `Solar ends ${solarEnd} · +${data.solarChargeRemainingKwh.toFixed(1)} kWh to car · ${Math.round(data.socAtSolarEnd)}% tonight`
-    : `No more solar charging expected today · ${Math.round(data.socAtSolarEnd)}% tonight`;
-
-  const schedule = mode === "auto" ? data.schedule : null;
-  const targetReached = schedule !== null &&
-    data.finalSoc >= schedule.targetPercent - 0.05;
-  const scheduleText = schedule === null
-    ? null
-    : targetReached
-    ? `Target ${schedule.targetPercent}% around ${formatTime(schedule.expectedFinishAt ?? schedule.endAt, data.timezone)}`
-    : `Schedule to ${formatTime(schedule.endAt, data.timezone)} · ${Math.round(data.finalSoc)}% expected`;
+  const solarText = solarForecastText(data);
+  const scheduleText = scheduleForecastText(mode, data);
 
   return (
     <div

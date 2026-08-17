@@ -14,13 +14,14 @@ export function registerPublicPluginRoutes(
   app: Hono,
   routes: PluginTunnelRoute[],
 ): void {
-  const seen = new Set<string>();
+  const uniqueRoutes = routes.reduce<PluginTunnelRoute[]>((acc, route) => {
+    const duplicate = acc.some((registered) => registered.path === route.path);
+    if (!route.handler || duplicate) return acc;
+    return [...acc, route];
+  }, []);
 
-  for (const route of routes) {
-    if (!route.handler || seen.has(route.path)) continue;
-    seen.add(route.path);
-
+  uniqueRoutes.forEach((route) => {
     const handler = route.handler;
-    app.get(route.path, (c) => handler(c.req.raw));
-  }
+    if (handler) app.get(route.path, (c) => handler(c.req.raw));
+  });
 }

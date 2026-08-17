@@ -27,6 +27,7 @@ const BASE_SYSTEM_EFFICIENCY = 0.94;
 const PANEL_TEMP_COEFFICIENT = -0.0035;
 const DEFAULT_VEHICLE_CAPACITY_KWH = 60;
 const FORECAST_HORIZON_HOURS = 36;
+const MINUTE_MS = 60_000;
 
 interface MeteoFranceResponse {
   utc_offset_seconds: number;
@@ -49,6 +50,50 @@ interface ScheduleWindowState {
   amps: number;
   targetPercent: number;
   wasActive: boolean;
+}
+
+interface SimulationInput {
+  now: Date;
+  vehicleId: string;
+  vehicleName: string;
+  mode: Extract<VehicleMode, "vacation" | "auto">;
+  priority: number;
+  initialState: VehicleChargeState;
+  controllerConfig: ControllerConfig;
+  schedules: EngineSchedule[];
+  points: PvPoint[];
+  forecastDayEnd: Date;
+  baseLoadW: number;
+  initialBatteryPowerW: number;
+  batterySoc: number | null;
+  vehicleCapacityKwh: number;
+}
+
+interface SimulationRuntime {
+  vehicleState: VehicleChargeState;
+  scheduleState: ScheduleWindowState;
+  soc: number;
+  solarChargeKwh: number;
+  solarEndAt: string | null;
+  socAtSolarEnd: number;
+  simulatedEvW: number;
+  finalAt: string | null;
+  stopped: boolean;
+}
+
+interface SimulationResult {
+  solarChargeKwh: number;
+  solarEndAt: string | null;
+  socAtSolarEnd: number;
+  finalSoc: number;
+  finalAt: string | null;
+  schedule: {
+    startAt: string;
+    endAt: string;
+    amps: number;
+    targetPercent: number;
+    expectedFinishAt: string | null;
+  } | null;
 }
 
 export class SolarForecastService {
@@ -97,12 +142,7 @@ export class SolarForecastService {
     }
 
     const arrays = parseSolarArrays(forecastConfig.solarForecastArraysJson);
-    const configured = forecastConfig.solarForecastEnabled &&
-      forecastConfig.solarForecastLatitude !== null &&
-      forecastConfig.solarForecastLongitude !== null &&
-      validInstallationDate(forecastConfig.solarForecastInstallationDate) &&
-      arrays.length > 0;
-    if (!configured) {
+    if (!forecastConfigured(forecastConfig, arrays)) {
       return unavailable(
         "not_configured",
         "Configure Solar Forecast in Settings first.",
@@ -134,13 +174,11 @@ export class SolarForecastService {
       this.scheduleService.list(),
     ]);
     const capacity = estimateVehicleCapacityKwh(state, capacitySamples);
-    const schedules = schedulesResult.schedules as EngineSchedule[];
     const baseLoadW = await this.estimateBaseHomeLoadW(
       snapshot.realtime,
       controllerConfig,
     );
     const pvRemainingKwh = integrateRemainingPvKwh(weatherResult.points, now);
-
     const simulation = this.simulate({
       now,
       vehicleId,
@@ -149,7 +187,7 @@ export class SolarForecastService {
       priority: vehicle.priority,
       initialState: state,
       controllerConfig,
-      schedules,
+      schedules: schedulesResult.schedules as EngineSchedule[],
       points: weatherResult.points,
       forecastDayEnd: weatherResult.dayEnd,
       baseLoadW,
@@ -157,14 +195,6 @@ export class SolarForecastService {
       batterySoc: snapshot.realtime.batterySoc,
       vehicleCapacityKwh: capacity.kwh,
     });
-
-    const confidence = capacity.sampleCount >= 5 &&
-        weatherResult.liveCorrection >= 0.8 &&
-        weatherResult.liveCorrection <= 1.2
-      ? "high"
-      : capacity.sampleCount > 0
-      ? "medium"
-      : "low";
 
     return {
       available: true,
@@ -179,7 +209,7 @@ export class SolarForecastService {
       finalSoc: round1(simulation.finalSoc),
       finalAt: simulation.finalAt,
       schedule: simulation.schedule,
-      confidence,
+      confidence: forecastConfidence(capacity.sampleCount, weatherResult.liveCorrection),
     };
   }
 
@@ -282,7 +312,7 @@ export class SolarForecastService {
     const last = corrected[corrected.length - 1];
     return {
       points: corrected,
-      dayEnd: new Date(last.at.getTime() + 15 * 60_000),
+      dayEnd: new Date(last.at.getTime() + 15 * MINUTE_MS),
       liveCorrection,
     };
   }
@@ -334,182 +364,131 @@ export class SolarForecastService {
     });
   }
 
-  private simulate(input: {
-    now: Date;
-    vehicleId: string;
-    vehicleName: string;
-    mode: Extract<VehicleMode, "vacation" | "auto">;
-    priority: number;
-    initialState: VehicleChargeState;
-    controllerConfig: ControllerConfig;
-    schedules: EngineSchedule[];
-    points: PvPoint[];
-    forecastDayEnd: Date;
-    baseLoadW: number;
-    initialBatteryPowerW: number;
-    batterySoc: number | null;
-    vehicleCapacityKwh: number;
-  }): {
-    solarChargeKwh: number;
-    solarEndAt: string | null;
-    socAtSolarEnd: number;
-    finalSoc: number;
-    finalAt: string | null;
-    schedule: {
-      startAt: string;
-      endAt: string;
-      amps: number;
-      targetPercent: number;
-      expectedFinishAt: string | null;
-    } | null;
-  } {
+  private simulate(input: SimulationInput): SimulationResult {
     const engine = new ControllerEngine();
-    const state: VehicleChargeState = { ...input.initialState };
+    const electrical = resolveElectrical(input.initialState, input.controllerConfig);
     const startMs = input.now.getTime();
-    const horizonMs = input.mode === "vacation"
-      ? input.forecastDayEnd.getTime()
-      : startMs + FORECAST_HORIZON_HOURS * 60 * 60_000;
-    const electrical = resolveElectrical(state, input.controllerConfig);
-    const scheduleState: ScheduleWindowState = {
-      startAt: null,
-      endAt: null,
-      expectedFinishAt: null,
-      amps: 0,
-      targetPercent: state.chargeLimit,
-      wasActive: false,
+    const horizonMs = simulationHorizonMs(input, startMs);
+    const initialRuntime = createSimulationRuntime(input, electrical);
+    const minuteCount = Math.max(0, Math.floor((horizonMs - startMs) / MINUTE_MS) + 1);
+    const runtime = Array.from({ length: minuteCount }, (_, index) =>
+      startMs + index * MINUTE_MS
+    ).reduce(
+      (current, ts) => this.simulateMinute(input, engine, electrical, current, ts),
+      initialRuntime,
+    );
+    const finalAt = simulationFinalAt(runtime, input.mode);
+    return {
+      solarChargeKwh: runtime.solarChargeKwh,
+      solarEndAt: runtime.solarEndAt,
+      socAtSolarEnd: runtime.socAtSolarEnd,
+      finalSoc: runtime.soc,
+      finalAt,
+      schedule: scheduleResult(runtime.scheduleState),
     };
+  }
 
-    let soc = state.batteryLevel;
-    let solarChargeKwh = 0;
-    let solarEndAt: string | null = null;
-    let socAtSolarEnd = soc;
-    let simulatedEvW = state.isCharging
-      ? state.chargeAmps * electrical.voltage * electrical.phases
-      : 0;
-    let finalAt: string | null = null;
-
-    for (let ts = startMs; ts <= horizonMs; ts += 60_000) {
-      const at = new Date(ts);
-      const pvW = at <= input.forecastDayEnd
-        ? powerAt(input.points, at)
-        : 0;
-      const batteryW = modeledBatteryPowerW({
-        at,
-        startMs,
-        pvW,
-        baseLoadW: input.baseLoadW,
-        evW: simulatedEvW,
-        initialBatteryPowerW: input.initialBatteryPowerW,
-        batterySoc: input.batterySoc,
-        config: input.controllerConfig,
-      });
-      const batteryChargeW = Math.max(0, -batteryW);
-      const gridPowerW = input.baseLoadW + simulatedEvW + batteryChargeW - pvW -
-        Math.max(0, batteryW);
-      const homeConsumptionW = input.controllerConfig.consumptionExcludesCharging
-        ? input.baseLoadW
-        : input.baseLoadW + simulatedEvW;
-      const energy: EnergyData = {
-        solarProductionW: pvW,
-        gridPowerW,
-        homeConsumptionW,
-        batteryPowerW: batteryW,
-        batterySoc: input.batterySoc,
-        gridVoltageV: electrical.voltage,
-        lastUpdated: at.toISOString(),
-      };
-      state.batteryLevel = soc;
-      state.chargePowerKw = simulatedEvW / 1000;
-      state.lastUpdated = at.toISOString();
-
-      const activeSchedule = findActiveChargeSchedule(
-        input.schedules,
-        input.vehicleId,
-        at,
-        input.controllerConfig.timezone,
-      );
-      updateScheduleWindow(scheduleState, activeSchedule, at, soc);
-
-      const result = engine.decide({
-        config: input.controllerConfig,
-        vehicles: [{
-          id: input.vehicleId,
-          name: input.vehicleName,
-          mode: input.mode,
-          priority: input.priority,
-          state,
-        }],
-        schedules: input.schedules,
-        energy,
-        now: at,
-        timestamp: ts,
-      });
-      const decision = result.decisions.get(input.vehicleId);
-      if (!decision) continue;
-
-      applyDecision(state, decision.action, decision.targetAmps, electrical);
-      simulatedEvW = state.isCharging
-        ? state.chargeAmps * electrical.voltage * electrical.phases
-        : 0;
-
-      const chargedKwh = simulatedEvW / 1000 / 60;
-      if (chargedKwh > 0) {
-        soc = Math.min(
-          state.chargeLimit,
-          soc + chargedKwh / input.vehicleCapacityKwh * 100,
-        );
-        state.energyAddedKwh += chargedKwh;
-      }
-
-      const scheduleActive = activeSchedule !== null;
-      if (!scheduleActive && at <= input.forecastDayEnd && state.isCharging) {
-        const solarAvailableW = Math.max(
-          0,
-          pvW - input.baseLoadW - batteryChargeW,
-        );
-        solarChargeKwh += Math.min(simulatedEvW, solarAvailableW) / 1000 / 60;
-        solarEndAt = new Date(ts + 60_000).toISOString();
-        socAtSolarEnd = soc;
-      }
-
-      if (
-        scheduleActive &&
-        scheduleState.expectedFinishAt === null &&
-        soc >= scheduleState.targetPercent
-      ) {
-        scheduleState.expectedFinishAt = new Date(ts + 60_000).toISOString();
-      }
-
-      if (
-        input.mode === "auto" && scheduleState.wasActive && !scheduleActive &&
-        scheduleState.endAt !== null
-      ) {
-        finalAt = scheduleState.expectedFinishAt ?? scheduleState.endAt;
-        break;
-      }
+  private simulateMinute(
+    input: SimulationInput,
+    engine: ControllerEngine,
+    electrical: { voltage: number; phases: number },
+    runtime: SimulationRuntime,
+    ts: number,
+  ): SimulationRuntime {
+    if (runtime.stopped) return runtime;
+    const at = new Date(ts);
+    const pvW = at <= input.forecastDayEnd ? powerAt(input.points, at) : 0;
+    const batteryW = modeledBatteryPowerW({
+      at,
+      startMs: input.now.getTime(),
+      pvW,
+      baseLoadW: input.baseLoadW,
+      evW: runtime.simulatedEvW,
+      initialBatteryPowerW: input.initialBatteryPowerW,
+      batterySoc: input.batterySoc,
+      config: input.controllerConfig,
+    });
+    const minute = createMinuteSnapshot(input, runtime, electrical, at, pvW, batteryW);
+    const activeSchedule = findActiveChargeSchedule(
+      input.schedules,
+      input.vehicleId,
+      at,
+      input.controllerConfig.timezone,
+    );
+    const scheduleState = advanceScheduleWindow(
+      runtime.scheduleState,
+      activeSchedule,
+      at,
+      runtime.soc,
+    );
+    const result = engine.decide({
+      config: input.controllerConfig,
+      vehicles: [{
+        id: input.vehicleId,
+        name: input.vehicleName,
+        mode: input.mode,
+        priority: input.priority,
+        state: minute.state,
+      }],
+      schedules: input.schedules,
+      energy: minute.energy,
+      now: at,
+      timestamp: ts,
+    });
+    const decision = result.decisions.get(input.vehicleId);
+    if (!decision) {
+      return { ...runtime, vehicleState: minute.state, scheduleState };
     }
 
-    if (!finalAt) finalAt = input.mode === "auto"
-      ? scheduleState.expectedFinishAt ?? scheduleState.endAt ?? solarEndAt
-      : solarEndAt;
-
-    const schedule = scheduleState.startAt && scheduleState.endAt
-      ? {
-        startAt: scheduleState.startAt,
-        endAt: scheduleState.endAt,
-        amps: scheduleState.amps,
-        targetPercent: scheduleState.targetPercent,
-        expectedFinishAt: scheduleState.expectedFinishAt,
-      }
-      : null;
-
+    const decidedState = applyDecision(
+      minute.state,
+      decision.action,
+      decision.targetAmps,
+      electrical,
+    );
+    const simulatedEvW = chargePowerW(decidedState, electrical);
+    const chargedKwh = simulatedEvW / 1000 / 60;
+    const soc = nextSoc(
+      runtime.soc,
+      chargedKwh,
+      input.vehicleCapacityKwh,
+      minute.state.chargeLimit,
+    );
+    const vehicleState = withAddedEnergy(decidedState, chargedKwh);
+    const scheduleActive = activeSchedule !== null;
+    const solar = updateSolarProgress({
+      runtime,
+      scheduleActive,
+      at,
+      forecastDayEnd: input.forecastDayEnd,
+      isCharging: vehicleState.isCharging,
+      pvW,
+      baseLoadW: input.baseLoadW,
+      batteryChargeW: minute.batteryChargeW,
+      simulatedEvW,
+      soc,
+      ts,
+    });
+    const finalScheduleState = finishScheduleAfterCharge(
+      scheduleState,
+      scheduleActive,
+      soc,
+      ts,
+    );
+    const stopped = autoScheduleFinished(input.mode, finalScheduleState, scheduleActive);
+    const finalAt = stopped
+      ? finalScheduleState.expectedFinishAt ?? finalScheduleState.endAt
+      : runtime.finalAt;
     return {
-      solarChargeKwh,
-      solarEndAt,
-      socAtSolarEnd,
-      finalSoc: soc,
+      vehicleState,
+      scheduleState: finalScheduleState,
+      soc,
+      solarChargeKwh: solar.solarChargeKwh,
+      solarEndAt: solar.solarEndAt,
+      socAtSolarEnd: solar.socAtSolarEnd,
+      simulatedEvW,
       finalAt,
-      schedule,
+      stopped,
     };
   }
 }
@@ -519,6 +498,33 @@ function unavailable(
   message: string,
 ): SolarChargeForecastResult {
   return { available: false, reason, message };
+}
+
+function forecastConfigured(
+  config: {
+    solarForecastEnabled: boolean;
+    solarForecastLatitude: number | null;
+    solarForecastLongitude: number | null;
+    solarForecastInstallationDate: string;
+  },
+  arrays: SolarArrayConfig[],
+): boolean {
+  if (!config.solarForecastEnabled) return false;
+  if (config.solarForecastLatitude === null || config.solarForecastLongitude === null) {
+    return false;
+  }
+  if (!validInstallationDate(config.solarForecastInstallationDate)) return false;
+  return arrays.length > 0;
+}
+
+function forecastConfidence(
+  sampleCount: number,
+  liveCorrection: number,
+): "high" | "medium" | "low" {
+  const liveMatch = liveCorrection >= 0.8 && liveCorrection <= 1.2;
+  if (sampleCount >= 5 && liveMatch) return "high";
+  if (sampleCount > 0) return "medium";
+  return "low";
 }
 
 function validInstallationDate(value: string): boolean {
@@ -535,7 +541,9 @@ export function panelAgeFactor(installationDate: string, now: Date): number {
 
 export function toOpenMeteoAzimuth(standardAzimuth: number): number {
   const raw = standardAzimuth - 180;
-  return raw > 180 ? raw - 360 : raw < -180 ? raw + 360 : raw;
+  if (raw > 180) return raw - 360;
+  if (raw < -180) return raw + 360;
+  return raw;
 }
 
 function localApiTimeToDate(localIso: string, utcOffsetSeconds: number): Date {
@@ -545,11 +553,11 @@ function localApiTimeToDate(localIso: string, utcOffsetSeconds: number): Date {
 
 function combineArrayForecasts(series: PvPoint[][]): PvPoint[] {
   if (series.length === 0) return [];
-  const totals = new Map<number, number>();
-  series.flat().forEach((point) => {
+  const totals = series.flat().reduce((acc, point) => {
     const key = point.at.getTime();
-    totals.set(key, (totals.get(key) ?? 0) + point.powerW);
-  });
+    acc.set(key, (acc.get(key) ?? 0) + point.powerW);
+    return acc;
+  }, new Map<number, number>());
   return [...totals.entries()]
     .map(([timestamp, powerW]) => ({ at: new Date(timestamp), powerW }))
     .sort((a, b) => a.at.getTime() - b.at.getTime());
@@ -557,18 +565,19 @@ function combineArrayForecasts(series: PvPoint[][]): PvPoint[] {
 
 function closestPoint(points: PvPoint[], at: Date): PvPoint | null {
   if (points.length === 0) return null;
-  return points.reduce((closest, point) =>
-    Math.abs(point.at.getTime() - at.getTime()) <
-        Math.abs(closest.at.getTime() - at.getTime())
-      ? point
-      : closest
-  );
+  return points.reduce((closest, point) => closerPoint(closest, point, at));
+}
+
+function closerPoint(closest: PvPoint, point: PvPoint, at: Date): PvPoint {
+  const pointDistance = Math.abs(point.at.getTime() - at.getTime());
+  const closestDistance = Math.abs(closest.at.getTime() - at.getTime());
+  return pointDistance < closestDistance ? point : closest;
 }
 
 function powerAt(points: PvPoint[], at: Date): number {
   const atMs = at.getTime();
   const point = points.find((candidate) =>
-    candidate.at.getTime() >= atMs && candidate.at.getTime() - atMs <= 15 * 60_000
+    candidate.at.getTime() >= atMs && candidate.at.getTime() - atMs <= 15 * MINUTE_MS
   );
   return point?.powerW ?? 0;
 }
@@ -624,12 +633,200 @@ function resolveElectrical(
   const voltage = state.chargerVoltage >= 100
     ? state.chargerVoltage
     : config.gridVoltage;
-  const phases = state.isCharging && state.chargerPhases === 1
-    ? 1
-    : config.threePhaseCharger
-    ? 3
-    : Math.max(1, state.chargerPhases || 1);
-  return { voltage, phases };
+  return { voltage, phases: resolvePhases(state, config) };
+}
+
+function resolvePhases(state: VehicleChargeState, config: ControllerConfig): number {
+  if (state.isCharging && state.chargerPhases === 1) return 1;
+  if (config.threePhaseCharger) return 3;
+  return Math.max(1, state.chargerPhases || 1);
+}
+
+function simulationHorizonMs(input: SimulationInput, startMs: number): number {
+  if (input.mode === "vacation") return input.forecastDayEnd.getTime();
+  return startMs + FORECAST_HORIZON_HOURS * 60 * MINUTE_MS;
+}
+
+function simulationFinalAt(
+  runtime: SimulationRuntime,
+  mode: Extract<VehicleMode, "vacation" | "auto">,
+): string | null {
+  if (runtime.finalAt !== null) return runtime.finalAt;
+  return resolveFinalAt(mode, runtime.scheduleState, runtime.solarEndAt);
+}
+
+function createSimulationRuntime(
+  input: SimulationInput,
+  electrical: { voltage: number; phases: number },
+): SimulationRuntime {
+  const state = { ...input.initialState };
+  return {
+    vehicleState: state,
+    scheduleState: {
+      startAt: null,
+      endAt: null,
+      expectedFinishAt: null,
+      amps: 0,
+      targetPercent: state.chargeLimit,
+      wasActive: false,
+    },
+    soc: state.batteryLevel,
+    solarChargeKwh: 0,
+    solarEndAt: null,
+    socAtSolarEnd: state.batteryLevel,
+    simulatedEvW: chargePowerW(state, electrical),
+    finalAt: null,
+    stopped: false,
+  };
+}
+
+function createMinuteSnapshot(
+  input: SimulationInput,
+  runtime: SimulationRuntime,
+  electrical: { voltage: number; phases: number },
+  at: Date,
+  pvW: number,
+  batteryW: number,
+): {
+  batteryChargeW: number;
+  energy: EnergyData;
+  state: VehicleChargeState;
+} {
+  const batteryChargeW = Math.max(0, -batteryW);
+  const gridPowerW = input.baseLoadW + runtime.simulatedEvW + batteryChargeW -
+    pvW - Math.max(0, batteryW);
+  const homeConsumptionW = homeConsumptionForSimulation(
+    input.controllerConfig,
+    input.baseLoadW,
+    runtime.simulatedEvW,
+  );
+  const timestamp = at.toISOString();
+  return {
+    batteryChargeW,
+    energy: {
+      solarProductionW: pvW,
+      gridPowerW,
+      homeConsumptionW,
+      batteryPowerW: batteryW,
+      batterySoc: input.batterySoc,
+      gridVoltageV: electrical.voltage,
+      lastUpdated: timestamp,
+    },
+    state: {
+      ...runtime.vehicleState,
+      batteryLevel: runtime.soc,
+      chargePowerKw: runtime.simulatedEvW / 1000,
+      lastUpdated: timestamp,
+    },
+  };
+}
+
+function chargePowerW(
+  state: VehicleChargeState,
+  electrical: { voltage: number; phases: number },
+): number {
+  if (!state.isCharging) return 0;
+  return state.chargeAmps * electrical.voltage * electrical.phases;
+}
+
+function homeConsumptionForSimulation(
+  config: ControllerConfig,
+  baseLoadW: number,
+  simulatedEvW: number,
+): number {
+  if (config.consumptionExcludesCharging) return baseLoadW;
+  return baseLoadW + simulatedEvW;
+}
+
+function nextSoc(
+  soc: number,
+  chargedKwh: number,
+  vehicleCapacityKwh: number,
+  chargeLimit: number,
+): number {
+  if (chargedKwh <= 0) return soc;
+  return Math.min(chargeLimit, soc + chargedKwh / vehicleCapacityKwh * 100);
+}
+
+function withAddedEnergy(
+  state: VehicleChargeState,
+  chargedKwh: number,
+): VehicleChargeState {
+  if (chargedKwh <= 0) return state;
+  return { ...state, energyAddedKwh: state.energyAddedKwh + chargedKwh };
+}
+
+function updateSolarProgress(input: {
+  runtime: SimulationRuntime;
+  scheduleActive: boolean;
+  at: Date;
+  forecastDayEnd: Date;
+  isCharging: boolean;
+  pvW: number;
+  baseLoadW: number;
+  batteryChargeW: number;
+  simulatedEvW: number;
+  soc: number;
+  ts: number;
+}): Pick<SimulationRuntime, "solarChargeKwh" | "solarEndAt" | "socAtSolarEnd"> {
+  const duringForecast = input.at <= input.forecastDayEnd;
+  if (input.scheduleActive || !duringForecast || !input.isCharging) {
+    return {
+      solarChargeKwh: input.runtime.solarChargeKwh,
+      solarEndAt: input.runtime.solarEndAt,
+      socAtSolarEnd: input.runtime.socAtSolarEnd,
+    };
+  }
+  const solarAvailableW = Math.max(
+    0,
+    input.pvW - input.baseLoadW - input.batteryChargeW,
+  );
+  return {
+    solarChargeKwh: input.runtime.solarChargeKwh +
+      Math.min(input.simulatedEvW, solarAvailableW) / 1000 / 60,
+    solarEndAt: new Date(input.ts + MINUTE_MS).toISOString(),
+    socAtSolarEnd: input.soc,
+  };
+}
+
+function finishScheduleAfterCharge(
+  state: ScheduleWindowState,
+  scheduleActive: boolean,
+  soc: number,
+  ts: number,
+): ScheduleWindowState {
+  if (!scheduleActive || state.expectedFinishAt !== null) return state;
+  if (soc < state.targetPercent) return state;
+  return { ...state, expectedFinishAt: new Date(ts + MINUTE_MS).toISOString() };
+}
+
+function autoScheduleFinished(
+  mode: Extract<VehicleMode, "vacation" | "auto">,
+  state: ScheduleWindowState,
+  scheduleActive: boolean,
+): boolean {
+  if (mode !== "auto" || scheduleActive) return false;
+  return state.wasActive && state.endAt !== null;
+}
+
+function resolveFinalAt(
+  mode: Extract<VehicleMode, "vacation" | "auto">,
+  schedule: ScheduleWindowState,
+  solarEndAt: string | null,
+): string | null {
+  if (mode !== "auto") return solarEndAt;
+  return schedule.expectedFinishAt ?? schedule.endAt ?? solarEndAt;
+}
+
+function scheduleResult(state: ScheduleWindowState): SimulationResult["schedule"] {
+  if (!state.startAt || !state.endAt) return null;
+  return {
+    startAt: state.startAt,
+    endAt: state.endAt,
+    amps: state.amps,
+    targetPercent: state.targetPercent,
+    expectedFinishAt: state.expectedFinishAt,
+  };
 }
 
 function modeledBatteryPowerW(input: {
@@ -642,7 +839,7 @@ function modeledBatteryPowerW(input: {
   batterySoc: number | null;
   config: ControllerConfig;
 }): number {
-  const minutes = Math.max(0, (input.at.getTime() - input.startMs) / 60_000);
+  const minutes = Math.max(0, (input.at.getTime() - input.startMs) / MINUTE_MS);
   const initialChargeW = Math.max(0, -input.initialBatteryPowerW);
   const chargeDecay = Math.max(0, 1 - minutes / 90);
   const chargingW = input.batterySoc !== null && input.batterySoc < 98
@@ -675,27 +872,45 @@ function findActiveChargeSchedule(
   ) ?? null;
 }
 
-function updateScheduleWindow(
+function finishAtWhenTargetReached(
+  current: string | null,
+  soc: number,
+  targetPercent: number,
+  at: Date,
+): string | null {
+  if (current !== null || soc < targetPercent) return current;
+  return at.toISOString();
+}
+
+function advanceScheduleWindow(
   state: ScheduleWindowState,
   active: EngineSchedule | null,
   at: Date,
   soc: number,
-): void {
+): ScheduleWindowState {
   if (active) {
-    if (!state.wasActive && state.startAt === null) {
-      state.startAt = at.toISOString();
-      state.amps = active.chargeAmps ?? 0;
-      state.targetPercent = Math.min(active.chargeLimitPct ?? 100, 100);
-    }
-    state.wasActive = true;
-    if (soc >= state.targetPercent && state.expectedFinishAt === null) {
-      state.expectedFinishAt = at.toISOString();
-    }
-    return;
+    const starting = !state.wasActive && state.startAt === null;
+    const targetPercent = starting
+      ? Math.min(active.chargeLimitPct ?? 100, 100)
+      : state.targetPercent;
+    return {
+      ...state,
+      startAt: starting ? at.toISOString() : state.startAt,
+      amps: starting ? active.chargeAmps ?? 0 : state.amps,
+      targetPercent,
+      wasActive: true,
+      expectedFinishAt: finishAtWhenTargetReached(
+        state.expectedFinishAt,
+        soc,
+        targetPercent,
+        at,
+      ),
+    };
   }
   if (state.wasActive && state.endAt === null) {
-    state.endAt = at.toISOString();
+    return { ...state, endAt: at.toISOString() };
   }
+  return state;
 }
 
 function applyDecision(
@@ -703,21 +918,20 @@ function applyDecision(
   action: "start" | "stop" | "adjust_amps" | "none",
   targetAmps: number | null,
   electrical: { voltage: number; phases: number },
-): void {
+): VehicleChargeState {
   if (action === "stop") {
-    state.isCharging = false;
-    state.chargeAmps = 0;
-    state.chargePowerKw = 0;
-    return;
+    return { ...state, isCharging: false, chargeAmps: 0, chargePowerKw: 0 };
   }
-  if ((action === "start" || action === "adjust_amps") && targetAmps !== null) {
-    state.isCharging = true;
-    state.chargeAmps = targetAmps;
-    state.chargerVoltage = electrical.voltage;
-    state.chargerPhases = electrical.phases;
-    state.chargePowerKw = targetAmps * electrical.voltage * electrical.phases /
-      1000;
-  }
+  const startsCharging = action === "start" || action === "adjust_amps";
+  if (!startsCharging || targetAmps === null) return state;
+  return {
+    ...state,
+    isCharging: true,
+    chargeAmps: targetAmps,
+    chargerVoltage: electrical.voltage,
+    chargerPhases: electrical.phases,
+    chargePowerKw: targetAmps * electrical.voltage * electrical.phases / 1000,
+  };
 }
 
 function clamp(value: number, min: number, max: number): number {
