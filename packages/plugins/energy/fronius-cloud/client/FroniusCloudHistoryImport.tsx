@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Badge, Button, Text, TextField } from "@radix-ui/themes";
-import { SettingsRow, useVehicleOptions } from "../../../hostUi.ts";
+import {
+  SettingsRow,
+  type VehicleOption,
+  useVehicleOptions,
+} from "../../../hostUi.ts";
 import { trpc } from "./trpc.ts";
 
 function todayIsoDate(): string {
@@ -29,6 +33,52 @@ function isImportReady(
   return hasVehicle && hasDates && configured && !pending;
 }
 
+interface HistoryFieldsProps {
+  vehicles: VehicleOption[];
+  vehicleId: string;
+  from: string;
+  to: string;
+  pending: boolean;
+  setVehicleId: (value: string) => void;
+  setFrom: (value: string) => void;
+  setTo: (value: string) => void;
+}
+
+function HistoryFields(props: HistoryFieldsProps): JSX.Element {
+  return (
+    <>
+      <SettingsRow label="Vehicle">
+        <select
+          value={props.vehicleId}
+          onChange={(event) => props.setVehicleId(event.target.value)}
+          disabled={props.vehicles.length === 0 || props.pending}
+          style={{ minWidth: 220, height: 32, borderRadius: 6, padding: "0 8px" }}
+        >
+          {props.vehicles.length === 0 && <option value="">No vehicle configured</option>}
+          {props.vehicles.map((vehicle) => (
+            <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>
+          ))}
+        </select>
+      </SettingsRow>
+      <SettingsRow label="From">
+        <TextField.Root
+          size="2" type="date" value={props.from} max={props.to} disabled={props.pending}
+          onChange={(event: { target: { value: string } }) => props.setFrom(event.target.value)}
+          style={{ width: 180 }}
+        />
+      </SettingsRow>
+      <SettingsRow label="To">
+        <TextField.Root
+          size="2" type="date" value={props.to} min={props.from} max={todayIsoDate()}
+          disabled={props.pending}
+          onChange={(event: { target: { value: string } }) => props.setTo(event.target.value)}
+          style={{ width: 180 }}
+        />
+      </SettingsRow>
+    </>
+  );
+}
+
 export function FroniusCloudHistoryImport(): JSX.Element | null {
   const { data: config } = trpc.plugin.energy.fronius_cloud.getConfig.useQuery();
   const mutation = trpc.plugin.energy.fronius_cloud.importEvHistory.useMutation();
@@ -42,8 +92,11 @@ export function FroniusCloudHistoryImport(): JSX.Element | null {
   }, [vehicleId, vehicles]);
 
   if (!config) return null;
-  const configured = Boolean(config.froniusCloudEmail) &&
-    Boolean(config.froniusCloudPassword) && Boolean(config.froniusCloudPvSystemId);
+  const configured = [
+    config.froniusCloudEmail,
+    config.froniusCloudPassword,
+    config.froniusCloudPvSystemId,
+  ].every(Boolean);
   const canImport = isImportReady(vehicleId, from, to, configured, mutation.isPending);
 
   return (
@@ -53,37 +106,10 @@ export function FroniusCloudHistoryImport(): JSX.Element | null {
         Import Wattpilot charging into Stats with exact solar, home-battery and grid contributions.
         Re-importing a period is safe; native E.V Solar data keeps priority.
       </Text>
-
-      <SettingsRow label="Vehicle">
-        <select
-          value={vehicleId}
-          onChange={(event) => setVehicleId(event.target.value)}
-          disabled={vehicles.length === 0 || mutation.isPending}
-          style={{ minWidth: 220, height: 32, borderRadius: 6, padding: "0 8px" }}
-        >
-          {vehicles.length === 0 && <option value="">No vehicle configured</option>}
-          {vehicles.map((vehicle) => (
-            <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>
-          ))}
-        </select>
-      </SettingsRow>
-
-      <SettingsRow label="From">
-        <TextField.Root
-          size="2" type="date" value={from} max={to} disabled={mutation.isPending}
-          onChange={(event: { target: { value: string } }) => setFrom(event.target.value)}
-          style={{ width: 180 }}
-        />
-      </SettingsRow>
-      <SettingsRow label="To">
-        <TextField.Root
-          size="2" type="date" value={to} min={from} max={todayIsoDate()}
-          disabled={mutation.isPending}
-          onChange={(event: { target: { value: string } }) => setTo(event.target.value)}
-          style={{ width: 180 }}
-        />
-      </SettingsRow>
-
+      <HistoryFields
+        vehicles={vehicles} vehicleId={vehicleId} from={from} to={to}
+        pending={mutation.isPending} setVehicleId={setVehicleId} setFrom={setFrom} setTo={setTo}
+      />
       <Text as="p" size="1" color="gray">
         Defaults to 12 months. Move From back to your first Solar.web date; for large archives,
         import year by year.
@@ -94,7 +120,6 @@ export function FroniusCloudHistoryImport(): JSX.Element | null {
       >
         {mutation.isPending ? "Importing Solar.web history..." : "Import Solar.web history"}
       </Button>
-
       {mutation.isSuccess && (
         <Text as="p" size="1" color="gray" mt="2">
           <Badge color="green" size="2">{mutation.data.insertedRows} intervals imported</Badge>{" "}
