@@ -29,7 +29,6 @@ vi.mock("../trpc.ts", () => ({
       },
     },
     useQueries: (fn: (t: Record<string, unknown>) => unknown[]) => {
-      // Call the factory to exercise the switch branches
       const t = {
         stats: {
           day: vi.fn((..._args: unknown[]) => ({})),
@@ -75,9 +74,9 @@ describe("useVehicleBreakdowns", () => {
   };
 
   const createWrapper = () => {
-    const qc = createTestQueryClient();
+    const queryClient = createTestQueryClient();
     return ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
+      React.createElement(QueryClientProvider, { client: queryClient }, children);
   };
 
   type Args = Parameters<typeof useVehicleBreakdowns>[0];
@@ -102,15 +101,13 @@ describe("useVehicleBreakdowns", () => {
     hoisted.state.queriesResults = [];
   });
 
-  it("returns defaults when no vehicles and no data", () => {
+  it("returns EV defaults when no vehicles and no data", () => {
     const { result } = runHook();
 
     expect(result.current.hasChargeData).toBe(false);
     expect(result.current.hasConfiguredVehicles).toBe(false);
     expect(result.current.vehicleBreakdownsLoading).toBe(false);
     expect(result.current.currencySymbol).toBe("$");
-    expect(result.current.gridPercent).toBe(0);
-    expect(result.current.chargeGridPercent).toBe(0);
     expect(result.current.activeVehicleBreakdowns).toEqual([]);
   });
 
@@ -133,39 +130,6 @@ describe("useVehicleBreakdowns", () => {
   ])("currencySymbol $name", ({ data, expected }) => {
     const { result } = runHook({ data });
     expect(result.current.currencySymbol).toBe(expected);
-  });
-
-  it.each([
-    {
-      name: "computes from home self-powered percent",
-      data: baseStatsData,
-      expected: 40,
-    },
-    {
-      name: "is 0 when homeConsumedWh is 0",
-      data: { ...baseStatsData, homeConsumedWh: 0 },
-      expected: 0,
-    },
-  ])("gridPercent $name", ({ data, expected }) => {
-    const { result } = runHook({ data });
-    expect(result.current.gridPercent).toBe(expected);
-  });
-
-  it.each([
-    { name: "computes", data: baseStatsData, expected: 40 },
-    {
-      name: "is 0 when chargeHomeTotal is 0",
-      data: {
-        ...baseStatsData,
-        totalSolarWh: 0,
-        totalBatteryWh: 0,
-        totalGridWh: 0,
-      },
-      expected: 0,
-    },
-  ])("chargeGridPercent $name", ({ data, expected }) => {
-    const { result } = runHook({ data });
-    expect(result.current.chargeGridPercent).toBe(expected);
   });
 
   it("hasConfiguredVehicles is true when vehicles exist", () => {
@@ -194,7 +158,7 @@ describe("useVehicleBreakdowns", () => {
     expect(result.current.vehicleBreakdownsLoading).toBe(true);
   });
 
-  it("maps vehicle query results to breakdowns", () => {
+  it("maps vehicle query results to EV breakdowns", () => {
     hoisted.state.listData = {
       vehicles: [
         { id: "VIN1", name: "Model 3" },
