@@ -38,6 +38,7 @@ export const vehicleChargeHistory = sqliteTable("vehicle_charge_history", {
   ),
   index("idx_vch_vehicle_local").on(table.vehicleId, table.startTimeLocal),
   index("idx_vch_vehicle_utc").on(table.vehicleId, table.startTimeUtc),
+  index("idx_vch_source_local").on(table.source, table.startTimeLocal),
 ]);
 
 /**
@@ -66,5 +67,7 @@ export const aggregateEvChargeHistory = sqliteTable(
     uniqueIndex("idx_aech_source_external").on(table.source, table.externalId),
     index("idx_aech_local").on(table.startTimeLocal),
     index("idx_aech_utc").on(table.startTimeUtc),
+    index("idx_aech_source_local").on(table.source, table.startTimeLocal),
+    index("idx_aech_source_utc").on(table.source, table.startTimeUtc),
   ],
 );
