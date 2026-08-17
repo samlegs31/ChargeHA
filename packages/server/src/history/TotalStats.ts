@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type {
   EnergyBucket,
   StatsBucket,
+  StatsPeriod,
   StatsResponse,
 } from "@chargeha/shared";
 import type { AppDatabase } from "../db/AppDatabase.ts";
@@ -9,10 +10,6 @@ import { HistoryRepository } from "../db/repositories/HistoryRepository.ts";
 import { sqliteTimezoneOffset } from "../db/repositories/sqliteHelpers.ts";
 import type { StatsService } from "../services/StatsService.ts";
 import { mergeChargeHqStats } from "./mergeChargeHqStats.ts";
-
-export type TotalStatsResponse = Omit<StatsResponse, "period"> & {
-  period: "total";
-};
 
 function aggregateYearsQuery(vehicleId?: string) {
   if (vehicleId) return sql``;
@@ -103,7 +100,7 @@ export async function buildTotalStats(
   statsService: StatsService,
   tz: number,
   vehicleId?: string,
-): Promise<TotalStatsResponse> {
+): Promise<StatsResponse> {
   const years = await availableYears(db, tz, vehicleId);
   const annual = await Promise.all(
     years.map((year) => annualStats(db, statsService, year, tz, vehicleId)),
@@ -133,7 +130,7 @@ export async function buildTotalStats(
   const lastYear = years[years.length - 1];
 
   return {
-    period: "total",
+    period: "total" as StatsPeriod,
     startDate: firstYear ? `${firstYear}-01-01` : "",
     endDate: lastYear ? `${lastYear}-12-31` : "",
     energyBuckets: buckets.map((row) => emptyEnergyBucket(row.label)),
