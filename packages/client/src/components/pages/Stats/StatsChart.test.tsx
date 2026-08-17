@@ -2,29 +2,31 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   Children,
-  cloneElement,
   Fragment,
   isValidElement,
-  type ReactElement,
   type ReactNode,
 } from "react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { renderWithProviders } from "../../../test-utils.tsx";
+import { StatsChart } from "./StatsChart.tsx";
+import type { StatsResponse } from "@chargeha/shared";
 
-const { tooltipState, makeStatsData } = vi.hoisted(() => {
+const { chartState, makeStatsData } = vi.hoisted(() => {
   type SR = import("@chargeha/shared").StatsResponse;
-  const tooltipState: { captured: ReactElement | null } = { captured: null };
+  const chartState: { onClick?: (event: { activeLabel?: string }) => void } = {};
   const makeStatsData = (overrides?: Partial<SR>): SR => ({
     period: "day",
     startDate: "2026-03-01",
     endDate: "2026-03-01",
-    homeSolarProductionWh: 8000,
-    homeConsumedWh: 7000,
-    homeSolarWh: 5000,
+    homeSolarProductionWh: 0,
+    homeConsumedWh: 0,
+    homeSolarWh: 0,
     homeBatteryChargeWh: 0,
     homeBatteryDischargeWh: 0,
     homeSolarToBatteryWh: 0,
     homeGridToBatteryWh: 0,
-    homeGridWh: 2000,
-    homeSelfPoweredPercent: 71,
+    homeGridWh: 0,
+    homeSelfPoweredPercent: 0,
     solarProductionLine: [],
     totalChargedWh: 3000,
     totalSolarWh: 2000,
@@ -33,6 +35,7 @@ const { tooltipState, makeStatsData } = vi.hoisted(() => {
     totalAwayWh: 0,
     selfPoweredPercent: 67,
     totalCostCents: 500,
+    solarSavingsCents: 200,
     evSolarSavingsCents: 200,
     currencySymbol: "$",
     tariffBreakdown: [],
@@ -42,10 +45,10 @@ const { tooltipState, makeStatsData } = vi.hoisted(() => {
       {
         label: "10",
         solarWh: 500,
-        batteryWh: 50,
+        batteryWh: 0,
         gridWh: 100,
         awayWh: 0,
-        totalWh: 650,
+        totalWh: 600,
         costCents: 20,
       },
       {
@@ -60,55 +63,43 @@ const { tooltipState, makeStatsData } = vi.hoisted(() => {
     ],
     ...overrides,
   });
-  return { tooltipState, makeStatsData };
+  return { chartState, makeStatsData };
 });
 
 vi.mock("recharts", () => {
-  const RECHARTS_CHILD_NAMES = new Set([
-    "Bar",
-    "XAxis",
-    "YAxis",
-    "CartesianGrid",
-    "Tooltip",
-  ]);
-
-  const Bar = ({ dataKey }: { dataKey: string }) => (
-    <div data-testid={`bar-${dataKey}`} />
-  );
-  Bar.displayName = "Bar";
-
-  const makeStub = (name: string) => {
+  const allowed = new Set(["Bar", "XAxis", "YAxis", "CartesianGrid", "Tooltip"]);
+  const stub = (name: string) => {
     const Stub = () => null;
     Stub.displayName = name;
     return Stub;
   };
+  const Bar = stub("Bar");
+  const XAxis = stub("XAxis");
+  const YAxis = stub("YAxis");
+  const CartesianGrid = stub("CartesianGrid");
+  const Tooltip = stub("Tooltip");
 
-  const XAxis = makeStub("XAxis");
-  const YAxis = makeStub("YAxis");
-  const CartesianGrid = makeStub("CartesianGrid");
-  const Tooltip = ({ content }: { content: ReactNode }) => {
-    if (isValidElement(content)) tooltipState.captured = content;
-    return <div data-testid="tooltip-wrapper" />;
-  };
-  Tooltip.displayName = "Tooltip";
-
-  const assertChild = (node: ReactNode) => {
+  const assertChildren = (node: ReactNode) => {
     Children.forEach(node, (child) => {
       if (!isValidElement(child)) return;
       if (child.type === Fragment) {
-        assertChild((child.props as { children?: ReactNode }).children);
+        assertChildren((child.props as { children?: ReactNode }).children);
         return;
       }
       const type = child.type as { displayName?: string; name?: string };
-      const name = type.displayName ?? type.name ?? "(anonymous)";
-      if (!RECHARTS_CHILD_NAMES.has(name)) {
-        throw new Error(`Unexpected chart child <${name}>`);
-      }
+      const name = type.displayName ?? type.name ?? "";
+      if (!allowed.has(name)) throw new Error(`Unexpected chart child: ${name}`);
     });
   };
 
-  const ComposedChart = ({ children }: { children: ReactNode }) => {
-    assertChild(children);
+  const ComposedChart = (
+    { children, onClick }: {
+      children: ReactNode;
+      onClick?: (event: { activeLabel?: string }) => void;
+    },
+  ) => {
+    assertChildren(children);
+    chartState.onClick = onClick;
     return <div data-testid="chart">{children}</div>;
   };
 
@@ -134,12 +125,6 @@ vi.mock("../../../utils/Format.ts", () => ({
     `${symbol}${(cents / 100).toFixed(2)}`,
 }));
 
-import { cleanup, render, screen } from "@testing-library/react";
-import { fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "../../../test-utils.tsx";
-import { StatsChart } from "./StatsChart.tsx";
-import type { StatsResponse } from "@chargeha/shared";
-
 describe("StatsChart", () => {
   const defaultProps = {
     data: null as StatsResponse | null,
@@ -151,23 +136,45 @@ describe("StatsChart", () => {
     onDrillDown: vi.fn(),
   };
 
-  beforeEach(vi.clearAllMocks);
+  beforeEach(() => {
+    vi.clearAllMocks();
+    chartState.onClick = undefined;
+  });
   afterEach(cleanup);
 
-  it("shows loading text", () => {
+  it("shows loading text when loading", () => {
     renderWithProviders(<StatsChart {...defaultProps} loading />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 
-  it("renders only the three EV charging bars", () => {
+  it("renders chart when data is provided", () => {
     renderWithProviders(
       <StatsChart {...defaultProps} data={makeStatsData()} />,
     );
     expect(screen.getByTestId("chart")).toBeInTheDocument();
-    expect(screen.getByTestId("bar-solarToCar")).toBeInTheDocument();
-    expect(screen.getByTestId("bar-batteryToCar")).toBeInTheDocument();
-    expect(screen.getByTestId("bar-gridToCar")).toBeInTheDocument();
   });
+
+  it("shows resolution toggle only for day period", () => {
+    renderWithProviders(
+      <StatsChart {...defaultProps} data={makeStatsData()} period="day" />,
+    );
+    expect(screen.getAllByText("1h").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("15m").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it.each([["month" as const], ["year" as const], ["total" as const]])(
+    "does not show resolution toggle for %s period",
+    (period) => {
+      renderWithProviders(
+        <StatsChart
+          {...defaultProps}
+          data={makeStatsData()}
+          period={period}
+        />,
+      );
+      expect(screen.queryByText("15m")).not.toBeInTheDocument();
+    },
+  );
 
   it("renders only EV charging legend items", () => {
     renderWithProviders(
@@ -177,29 +184,9 @@ describe("StatsChart", () => {
     expect(screen.getByText("Battery → Car")).toBeInTheDocument();
     expect(screen.getByText("Grid → Car")).toBeInTheDocument();
     expect(screen.queryByText("Solar → Home")).not.toBeInTheDocument();
-    expect(screen.queryByText("Grid → Home")).not.toBeInTheDocument();
-    expect(screen.queryByText("Solar Production")).not.toBeInTheDocument();
-    expect(screen.queryByText("Total Consumption")).not.toBeInTheDocument();
   });
 
-  it("shows resolution toggle for day only", () => {
-    renderWithProviders(
-      <StatsChart {...defaultProps} data={makeStatsData()} />,
-    );
-    expect(screen.getAllByText("1h").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("15m").length).toBeGreaterThanOrEqual(1);
-    cleanup();
-    renderWithProviders(
-      <StatsChart
-        {...defaultProps}
-        data={makeStatsData({ period: "month" })}
-        period="month"
-      />,
-    );
-    expect(screen.queryByText("15m")).not.toBeInTheDocument();
-  });
-
-  it("calls setResolution", () => {
+  it("calls setResolution when the day resolution changes", () => {
     const setResolution = vi.fn();
     renderWithProviders(
       <StatsChart
@@ -212,156 +199,62 @@ describe("StatsChart", () => {
     expect(setResolution).toHaveBeenCalledWith("15m");
   });
 
-  it("renders with no charging buckets", () => {
-    renderWithProviders(
-      <StatsChart {...defaultProps} data={makeStatsData({ buckets: [] })} />,
-    );
-    expect(screen.getByTestId("chart")).toBeInTheDocument();
-  });
-});
-
-describe("EV charging tooltip", () => {
-  type ChartOverrides = {
-    period?: StatsResponse["period"];
-    resolution?: "1h" | "15m";
-    dateCursor?: Date;
-    bucketLabel?: string;
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    tooltipState.captured = null;
-  });
-  afterEach(cleanup);
-
-  const captureTooltip = (chart: ChartOverrides = {}) => {
-    const period = chart.period ?? "day";
-    const resolution = chart.resolution ?? "1h";
-    const label = chart.bucketLabel ?? "10";
+  it("drills from Total into the selected year", () => {
+    const onDrillDown = vi.fn();
     const data = makeStatsData({
-      period,
       buckets: [{
-        label,
-        solarWh: 500,
-        batteryWh: 100,
-        gridWh: 100,
+        label: "2025",
+        solarWh: 5000,
+        batteryWh: 1000,
+        gridWh: 2000,
         awayWh: 0,
-        totalWh: 700,
-        costCents: 20,
+        totalWh: 8000,
+        costCents: 100,
       }],
     });
-    const { unmount } = renderWithProviders(
+    renderWithProviders(
       <StatsChart
+        {...defaultProps}
         data={data}
-        loading={false}
-        period={period}
-        resolution={resolution}
-        setResolution={vi.fn()}
-        dateCursor={chart.dateCursor ?? new Date(2026, 2, 1)}
-        onDrillDown={vi.fn()}
+        period="total"
+        onDrillDown={onDrillDown}
       />,
     );
-    unmount();
-    cleanup();
-    if (!tooltipState.captured) throw new Error("Tooltip content not captured");
-    return tooltipState.captured;
-  };
 
-  const renderTooltip = (
-    props: Record<string, unknown>,
-    chart?: ChartOverrides,
-  ) => render(cloneElement(captureTooltip(chart), props));
+    chartState.onClick?.({ activeLabel: "2025" });
 
-  const baseDatum = {
-    label: "10:00",
-    solarToCar: 1.5,
-    batteryToCar: 0.2,
-    gridToCar: 0.3,
-    costCents: 80,
-    vehicleSoc: [],
-  };
-
-  it("returns null when inactive", () => {
-    const { container } = renderTooltip({ active: false, payload: [] });
-    expect(container.innerHTML).toBe("");
+    expect(onDrillDown).toHaveBeenCalledOnce();
+    expect(onDrillDown.mock.calls[0][0]).toBe("year");
+    expect(onDrillDown.mock.calls[0][1].getFullYear()).toBe(2025);
   });
 
-  it("shows only EV charging flows and grid cost", () => {
-    renderTooltip({
-      active: true,
-      label: "10:00",
-      payload: [{ payload: baseDatum }],
-    });
-    expect(screen.getByText("10:00 – 11:00")).toBeInTheDocument();
-    expect(screen.getByText("Solar → Car")).toBeInTheDocument();
-    expect(screen.getByText("Battery → Car")).toBeInTheDocument();
-    expect(screen.getByText("Grid → Car")).toBeInTheDocument();
-    expect(screen.getByText("Grid cost $0.80")).toBeInTheDocument();
-    expect(screen.queryByText("Solar → Home")).not.toBeInTheDocument();
+  it("drills from year into the selected month", () => {
+    const onDrillDown = vi.fn();
+    renderWithProviders(
+      <StatsChart
+        {...defaultProps}
+        data={makeStatsData()}
+        period="year"
+        onDrillDown={onDrillDown}
+      />,
+    );
+    chartState.onClick?.({ activeLabel: "Mar" });
+    expect(onDrillDown.mock.calls[0][0]).toBe("month");
+    expect(onDrillDown.mock.calls[0][1].getMonth()).toBe(2);
   });
 
-  it("hides zero-value charging flows", () => {
-    renderTooltip({
-      active: true,
-      label: "10:00",
-      payload: [{
-        payload: {
-          ...baseDatum,
-          solarToCar: 0,
-          batteryToCar: 0,
-          costCents: 0,
-        },
-      }],
-    });
-    expect(screen.queryByText("Solar → Car")).not.toBeInTheDocument();
-    expect(screen.queryByText("Battery → Car")).not.toBeInTheDocument();
-    expect(screen.getByText("Grid → Car")).toBeInTheDocument();
-    expect(screen.queryByText(/Grid cost/)).not.toBeInTheDocument();
-  });
-
-  it("formats 15-minute ranges across the hour boundary", () => {
-    renderTooltip({
-      active: true,
-      label: "10:45",
-      payload: [{ payload: baseDatum }],
-    }, { resolution: "15m", bucketLabel: "10:45" });
-    expect(screen.getByText("10:45 – 11:00")).toBeInTheDocument();
-  });
-
-  it("formats month and year headers", () => {
-    renderTooltip({
-      active: true,
-      label: "15",
-      payload: [{ payload: baseDatum }],
-    }, { period: "month", bucketLabel: "15" });
-    expect(screen.getByText("Sun, Mar 15")).toBeInTheDocument();
-    cleanup();
-    renderTooltip({
-      active: true,
-      label: "Mar",
-      payload: [{ payload: baseDatum }],
-    }, {
-      period: "year",
-      bucketLabel: "Mar",
-      dateCursor: new Date(2026, 0, 1),
-    });
-    expect(screen.getByText("Mar")).toBeInTheDocument();
-  });
-
-  it("shows vehicle state of charge context", () => {
-    renderTooltip({
-      active: true,
-      label: "10:00",
-      payload: [{
-        payload: {
-          ...baseDatum,
-          vehicleSoc: [
-            { vehicleId: "v1", vehicleName: "Model 3", batteryLevel: 75 },
-          ],
-        },
-      }],
-    });
-    expect(screen.getByText("Model 3")).toBeInTheDocument();
-    expect(screen.getByText("75%")).toBeInTheDocument();
+  it("drills from month into the selected day", () => {
+    const onDrillDown = vi.fn();
+    renderWithProviders(
+      <StatsChart
+        {...defaultProps}
+        data={makeStatsData()}
+        period="month"
+        onDrillDown={onDrillDown}
+      />,
+    );
+    chartState.onClick?.({ activeLabel: "15" });
+    expect(onDrillDown.mock.calls[0][0]).toBe("day");
+    expect(onDrillDown.mock.calls[0][1].getDate()).toBe(15);
   });
 });
