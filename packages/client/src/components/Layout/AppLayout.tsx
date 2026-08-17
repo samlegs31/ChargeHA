@@ -179,7 +179,7 @@ export function AppLayout(
       <main className={styles.main}>{children}</main>
       <footer className={styles.footer}>
         <Text size="1" color="gray">
-          E.V. Solar modifications © 2026 Samuel Leguevaques · {" "}
+          E.V. Solar · {" "}
           <a href={SOURCE_URL} target="_blank" rel="noreferrer">Source code</a>
           {" · "}
           <a href={LICENSE_URL} target="_blank" rel="noreferrer">AGPL-3.0</a>
