@@ -260,12 +260,13 @@ describe("ChargeController — processSolarTracking", () => {
     });
 
     it("uses gross solar reference when configured", async () => {
-      // Gross mode: available = solarProductionW - margin (5000 - 200 = 4800W → 20A).
-      // Excess mode would give 0A from gridPowerW=+1000 (importing).
+      // Gross mode: available = solarProductionW - margin (5200 - 200 = 5000W).
+      // That clears the 3-phase startup headroom; excess mode would still see
+      // 0A from gridPowerW=+1000 (importing).
       ctx = await setupController(
         { chargerVoltage: 230 },
         "auto",
-        { ...BASE_ENERGY, solarProductionW: 5000, gridPowerW: 1000 },
+        { ...BASE_ENERGY, solarProductionW: 5200, gridPowerW: 1000 },
         { solar_reference: "gross" },
       );
       await ctx.runOneLoop();
