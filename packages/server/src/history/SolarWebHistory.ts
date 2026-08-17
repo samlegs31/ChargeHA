@@ -12,6 +12,11 @@ const HISTORY_CHANNELS = [
 const PAGE_SIZE = 1000;
 const MAX_PAGES = 1000;
 const MAX_RANGE_MS = 24 * 60 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 10_000;
+const MIN_REQUEST_INTERVAL_MS = 6_100;
+const DEFAULT_RETRY_AFTER_MS = 60_000;
+const MAX_RETRY_AFTER_MS = 5 * 60_000;
+const MAX_RATE_LIMIT_RETRIES = 5;
 
 type FetchFn = (
   input: string | URL | Request,
@@ -60,6 +65,9 @@ export class SolarWebHistoryError extends Error {
   }
 }
 
+let lastSolarWebRequestStartedAt = 0;
+let solarWebRequestSlot = Promise.resolve();
+
 function commonHeaders(): Record<string, string> {
   return {
     AccessKeyId: ACCESS_KEY_ID,
@@ -67,6 +75,36 @@ function commonHeaders(): Record<string, string> {
     Accept: "application/json",
     "User-Agent": SOLARWEB_USER_AGENT,
   };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function reserveSolarWebRequestSlot(fetchFn: FetchFn): Promise<void> {
+  // Unit tests inject a fake fetch implementation and should not wait in real time.
+  // Production imports use the global fetch and share this limiter across batches.
+  if (fetchFn !== fetch) return;
+
+  let release!: () => void;
+  const previousSlot = solarWebRequestSlot;
+  solarWebRequestSlot = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+
+  await previousSlot;
+  try {
+    const waitMs = Math.max(
+      0,
+      lastSolarWebRequestStartedAt + MIN_REQUEST_INTERVAL_MS - Date.now(),
+    );
+    if (waitMs > 0) {
+      await sleep(waitMs);
+    }
+    lastSolarWebRequestStartedAt = Date.now();
+  } finally {
+    release();
+  }
 }
 
 async function responseErrorDetail(response: Response): Promise<string> {
@@ -79,20 +117,88 @@ async function responseErrorDetail(response: Response): Promise<string> {
   }
 }
 
+function retryAfterMs(response: Response, detail: string): number {
+  const retryAfter = response.headers.get("Retry-After")?.trim();
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(MAX_RETRY_AFTER_MS, Math.ceil(seconds * 1000));
+    }
+
+    const retryDate = Date.parse(retryAfter);
+    if (Number.isFinite(retryDate)) {
+      return Math.min(
+        MAX_RETRY_AFTER_MS,
+        Math.max(0, retryDate - Date.now()),
+      );
+    }
+  }
+
+  const bodyMatch = detail.match(/retry\s+after\s*:?\s*(\d+(?:\.\d+)?)/i);
+  if (bodyMatch) {
+    const seconds = Number(bodyMatch[1]);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.min(MAX_RETRY_AFTER_MS, Math.ceil(seconds * 1000));
+    }
+  }
+
+  return DEFAULT_RETRY_AFTER_MS;
+}
+
+async function solarWebRequest(
+  url: string,
+  init: RequestInit,
+  fetchFn: FetchFn,
+  operation: string,
+): Promise<Response> {
+  for (let retry = 0; ; retry += 1) {
+    await reserveSolarWebRequestSlot(fetchFn);
+    const response = await fetchFn(url, {
+      ...init,
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+
+    if (response.status !== 429) {
+      return response;
+    }
+
+    const detail = await responseErrorDetail(response);
+    if (retry >= MAX_RATE_LIMIT_RETRIES) {
+      throw new SolarWebHistoryError(
+        `Solar.web API rate limit persisted after ${retry + 1} attempts: HTTP 429${
+          detail ? ` — ${detail}` : ""
+        }`,
+      );
+    }
+
+    const waitMs = retryAfterMs(response, detail);
+    console.warn(
+      `[solarweb-history] Solar.web API rate limit reached during ${operation}; retrying in ${
+        Math.ceil(waitMs / 1000)
+      }s`,
+    );
+    await sleep(waitMs);
+  }
+}
+
 async function login(
   email: string,
   password: string,
   fetchFn: FetchFn,
 ): Promise<string> {
-  const response = await fetchFn(`${BASE_URL}/iam/jwt`, {
-    method: "POST",
-    headers: {
-      ...commonHeaders(),
-      "Content-Type": "application/json-patch+json",
+  const response = await solarWebRequest(
+    `${BASE_URL}/iam/jwt`,
+    {
+      method: "POST",
+      headers: {
+        ...commonHeaders(),
+        "Content-Type": "application/json-patch+json",
+      },
+      body: JSON.stringify({ userId: email, password }),
     },
-    body: JSON.stringify({ userId: email, password }),
-    signal: AbortSignal.timeout(10_000),
-  });
+    fetchFn,
+    "login",
+  );
   if (!response.ok) {
     const detail = await responseErrorDetail(response);
     throw new SolarWebHistoryError(
@@ -117,13 +223,17 @@ async function fetchJson(
   token: string,
   fetchFn: FetchFn,
 ): Promise<SolarWebHistoryResponse> {
-  const response = await fetchFn(`${BASE_URL}${path}`, {
-    headers: {
-      ...commonHeaders(),
-      Authorization: `Bearer ${token}`,
+  const response = await solarWebRequest(
+    `${BASE_URL}${path}`,
+    {
+      headers: {
+        ...commonHeaders(),
+        Authorization: `Bearer ${token}`,
+      },
     },
-    signal: AbortSignal.timeout(10_000),
-  });
+    fetchFn,
+    "history import",
+  );
   if (!response.ok) {
     const detail = await responseErrorDetail(response);
     const message = `Solar.web history request failed: HTTP ${response.status}${
