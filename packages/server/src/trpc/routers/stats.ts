@@ -19,6 +19,8 @@ export const statsRouter = router({
         input.vehicleId,
         detailed,
       );
+      // Archived stats combine vehicle-attributed ChargeHQ history with
+      // installation-level Solar.web/Wattpilot history for the global view.
       const history = new HistoryRepository(ctx.db.db);
       const historyRows = detailed
         ? await history.getChargeHqStatsDayDetailed(input.date, input.vehicleId)
