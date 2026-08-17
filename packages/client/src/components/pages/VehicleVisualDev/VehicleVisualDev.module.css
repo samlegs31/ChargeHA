@@ -23,7 +23,8 @@
 
 .hero,
 .panel,
-.notice {
+.notice,
+.probeBar {
   border: 1px solid color-mix(in srgb, var(--gray-7) 75%, transparent);
   background:
     radial-gradient(circle at 85% 15%, color-mix(in srgb, var(--accent-7) 12%, transparent), transparent 38%),
@@ -163,6 +164,80 @@
   font-size: 15px;
 }
 
+.probeBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 15px 16px;
+  border-radius: 18px;
+}
+
+.probeBar > div {
+  min-width: 0;
+}
+
+.probeBar strong {
+  display: block;
+  font-size: 14px;
+}
+
+.probeBar span {
+  display: block;
+  margin-top: 3px;
+  color: var(--gray-9);
+  font-size: 11px;
+}
+
+.probeButton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 104px;
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid color-mix(in srgb, var(--accent-9) 65%, transparent);
+  border-radius: 13px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-9) 78%, #1d5cff), #6957ff);
+  color: white;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--accent-9) 22%, transparent);
+}
+
+.probeButton:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.spinner {
+  animation: spin 0.85s linear infinite;
+}
+
+.probeError {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgb(255 77 91 / 28%);
+  border-radius: 14px;
+  background: rgb(255 45 65 / 8%);
+  color: #ff7583;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.probeError span {
+  color: var(--gray-9);
+  font-size: 11px;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -255,6 +330,10 @@
   text-align: center;
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 700px) {
   .page {
     padding-top: 6px;
@@ -263,6 +342,15 @@
   .hero {
     padding: 19px;
     border-radius: 21px;
+  }
+
+  .probeBar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .probeButton {
+    width: 100%;
   }
 
   .grid {
