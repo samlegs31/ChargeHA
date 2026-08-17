@@ -22,29 +22,20 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 9px;
   cursor: pointer;
   user-select: none;
 }
 
-.logoMark {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  color: white;
-  background: linear-gradient(145deg, var(--accent-9), var(--accent-10));
-  box-shadow: 0 5px 16px var(--accent-a5);
+.brandLogo {
+  display: block;
+  width: 164px;
+  line-height: 0;
 }
 
-.logo {
-  width: 28px;
-  height: 28px;
-}
-
-.accent {
-  color: var(--accent-9);
+.brandLogo img {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .nav {
@@ -106,18 +97,8 @@
     gap: 8px;
   }
 
-  .brand {
-    gap: 8px;
-  }
-
-  .brand > span:last-child {
-    font-size: 1.2rem;
-  }
-
-  .logoMark {
-    width: 32px;
-    height: 32px;
-    border-radius: 9px;
+  .brandLogo {
+    width: 142px;
   }
 
   .nav {
@@ -223,6 +204,3 @@
     padding: 12px 10px 24px;
   }
 }
-
-
-

@@ -1,21 +1,21 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg
-  xmlns="http://www.w3.org/2000/svg"
-  viewBox="0 0 512 512"
-  width="512"
-  height="512"
->
-  <title>ChargeHA – Soft Plug</title>
-  <rect width="512" height="512" fill="#3E63DD" />
-  <g transform="translate(256,244)">
-    <rect x="-68" y="-166" width="32" height="64" rx="16" fill="#FFFFFF" />
-    <rect x="36" y="-166" width="32" height="64" rx="16" fill="#FFFFFF" />
-    <rect x="-112" y="-112" width="224" height="200" rx="40" fill="#FFFFFF" />
-    <path
-      d="M-80 76 C-80 76 -72 148 0 148 C72 148 80 76 80 76Z"
-      fill="#FFFFFF"
-    />
-    <rect x="-14" y="136" width="28" height="52" rx="14" fill="#FFFFFF" />
-    <path d="M20 -68 L-44 8 L0 8 L-20 68 L44 -8 L0 -8Z" fill="#3E63DD" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">E.V. Solar</title>
+  <desc id="desc">Solar energy, EV charging and AI circuit icon</desc>
+  <defs>
+    <linearGradient id="evSolarGradient" x1="64" y1="40" x2="448" y2="472" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10D8C5"/>
+      <stop offset="0.5" stop-color="#12B4ED"/>
+      <stop offset="1" stop-color="#175CFF"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="108" fill="url(#evSolarGradient)"/>
+  <g fill="none" stroke="#fff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M124 307a160 160 0 0 1 264 0"/>
+    <path d="M256 72v28M166 97l15 24M100 164l26 15M76 256h30M412 164l-26 15M436 256h-30"/>
+    <path d="M282 399h42l48-48h48"/>
+    <path d="M292 433h79"/>
+    <circle cx="438" cy="351" r="17"/>
+    <circle cx="389" cy="433" r="17"/>
   </g>
+  <path d="M278 175 207 287h58l-31 94 88-126h-59l15-80Z" fill="#fff" stroke="#fff" stroke-linejoin="round" stroke-width="12"/>
 </svg>
