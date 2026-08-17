@@ -38,6 +38,12 @@
   height: auto;
 }
 
+@media (prefers-color-scheme: dark) {
+  .brandLogo img {
+    mix-blend-mode: lighten;
+  }
+}
+
 .nav {
   display: flex;
   gap: 4px;
