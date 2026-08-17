@@ -33,9 +33,12 @@ jobs:
       contents: write
       packages: write
 
+  # GitHub Pages is optional. Keep main CI green until the repository owner has
+  # enabled Pages with GitHub Actions as the publishing source and set the
+  # ENABLE_GITHUB_PAGES_DEMO repository variable to "true".
   deploy-demo:
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.ENABLE_GITHUB_PAGES_DEMO == 'true'
     uses: ./.github/workflows/demo.yml
     permissions:
       contents: read

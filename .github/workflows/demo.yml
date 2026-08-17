@@ -1,7 +1,8 @@
 name: Deploy demo to GitHub Pages
 
-# Called by CI on main after tests pass (so a failing test never publishes the
-# demo), or run manually. Builds the demo and publishes it to GitHub Pages.
+# Called by CI on main after tests pass, or run manually. The demo is opt-in:
+# enable GitHub Pages with GitHub Actions as the publishing source, then set the
+# ENABLE_GITHUB_PAGES_DEMO repository variable to "true".
 on:
   workflow_call:
   workflow_dispatch:
@@ -18,6 +19,7 @@ concurrency:
 
 jobs:
   build:
+    if: vars.ENABLE_GITHUB_PAGES_DEMO == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
