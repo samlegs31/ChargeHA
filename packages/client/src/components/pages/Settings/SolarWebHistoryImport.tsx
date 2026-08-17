@@ -148,6 +148,25 @@ function ImportResult(props: ImportSummary) {
   );
 }
 
+function ImportDescription() {
+  return (
+    <Text size="1" color="gray">
+      Solar.web credentials are used only for this import request and are not saved as
+      your realtime energy source. Only home Wattpilot charging is imported, for all
+      vehicles combined.
+    </Text>
+  );
+}
+
+function ImportHelpText() {
+  return (
+    <Text size="1" color="gray">
+      Large archives are automatically imported in 7-day batches. Re-importing the same
+      period is safe.
+    </Text>
+  );
+}
+
 export function SolarWebHistoryImport() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -215,11 +234,7 @@ export function SolarWebHistoryImport() {
       description="One-time Wattpilot archive import. Your active realtime energy source is not changed."
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <Text size="1" color="gray">
-          Solar.web credentials are used only for this import request and are not saved
-          as your realtime energy source. Only home Wattpilot charging is imported,
-          for all vehicles combined.
-        </Text>
+        <ImportDescription />
         <SolarWebFields
           email={email} password={password} pvSystemId={pvSystemId}
           from={from} to={to} disabled={isImporting}
@@ -231,10 +246,7 @@ export function SolarWebHistoryImport() {
             <CloudDownload size={15} />
             {isImporting ? "Importing Solar.web history..." : "Import Solar.web home EV history"}
           </Button>
-          <Text size="1" color="gray">
-            Large archives are automatically imported in 7-day batches. Re-importing
-            the same period is safe.
-          </Text>
+          <ImportHelpText />
         </div>
         {progress !== "" && <Text size="1" color="gray">{progress}</Text>}
         {result !== null && <ImportResult {...result} />}
