@@ -1,11 +1,12 @@
-import type { EnergyBucket, StatsBucket, StatsResponse } from "@chargeha/shared";
+import type {
+  EnergyBucket,
+  StatsBucket,
+  StatsPeriod,
+  StatsResponse,
+} from "@chargeha/shared";
 import { aggregateYear } from "./demoAggregate.ts";
 import { dateForOffset, parseDateKey } from "./demoDates.ts";
 import type { DemoSeries } from "./series.ts";
-
-export type DemoTotalStatsResponse = Omit<StatsResponse, "period"> & {
-  period: "total";
-};
 
 function emptyEnergyBucket(label: string): EnergyBucket {
   return {
@@ -27,7 +28,7 @@ export function aggregateTotal(
   series: DemoSeries,
   vehicleId?: string,
   now?: Date,
-): DemoTotalStatsResponse {
+): StatsResponse {
   const years = [...new Set(
     series.days.map((day) =>
       parseDateKey(dateForOffset(day.offset, now)).getFullYear()
@@ -53,7 +54,7 @@ export function aggregateTotal(
     0,
   );
   return {
-    period: "total",
+    period: "total" as StatsPeriod,
     startDate: years[0] ? `${years[0]}-01-01` : "",
     endDate: years.length > 0 ? `${years[years.length - 1]}-12-31` : "",
     energyBuckets: buckets.map((row) => emptyEnergyBucket(row.label)),
