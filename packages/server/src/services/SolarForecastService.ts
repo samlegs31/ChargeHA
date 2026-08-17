@@ -174,7 +174,6 @@ export class SolarForecastService {
       this.scheduleService.list(),
     ]);
     const capacity = estimateVehicleCapacityKwh(state, capacitySamples);
-    const schedules = schedulesResult.schedules as EngineSchedule[];
     const baseLoadW = await this.estimateBaseHomeLoadW(
       snapshot.realtime,
       controllerConfig,
@@ -188,7 +187,7 @@ export class SolarForecastService {
       priority: vehicle.priority,
       initialState: state,
       controllerConfig,
-      schedules,
+      schedules: schedulesResult.schedules as EngineSchedule[],
       points: weatherResult.points,
       forecastDayEnd: weatherResult.dayEnd,
       baseLoadW,
@@ -378,11 +377,7 @@ export class SolarForecastService {
       (current, ts) => this.simulateMinute(input, engine, electrical, current, ts),
       initialRuntime,
     );
-    const finalAt = runtime.finalAt ?? resolveFinalAt(
-      input.mode,
-      runtime.scheduleState,
-      runtime.solarEndAt,
-    );
+    const finalAt = simulationFinalAt(runtime, input.mode);
     return {
       solarChargeKwh: runtime.solarChargeKwh,
       solarEndAt: runtime.solarEndAt,
@@ -413,29 +408,7 @@ export class SolarForecastService {
       batterySoc: input.batterySoc,
       config: input.controllerConfig,
     });
-    const batteryChargeW = Math.max(0, -batteryW);
-    const gridPowerW = input.baseLoadW + runtime.simulatedEvW + batteryChargeW -
-      pvW - Math.max(0, batteryW);
-    const homeConsumptionW = homeConsumptionForSimulation(
-      input.controllerConfig,
-      input.baseLoadW,
-      runtime.simulatedEvW,
-    );
-    const energy: EnergyData = {
-      solarProductionW: pvW,
-      gridPowerW,
-      homeConsumptionW,
-      batteryPowerW: batteryW,
-      batterySoc: input.batterySoc,
-      gridVoltageV: electrical.voltage,
-      lastUpdated: at.toISOString(),
-    };
-    const state = {
-      ...runtime.vehicleState,
-      batteryLevel: runtime.soc,
-      chargePowerKw: runtime.simulatedEvW / 1000,
-      lastUpdated: at.toISOString(),
-    };
+    const minute = createMinuteSnapshot(input, runtime, electrical, at, pvW, batteryW);
     const activeSchedule = findActiveChargeSchedule(
       input.schedules,
       input.vehicleId,
@@ -455,25 +428,32 @@ export class SolarForecastService {
         name: input.vehicleName,
         mode: input.mode,
         priority: input.priority,
-        state,
+        state: minute.state,
       }],
       schedules: input.schedules,
-      energy,
+      energy: minute.energy,
       now: at,
       timestamp: ts,
     });
     const decision = result.decisions.get(input.vehicleId);
-    if (!decision) return { ...runtime, vehicleState: state, scheduleState };
+    if (!decision) {
+      return { ...runtime, vehicleState: minute.state, scheduleState };
+    }
 
     const decidedState = applyDecision(
-      state,
+      minute.state,
       decision.action,
       decision.targetAmps,
       electrical,
     );
     const simulatedEvW = chargePowerW(decidedState, electrical);
     const chargedKwh = simulatedEvW / 1000 / 60;
-    const soc = nextSoc(runtime.soc, chargedKwh, input.vehicleCapacityKwh, state.chargeLimit);
+    const soc = nextSoc(
+      runtime.soc,
+      chargedKwh,
+      input.vehicleCapacityKwh,
+      minute.state.chargeLimit,
+    );
     const vehicleState = withAddedEnergy(decidedState, chargedKwh);
     const scheduleActive = activeSchedule !== null;
     const solar = updateSolarProgress({
@@ -484,7 +464,7 @@ export class SolarForecastService {
       isCharging: vehicleState.isCharging,
       pvW,
       baseLoadW: input.baseLoadW,
-      batteryChargeW,
+      batteryChargeW: minute.batteryChargeW,
       simulatedEvW,
       soc,
       ts,
@@ -667,6 +647,14 @@ function simulationHorizonMs(input: SimulationInput, startMs: number): number {
   return startMs + FORECAST_HORIZON_HOURS * 60 * MINUTE_MS;
 }
 
+function simulationFinalAt(
+  runtime: SimulationRuntime,
+  mode: Extract<VehicleMode, "vacation" | "auto">,
+): string | null {
+  if (runtime.finalAt !== null) return runtime.finalAt;
+  return resolveFinalAt(mode, runtime.scheduleState, runtime.solarEndAt);
+}
+
 function createSimulationRuntime(
   input: SimulationInput,
   electrical: { voltage: number; phases: number },
@@ -689,6 +677,47 @@ function createSimulationRuntime(
     simulatedEvW: chargePowerW(state, electrical),
     finalAt: null,
     stopped: false,
+  };
+}
+
+function createMinuteSnapshot(
+  input: SimulationInput,
+  runtime: SimulationRuntime,
+  electrical: { voltage: number; phases: number },
+  at: Date,
+  pvW: number,
+  batteryW: number,
+): {
+  batteryChargeW: number;
+  energy: EnergyData;
+  state: VehicleChargeState;
+} {
+  const batteryChargeW = Math.max(0, -batteryW);
+  const gridPowerW = input.baseLoadW + runtime.simulatedEvW + batteryChargeW -
+    pvW - Math.max(0, batteryW);
+  const homeConsumptionW = homeConsumptionForSimulation(
+    input.controllerConfig,
+    input.baseLoadW,
+    runtime.simulatedEvW,
+  );
+  const timestamp = at.toISOString();
+  return {
+    batteryChargeW,
+    energy: {
+      solarProductionW: pvW,
+      gridPowerW,
+      homeConsumptionW,
+      batteryPowerW: batteryW,
+      batterySoc: input.batterySoc,
+      gridVoltageV: electrical.voltage,
+      lastUpdated: timestamp,
+    },
+    state: {
+      ...runtime.vehicleState,
+      batteryLevel: runtime.soc,
+      chargePowerKw: runtime.simulatedEvW / 1000,
+      lastUpdated: timestamp,
+    },
   };
 }
 
@@ -740,9 +769,8 @@ function updateSolarProgress(input: {
   soc: number;
   ts: number;
 }): Pick<SimulationRuntime, "solarChargeKwh" | "solarEndAt" | "socAtSolarEnd"> {
-  const solarActive = !input.scheduleActive && input.at <= input.forecastDayEnd &&
-    input.isCharging;
-  if (!solarActive) {
+  const duringForecast = input.at <= input.forecastDayEnd;
+  if (input.scheduleActive || !duringForecast || !input.isCharging) {
     return {
       solarChargeKwh: input.runtime.solarChargeKwh,
       solarEndAt: input.runtime.solarEndAt,
