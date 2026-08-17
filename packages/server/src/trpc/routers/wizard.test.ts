@@ -234,7 +234,7 @@ describe("Wizard tRPC Router", () => {
     it("sets auth mode to 'local' with valid credentials", async () => {
       const result = await caller.wizard.setAuthMode({
         mode: "local",
-        localConfig: { username: "admin", password: "password123" },
+        localConfig: { username: "admin", password: "password123456789" },
       });
       expect(result.success).toBe(true);
 
@@ -245,7 +245,7 @@ describe("Wizard tRPC Router", () => {
       assertExists(user);
       expect(user.username).toBe("admin");
       // Password should be hashed (not plaintext)
-      expect(user.passwordHash).not.toBe("password123");
+      expect(user.passwordHash).not.toBe("password123456789");
       expect(user.passwordHash.startsWith("$argon2")).toBe(true);
     });
 
@@ -366,7 +366,7 @@ describe("Wizard tRPC Router", () => {
 
       await callerWithHeaders.wizard.setAuthMode({
         mode: "local",
-        localConfig: { username: "admin", password: "password123" },
+        localConfig: { username: "admin", password: "password123456789" },
       });
 
       // After setting local auth, the response must include a Set-Cookie
@@ -404,7 +404,7 @@ describe("Wizard tRPC Router", () => {
       await expect(
         caller.wizard.setAuthMode({
           mode: "local",
-          localConfig: { username: "", password: "password123" },
+          localConfig: { username: "", password: "password123456789" },
         }),
       ).rejects.toThrow();
     });
