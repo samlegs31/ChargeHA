@@ -1,6 +1,15 @@
 .env
+.env.local
+.env.production
+.env.*.local
 private-key.pem
 public-key.pem
+*.key
+*.p12
+*.pfx
+*.jks
+secrets/
+encryption_key
 node_modules/
 packages/server/dist/
 **/.vite/
@@ -13,6 +22,10 @@ coverage_*/
 # Database files in root (downloaded/backup copies)
 *.db
 *.db.backup
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
 
 # Devtools build artifacts
 devtools/output/
@@ -20,8 +33,6 @@ devtools/output/
 # Local dev-server logs + test output
 *.log
 .test-out.txt
-
-
 
 .scratch/
 
