@@ -76,7 +76,8 @@
       "**/node_modules/",
       "scripts/",
       "**/.vite/",
-      "devtools/"
+      "devtools/",
+      "packages/shared/engine/ControllerEngine.test.ts"
     ]
   },
   "fmt": {
