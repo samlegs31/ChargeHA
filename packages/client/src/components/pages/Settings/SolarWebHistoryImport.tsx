@@ -214,10 +214,10 @@ export function SolarWebHistoryImport() {
   const [result, setResult] = useState<ImportSummary | null>(null);
   const [importError, setImportError] = useState("");
   const mutation = trpc.history.importSolarWeb.useMutation();
-  const ready = credentials.email !== "" &&
-    (credentials.password !== "" || credentials.hasSavedPassword) &&
-    credentials.pvSystemId !== "" && from !== "" && to !== "" &&
-    from <= to && !isImporting;
+  const hasCredentials = credentials.email !== "" && credentials.pvSystemId !== "";
+  const hasPassword = credentials.password !== "" || credentials.hasSavedPassword;
+  const hasValidDates = from !== "" && to !== "" && from <= to;
+  const ready = hasCredentials && hasPassword && hasValidDates && !isImporting;
 
   async function importBatchSequence(
     batches: readonly DateBatch[],
