@@ -6,6 +6,7 @@ import { Stats } from "./pages/Stats/Stats.tsx";
 import { Schedules } from "./pages/Schedules/Schedules.tsx";
 import { Logs } from "./pages/Logs/Logs.tsx";
 import { Settings } from "./pages/Settings/Settings.tsx";
+import { VehicleVisualDev } from "./pages/VehicleVisualDev/VehicleVisualDev.tsx";
 
 const LazySimulator = lazy(() =>
   import("./pages/Simulator/Simulator.tsx").then((m) => ({
@@ -20,6 +21,7 @@ const PAGE_LABELS: Record<Page, string> = {
   logs: "Logs",
   settings: "Settings",
   simulator: "Simulator",
+  vehicleVisualDev: "Vehicle visual POC",
 };
 
 export function renderPage(page: Page, onNavigate: (p: Page) => void) {
@@ -38,6 +40,7 @@ export function renderPage(page: Page, onNavigate: (p: Page) => void) {
         <LazySimulator />
       </Suspense>
     ),
+    vehicleVisualDev: () => <VehicleVisualDev />,
   };
   const content = pages[page]();
   return <ErrorBoundary label={PAGE_LABELS[page]}>{content}</ErrorBoundary>;
