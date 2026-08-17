@@ -304,11 +304,15 @@ export class HistoryRepository {
     nativeCutoff: string | null,
   ): VehicleChargeHistoryRowInput[] {
     if (nativeCutoff === null) return [...rows];
-    const normalized = nativeCutoff.includes("T")
-      ? nativeCutoff
-      : `${nativeCutoff.replace(" ", "T")}Z`;
-    const cutoffMs = Date.parse(normalized);
-    return rows.filter((row) => Date.parse(row.startTimeUtc) < cutoffMs);
+    const cutoffMs = Date.parse(this.asUtcIso(nativeCutoff));
+    return rows.filter((row) =>
+      Date.parse(this.asUtcIso(row.startTimeUtc)) < cutoffMs
+    );
+  }
+
+  private asUtcIso(value: string): string {
+    if (value.endsWith("Z") || /[+-]\d\d:\d\d$/.test(value)) return value;
+    return `${value.replace(" ", "T")}Z`;
   }
 
   private importResult(
