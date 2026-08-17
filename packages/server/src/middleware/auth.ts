@@ -23,9 +23,6 @@ const EXEMPT_EXACT = [
   "GET /",
   "GET /login",
   "GET /manifest.json",
-  // Tesla redirects here from its own domain, so there is no E.V Solar
-  // session cookie available on the callback request.
-  "GET /api/vehicle/tesla/callback",
 ] as const;
 
 /** tRPC procedure paths that bypass auth. */
@@ -78,11 +75,20 @@ export function isHttps(req: Request): boolean {
     req.headers.get("x-forwarded-proto") === "https";
 }
 
+/** Allow a plugin's top-level OAuth-style callback without naming the plugin. */
+function isVehiclePluginCallback(method: string, path: string): boolean {
+  if (method !== "GET") return false;
+  const segments = path.split("/").filter(Boolean);
+  return segments.length === 4 && segments[0] === "api" &&
+    segments[1] === "vehicle" && segments[3] === "callback";
+}
+
 /** Check whether a path is exempt from auth. */
 function isExemptPath(method: string, path: string): boolean {
   if (EXEMPT_EXACT.some((exact) => exact === `${method} ${path}`)) {
     return true;
   }
+  if (isVehiclePluginCallback(method, path)) return true;
 
   // Check method+path prefixes
   const matchesPrefix = EXEMPT_PREFIXES.some((prefix) => {
