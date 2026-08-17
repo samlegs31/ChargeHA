@@ -238,4 +238,81 @@ describe("HistoryRepository", () => {
       solarSavingsCents: 0,
     });
   });
+
+  it("stores Solar.web Wattpilot history globally without a vehicle", async () => {
+    const solarweb = {
+      ...historyRow(
+        "pv:2025-06-01T10:00",
+        "2025-06-01T08:00:00Z",
+        "2025-06-01T10:00:00",
+        {
+          chargedWh: 1000,
+          solarWh: 500,
+          batteryWh: 100,
+          gridWh: 400,
+        },
+      ),
+      source: "solarweb",
+      intervalSeconds: 300,
+    };
+
+    const first = await repository.importAggregateRows([solarweb]);
+    const second = await repository.importAggregateRows([solarweb]);
+    expect(first.insertedRows).toBe(1);
+    expect(second.duplicateRows).toBe(1);
+
+    const coverage = await repository.getAggregateCoverage("solarweb");
+    expect(coverage.rowCount).toBe(1);
+    expect(coverage.chargedWh).toBe(1000);
+
+    const globalStats = await repository.getChargeHqStatsDay("2025-06-01");
+    expect(globalStats[0]?.totalWh).toBe(1000);
+    expect(globalStats[0]?.solarWh).toBe(500);
+
+    const vehicleStats = await repository.getChargeHqStatsDay(
+      "2025-06-01",
+      "vehicle-1",
+    );
+    expect(vehicleStats).toEqual([]);
+  });
+
+  it("prefers Solar.web for home energy but keeps ChargeHQ away energy", async () => {
+    const chargeHqHome = historyRow(
+      "home-overlap",
+      "2025-06-01T08:00:00Z",
+      "2025-06-01T10:00:00",
+      { chargedWh: 1000, solarWh: 200, batteryWh: 0, gridWh: 800 },
+    );
+    const chargeHqAway = historyRow(
+      "away-overlap",
+      "2025-06-01T08:00:00Z",
+      "2025-06-01T10:00:00",
+      {
+        chargedWh: 300,
+        solarWh: 0,
+        batteryWh: 0,
+        gridWh: 0,
+        awayWh: 300,
+        atHomeWh: 0,
+      },
+    );
+    const solarweb = {
+      ...historyRow(
+        "pv-overlap",
+        "2025-06-01T08:05:00Z",
+        "2025-06-01T10:05:00",
+        { chargedWh: 900, solarWh: 500, batteryWh: 100, gridWh: 300 },
+      ),
+      source: "solarweb",
+      intervalSeconds: 300,
+    };
+
+    await repository.importChargeHqRows("vehicle-1", [chargeHqHome, chargeHqAway]);
+    await repository.importAggregateRows([solarweb]);
+
+    const stats = await repository.getChargeHqStatsDay("2025-06-01");
+    expect(stats.reduce((sum, row) => sum + row.totalWh, 0)).toBe(1200);
+    expect(stats.reduce((sum, row) => sum + row.awayWh, 0)).toBe(300);
+    expect(stats.reduce((sum, row) => sum + row.solarWh, 0)).toBe(500);
+  });
 });
