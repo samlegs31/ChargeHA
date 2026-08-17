@@ -14,6 +14,7 @@ export interface VehicleBreakdown {
   totalSolarWh: number;
   totalBatteryWh: number;
   totalGridWh: number;
+  totalAwayWh: number;
   totalCostCents: number;
   evSolarSavingsCents: number;
 }
@@ -109,6 +110,7 @@ export function useVehicleBreakdowns({
           totalSolarWh: response.totalSolarWh,
           totalBatteryWh: response.totalBatteryWh,
           totalGridWh: response.totalGridWh,
+          totalAwayWh: response.totalAwayWh,
           totalCostCents: response.totalCostCents ?? 0,
           evSolarSavingsCents: response.evSolarSavingsCents ?? 0,
         };
