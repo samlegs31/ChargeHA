@@ -1,7 +1,6 @@
 import { Text } from "@radix-ui/themes";
 import { LocalLoginForm } from "./LocalLoginForm.tsx";
 import { OidcLoginButton } from "./OidcLoginButton.tsx";
-import logoSrc from "../../assets/chargeha_soft-plug_brand.svg";
 import styles from "./LoginPage.module.css";
 
 type AuthMode = "none" | "local" | "oidc";
@@ -14,8 +13,8 @@ interface LoginPageProps {
 
 const ERROR_MESSAGES: Record<string, string> = {
   provider_denied: "Access was denied by your identity provider",
-  state_mismatch: "Login session expired \u2014 please try again",
-  token_exchange_failed: "Authentication failed \u2014 please try again",
+  state_mismatch: "Login session expired — please try again",
+  token_exchange_failed: "Authentication failed — please try again",
   provider_unreachable: "Could not reach your identity provider",
 };
 
@@ -28,14 +27,17 @@ export function LoginPage({ authMode, onSuccess, errorCode }: LoginPageProps) {
     <div className={styles.loginWrapper}>
       <div className={styles.loginCard}>
         <div className={styles.brand}>
-          <img
-            src={logoSrc}
-            alt="ChargeHA"
-            className={styles.logo}
-          />
-          <Text size="5" weight="bold">
-            Charge<span className={styles.accent}>HA</span>
-          </Text>
+          <picture className={styles.brandLogo}>
+            <source
+              srcSet="/ev-solar-logo-dark-exact.webp"
+              media="(prefers-color-scheme: dark)"
+            />
+            <img
+              src="/ev-solar-logo-exact.webp"
+              alt="E.V. Solar"
+              className={styles.logo}
+            />
+          </picture>
         </div>
 
         {errorMessage && (

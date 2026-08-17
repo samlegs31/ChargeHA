@@ -22,6 +22,7 @@ const EXEMPT_PREFIXES = [
 const EXEMPT_EXACT = [
   "GET /",
   "GET /login",
+  "GET /manifest.json",
   // Tesla redirects here from its own domain, so there is no E.V Solar
   // session cookie available on the callback request.
   "GET /api/vehicle/tesla/callback",
@@ -42,6 +43,7 @@ const STATIC_EXTENSIONS = [
   ".jpeg",
   ".gif",
   ".svg",
+  ".webp",
   ".ico",
   ".woff",
   ".woff2",

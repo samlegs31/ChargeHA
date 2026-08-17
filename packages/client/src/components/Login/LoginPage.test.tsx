@@ -26,13 +26,13 @@ describe("LoginPage", () => {
 
   // ── Branding ──
 
-  it("renders logo and branding", () => {
+  it("renders E.V. Solar branding", () => {
     renderWithProviders(
       <LoginPage authMode="local" onSuccess={vi.fn()} />,
     );
 
-    expect(screen.getByAltText("ChargeHA")).toBeInTheDocument();
-    expect(screen.getByText("HA")).toBeInTheDocument();
+    expect(screen.getByAltText("E.V. Solar")).toBeInTheDocument();
+    expect(screen.queryByText("ChargeHA")).not.toBeInTheDocument();
   });
 
   // ── Auth mode rendering ──
@@ -89,7 +89,6 @@ describe("LoginPage", () => {
       <LoginPage authMode="local" onSuccess={vi.fn()} />,
     );
 
-    // No error banner text
     expect(screen.queryByText("Access was denied")).not.toBeInTheDocument();
     expect(screen.queryByText("Login session expired")).not.toBeInTheDocument();
   });
