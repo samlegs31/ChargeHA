@@ -62,7 +62,17 @@ jobs:
         run: deno task check:packument
 
       - name: Server tests
-        run: deno task test:server
+        run: |
+          set -o pipefail
+          deno task test:server 2>&1 | tee server-tests.log
+
+      - name: Upload server-test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-test-diagnostics
+          path: server-tests.log
+          retention-days: 1
 
       - name: Client tests
         run: deno task test:client
