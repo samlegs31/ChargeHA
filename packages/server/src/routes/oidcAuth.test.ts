@@ -84,12 +84,19 @@ describe("OIDC Routes", () => {
       expect(stateCookie).toContain("Max-Age=600");
     });
 
-    // S2: Secure flag toggles with X-Forwarded-Proto.
+    // S2: Secure flag toggles only when forwarded HTTPS comes from a trusted proxy.
     const secureCases: Array<
       [scheme: string, headers: HeadersInit, expectSecure: boolean]
     > = [
       ["http", {}, false],
-      ["https", { "X-Forwarded-Proto": "https" }, true],
+      [
+        "https",
+        {
+          "X-Forwarded-Proto": "https",
+          "x-evsolar-remote-ip": "127.0.0.1",
+        },
+        true,
+      ],
     ];
     secureCases.forEach(([scheme, headers, expectSecure]) => {
       it(
