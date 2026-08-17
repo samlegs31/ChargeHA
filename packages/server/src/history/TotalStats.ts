@@ -21,6 +21,16 @@ function aggregateYearsQuery(vehicleId?: string) {
   `;
 }
 
+function archiveVehicleFilter(vehicleId?: string) {
+  if (vehicleId) return sql`AND h.vehicle_id = ${vehicleId}`;
+  return sql`
+    AND (
+      h.at_home_wh > 0
+      OR EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
+    )
+  `;
+}
+
 async function availableYears(
   db: AppDatabase,
   tz: number,
@@ -30,18 +40,18 @@ async function availableYears(
   const nativeVehicle = vehicleId
     ? sql`AND vehicle_id = ${vehicleId}`
     : sql``;
-  const archiveVehicle = vehicleId
-    ? sql`AND vehicle_id = ${vehicleId}`
-    : sql``;
+  const archiveVehicle = archiveVehicleFilter(vehicleId);
   const rows = await db.db.all<{ year: string | null }>(sql`
     SELECT year FROM (
       SELECT strftime('%Y', timestamp, ${offset}) AS year
       FROM vehicle_charge_readings
-      WHERE is_home = 1 ${nativeVehicle}
+      WHERE 1 = 1 ${nativeVehicle}
       UNION
-      SELECT substr(start_time_local, 1, 4) AS year
-      FROM vehicle_charge_history
-      WHERE source = 'chargehq' AND at_home_wh > 0 ${archiveVehicle}
+      SELECT substr(h.start_time_local, 1, 4) AS year
+      FROM vehicle_charge_history h
+      WHERE h.source = 'chargehq'
+        AND (h.at_home_wh > 0 OR h.away_wh > 0)
+        ${archiveVehicle}
       ${aggregateYearsQuery(vehicleId)}
     )
     WHERE year IS NOT NULL AND length(year) = 4
@@ -73,7 +83,7 @@ function chargingBucket(year: number, stats: StatsResponse): StatsBucket {
     solarWh: stats.totalSolarWh,
     batteryWh: stats.totalBatteryWh,
     gridWh: stats.totalGridWh,
-    awayWh: 0,
+    awayWh: stats.totalAwayWh,
     totalWh: stats.totalChargedWh,
     costCents: stats.totalCostCents ?? 0,
   };
@@ -109,10 +119,12 @@ export async function buildTotalStats(
   const totalSolarWh = buckets.reduce((sum, row) => sum + row.solarWh, 0);
   const totalBatteryWh = buckets.reduce((sum, row) => sum + row.batteryWh, 0);
   const totalGridWh = buckets.reduce((sum, row) => sum + row.gridWh, 0);
-  const totalChargedWh = totalSolarWh + totalBatteryWh + totalGridWh;
+  const totalAwayWh = buckets.reduce((sum, row) => sum + row.awayWh, 0);
+  const totalChargedWh = buckets.reduce((sum, row) => sum + row.totalWh, 0);
+  const homeChargedWh = totalSolarWh + totalBatteryWh + totalGridWh;
   const selfPoweredWh = totalSolarWh + totalBatteryWh;
-  const selfPoweredPercent = totalChargedWh > 0
-    ? Math.round((selfPoweredWh / totalChargedWh) * 100)
+  const selfPoweredPercent = homeChargedWh > 0
+    ? Math.round((selfPoweredWh / homeChargedWh) * 100)
     : 0;
   const totalCostCents = buckets.reduce(
     (sum, row) => sum + (row.costCents ?? 0),
@@ -149,7 +161,7 @@ export async function buildTotalStats(
     totalSolarWh,
     totalBatteryWh,
     totalGridWh,
-    totalAwayWh: 0,
+    totalAwayWh,
     selfPoweredPercent,
     totalCostCents,
     solarSavingsCents: evSolarSavingsCents,
