@@ -34,6 +34,7 @@ vi.mock("../trpc.ts", () => ({
           day: vi.fn((..._args: unknown[]) => ({})),
           month: vi.fn((..._args: unknown[]) => ({})),
           year: vi.fn((..._args: unknown[]) => ({})),
+          total: vi.fn((..._args: unknown[]) => ({})),
         },
       };
       fn(t);
@@ -139,6 +140,26 @@ describe("useVehicleBreakdowns", () => {
     const { result } = runHook({ data: baseStatsData });
 
     expect(result.current.hasConfiguredVehicles).toBe(true);
+  });
+
+  it("supports the Total period for per-vehicle queries", () => {
+    hoisted.state.listData = { vehicles: [{ id: "VIN1", name: "Model 3" }] };
+    hoisted.state.queriesResults = [{
+      data: {
+        totalChargedWh: 5000,
+        totalSolarWh: 3000,
+        totalBatteryWh: 0,
+        totalGridWh: 2000,
+        totalCostCents: 150,
+        evSolarSavingsCents: 200,
+      },
+      isPending: false,
+    }];
+
+    const { result } = runHook({ data: baseStatsData, period: "total" });
+
+    expect(result.current.activeVehicleBreakdowns[0]?.vehicleId).toBe("VIN1");
+    expect(result.current.activeVehicleBreakdowns[0]?.totalChargedWh).toBe(5000);
   });
 
   it("vehicleBreakdownsLoading is true when vehiclesQuery is pending", () => {
