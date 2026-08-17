@@ -41,12 +41,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Re-tag built image with version
+      - name: Re-tag multi-arch image with version
         run: |
           SRC="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main"
-          docker pull "$SRC"
-          docker tag "$SRC" "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}"
-          docker push "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}"
+          DST="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}"
+          docker buildx imagetools create --tag "$DST" "$SRC"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -57,4 +56,4 @@ jobs:
           body: |
             Docker image: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}`
 
-            The `latest` tag tracks the current main branch.
+            The `latest` tag tracks the current main branch and is published for linux/amd64 and linux/arm64.
