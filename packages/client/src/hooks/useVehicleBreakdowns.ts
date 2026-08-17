@@ -1,10 +1,10 @@
 import { useMemo } from "react";
+import type { VehicleWithState } from "@chargeha/shared";
 import type {
-  StatsPeriod,
-  StatsResponse,
-  VehicleWithState,
-} from "@chargeha/shared";
-import type { DayResolution } from "./useStats.ts";
+  DayResolution,
+  StatsViewPeriod,
+  StatsViewResponse,
+} from "./useStats.ts";
 import { trpc } from "../trpc.ts";
 
 export interface VehicleBreakdown {
@@ -19,9 +19,9 @@ export interface VehicleBreakdown {
 }
 
 interface UseVehicleBreakdownsArgs {
-  data: StatsResponse | null;
+  data: StatsViewResponse | null;
   loading: boolean;
-  period: StatsPeriod;
+  period: StatsViewPeriod;
   cursor: Date;
   resolution: DayResolution;
 }
@@ -83,6 +83,11 @@ export function useVehicleBreakdowns({
         case "year":
           return t.stats.year(
             { year, vehicleId: vehicle.id, tz },
+            { enabled: !loading },
+          );
+        case "total":
+          return t.stats.total(
+            { vehicleId: vehicle.id, tz },
             { enabled: !loading },
           );
       }
