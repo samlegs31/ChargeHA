@@ -35,7 +35,7 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
     <>
       <div className={styles.summary}>
         <SummaryCard
-          label="Total Charged"
+          label="Charged at Home"
           value={loading ? "—" : kwhValue(data?.totalChargedWh ?? 0)}
         />
         <SummaryCard
