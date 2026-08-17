@@ -69,20 +69,19 @@ describe("StatsVehicleBreakdown", () => {
     cleanup();
   });
 
-  it("renders per-vehicle charging only", () => {
+  it("renders complete per-vehicle charging", () => {
     setBreakdowns({
-      activeVehicleBreakdowns: [
-        {
-          vehicleId: "VIN-1",
-          vehicleName: "Model Y",
-          totalChargedWh: 1700,
-          totalSolarWh: 1400,
-          totalBatteryWh: 0,
-          totalGridWh: 300,
-          totalCostCents: 20,
-          evSolarSavingsCents: 10,
-        },
-      ],
+      activeVehicleBreakdowns: [{
+        vehicleId: "VIN-1",
+        vehicleName: "Model Y",
+        totalChargedWh: 2000,
+        totalSolarWh: 1400,
+        totalBatteryWh: 0,
+        totalGridWh: 300,
+        totalAwayWh: 300,
+        totalCostCents: 20,
+        evSolarSavingsCents: 10,
+      }],
     });
     renderComponent();
     expect(screen.getByText("Model Y")).toBeInTheDocument();
@@ -90,6 +89,7 @@ describe("StatsVehicleBreakdown", () => {
     expect(screen.getByText("From Solar")).toBeInTheDocument();
     expect(screen.getByText("From Battery")).toBeInTheDocument();
     expect(screen.getByText("From Grid")).toBeInTheDocument();
+    expect(screen.getByText("Away")).toBeInTheDocument();
     expect(screen.queryByText("Home Battery")).not.toBeInTheDocument();
     expect(screen.queryByText("Energy Sources")).not.toBeInTheDocument();
   });
@@ -106,7 +106,7 @@ describe("StatsVehicleBreakdown", () => {
     expect(screen.getByText("Vehicle Charging")).toBeInTheDocument();
   });
 
-  it("never renders away charging", () => {
+  it("renders away charging in the generic fallback when available", () => {
     setBreakdowns({ hasConfiguredVehicles: false });
     renderComponent({
       ...baseData,
@@ -114,6 +114,6 @@ describe("StatsVehicleBreakdown", () => {
       totalChargedWh: 2200,
     });
     expect(screen.getByText("Vehicle Charging")).toBeInTheDocument();
-    expect(screen.queryByText("Away")).not.toBeInTheDocument();
+    expect(screen.getByText("Away")).toBeInTheDocument();
   });
 });
