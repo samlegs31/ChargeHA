@@ -65,8 +65,10 @@ export class SolarWebHistoryError extends Error {
   }
 }
 
-let lastSolarWebRequestStartedAt = 0;
-let solarWebRequestSlot = Promise.resolve();
+const solarWebRateLimitState = {
+  lastRequestStartedAt: 0,
+  tail: Promise.resolve(),
+};
 
 function commonHeaders(): Record<string, string> {
   return {
@@ -86,25 +88,19 @@ async function reserveSolarWebRequestSlot(fetchFn: FetchFn): Promise<void> {
   // Production imports use the global fetch and share this limiter across batches.
   if (fetchFn !== fetch) return;
 
-  let release!: () => void;
-  const previousSlot = solarWebRequestSlot;
-  solarWebRequestSlot = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-
-  await previousSlot;
-  try {
+  const reservation = solarWebRateLimitState.tail.then(async () => {
     const waitMs = Math.max(
       0,
-      lastSolarWebRequestStartedAt + MIN_REQUEST_INTERVAL_MS - Date.now(),
+      solarWebRateLimitState.lastRequestStartedAt + MIN_REQUEST_INTERVAL_MS -
+        Date.now(),
     );
     if (waitMs > 0) {
       await sleep(waitMs);
     }
-    lastSolarWebRequestStartedAt = Date.now();
-  } finally {
-    release();
-  }
+    solarWebRateLimitState.lastRequestStartedAt = Date.now();
+  });
+  solarWebRateLimitState.tail = reservation.catch(() => undefined);
+  await reservation;
 }
 
 async function responseErrorDetail(response: Response): Promise<string> {
@@ -150,35 +146,41 @@ async function solarWebRequest(
   init: RequestInit,
   fetchFn: FetchFn,
   operation: string,
+  retry = 0,
 ): Promise<Response> {
-  for (let retry = 0; ; retry += 1) {
-    await reserveSolarWebRequestSlot(fetchFn);
-    const response = await fetchFn(url, {
-      ...init,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+  await reserveSolarWebRequestSlot(fetchFn);
+  const response = await fetchFn(url, {
+    ...init,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
 
-    if (response.status !== 429) {
-      return response;
-    }
-
-    const detail = await responseErrorDetail(response);
-    if (retry >= MAX_RATE_LIMIT_RETRIES) {
-      throw new SolarWebHistoryError(
-        `Solar.web API rate limit persisted after ${retry + 1} attempts: HTTP 429${
-          detail ? ` — ${detail}` : ""
-        }`,
-      );
-    }
-
-    const waitMs = retryAfterMs(response, detail);
-    console.warn(
-      `[solarweb-history] Solar.web API rate limit reached during ${operation}; retrying in ${
-        Math.ceil(waitMs / 1000)
-      }s`,
-    );
-    await sleep(waitMs);
+  if (response.status !== 429) {
+    return response;
   }
+
+  const detail = await responseErrorDetail(response);
+  if (retry >= MAX_RATE_LIMIT_RETRIES) {
+    throw new SolarWebHistoryError(
+      `Solar.web API rate limit persisted after ${retry + 1} attempts: HTTP 429${
+        detail ? ` — ${detail}` : ""
+      }`,
+    );
+  }
+
+  const waitMs = retryAfterMs(response, detail);
+  console.warn(
+    `[solarweb-history] Solar.web API rate limit reached during ${operation}; retrying in ${
+      Math.ceil(waitMs / 1000)
+    }s`,
+  );
+  await sleep(waitMs);
+  return await solarWebRequest(
+    url,
+    init,
+    fetchFn,
+    operation,
+    retry + 1,
+  );
 }
 
 async function login(
