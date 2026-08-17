@@ -1,0 +1,23 @@
+name: E.V. Solar transparent dark logo release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/dark-logo-transparent-release-once.yml
+      - packages/client/public/ev-solar-logo-dark-exact.webp
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: write
+
+  release:
+    needs: build
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+      packages: write
