@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Badge, Button, Card, Text, TextField } from "@radix-ui/themes";
-import { CloudDownload, DatabaseBackup, FileCheck2, Upload } from "lucide-react";
+import { Badge, Button, Card, Text } from "@radix-ui/themes";
+import { DatabaseBackup, FileCheck2, Upload } from "lucide-react";
 import { trpc } from "../../../trpc.ts";
 import { useToast } from "../../../hooks/useToast.tsx";
 import { SettingsSection } from "./SettingsLayout.tsx";
@@ -87,22 +87,8 @@ function formatKwh(value: number): string {
   }).format(value);
 }
 
-function formatWhAsKwh(value: number): string {
-  return `${formatKwh(value / 1000)} kWh`;
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected import error";
-}
-
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function oneYearAgoIsoDate(): string {
-  const date = new Date();
-  date.setUTCFullYear(date.getUTCFullYear() - 1);
-  return date.toISOString().slice(0, 10);
 }
 
 function emptyImportTotals(): ImportTotals {
@@ -441,7 +427,7 @@ function ExistingArchive({ coverage }: { coverage: HistoryCoverage | null }) {
       <Text size="2" weight="bold">Existing ChargeHQ archive</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
         {coverage.firstStartTimeLocal ?? "?"} → {coverage.lastStartTimeLocal ?? "?"} ·{" "}
-        {coverage.rowCount} rows · {formatWhAsKwh(coverage.chargedWh)}
+        {coverage.rowCount} rows · {formatKwh(coverage.chargedWh / 1000)} kWh
       </Text>
     </Card>
   );
@@ -482,170 +468,32 @@ function ImportResultCard({ result }: { result: ImportTotals | null }) {
   );
 }
 
-function SolarWebHistoryImport() {
-  const { addToast } = useToast();
-  const mutation = trpc.history.importSolarWeb.useMutation();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [pvSystemId, setPvSystemId] = useState("");
-  const [from, setFrom] = useState(oneYearAgoIsoDate);
-  const [to, setTo] = useState(todayIsoDate);
-
-  const canImport = email !== "" && password !== "" && pvSystemId !== "" &&
-    from !== "" && to !== "" && from <= to && !mutation.isPending;
-
-  const importHistory = async () => {
-    if (!canImport) return;
-    try {
-      const result = await mutation.mutateAsync({
-        email,
-        password,
-        pvSystemId,
-        from,
-        to,
-      });
-      addToast(`${result.insertedRows} Solar.web intervals imported`, "success");
-    } catch (error) {
-      addToast(errorMessage(error), "error");
-    }
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <CloudDownload size={17} />
-          <Text size="2" weight="bold">Solar.web history</Text>
-          <Badge size="1" color="green" variant="soft">All vehicles</Badge>
-        </div>
-        <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-          Import historical Wattpilot energy into global Stats. This does not enable
-          Fronius Cloud: your live energy source remains Fronius Local.
-        </Text>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
-        <div>
-          <Text size="1" weight="medium">Solar.web email</Text>
-          <TextField.Root
-            mt="1"
-            type="email"
-            placeholder="name@example.com"
-            value={email}
-            disabled={mutation.isPending}
-            onChange={(event) => setEmail(event.currentTarget.value)}
-          />
-        </div>
-        <div>
-          <Text size="1" weight="medium">Password</Text>
-          <TextField.Root
-            mt="1"
-            type="password"
-            placeholder="Solar.web password"
-            value={password}
-            disabled={mutation.isPending}
-            onChange={(event) => setPassword(event.currentTarget.value)}
-          />
-        </div>
-        <div>
-          <Text size="1" weight="medium">PV System ID</Text>
-          <TextField.Root
-            mt="1"
-            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            value={pvSystemId}
-            disabled={mutation.isPending}
-            onChange={(event) => setPvSystemId(event.currentTarget.value)}
-          />
-        </div>
-        <div>
-          <Text size="1" weight="medium">From</Text>
-          <TextField.Root
-            mt="1"
-            type="date"
-            value={from}
-            max={to}
-            disabled={mutation.isPending}
-            onChange={(event) => setFrom(event.currentTarget.value)}
-          />
-        </div>
-        <div>
-          <Text size="1" weight="medium">To</Text>
-          <TextField.Root
-            mt="1"
-            type="date"
-            value={to}
-            min={from}
-            max={todayIsoDate()}
-            disabled={mutation.isPending}
-            onChange={(event) => setTo(event.currentTarget.value)}
-          />
-        </div>
-      </div>
-
-      <Text size="1" color="gray">
-        The login is used only for this import request and is not saved in E.V Solar.
-        Solar.web history is not assigned to a specific car. Re-importing is safe;
-        native E.V Solar data keeps priority.
-      </Text>
-
-      <div>
-        <Button size="2" variant="soft" disabled={!canImport} onClick={importHistory}>
-          <CloudDownload size={15} />
-          {mutation.isPending ? "Importing Solar.web..." : "Import Solar.web history"}
-        </Button>
-      </div>
-
-      {mutation.isSuccess && (
-        <Card style={{ borderLeft: "3px solid var(--green-9)" }}>
-          <Text size="2" weight="bold">Solar.web import complete</Text>
-          <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-            {mutation.data.insertedRows} intervals added · {formatWhAsKwh(mutation.data.chargedWh)}{" "}
-            delivered to EVs — {formatWhAsKwh(mutation.data.solarWh)} solar, {" "}
-            {formatWhAsKwh(mutation.data.batteryWh)} home battery, {" "}
-            {formatWhAsKwh(mutation.data.gridWh)} grid
-          </Text>
-        </Card>
-      )}
-      {mutation.isError && (
-        <Text size="2" color="red">{mutation.error.message}</Text>
-      )}
-    </div>
-  );
-}
-
 function HistoryMigrationView({ model }: { model: HistoryMigrationModel }) {
   return (
     <SettingsSection
       icon={<DatabaseBackup size={18} />}
-      title="History & Migration"
-      description="Import legacy ChargeHQ and Solar.web history into E.V Solar Stats without changing live charging."
+      title="ChargeHQ history"
+      description="Import legacy ChargeHQ Interval Data into E.V Solar Stats without changing live charging."
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <Text size="2" weight="bold">ChargeHQ CSV</Text>
-          <DestinationVehicle
-            vehicles={model.vehicles}
-            vehicleId={model.vehicleId}
-            busy={model.busy}
-            onChange={model.setVehicleId}
-          />
-          <ChargeHqFilePicker
-            files={model.files}
-            busy={model.busy}
-            isAnalyzing={model.isAnalyzing}
-            onSelect={model.selectFiles}
-            onAnalyze={model.analyze}
-          />
-          <ChargeHqFileList files={model.files} previews={model.previews} />
-          {model.readyToImport && <ChargeHqPreview summary={model.previewTotals} />}
-          <ExistingArchive coverage={model.coverage} />
-          <ImportControls model={model} />
-          <ImportResultCard result={model.lastImport} />
-        </div>
-
-        <div style={{ borderTop: "1px solid var(--gray-a5)", paddingTop: 16 }}>
-          <SolarWebHistoryImport />
-        </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <DestinationVehicle
+          vehicles={model.vehicles}
+          vehicleId={model.vehicleId}
+          busy={model.busy}
+          onChange={model.setVehicleId}
+        />
+        <ChargeHqFilePicker
+          files={model.files}
+          busy={model.busy}
+          isAnalyzing={model.isAnalyzing}
+          onSelect={model.selectFiles}
+          onAnalyze={model.analyze}
+        />
+        <ChargeHqFileList files={model.files} previews={model.previews} />
+        {model.readyToImport && <ChargeHqPreview summary={model.previewTotals} />}
+        <ExistingArchive coverage={model.coverage} />
+        <ImportControls model={model} />
+        <ImportResultCard result={model.lastImport} />
       </div>
     </SettingsSection>
   );
