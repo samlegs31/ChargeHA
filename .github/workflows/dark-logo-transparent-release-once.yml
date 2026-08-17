@@ -2,7 +2,7 @@ name: E.V. Solar transparent dark logo release
 
 on:
   push:
-    branches: [fix-transparent-dark-logo]
+    branches: [main]
     paths:
       - .github/workflows/dark-logo-transparent-release-once.yml
       - packages/client/public/ev-solar-logo-dark-exact.webp
