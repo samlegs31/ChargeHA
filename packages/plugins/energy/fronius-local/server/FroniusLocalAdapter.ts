@@ -19,6 +19,26 @@ export class FroniusParseError extends Error {
   }
 }
 
+function extractBatterySoc(inverters: unknown): number | null {
+  if (!inverters || typeof inverters !== "object") return null;
+
+  const firstInverterId = Object.keys(inverters)[0];
+  if (!firstInverterId) return null;
+
+  const inverter = (inverters as Record<string, { SOC?: unknown }>)[
+    firstInverterId
+  ];
+  if (
+    !inverter ||
+    typeof inverter.SOC !== "number" ||
+    !Number.isFinite(inverter.SOC)
+  ) {
+    return null;
+  }
+
+  return inverter.SOC;
+}
+
 export class FroniusLocalAdapter implements EnergySourceAdapter {
   pollIntervalSeconds(): number {
     return 10;
@@ -93,23 +113,7 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
      *
      * Take the first inverter returned by the Fronius API.
      */
-    let batterySoc: number | null = null;
-
-    if (inverters && typeof inverters === "object") {
-      const firstInverterId = Object.keys(inverters)[0];
-
-      if (firstInverterId) {
-        const inverter = inverters[firstInverterId];
-
-        if (
-          inverter &&
-          typeof inverter.SOC === "number" &&
-          Number.isFinite(inverter.SOC)
-        ) {
-          batterySoc = inverter.SOC;
-        }
-      }
-    }
+    const batterySoc = extractBatterySoc(inverters);
 
     const meterJson = await meterRes.json();
     const meterData = meterJson?.Body?.Data;
@@ -154,43 +158,43 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
   }
 
   private async fetch(path: string): Promise<Response> {
-    const attempts = 2;
+    return await this.fetchAttempt(path, 1, 2);
+  }
 
-    for (let attempt = 1; attempt <= attempts; attempt++) {
-      try {
-        const response = await fetch(`${this.baseUrl}${path}`, {
-          signal: AbortSignal.timeout(10000),
-        });
+  private async fetchAttempt(
+    path: string,
+    attempt: number,
+    attempts: number,
+  ): Promise<Response> {
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        signal: AbortSignal.timeout(10000),
+      });
 
-        if (!response.ok) {
-          throw new FroniusConnectionError(
-            `Fronius returned HTTP ${response.status} for ${path}`,
-          );
-        }
-
-        return response;
-      } catch (error) {
-        if (
-          error instanceof FroniusConnectionError ||
-          error instanceof FroniusParseError
-        ) {
-          throw error;
-        }
-
-        if (attempt < attempts) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          continue;
-        }
-
+      if (!response.ok) {
         throw new FroniusConnectionError(
-          `Failed to fetch ${path} from Fronius at ${this.host}`,
-          error instanceof Error ? error : undefined,
+          `Fronius returned HTTP ${response.status} for ${path}`,
         );
       }
-    }
 
-    throw new FroniusConnectionError(
-      `Failed to fetch ${path} from Fronius at ${this.host}`,
-    );
+      return response;
+    } catch (error) {
+      if (
+        error instanceof FroniusConnectionError ||
+        error instanceof FroniusParseError
+      ) {
+        throw error;
+      }
+
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return await this.fetchAttempt(path, attempt + 1, attempts);
+      }
+
+      throw new FroniusConnectionError(
+        `Failed to fetch ${path} from Fronius at ${this.host}`,
+        error instanceof Error ? error : undefined,
+      );
+    }
   }
 }
