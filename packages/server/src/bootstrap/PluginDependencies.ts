@@ -148,17 +148,6 @@ export class PluginDependencies<K extends string = string> {
     return row?.adapterType === this.pluginId ? row : null;
   }
 
-  /** Resolve an app vehicle by its display name, regardless of adapter type.
-   *  Energy plugins use this only to attach imported energy history to the
-   *  correct vehicle. */
-  async findVehicleByName(name: string): Promise<VehicleRow | null> {
-    const expected = name.trim().toLowerCase();
-    const vehicles = await this.db.getVehicles();
-    return vehicles.find((vehicle) =>
-      vehicle.name.trim().toLowerCase() === expected
-    ) ?? null;
-  }
-
   /** Upsert a vehicle for this plugin. The adapter type is stamped with the
    *  plugin's own id — a plugin cannot write another plugin's vehicles. */
   upsertVehicleRow(
@@ -195,24 +184,20 @@ export class PluginDependencies<K extends string = string> {
   // ── Archived charging history (energy plugins) ──────────────────────
 
   /**
-   * Import charging intervals produced by an energy-source plugin for an
-   * existing vehicle. Native E.V Solar readings retain priority over imports.
+   * Import installation-level EV charging intervals. This is intentionally
+   * not tied to a vehicle: an EVSE/energy source may know energy delivered
+   * without knowing which car received it.
    */
-  async importVehicleChargeHistoryRows(
-    vehicleId: string,
+  async importAggregateEvChargeHistoryRows(
     rows: readonly VehicleChargeHistoryRowInput[],
   ) {
-    const vehicle = await this.db.getVehicle(vehicleId);
-    if (vehicle === null) {
-      throw new Error(`Vehicle ${vehicleId} not found`);
-    }
     const repository = new HistoryRepository(this.db.db);
-    return await repository.importRows(vehicleId, rows);
+    return await repository.importAggregateRows(rows);
   }
 
-  async getVehicleChargeHistoryCoverage(source: string, vehicleId: string) {
+  async getAggregateEvChargeHistoryCoverage(source: string) {
     const repository = new HistoryRepository(this.db.db);
-    return await repository.getCoverage(source, vehicleId);
+    return await repository.getAggregateCoverage(source);
   }
 
   // ── Simulated load (Simulated plugin only) ───────────────────────────
