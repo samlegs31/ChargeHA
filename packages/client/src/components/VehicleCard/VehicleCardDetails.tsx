@@ -130,6 +130,20 @@ function isCurrentRamping(state: VehicleChargeState): boolean {
     Math.abs(state.chargeAmps - actualAmps(state)) >= 0.5;
 }
 
+function formatCurrentLabel(
+  state: VehicleChargeState,
+  liveAmps: number,
+  targetAmps: number,
+  ramping: boolean,
+): string {
+  if (ramping) {
+    return `${formatAmps(liveAmps)}A actual · ${formatAmps(targetAmps)}A target · ${
+      formatAmps(state.chargeAmpsMax)
+    }A max`;
+  }
+  return `${formatAmps(liveAmps)}A / ${formatAmps(state.chargeAmpsMax)}A max`;
+}
+
 function ChargeButton(
   { isCharging, disabled, commandPending, onStart, onStop }: {
     isCharging: boolean;
@@ -177,6 +191,34 @@ function ControllerReasonRow(
     <div className={styles.detailRow}>
       {Icon && <Icon size={14} />}
       <Text size="1" color={color}>{label}</Text>
+    </div>
+  );
+}
+
+function ChargeEta(
+  { state, ramping, chargeLimitPercent }: {
+    state: VehicleChargeState;
+    ramping: boolean;
+    chargeLimitPercent: number;
+  },
+) {
+  if (ramping) {
+    return (
+      <div className={styles.detailRow}>
+        <Plug size={14} />
+        <Text size="1" color="gray">
+          ETA updating while charging current settles
+        </Text>
+      </div>
+    );
+  }
+  if (state.minutesToFull <= 0) return null;
+  return (
+    <div className={styles.detailRow}>
+      <Plug size={14} />
+      <Text size="1" color="gray">
+        {formatMinutes(state.minutesToFull)} to {chargeLimitPercent}%
+      </Text>
     </div>
   );
 }
@@ -237,11 +279,7 @@ export function VehicleCardDetails({
   const targetAmps = state.chargeAmps;
   const liveAmps = actualAmps(state);
   const ramping = isCurrentRamping(state);
-  const currentLabel = ramping
-    ? `${formatAmps(liveAmps)}A actual · ${formatAmps(targetAmps)}A target · ${
-      formatAmps(state.chargeAmpsMax)
-    }A max`
-    : `${formatAmps(liveAmps)}A / ${formatAmps(state.chargeAmpsMax)}A max`;
+  const currentLabel = formatCurrentLabel(state, liveAmps, targetAmps, ramping);
 
   return (
     <>
@@ -285,24 +323,11 @@ export function VehicleCardDetails({
                 {state.energyAddedKwh.toFixed(1)} kWh added
               </Text>
             </div>
-            {ramping
-              ? (
-                <div className={styles.detailRow}>
-                  <Plug size={14} />
-                  <Text size="1" color="gray">
-                    ETA updating while charging current settles
-                  </Text>
-                </div>
-              )
-              : state.minutesToFull > 0 && (
-                <div className={styles.detailRow}>
-                  <Plug size={14} />
-                  <Text size="1" color="gray">
-                    {formatMinutes(state.minutesToFull)} to{" "}
-                    {chargeLimitPercent}%
-                  </Text>
-                </div>
-              )}
+            <ChargeEta
+              state={state}
+              ramping={ramping}
+              chargeLimitPercent={chargeLimitPercent}
+            />
           </>
         )}
       </div>
