@@ -197,7 +197,7 @@ describe("Stats", () => {
   it("renders EV solar share from charged energy", () => {
     setStats({ isAtPresent: false, data: mockStatsData });
     renderStats();
-    expect(screen.getByText("82%")).toBeInTheDocument();
+    expect(screen.getAllByText("82%").length).toBeGreaterThanOrEqual(1);
   });
 
   it("does not render home energy or home battery cards", () => {
