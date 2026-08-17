@@ -7,62 +7,82 @@
 
 # E.V. Solar
 
-**E.V. Solar** is a self-hosted solar-aware EV charging controller focused on Tesla + Fronius home installations.
+**E.V. Solar** is an intelligent EV charging platform built to use as much home solar energy as possible while protecting the home battery and taking advantage of low-cost electricity periods.
 
-It is based on [ChargeHA](https://github.com/startswithaj/ChargeHA) and extends it with a charging model designed around solar self-consumption, home-battery protection, tariff schedules, battery-to-car attribution, and same-day solar charge forecasting.
+It combines live energy data, Tesla charging control, battery rules, schedules and solar forecasting to decide **when the car should charge, how much power it should use, and when charging should pause**.
+
+The project is currently developed around **Tesla + Fronius + home-battery installations**, with a broader goal: become a complete energy assistant able to coordinate the EV, solar production, battery storage, electricity tariffs and future energy forecasts.
 
 > **Current branch:** `main`
 >
-> **Status:** personal/home deployment, actively developed and validated on Raspberry Pi + Docker.
+> **Status:** actively developed and tested in a real home installation using Raspberry Pi + Docker. A more flexible server/VPS architecture is planned for the future.
 
-## Main features
+## What E.V. Solar does today
 
-- **Tesla Fleet API integration** — vehicle state, SOC, plug/home detection, charging start/stop and current control.
-- **Fronius local integration** — direct LAN power-flow data for PV production, grid import/export and home-battery SOC/power.
-- **Home-battery aware charging** — EV charging avoids consuming energy discharged from the home battery when operating from solar.
-- **Battery protection** — configurable minimum home-battery SOC, tolerated discharge power and grace period before stopping EV charging.
-- **10-minute schedules** — schedule start/end times can be configured in 10-minute increments.
-- **Real-time dashboard** — solar, grid, home battery and EV charging flows.
-- **Battery-to-car attribution** — charging statistics distinguish energy coming from solar, the home battery and the grid.
-- **Historical statistics** — charging and energy attribution over time.
-- **Telegram notifications** — charging events, errors and battery target notifications.
-- **Responsive interface** — mobile-friendly UI with automatic light/dark theme.
-- **Local-first design** — Fronius communication stays on the LAN; the application is self-hosted.
+### ☀️ Solar-first EV charging
 
-## Charging modes
+E.V. Solar continuously evaluates the solar power that is really available for the car and adjusts Tesla charging accordingly.
 
-E.V. Solar exposes four simple operating modes:
+It does not simply look at grid export: home-battery discharge is removed from the apparent surplus so the EV does not silently drain the stationary battery while being reported as "solar charging".
 
-### STOP
+### 🔋 Home-battery protection
 
-No automatic charging. Schedules are ignored.
+The home battery remains part of the charging decision.
 
-### CHARGE NOW
+E.V. Solar can use:
 
-Starts charging immediately at the configured maximum current. Schedules and solar control are ignored.
+- minimum battery SOC,
+- battery charge/discharge power,
+- configurable discharge tolerance,
+- grace periods before stopping the car,
+- solar surplus after battery behaviour is taken into account.
 
-### SOLAR ONLY
+The objective is to **charge the car from genuine excess energy without sacrificing household battery autonomy**.
 
-Charges only from usable solar excess.
+### 🚗 Tesla smart charging
 
-E.V. Solar subtracts home-battery discharge from the apparent export before deciding how much solar is actually available for the car. This prevents a Tesla from being charged by draining the stationary battery while the UI still appears to show solar charging.
+Tesla Fleet API integration provides:
 
-If solar briefly drops because of clouds, configurable grace/cooldown logic avoids unnecessary rapid start/stop cycles.
+- vehicle state and SOC,
+- plugged-in / home detection,
+- charging start and stop,
+- charging-current control,
+- charging targets and charging status.
 
-### SOLAR + 🕒
+### ⚡ Solar and off-peak charging modes
 
-Combines solar charging with scheduled charging.
+E.V. Solar offers simple operating modes for different needs:
 
-- **Outside a schedule:** behaves like `SOLAR ONLY`.
-- **During an active schedule:** charges at the configured scheduled amperage.
-- Home-battery discharge is intentionally ignored for the EV charging decision during the schedule, allowing cheap/off-peak grid charging when desired.
-- A schedule target SOC can stop charging before the end of the time window.
+- **STOP** — no automatic charging.
+- **CHARGE NOW** — charge immediately at the configured power.
+- **SOLAR ONLY** — use available solar excess while respecting home-battery rules.
+- **SOLAR + schedule** — use solar normally, then allow scheduled/off-peak charging when required.
 
-This is useful for installations where daytime charging should follow PV production while a night/off-peak window guarantees a minimum morning SOC.
+Schedules can be configured in 10-minute increments and can include a target vehicle SOC.
 
-## Solar forecast
+### 🏠 Real-time home energy view
 
-E.V. Solar v2 includes an **informational charge forecast** displayed directly in the vehicle card when the car is plugged in at home and the active mode is `SOLAR ONLY` or `SOLAR + 🕒`.
+The dashboard combines the main power flows in one place:
+
+- PV production,
+- grid import/export,
+- home consumption,
+- home-battery SOC and power,
+- EV charging power and state.
+
+### 📊 Charging history and energy attribution
+
+E.V. Solar records charging and energy history so charging sessions can be analysed over time.
+
+The project also includes ChargeHQ-history import foundations for using historical EV charging information without confusing EV-delivered solar energy with total PV production.
+
+### 🌤️ Solar charging forecast
+
+E.V. Solar includes an **informational solar charge forecast** designed to answer practical questions such as:
+
+- How much solar energy may still be available today?
+- What SOC could the Tesla reach by the end of the solar day?
+- If scheduled charging is enabled, when could the target SOC be reached?
 
 Example:
 
@@ -71,72 +91,132 @@ Example:
 🌙 Target 80% estimated around 04:32
 ```
 
-The forecast is intentionally isolated from charge control: **it cannot start, stop or change vehicle charging.**
-
-It uses:
+The forecast currently uses:
 
 - site location,
-- installation date,
-- one or more PV arrays,
-- kWp per array,
-- azimuth and tilt,
-- automatic average PV degradation of **0.5%/year**,
-- 15-minute tilted irradiance forecast data,
+- PV array size, orientation and tilt,
+- installation age and panel degradation,
+- tilted irradiance forecasts,
+- outdoor temperature,
 - live Fronius production for correction,
-- local Tesla charging history,
-- current Tesla SOC/state,
-- current household and battery state,
-- the real E.V. Solar controller rules for simulation.
+- recent household load,
+- Tesla SOC and charging state,
+- home-battery state,
+- actual E.V. Solar charging rules.
 
-The weather/irradiance provider used by the current implementation is Open-Meteo with Météo-France forecast data where available.
+The current implementation uses Open-Meteo with Météo-France forecast data where available.
 
-Forecast failures are non-critical and never affect the charging controller.
+**Forecasting is deliberately separated from charging control.** A forecast failure cannot start, stop or change vehicle charging.
 
-## Fronius battery conventions
+### 🔔 Notifications
 
-E.V. Solar normalises Fronius data internally so that:
+Telegram notifications can report important charging events, errors and target-related information.
 
-- `gridPowerW > 0` = grid import,
-- `gridPowerW < 0` = grid export,
-- `batteryPowerW > 0` = home-battery discharge,
-- `batteryPowerW < 0` = home-battery charging.
+### 🔐 Self-hosted and security-focused
 
-For solar allocation, home-battery discharge is excluded from usable PV surplus.
+E.V. Solar is designed to keep control of the installation in the user's hands.
 
-## Security
-
-The E.V. Solar deployment has been hardened for a private home server:
+The current deployment includes:
 
 - Argon2id local authentication,
-- minimum password length enforcement,
-- session cookies with `HttpOnly` and `SameSite=Lax`,
+- minimum password-length enforcement,
+- secure session cookies,
 - escalating brute-force delay,
 - AES-256-GCM encryption for stored secrets,
-- encryption key provided as a read-only Docker secret file,
-- non-root container (`1000:1000`),
+- Docker secret support for the encryption key,
+- non-root container execution,
 - read-only root filesystem,
-- all Linux capabilities dropped,
+- dropped Linux capabilities,
 - `no-new-privileges`,
-- PID limit,
 - restricted temporary filesystem,
-- loopback + LAN-only application exposure in the recommended Raspberry Pi deployment,
 - hardened trusted-proxy handling,
 - OIDC HTTPS/SSRF protections,
-- Tesla HTTP proxy bound to loopback.
+- loopback-bound Tesla HTTP proxy.
 
-The persistent SQLite database is stored in the Docker volume `chargeha-data` and must be backed up together with the encryption key.
+## Current integrations
 
-## Supported integrations
-
-| Category | Integration | Notes |
+| Category | Integration | Current use |
 | --- | --- | --- |
-| Vehicle | **Tesla** | Fleet API, virtual key, charge control, SOC/location/home state |
-| Energy | **Fronius local** | PV, grid and home-battery data directly over LAN |
-| Energy | Fronius cloud | Inherited from ChargeHA |
+| Vehicle | **Tesla** | Fleet API, virtual key, SOC, location/home state and charge control |
+| Energy | **Fronius local** | PV, grid and home-battery data over the local network |
+| Energy | Fronius cloud | Existing inherited support; E.V. Solar-specific Solar.web work is planned |
 | Energy | Sigenergy local | Inherited from ChargeHA |
 | Energy | Enphase local | Inherited from ChargeHA |
-| Notifications | **Telegram** | Charging, errors and target notifications |
-| Authentication | Local / OIDC | Local hardened auth plus OIDC support |
+| Notifications | **Telegram** | Charging events, errors and targets |
+| Authentication | Local / OIDC | Local hardened authentication plus OIDC support |
+
+## How E.V. Solar makes a charging decision
+
+The controller combines several signals instead of relying on a single measurement:
+
+1. **How much solar is being produced?**
+2. **How much power is the house using?**
+3. **Is the home battery charging or discharging?**
+4. **How much genuine surplus is left for the EV?**
+5. **What charging mode is active?**
+6. **Is an off-peak/scheduled period active?**
+7. **What is the Tesla SOC and requested target?**
+8. **Should temporary clouds be tolerated before changing the charge state?**
+
+The charging controller remains the single authority for vehicle commands. Forecasting can inform the user and simulate future behaviour, but it cannot directly control the car.
+
+## Roadmap
+
+E.V. Solar is moving from a solar-aware charging controller toward a broader **intelligent home-energy platform**.
+
+### 🧠 Smarter solar forecasting
+
+Planned improvements include:
+
+- a clearer numerical forecast-confidence score,
+- stronger calibration from local production history,
+- better use of recent forecast errors,
+- inverter-specific efficiency and AC-output limits,
+- improved temperature and weather corrections,
+- better prediction of the EV SOC achievable from the next solar window.
+
+The goal is not only to predict PV production, but to predict **how much useful energy will actually reach the car**.
+
+### ☁️ Fronius Solar.web integration
+
+A future Solar.web integration is planned so E.V. Solar can retrieve Fronius information without requiring direct LAN access to the inverter.
+
+The intended architecture is suitable for a hosted E.V. Solar service while keeping user credentials and permissions as limited as possible.
+
+### 🔋 More advanced battery strategies
+
+Future battery logic may include:
+
+- smarter reserve targets,
+- time-of-day battery priorities,
+- forecast-based decisions on whether energy should go to the home battery or the car,
+- anticipation of poor-weather days,
+- improved coordination between PV, battery and EV demand.
+
+### 💶 Electricity-price optimisation
+
+E.V. Solar is intended to combine solar charging with electricity-price information so it can choose between:
+
+- immediate solar charging,
+- waiting for future solar production,
+- scheduled off-peak charging,
+- future dynamic-price opportunities.
+
+### 🔌 Fronius Wattpilot
+
+Wattpilot integration is planned as a later project so E.V. Solar can coordinate Fronius charging hardware directly alongside Tesla charging control.
+
+### 🌐 Server / VPS deployment
+
+The current installation is local and self-hosted. A future architecture is planned to allow E.V. Solar to run on a low-cost server/VPS, reducing the need for dedicated hardware in the home when cloud-accessible integrations are available.
+
+### 🚙 Broader ecosystem support
+
+Longer-term development can extend the same energy logic to additional EVs, chargers, inverters and energy systems without changing the core principle: **use the cleanest and cheapest available energy while preserving user control**.
+
+### 💾 Backup, recovery and migration
+
+Planned work also includes clearer installation, backup, disaster-recovery and migration tooling so an E.V. Solar installation can be restored reliably.
 
 ## Raspberry Pi / Docker
 
@@ -184,7 +264,7 @@ Adapt the network binding if LAN access is required. Do not expose the applicati
 
 ## Data and backups
 
-For disaster recovery, keep independent copies of all of the following:
+For disaster recovery, keep independent copies of:
 
 1. the Git repository and E.V. Solar version/tag,
 2. a known-good exported Docker image,
@@ -193,21 +273,6 @@ For disaster recovery, keep independent copies of all of the following:
 5. deployment/restoration instructions.
 
 The source repository alone is **not** a complete backup because the database and encryption key contain installation-specific configuration and secrets.
-
-## Architecture notes
-
-E.V. Solar deliberately keeps forecast logic separate from charge-control decisions. The forecast may simulate ControllerEngine behaviour but cannot send vehicle commands.
-
-The controller remains the single authority for charging decisions.
-
-SQLite is configured for reliable long-running operation with WAL/busy-timeout handling, and runtime energy recording is kept independent from forecast calculations.
-
-## Planned work
-
-- ChargeHQ historical CSV import into a dedicated forecast-training/calibration history.
-- Continued forecast calibration using local production and charging history.
-- Automated survival backup / disaster-recovery package.
-- Additional documentation for clean installation and migration.
 
 ## Project origin and licence
 
@@ -225,4 +290,4 @@ E.V. Solar is not affiliated with or endorsed by Tesla, Fronius, Open-Meteo, Mé
 
 ---
 
-**E.V. Solar** — self-hosted Tesla charging that prioritises your solar production without sacrificing control of your home battery.
+**E.V. Solar** — intelligent solar EV charging that connects your car, solar production and home battery into one energy strategy.
