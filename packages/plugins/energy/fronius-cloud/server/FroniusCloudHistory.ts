@@ -143,10 +143,10 @@ async function fetchHistoryPages(
 }
 
 /**
- * Read Wattpilot charging energy from the Solar.web historical PV-system
- * endpoint. Fronius exposes generator, battery and grid contribution as
- * separate Wh channels, which maps directly to E.V Solar's charge-history
- * model without reconstructing power samples.
+ * Read energy delivered by the Wattpilot to EVs from Solar.web history.
+ * Fronius exposes generator, battery and grid contributions separately but
+ * does not identify the vehicle, so these rows are stored as aggregate EV
+ * history rather than being attached to a car.
  */
 export async function fetchFroniusCloudEvHistory(
   adapter: FroniusCloudAdapter,
