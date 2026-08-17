@@ -14,9 +14,12 @@ import { publicProcedure, router } from "../trpc.ts";
 const csvTextInput = z.string().min(1).max(15_000_000);
 const vehicleIdInput = z.object({ vehicleId: z.string().min(1) });
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const SOLARWEB_EMAIL_KEY = "solarweb.history.email";
+const SOLARWEB_PASSWORD_KEY = "solarweb.history.password";
+const SOLARWEB_PV_SYSTEM_ID_KEY = "solarweb.history.pv_system_id";
 const solarWebImportInput = z.object({
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().max(1024),
   pvSystemId: z.string().min(1),
   from: isoDate,
   to: isoDate,
@@ -99,10 +102,41 @@ export const historyRouter = router({
       };
     }),
 
+  getSolarWebImportCredentials: publicProcedure.query(async ({ ctx }) => {
+    const [email, password, pvSystemId] = await Promise.all([
+      ctx.db.readSecret(SOLARWEB_EMAIL_KEY),
+      ctx.db.readSecret(SOLARWEB_PASSWORD_KEY),
+      ctx.db.readSecret(SOLARWEB_PV_SYSTEM_ID_KEY),
+    ]);
+    return {
+      email: email ?? "",
+      pvSystemId: pvSystemId ?? "",
+      hasPassword: password !== null && password !== "",
+    };
+  }),
+
   importSolarWeb: publicProcedure
     .input(solarWebImportInput)
     .mutation(async ({ ctx, input }) => {
-      const history = await readSolarWebHistory(input);
+      const password = input.password !== ""
+        ? input.password
+        : await ctx.db.readSecret(SOLARWEB_PASSWORD_KEY);
+      if (password === null || password === "") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Solar.web password is required",
+        });
+      }
+
+      const history = await readSolarWebHistory({ ...input, password });
+      await Promise.all([
+        ctx.db.storeSecret(SOLARWEB_EMAIL_KEY, input.email),
+        ctx.db.storeSecret(SOLARWEB_PV_SYSTEM_ID_KEY, input.pvSystemId),
+        ...(input.password !== ""
+          ? [ctx.db.storeSecret(SOLARWEB_PASSWORD_KEY, input.password)]
+          : []),
+      ]);
+
       const repository = new HistoryRepository(ctx.db.db);
       const importResult = await repository.importAggregateRows(history.rows);
       const coverage = await repository.getAggregateCoverage("solarweb");
