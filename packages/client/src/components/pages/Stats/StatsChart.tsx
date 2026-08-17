@@ -9,12 +9,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import type { VehicleSocSnapshot } from "@chargeha/shared";
 import type {
-  StatsPeriod,
-  StatsResponse,
-  VehicleSocSnapshot,
-} from "@chargeha/shared";
-import type { DayResolution } from "../../../hooks/useStats.ts";
+  DayResolution,
+  StatsViewPeriod,
+  StatsViewResponse,
+} from "../../../hooks/useStats.ts";
 import { formatCost } from "../../../utils/Format.ts";
 import styles from "./Stats.module.css";
 
@@ -57,20 +57,20 @@ interface ChartDatum {
 }
 
 interface StatsChartProps {
-  data: StatsResponse | null;
+  data: StatsViewResponse | null;
   loading: boolean;
-  period: StatsPeriod;
+  period: StatsViewPeriod;
   resolution: DayResolution;
   setResolution: (r: DayResolution) => void;
   dateCursor: Date;
-  onDrillDown: (period: StatsPeriod, date: Date) => void;
+  onDrillDown: (period: StatsViewPeriod, date: Date) => void;
 }
 
 interface CustomTooltipProps {
   active?: boolean;
   payload?: Array<{ payload: ChartDatum }>;
   label?: string;
-  period: StatsPeriod;
+  period: StatsViewPeriod;
   resolution: DayResolution;
   dateCursor: Date;
   currencySymbol: string;
@@ -82,7 +82,7 @@ function roundKwh(wh: number): number {
 
 function bucketLabel(
   label: string,
-  period: StatsPeriod,
+  period: StatsViewPeriod,
   resolution: DayResolution,
 ): string {
   if (period !== "day" || resolution === "15m") return label;
@@ -91,7 +91,7 @@ function bucketLabel(
 
 function buildBucketDatum(
   bucket: NonNullable<StatsChartProps["data"]>["buckets"][number],
-  period: StatsPeriod,
+  period: StatsViewPeriod,
   resolution: DayResolution,
   vehicleSoc: VehicleSocSnapshot[] | undefined,
 ): ChartDatum {
@@ -107,7 +107,7 @@ function buildBucketDatum(
 
 function buildHeaderLabel(
   label: string,
-  period: StatsPeriod,
+  period: StatsViewPeriod,
   resolution: DayResolution,
   cursor: Date,
 ): string {
@@ -120,7 +120,7 @@ function buildHeaderLabel(
       day: "numeric",
     });
   }
-  if (period === "year") return label;
+  if (period === "year" || period === "total") return label;
   if (!label) return "";
   if (resolution !== "15m") {
     const hour = parseInt(label, 10);
@@ -186,7 +186,7 @@ function CustomTooltip(props: CustomTooltipProps) {
 }
 
 function computeTickInterval(
-  period: StatsPeriod,
+  period: StatsViewPeriod,
   resolution: DayResolution,
 ): number {
   if (period === "day") return resolution === "15m" ? 11 : 2;
@@ -195,12 +195,17 @@ function computeTickInterval(
 }
 
 function useChartClickHandler(
-  period: StatsPeriod,
+  period: StatsViewPeriod,
   dateCursor: Date,
-  onDrillDown: (period: StatsPeriod, date: Date) => void,
+  onDrillDown: (period: StatsViewPeriod, date: Date) => void,
 ) {
   return useCallback((event: { activeLabel?: string }) => {
     if (!event.activeLabel) return;
+    if (period === "total") {
+      const year = parseInt(event.activeLabel, 10);
+      if (!isNaN(year)) onDrillDown("year", new Date(year, 0, 1));
+      return;
+    }
     if (period === "month") {
       const day = parseInt(event.activeLabel, 10);
       if (!isNaN(day)) {
@@ -280,7 +285,8 @@ export function StatsChart({
       )
     );
   }, [data, period, resolution]);
-  const canDrillDown = period === "month" || period === "year";
+  const canDrillDown = period === "month" || period === "year" ||
+    period === "total";
   const handleChartClick = useChartClickHandler(
     period,
     dateCursor,
