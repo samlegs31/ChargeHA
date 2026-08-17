@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 import { Battery, DollarSign, Sun, Zap } from "lucide-react";
 import { Card, Text } from "@radix-ui/themes";
-import type { StatsPeriod, StatsResponse } from "@chargeha/shared";
-import type { DayResolution } from "../../../hooks/useStats.ts";
+import type {
+  DayResolution,
+  StatsViewPeriod,
+  StatsViewResponse,
+} from "../../../hooks/useStats.ts";
 import {
   useVehicleBreakdowns,
   type VehicleBreakdown,
@@ -11,9 +14,9 @@ import { formatCost, kwhValue } from "../../../utils/Format.ts";
 import styles from "./Stats.module.css";
 
 interface StatsVehicleBreakdownProps {
-  data: StatsResponse | null;
+  data: StatsViewResponse | null;
   loading: boolean;
-  period: StatsPeriod;
+  period: StatsViewPeriod;
   cursor: Date;
   resolution: DayResolution;
 }
@@ -169,7 +172,7 @@ function VehicleCards({
   loading,
   currencySymbol,
 }: {
-  data: StatsResponse | null;
+  data: StatsViewResponse | null;
   breakdowns: VehicleBreakdown[];
   hasConfiguredVehicles: boolean;
   loading: boolean;
