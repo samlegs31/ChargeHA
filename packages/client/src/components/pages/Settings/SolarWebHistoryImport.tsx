@@ -4,6 +4,8 @@ import { CloudDownload } from "lucide-react";
 import { trpc } from "../../../trpc.ts";
 import { SettingsRow, SettingsSection } from "./SettingsLayout.tsx";
 
+const BATCH_DAYS = 7;
+
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -16,6 +18,56 @@ function oneYearAgoIsoDate(): string {
 
 function formatKwh(wh: number): string {
   return `${(wh / 1000).toFixed(1)} kWh`;
+}
+
+function shiftedIsoDate(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+interface DateBatch {
+  from: string;
+  to: string;
+}
+
+function buildDateBatches(from: string, to: string): DateBatch[] {
+  if (from > to) return [];
+  const candidateTo = shiftedIsoDate(from, BATCH_DAYS - 1);
+  const batchTo = candidateTo < to ? candidateTo : to;
+  return [
+    { from, to: batchTo },
+    ...buildDateBatches(shiftedIsoDate(batchTo, 1), to),
+  ];
+}
+
+interface ImportSummary {
+  insertedRows: number;
+  chargedWh: number;
+  solarWh: number;
+  batteryWh: number;
+  gridWh: number;
+}
+
+const EMPTY_SUMMARY: ImportSummary = {
+  insertedRows: 0,
+  chargedWh: 0,
+  solarWh: 0,
+  batteryWh: 0,
+  gridWh: 0,
+};
+
+function addImportResult(
+  summary: ImportSummary,
+  result: ImportSummary,
+): ImportSummary {
+  return {
+    insertedRows: summary.insertedRows + result.insertedRows,
+    chargedWh: summary.chargedWh + result.chargedWh,
+    solarWh: summary.solarWh + result.solarWh,
+    batteryWh: summary.batteryWh + result.batteryWh,
+    gridWh: summary.gridWh + result.gridWh,
+  };
 }
 
 interface FieldsProps {
@@ -82,13 +134,7 @@ function SolarWebFields(props: FieldsProps) {
   );
 }
 
-function ImportResult(props: {
-  insertedRows: number;
-  chargedWh: number;
-  solarWh: number;
-  batteryWh: number;
-  gridWh: number;
-}) {
+function ImportResult(props: ImportSummary) {
   return (
     <Card style={{ borderLeft: "3px solid var(--green-9)" }}>
       <Badge color="green" variant="soft">
@@ -108,14 +154,58 @@ export function SolarWebHistoryImport() {
   const [pvSystemId, setPvSystemId] = useState("");
   const [from, setFrom] = useState(oneYearAgoIsoDate);
   const [to, setTo] = useState(todayIsoDate);
+  const [isImporting, setIsImporting] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [result, setResult] = useState<ImportSummary | null>(null);
+  const [importError, setImportError] = useState("");
 
   if (!trpc.history?.importSolarWeb) return null;
 
   const mutation = trpc.history.importSolarWeb.useMutation();
   const ready = email !== "" && password !== "" && pvSystemId !== "" &&
-    from !== "" && to !== "" && from <= to && !mutation.isPending;
-  const importHistory = () => {
-    if (ready) mutation.mutate({ email, password, pvSystemId, from, to });
+    from !== "" && to !== "" && from <= to && !isImporting;
+
+  async function importBatchSequence(
+    batches: readonly DateBatch[],
+    index: number,
+    summary: ImportSummary,
+  ): Promise<ImportSummary> {
+    const batch = batches[index];
+    if (batch === undefined) return summary;
+
+    setProgress(
+      `Importing batch ${index + 1} / ${batches.length} · ${batch.from} → ${batch.to}`,
+    );
+    const batchResult = await mutation.mutateAsync({
+      email,
+      password,
+      pvSystemId,
+      from: batch.from,
+      to: batch.to,
+    });
+    return await importBatchSequence(
+      batches,
+      index + 1,
+      addImportResult(summary, batchResult),
+    );
+  }
+
+  const importHistory = async () => {
+    if (!ready) return;
+    const batches = buildDateBatches(from, to);
+    setIsImporting(true);
+    setImportError("");
+    setResult(null);
+    try {
+      const completed = await importBatchSequence(batches, 0, EMPTY_SUMMARY);
+      setResult(completed);
+      setProgress(`Import complete · ${batches.length} batches`);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : String(error));
+      setProgress("Import stopped. Re-importing the same period is safe.");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -132,21 +222,23 @@ export function SolarWebHistoryImport() {
         </Text>
         <SolarWebFields
           email={email} password={password} pvSystemId={pvSystemId}
-          from={from} to={to} disabled={mutation.isPending}
+          from={from} to={to} disabled={isImporting}
           setEmail={setEmail} setPassword={setPassword} setPvSystemId={setPvSystemId}
           setFrom={setFrom} setTo={setTo}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <Button size="2" disabled={!ready} onClick={importHistory}>
             <CloudDownload size={15} />
-            {mutation.isPending ? "Importing Solar.web history..." : "Import Solar.web home EV history"}
+            {isImporting ? "Importing Solar.web history..." : "Import Solar.web home EV history"}
           </Button>
           <Text size="1" color="gray">
-            Re-importing the same period is safe. For large archives, import year by year.
+            Large archives are automatically imported in 7-day batches. Re-importing
+            the same period is safe.
           </Text>
         </div>
-        {mutation.isSuccess && <ImportResult {...mutation.data} />}
-        {mutation.isError && <Text size="2" color="red">{mutation.error.message}</Text>}
+        {progress !== "" && <Text size="1" color="gray">{progress}</Text>}
+        {result !== null && <ImportResult {...result} />}
+        {importError !== "" && <Text size="2" color="red">{importError}</Text>}
       </div>
     </SettingsSection>
   );
