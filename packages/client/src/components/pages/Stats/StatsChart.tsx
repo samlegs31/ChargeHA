@@ -33,18 +33,20 @@ const MONTH_ABBRS = [
   "Dec",
 ];
 
-const FLOW_KEYS = ["solarToCar", "batteryToCar", "gridToCar"] as const;
+const FLOW_KEYS = ["solarToCar", "batteryToCar", "gridToCar", "away"] as const;
 
 const FLOW_COLORS: Record<(typeof FLOW_KEYS)[number], string> = {
   solarToCar: "var(--color-solar-car)",
   batteryToCar: "var(--color-battery-car)",
   gridToCar: "var(--color-grid-car)",
+  away: "var(--color-away)",
 };
 
 const FLOW_NAMES: Record<(typeof FLOW_KEYS)[number], string> = {
   solarToCar: "Solar → Car",
   batteryToCar: "Battery → Car",
   gridToCar: "Grid → Car",
+  away: "Away",
 };
 
 interface ChartDatum {
@@ -52,6 +54,7 @@ interface ChartDatum {
   solarToCar: number;
   batteryToCar: number;
   gridToCar: number;
+  away: number;
   costCents: number;
   vehicleSoc: VehicleSocSnapshot[];
 }
@@ -100,6 +103,7 @@ function buildBucketDatum(
     solarToCar: roundKwh(bucket.solarWh ?? 0),
     batteryToCar: roundKwh(bucket.batteryWh ?? 0),
     gridToCar: roundKwh(bucket.gridWh ?? 0),
+    away: roundKwh(bucket.awayWh ?? 0),
     costCents: bucket.costCents ?? 0,
     vehicleSoc: vehicleSoc ?? [],
   };
@@ -259,6 +263,12 @@ function chartBars() {
         stackId="charging"
         fill="var(--color-grid-car)"
         name="gridToCar"
+      />
+      <Bar
+        dataKey="away"
+        stackId="charging"
+        fill="var(--color-away)"
+        name="away"
         radius={[2, 2, 0, 0]}
       />
     </>
