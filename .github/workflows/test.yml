@@ -45,15 +45,14 @@ jobs:
       - name: Type check
         shell: bash
         run: |
-          set -o pipefail
-          deno check 2>&1 | tee typecheck.log
-          status=${PIPESTATUS[0]}
-          {
-            echo '## Type-check diagnostics'
-            echo '```text'
-            cat typecheck.log
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          set +e
+          deno check > typecheck.log 2>&1
+          status=$?
+          cat typecheck.log
+          if [ "$status" -ne 0 ]; then
+            message=$(sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e ':a;N;$!ba;s/\n/%0A/g' typecheck.log)
+            echo "::error title=Deno type-check::$message"
+          fi
           exit "$status"
 
       - name: Check unused files
