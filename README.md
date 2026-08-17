@@ -1,10 +1,17 @@
-# E.V Solar
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="packages/client/public/ev-solar-logo-dark-exact.webp">
+    <img src="packages/client/public/ev-solar-logo-exact.webp" alt="E.V. Solar" width="520">
+  </picture>
+</p>
 
-**E.V Solar** is a self-hosted solar-aware EV charging controller focused on Tesla + Fronius home installations.
+# E.V. Solar
+
+**E.V. Solar** is a self-hosted solar-aware EV charging controller focused on Tesla + Fronius home installations.
 
 It is based on [ChargeHA](https://github.com/startswithaj/ChargeHA) and extends it with a charging model designed around solar self-consumption, home-battery protection, tariff schedules, battery-to-car attribution, and same-day solar charge forecasting.
 
-> **Current branch:** `evsolar-v2`
+> **Current branch:** `main`
 >
 > **Status:** personal/home deployment, actively developed and validated on Raspberry Pi + Docker.
 
@@ -24,7 +31,7 @@ It is based on [ChargeHA](https://github.com/startswithaj/ChargeHA) and extends 
 
 ## Charging modes
 
-E.V Solar exposes four simple operating modes:
+E.V. Solar exposes four simple operating modes:
 
 ### STOP
 
@@ -38,7 +45,7 @@ Starts charging immediately at the configured maximum current. Schedules and sol
 
 Charges only from usable solar excess.
 
-E.V Solar subtracts home-battery discharge from the apparent export before deciding how much solar is actually available for the car. This prevents a Tesla from being charged by draining the stationary battery while the UI still appears to show solar charging.
+E.V. Solar subtracts home-battery discharge from the apparent export before deciding how much solar is actually available for the car. This prevents a Tesla from being charged by draining the stationary battery while the UI still appears to show solar charging.
 
 If solar briefly drops because of clouds, configurable grace/cooldown logic avoids unnecessary rapid start/stop cycles.
 
@@ -55,7 +62,7 @@ This is useful for installations where daytime charging should follow PV product
 
 ## Solar forecast
 
-E.V Solar v2 includes an **informational charge forecast** displayed directly in the vehicle card when the car is plugged in at home and the active mode is `SOLAR ONLY` or `SOLAR + 🕒`.
+E.V. Solar v2 includes an **informational charge forecast** displayed directly in the vehicle card when the car is plugged in at home and the active mode is `SOLAR ONLY` or `SOLAR + 🕒`.
 
 Example:
 
@@ -79,7 +86,7 @@ It uses:
 - local Tesla charging history,
 - current Tesla SOC/state,
 - current household and battery state,
-- the real E.V Solar controller rules for simulation.
+- the real E.V. Solar controller rules for simulation.
 
 The weather/irradiance provider used by the current implementation is Open-Meteo with Météo-France forecast data where available.
 
@@ -87,7 +94,7 @@ Forecast failures are non-critical and never affect the charging controller.
 
 ## Fronius battery conventions
 
-E.V Solar normalises Fronius data internally so that:
+E.V. Solar normalises Fronius data internally so that:
 
 - `gridPowerW > 0` = grid import,
 - `gridPowerW < 0` = grid export,
@@ -98,7 +105,7 @@ For solar allocation, home-battery discharge is excluded from usable PV surplus.
 
 ## Security
 
-The E.V Solar deployment has been hardened for a private home server:
+The E.V. Solar deployment has been hardened for a private home server:
 
 - Argon2id local authentication,
 - minimum password length enforcement,
@@ -133,7 +140,7 @@ The persistent SQLite database is stored in the Docker volume `chargeha-data` an
 
 ## Raspberry Pi / Docker
 
-The current E.V Solar deployment is developed and tested on a 64-bit Raspberry Pi running Debian and Docker.
+The current E.V. Solar deployment is developed and tested on a 64-bit Raspberry Pi running Debian and Docker.
 
 Build from the repository root:
 
@@ -179,7 +186,7 @@ Adapt the network binding if LAN access is required. Do not expose the applicati
 
 For disaster recovery, keep independent copies of all of the following:
 
-1. the Git repository and E.V Solar version/tag,
+1. the Git repository and E.V. Solar version/tag,
 2. a known-good exported Docker image,
 3. the `chargeha-data` Docker volume,
 4. `~/.config/evsolar/encryption_key`,
@@ -189,7 +196,7 @@ The source repository alone is **not** a complete backup because the database an
 
 ## Architecture notes
 
-E.V Solar deliberately keeps forecast logic separate from charge-control decisions. The forecast may simulate ControllerEngine behaviour but cannot send vehicle commands.
+E.V. Solar deliberately keeps forecast logic separate from charge-control decisions. The forecast may simulate ControllerEngine behaviour but cannot send vehicle commands.
 
 The controller remains the single authority for charging decisions.
 
@@ -204,18 +211,18 @@ SQLite is configured for reliable long-running operation with WAL/busy-timeout h
 
 ## Project origin and licence
 
-E.V Solar is a modified fork of **ChargeHA** by `startswithaj`.
+E.V. Solar is a modified fork of **ChargeHA** by `startswithaj`.
 
 Original project:
 
 - https://github.com/startswithaj/ChargeHA
 
-The upstream project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. E.V Solar remains subject to that licence. See [`LICENSE`](LICENSE).
+The upstream project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. E.V. Solar remains subject to that licence. See [`LICENSE`](LICENSE).
 
-Changes specific to E.V Solar are identified through this repository's Git history.
+Changes specific to E.V. Solar are identified through this repository's Git history.
 
-E.V Solar is not affiliated with or endorsed by Tesla, Fronius, Open-Meteo, Météo-France or ChargeHQ.
+E.V. Solar is not affiliated with or endorsed by Tesla, Fronius, Open-Meteo, Météo-France or ChargeHQ.
 
 ---
 
-**E.V Solar** — self-hosted Tesla charging that prioritises your solar production without sacrificing control of your home battery.
+**E.V. Solar** — self-hosted Tesla charging that prioritises your solar production without sacrificing control of your home battery.
