@@ -71,6 +71,13 @@
       "when": 1786980000000,
       "tag": "0009_aggregate_ev_charge_history",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1787005800000,
+      "tag": "0010_stats_history_indexes",
+      "breakpoints": true
     }
   ]
 }
