@@ -17,8 +17,9 @@ function rowBucketIndex(
 }
 
 /**
- * Keep EV Stats home-only, then merge archived home charging into the native
- * response. HistoryRepository has already removed rows that overlap native
+ * Merge archived vehicle charging into the native response. Solar.web history
+ * contributes home charging only; vehicle-attributed sources may also carry
+ * away charging. HistoryRepository has already removed rows that overlap native
  * E.V Solar readings. Historical tariff values are intentionally left at zero.
  */
 export function mergeChargeHqStats(
@@ -28,8 +29,7 @@ export function mergeChargeHqStats(
 ): StatsResponse {
   const buckets = response.buckets.map((bucket) => ({
     ...bucket,
-    awayWh: 0,
-    totalWh: bucket.solarWh + bucket.batteryWh + bucket.gridWh,
+    totalWh: bucket.solarWh + bucket.batteryWh + bucket.gridWh + bucket.awayWh,
   }));
 
   historyRows.forEach((row) => {
@@ -41,12 +41,14 @@ export function mergeChargeHqStats(
     bucket.solarWh += row.solarWh;
     bucket.batteryWh += row.batteryWh;
     bucket.gridWh += row.gridWh;
+    bucket.awayWh += row.awayWh;
     bucket.totalWh += row.totalWh;
   });
 
   const totalSolarWh = buckets.reduce((sum, row) => sum + row.solarWh, 0);
   const totalBatteryWh = buckets.reduce((sum, row) => sum + row.batteryWh, 0);
   const totalGridWh = buckets.reduce((sum, row) => sum + row.gridWh, 0);
+  const totalAwayWh = buckets.reduce((sum, row) => sum + row.awayWh, 0);
   const totalChargedWh = buckets.reduce((sum, row) => sum + row.totalWh, 0);
   const homeChargedWh = totalSolarWh + totalBatteryWh + totalGridWh;
   const selfPoweredPercent = homeChargedWh > 0
@@ -63,7 +65,7 @@ export function mergeChargeHqStats(
     totalSolarWh,
     totalBatteryWh,
     totalGridWh,
-    totalAwayWh: 0,
+    totalAwayWh,
     totalChargedWh,
     selfPoweredPercent,
     totalCostCents,
