@@ -78,9 +78,10 @@ describe("useStats", () => {
     renderHook(() => useStats(), { wrapper: createWrapper() });
 
   beforeEach(() => {
-    (["day", "month", "year", "total"] as Period[]).forEach((period) => {
-      setResult(period, { data: undefined, isLoading: true });
-    });
+    setResult("day", { data: undefined, isLoading: true });
+    setResult("month", { data: undefined, isLoading: true });
+    setResult("year", { data: undefined, isLoading: true });
+    setResult("total", { data: undefined, isLoading: true });
   });
 
   it("starts on Day", () => {
