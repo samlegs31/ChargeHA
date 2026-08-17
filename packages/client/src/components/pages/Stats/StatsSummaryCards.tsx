@@ -19,6 +19,12 @@ function SummaryCard(
   );
 }
 
+function homeChargedWh(data: StatsViewResponse | null): number {
+  return (data?.totalSolarWh ?? 0) +
+    (data?.totalBatteryWh ?? 0) +
+    (data?.totalGridWh ?? 0);
+}
+
 function solarShare(data: StatsViewResponse | null): number {
   const totalWh = data?.totalChargedWh ?? 0;
   if (totalWh <= 0) return 0;
@@ -35,8 +41,12 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
     <>
       <div className={styles.summary}>
         <SummaryCard
-          label="Charged at Home"
+          label="Total Charged"
           value={loading ? "—" : kwhValue(data?.totalChargedWh ?? 0)}
+        />
+        <SummaryCard
+          label="Charged at Home"
+          value={loading ? "—" : kwhValue(homeChargedWh(data))}
         />
         <SummaryCard
           label="From Solar"
@@ -49,6 +59,10 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
         <SummaryCard
           label="From Grid"
           value={loading ? "—" : kwhValue(data?.totalGridWh ?? 0)}
+        />
+        <SummaryCard
+          label="Away"
+          value={loading ? "—" : kwhValue(data?.totalAwayWh ?? 0)}
         />
         <SummaryCard
           label="Solar Share"
