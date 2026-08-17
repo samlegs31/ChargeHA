@@ -175,28 +175,49 @@ function ImportHelpText() {
   );
 }
 
-export function SolarWebHistoryImport() {
-  const [emailOverride, setEmailOverride] = useState<string | null>(null);
+function useSolarWebCredentialFields() {
+  const [emailOverride, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
-  const [pvSystemIdOverride, setPvSystemIdOverride] = useState<string | null>(null);
+  const [pvSystemIdOverride, setPvSystemId] = useState<string | null>(null);
+  const savedCredentials = trpc.history.getSolarWebImportCredentials.useQuery();
+  const savedEmail = savedCredentials.data?.email ?? "";
+  const email = emailOverride ?? savedEmail;
+  const pvSystemId = pvSystemIdOverride ?? savedCredentials.data?.pvSystemId ?? "";
+  const hasSavedPassword = savedCredentials.data?.hasPassword === true &&
+    savedEmail !== "" && email === savedEmail;
+
+  const reset = async () => {
+    await savedCredentials.refetch();
+    setEmail(null);
+    setPvSystemId(null);
+    setPassword("");
+  };
+
+  return {
+    email,
+    password,
+    pvSystemId,
+    hasSavedPassword,
+    setEmail,
+    setPassword,
+    setPvSystemId,
+    reset,
+  };
+}
+
+export function SolarWebHistoryImport() {
+  const credentials = useSolarWebCredentialFields();
   const [from, setFrom] = useState(oneYearAgoIsoDate);
   const [to, setTo] = useState(todayIsoDate);
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState("");
   const [result, setResult] = useState<ImportSummary | null>(null);
   const [importError, setImportError] = useState("");
-
-  if (!trpc.history?.importSolarWeb) return null;
-
-  const savedCredentials = trpc.history.getSolarWebImportCredentials.useQuery();
   const mutation = trpc.history.importSolarWeb.useMutation();
-  const savedEmail = savedCredentials.data?.email ?? "";
-  const email = emailOverride ?? savedEmail;
-  const pvSystemId = pvSystemIdOverride ?? savedCredentials.data?.pvSystemId ?? "";
-  const hasSavedPassword = savedCredentials.data?.hasPassword === true &&
-    savedEmail !== "" && email === savedEmail;
-  const ready = email !== "" && (password !== "" || hasSavedPassword) &&
-    pvSystemId !== "" && from !== "" && to !== "" && from <= to && !isImporting;
+  const ready = credentials.email !== "" &&
+    (credentials.password !== "" || credentials.hasSavedPassword) &&
+    credentials.pvSystemId !== "" && from !== "" && to !== "" &&
+    from <= to && !isImporting;
 
   async function importBatchSequence(
     batches: readonly DateBatch[],
@@ -210,9 +231,9 @@ export function SolarWebHistoryImport() {
       `Importing batch ${index + 1} / ${batches.length} · ${batch.from} → ${batch.to}`,
     );
     const batchResult = await mutation.mutateAsync({
-      email,
-      password,
-      pvSystemId,
+      email: credentials.email,
+      password: credentials.password,
+      pvSystemId: credentials.pvSystemId,
       from: batch.from,
       to: batch.to,
     });
@@ -233,10 +254,7 @@ export function SolarWebHistoryImport() {
       const completed = await importBatchSequence(batches, 0, EMPTY_SUMMARY);
       setResult(completed);
       setProgress(`Import complete · ${batches.length} batches`);
-      await savedCredentials.refetch();
-      setEmailOverride(null);
-      setPvSystemIdOverride(null);
-      setPassword("");
+      await credentials.reset();
     } catch (error) {
       setImportError(error instanceof Error ? error.message : String(error));
       setProgress("Import stopped. Re-importing the same period is safe.");
@@ -254,11 +272,11 @@ export function SolarWebHistoryImport() {
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <ImportDescription />
         <SolarWebFields
-          email={email} password={password} pvSystemId={pvSystemId}
-          from={from} to={to} disabled={isImporting}
-          hasSavedPassword={hasSavedPassword}
-          setEmail={setEmailOverride} setPassword={setPassword}
-          setPvSystemId={setPvSystemIdOverride} setFrom={setFrom} setTo={setTo}
+          email={credentials.email} password={credentials.password}
+          pvSystemId={credentials.pvSystemId} from={from} to={to}
+          disabled={isImporting} hasSavedPassword={credentials.hasSavedPassword}
+          setEmail={credentials.setEmail} setPassword={credentials.setPassword}
+          setPvSystemId={credentials.setPvSystemId} setFrom={setFrom} setTo={setTo}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <Button size="2" disabled={!ready} onClick={importHistory}>
