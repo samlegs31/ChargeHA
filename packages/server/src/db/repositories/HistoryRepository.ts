@@ -235,45 +235,48 @@ export class HistoryRepository {
   }
 
   /**
-   * Per-vehicle Stats only use vehicle-attributed archives. Global Stats also
-   * add Solar.web's installation-level Wattpilot history. ChargeHQ away energy
-   * is always retained, while ChargeHQ home intervals are suppressed whenever
-   * an overlapping Solar.web interval exists so the same home charge is not
-   * counted twice.
+   * EV Stats intentionally show home charging only. Per-vehicle Stats use
+   * vehicle-attributed ChargeHQ home rows. Global Stats combine every vehicle's
+   * ChargeHQ home history with Solar.web's installation-level Wattpilot history.
+   * ChargeHQ home intervals are suppressed whenever an overlapping Solar.web
+   * interval exists so the same home charge is not counted twice. Away charging
+   * is never included in these Stats.
    */
   private archiveRows(vehicleId?: string) {
     if (vehicleId) {
       return sql`
         SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
-          h.charged_wh, h.solar_wh, h.battery_wh, h.grid_wh, h.away_wh, h.at_home_wh
+          h.at_home_wh AS charged_wh, h.solar_wh, h.battery_wh, h.grid_wh,
+          0.0 AS away_wh, h.at_home_wh
         FROM vehicle_charge_history h
         WHERE h.source = 'chargehq'
           AND h.vehicle_id = ${vehicleId}
+          AND h.at_home_wh > 0
           ${this.nativeVehiclePriorityFilter()}
       `;
     }
     return sql`
       SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
-        h.charged_wh, h.solar_wh, h.battery_wh, h.grid_wh, h.away_wh, h.at_home_wh
+        h.at_home_wh AS charged_wh, h.solar_wh, h.battery_wh, h.grid_wh,
+        0.0 AS away_wh, h.at_home_wh
       FROM vehicle_charge_history h
       WHERE h.source = 'chargehq'
+        AND h.at_home_wh > 0
         ${this.nativeVehiclePriorityFilter()}
-        AND (
-          h.away_wh > 0
-          OR NOT EXISTS (
-            SELECT 1 FROM aggregate_ev_charge_history sw
-            WHERE sw.source = 'solarweb'
-              AND datetime(sw.start_time_utc) < datetime(
-                h.start_time_utc, '+' || h.interval_seconds || ' seconds'
-              )
-              AND datetime(
-                sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
-              ) > datetime(h.start_time_utc)
-          )
+        AND NOT EXISTS (
+          SELECT 1 FROM aggregate_ev_charge_history sw
+          WHERE sw.source = 'solarweb'
+            AND datetime(sw.start_time_utc) < datetime(
+              h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+            )
+            AND datetime(
+              sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
+            ) > datetime(h.start_time_utc)
         )
       UNION ALL
       SELECT a.start_time_utc, a.start_time_local, a.interval_seconds,
-        a.charged_wh, a.solar_wh, a.battery_wh, a.grid_wh, a.away_wh, a.at_home_wh
+        a.charged_wh, a.solar_wh, a.battery_wh, a.grid_wh, 0.0 AS away_wh,
+        a.at_home_wh
       FROM aggregate_ev_charge_history a
       WHERE a.source = 'solarweb'
         ${this.nativeAggregatePriorityFilter()}
