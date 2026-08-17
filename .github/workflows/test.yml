@@ -43,7 +43,18 @@ jobs:
         run: deno lint
 
       - name: Type check
-        run: deno check
+        shell: bash
+        run: |
+          set -o pipefail
+          deno check 2>&1 | tee typecheck.log
+          status=${PIPESTATUS[0]}
+          {
+            echo '## Type-check diagnostics'
+            echo '```text'
+            cat typecheck.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
       - name: Check unused files
         run: deno task check:unused
