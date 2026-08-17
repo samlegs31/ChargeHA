@@ -1,6 +1,9 @@
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { and, eq, sql } from "drizzle-orm";
-import { vehicleChargeHistory } from "../HistorySchema.ts";
+import {
+  aggregateEvChargeHistory,
+  vehicleChargeHistory,
+} from "../HistorySchema.ts";
 import type { ChargeHqHistoryRow } from "../../history/ChargeHqCsv.ts";
 
 export interface VehicleChargeHistoryRowInput {
@@ -59,15 +62,7 @@ interface RawHistoryStatsRow {
 export class HistoryRepository {
   constructor(private db: BetterSQLite3Database) {}
 
-  /**
-   * Import archived vehicle charging intervals without overwriting native
-   * E.V Solar history.
-   *
-   * If native one-minute readings already exist for this vehicle, imported rows
-   * at or after the first native timestamp are intentionally ignored. This
-   * makes the migration boundary stable even if native retention later prunes
-   * old one-minute readings.
-   */
+  /** Import archived history that is attributable to a specific vehicle. */
   async importRows(
     vehicleId: string,
     rows: readonly VehicleChargeHistoryRowInput[],
@@ -78,9 +73,7 @@ export class HistoryRepository {
       WHERE vehicle_id = ${vehicleId}
     `);
     const nativeCutoff = cutoffRows[0]?.timestamp ?? null;
-    const importableRows = nativeCutoff === null
-      ? rows
-      : rows.filter((row) => row.startTimeUtc < nativeCutoff);
+    const importableRows = this.beforeNativeCutoff(rows, nativeCutoff);
     const overlapRows = rows.length - importableRows.length;
 
     const insertedRows = this.db.transaction((tx) =>
@@ -92,14 +85,7 @@ export class HistoryRepository {
         return inserted + result.changes;
       }, 0)
     );
-    const duplicateRows = importableRows.length - insertedRows;
-
-    return {
-      insertedRows,
-      duplicateRows,
-      overlapRows,
-      skippedRows: duplicateRows + overlapRows,
-    };
+    return this.importResult(rows.length, importableRows.length, insertedRows, overlapRows);
   }
 
   async importChargeHqRows(
@@ -107,6 +93,30 @@ export class HistoryRepository {
     rows: readonly ChargeHqHistoryRow[],
   ): Promise<HistoryImportResult> {
     return await this.importRows(vehicleId, rows);
+  }
+
+  /**
+   * Import installation-level EV charging history. Solar.web Wattpilot rows
+   * belong here because they describe energy delivered to EVs without knowing
+   * which vehicle received it.
+   */
+  async importAggregateRows(
+    rows: readonly VehicleChargeHistoryRowInput[],
+  ): Promise<HistoryImportResult> {
+    const cutoffRows = await this.db.all<{ timestamp: string | null }>(sql`
+      SELECT MIN(timestamp) AS timestamp FROM vehicle_charge_readings
+    `);
+    const nativeCutoff = cutoffRows[0]?.timestamp ?? null;
+    const importableRows = this.beforeNativeCutoff(rows, nativeCutoff);
+    const overlapRows = rows.length - importableRows.length;
+    const insertedRows = this.db.transaction((tx) =>
+      importableRows.reduce((inserted, row) => {
+        const result = tx.insert(aggregateEvChargeHistory).values(row)
+          .onConflictDoNothing().run();
+        return inserted + result.changes;
+      }, 0)
+    );
+    return this.importResult(rows.length, importableRows.length, insertedRows, overlapRows);
   }
 
   async getCoverage(
@@ -122,37 +132,38 @@ export class HistoryRepository {
       eq(vehicleChargeHistory.source, source),
       eq(vehicleChargeHistory.vehicleId, vehicleId),
     ));
+    return this.coverageRow(rows[0]);
+  }
 
-    const row = rows[0];
-    return {
-      rowCount: Number(row?.rowCount ?? 0),
-      firstStartTimeLocal: row?.firstStartTimeLocal ?? null,
-      lastStartTimeLocal: row?.lastStartTimeLocal ?? null,
-      chargedWh: Number(row?.chargedWh ?? 0),
-    };
+  async getAggregateCoverage(source: string): Promise<HistoryCoverage> {
+    const rows = await this.db.select({
+      rowCount: sql<number>`count(*)`,
+      firstStartTimeLocal: sql<string | null>`min(${aggregateEvChargeHistory.startTimeLocal})`,
+      lastStartTimeLocal: sql<string | null>`max(${aggregateEvChargeHistory.startTimeLocal})`,
+      chargedWh: sql<number>`coalesce(sum(${aggregateEvChargeHistory.chargedWh}), 0)`,
+    }).from(aggregateEvChargeHistory).where(
+      eq(aggregateEvChargeHistory.source, source),
+    );
+    return this.coverageRow(rows[0]);
   }
 
   async getChargeHqStatsDay(
     date: string,
     vehicleId?: string,
   ): Promise<HistoryStatsRow[]> {
-    const vehicleFilter = this.vehicleFilter(vehicleId);
+    const archive = this.archiveRows(vehicleId);
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
+      WITH archive AS (${archive})
       SELECT
-        substr(h.start_time_local, 12, 2) AS bucket,
-        SUM(h.solar_wh) AS solar_wh,
-        SUM(h.battery_wh) AS battery_wh,
-        SUM(h.grid_wh) AS grid_wh,
-        SUM(h.away_wh) AS away_wh,
-        SUM(h.charged_wh) AS total_wh
-      FROM vehicle_charge_history h
-      WHERE h.source IN ('chargehq', 'solarweb')
-        AND substr(h.start_time_local, 1, 10) = ${date}
-        ${vehicleFilter}
-        ${this.archivePriorityFilter()}
-        ${this.nativePriorityFilter()}
-      GROUP BY bucket
-      ORDER BY bucket
+        substr(start_time_local, 12, 2) AS bucket,
+        SUM(solar_wh) AS solar_wh,
+        SUM(battery_wh) AS battery_wh,
+        SUM(grid_wh) AS grid_wh,
+        SUM(away_wh) AS away_wh,
+        SUM(charged_wh) AS total_wh
+      FROM archive
+      WHERE substr(start_time_local, 1, 10) = ${date}
+      GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => this.mapStatsRow(row));
   }
@@ -161,29 +172,22 @@ export class HistoryRepository {
     date: string,
     vehicleId?: string,
   ): Promise<HistoryDetailedStatsRow[]> {
-    const vehicleFilter = this.vehicleFilter(vehicleId);
+    const archive = this.archiveRows(vehicleId);
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
+      WITH archive AS (${archive})
       SELECT
-        CAST(substr(h.start_time_local, 12, 2) AS INTEGER) * 4
-          + CAST(substr(h.start_time_local, 15, 2) AS INTEGER) / 15 AS bucket,
-        SUM(h.solar_wh) AS solar_wh,
-        SUM(h.battery_wh) AS battery_wh,
-        SUM(h.grid_wh) AS grid_wh,
-        SUM(h.away_wh) AS away_wh,
-        SUM(h.charged_wh) AS total_wh
-      FROM vehicle_charge_history h
-      WHERE h.source IN ('chargehq', 'solarweb')
-        AND substr(h.start_time_local, 1, 10) = ${date}
-        ${vehicleFilter}
-        ${this.archivePriorityFilter()}
-        ${this.nativePriorityFilter()}
-      GROUP BY bucket
-      ORDER BY bucket
+        CAST(substr(start_time_local, 12, 2) AS INTEGER) * 4
+          + CAST(substr(start_time_local, 15, 2) AS INTEGER) / 15 AS bucket,
+        SUM(solar_wh) AS solar_wh,
+        SUM(battery_wh) AS battery_wh,
+        SUM(grid_wh) AS grid_wh,
+        SUM(away_wh) AS away_wh,
+        SUM(charged_wh) AS total_wh
+      FROM archive
+      WHERE substr(start_time_local, 1, 10) = ${date}
+      GROUP BY bucket ORDER BY bucket
     `);
-    return rows.map((row) => ({
-      ...this.mapStatsRow(row),
-      bucket: Number(row.bucket),
-    }));
+    return rows.map((row) => ({ ...this.mapStatsRow(row), bucket: Number(row.bucket) }));
   }
 
   async getChargeHqStatsMonth(
@@ -192,23 +196,19 @@ export class HistoryRepository {
     vehicleId?: string,
   ): Promise<HistoryStatsRow[]> {
     const yearMonth = `${year}-${String(month).padStart(2, "0")}`;
-    const vehicleFilter = this.vehicleFilter(vehicleId);
+    const archive = this.archiveRows(vehicleId);
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
+      WITH archive AS (${archive})
       SELECT
-        substr(h.start_time_local, 9, 2) AS bucket,
-        SUM(h.solar_wh) AS solar_wh,
-        SUM(h.battery_wh) AS battery_wh,
-        SUM(h.grid_wh) AS grid_wh,
-        SUM(h.away_wh) AS away_wh,
-        SUM(h.charged_wh) AS total_wh
-      FROM vehicle_charge_history h
-      WHERE h.source IN ('chargehq', 'solarweb')
-        AND substr(h.start_time_local, 1, 7) = ${yearMonth}
-        ${vehicleFilter}
-        ${this.archivePriorityFilter()}
-        ${this.nativePriorityFilter()}
-      GROUP BY bucket
-      ORDER BY bucket
+        substr(start_time_local, 9, 2) AS bucket,
+        SUM(solar_wh) AS solar_wh,
+        SUM(battery_wh) AS battery_wh,
+        SUM(grid_wh) AS grid_wh,
+        SUM(away_wh) AS away_wh,
+        SUM(charged_wh) AS total_wh
+      FROM archive
+      WHERE substr(start_time_local, 1, 7) = ${yearMonth}
+      GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => this.mapStatsRow(row));
   }
@@ -217,68 +217,124 @@ export class HistoryRepository {
     year: number,
     vehicleId?: string,
   ): Promise<HistoryStatsRow[]> {
-    const yearString = String(year);
-    const vehicleFilter = this.vehicleFilter(vehicleId);
+    const archive = this.archiveRows(vehicleId);
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
+      WITH archive AS (${archive})
       SELECT
-        substr(h.start_time_local, 6, 2) AS bucket,
-        SUM(h.solar_wh) AS solar_wh,
-        SUM(h.battery_wh) AS battery_wh,
-        SUM(h.grid_wh) AS grid_wh,
-        SUM(h.away_wh) AS away_wh,
-        SUM(h.charged_wh) AS total_wh
-      FROM vehicle_charge_history h
-      WHERE h.source IN ('chargehq', 'solarweb')
-        AND substr(h.start_time_local, 1, 4) = ${yearString}
-        ${vehicleFilter}
-        ${this.archivePriorityFilter()}
-        ${this.nativePriorityFilter()}
-      GROUP BY bucket
-      ORDER BY bucket
+        substr(start_time_local, 6, 2) AS bucket,
+        SUM(solar_wh) AS solar_wh,
+        SUM(battery_wh) AS battery_wh,
+        SUM(grid_wh) AS grid_wh,
+        SUM(away_wh) AS away_wh,
+        SUM(charged_wh) AS total_wh
+      FROM archive
+      WHERE substr(start_time_local, 1, 4) = ${String(year)}
+      GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => this.mapStatsRow(row));
   }
 
-  private vehicleFilter(vehicleId?: string) {
-    return vehicleId ? sql`AND h.vehicle_id = ${vehicleId}` : sql``;
-  }
-
   /**
-   * Solar.web is the authoritative source for Wattpilot/home charging when it
-   * overlaps a ChargeHQ home interval. ChargeHQ away rows are always retained,
-   * and ChargeHQ home rows still fill gaps where Solar.web has no EV sample.
+   * Per-vehicle Stats only use vehicle-attributed archives. Global Stats also
+   * add Solar.web's installation-level Wattpilot history. ChargeHQ away energy
+   * is always retained, while ChargeHQ home intervals are suppressed whenever
+   * an overlapping Solar.web interval exists so the same home charge is not
+   * counted twice.
    */
-  private archivePriorityFilter() {
+  private archiveRows(vehicleId?: string) {
+    if (vehicleId) {
+      return sql`
+        SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
+          h.charged_wh, h.solar_wh, h.battery_wh, h.grid_wh, h.away_wh, h.at_home_wh
+        FROM vehicle_charge_history h
+        WHERE h.source = 'chargehq'
+          AND h.vehicle_id = ${vehicleId}
+          ${this.nativeVehiclePriorityFilter()}
+      `;
+    }
     return sql`
-      AND (
-        h.source = 'solarweb'
-        OR h.away_wh > 0
-        OR NOT EXISTS (
-          SELECT 1
-          FROM vehicle_charge_history sw
-          WHERE sw.source = 'solarweb'
-            AND sw.vehicle_id = h.vehicle_id
-            AND sw.start_time_utc >= h.start_time_utc
-            AND sw.start_time_utc < datetime(
-              h.start_time_utc,
-              '+' || h.interval_seconds || ' seconds'
-            )
+      SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
+        h.charged_wh, h.solar_wh, h.battery_wh, h.grid_wh, h.away_wh, h.at_home_wh
+      FROM vehicle_charge_history h
+      WHERE h.source = 'chargehq'
+        ${this.nativeVehiclePriorityFilter()}
+        AND (
+          h.away_wh > 0
+          OR NOT EXISTS (
+            SELECT 1 FROM aggregate_ev_charge_history sw
+            WHERE sw.source = 'solarweb'
+              AND datetime(sw.start_time_utc) < datetime(
+                h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+              )
+              AND datetime(
+                sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
+              ) > datetime(h.start_time_utc)
+          )
         )
-      )
+      UNION ALL
+      SELECT a.start_time_utc, a.start_time_local, a.interval_seconds,
+        a.charged_wh, a.solar_wh, a.battery_wh, a.grid_wh, a.away_wh, a.at_home_wh
+      FROM aggregate_ev_charge_history a
+      WHERE a.source = 'solarweb'
+        ${this.nativeAggregatePriorityFilter()}
     `;
   }
 
-  private nativePriorityFilter() {
+  private nativeVehiclePriorityFilter() {
     return sql`
       AND h.start_time_utc < COALESCE(
-        (
-          SELECT MIN(v.timestamp)
-          FROM vehicle_charge_readings v
-          WHERE v.vehicle_id = h.vehicle_id
-        ),
+        (SELECT MIN(v.timestamp) FROM vehicle_charge_readings v
+         WHERE v.vehicle_id = h.vehicle_id),
         '9999-12-31 23:59:59'
       )
     `;
+  }
+
+  private nativeAggregatePriorityFilter() {
+    return sql`
+      AND a.start_time_utc < COALESCE(
+        (SELECT MIN(v.timestamp) FROM vehicle_charge_readings v),
+        '9999-12-31 23:59:59'
+      )
+    `;
+  }
+
+  private beforeNativeCutoff(
+    rows: readonly VehicleChargeHistoryRowInput[],
+    nativeCutoff: string | null,
+  ): VehicleChargeHistoryRowInput[] {
+    if (nativeCutoff === null) return [...rows];
+    const cutoffMs = Date.parse(`${nativeCutoff.replace(" ", "T")}Z`);
+    return rows.filter((row) => Date.parse(row.startTimeUtc) < cutoffMs);
+  }
+
+  private importResult(
+    totalRows: number,
+    importableRows: number,
+    insertedRows: number,
+    overlapRows: number,
+  ): HistoryImportResult {
+    const duplicateRows = importableRows - insertedRows;
+    return {
+      insertedRows,
+      duplicateRows,
+      overlapRows,
+      skippedRows: totalRows - insertedRows,
+    };
+  }
+
+  private coverageRow(row: {
+    rowCount: number;
+    firstStartTimeLocal: string | null;
+    lastStartTimeLocal: string | null;
+    chargedWh: number;
+  } | undefined): HistoryCoverage {
+    return {
+      rowCount: Number(row?.rowCount ?? 0),
+      firstStartTimeLocal: row?.firstStartTimeLocal ?? null,
+      lastStartTimeLocal: row?.lastStartTimeLocal ?? null,
+      chargedWh: Number(row?.chargedWh ?? 0),
+    };
   }
 
   private mapStatsRow(row: RawHistoryStatsRow): HistoryStatsRow {
