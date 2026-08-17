@@ -214,6 +214,37 @@ function SolarArraysEditor({
   );
 }
 
+function ForecastBasics({
+  enabled,
+  installationDate,
+  onEnabledChange,
+  onInstallationDateChange,
+}: {
+  enabled: boolean;
+  installationDate: string;
+  onEnabledChange: (value: boolean) => void;
+  onInstallationDateChange: (value: string) => void;
+}) {
+  return (
+    <>
+      <SettingsRow label="Forecast enabled">
+        <Switch size="2" checked={enabled} onCheckedChange={onEnabledChange} />
+      </SettingsRow>
+      <SettingsRow
+        label="Installation date"
+        help="Used to apply the average 0.5% annual panel degradation automatically."
+      >
+        <TextField.Root
+          size="2"
+          type="date"
+          value={installationDate}
+          onChange={(event) => onInstallationDateChange(event.target.value)}
+        />
+      </SettingsRow>
+    </>
+  );
+}
+
 export function SolarForecastSettings() {
   const { data } = useSolarForecastConfig();
   const mutation = useSolarForecastConfigMutation();
@@ -247,8 +278,7 @@ export function SolarForecastSettings() {
   );
 
   const geocodeMutation = useMutation({
-    mutationFn: (query: string) =>
-      utils.client.config.geocode.query({ q: query }),
+    mutationFn: (query: string) => utils.client.config.geocode.query({ q: query }),
     onSuccess: (result) => {
       applyLocation(result.displayName, result.latitude, result.longitude);
     },
@@ -289,25 +319,13 @@ export function SolarForecastSettings() {
       isDirty={isDirty}
       onSave={save}
     >
-      <SettingsRow label="Forecast enabled">
-        <Switch
-          size="2"
-          checked={fields?.solarForecastEnabled ?? false}
-          onCheckedChange={(value) => setField("solarForecastEnabled", value)}
-        />
-      </SettingsRow>
-      <SettingsRow
-        label="Installation date"
-        help="Used to apply the average 0.5% annual panel degradation automatically."
-      >
-        <TextField.Root
-          size="2"
-          type="date"
-          value={fields?.solarForecastInstallationDate ?? ""}
-          onChange={(event) =>
-            setField("solarForecastInstallationDate", event.target.value)}
-        />
-      </SettingsRow>
+      <ForecastBasics
+        enabled={fields?.solarForecastEnabled ?? false}
+        installationDate={fields?.solarForecastInstallationDate ?? ""}
+        onEnabledChange={(value) => setField("solarForecastEnabled", value)}
+        onInstallationDateChange={(value) =>
+          setField("solarForecastInstallationDate", value)}
+      />
       <SolarLocationEditor
         ac={ac}
         geocodePending={geocodeMutation.isPending}
