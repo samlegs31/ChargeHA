@@ -10,7 +10,6 @@ import {
   ScrollText,
   Settings,
   X,
-  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ConnectionBadge } from "../ConnectionBadge/ConnectionBadge.tsx";
@@ -90,7 +89,7 @@ function MobileMenu(
 export function AppLayout(
   {
     children,
-        activePage,
+    activePage,
     onNavigate,
     authMode,
     onLogout,
@@ -109,13 +108,15 @@ export function AppLayout(
         <div
           className={styles.brand}
           onClick={() => handleNavigate("dashboard")}
+          aria-label="E.V. Solar"
         >
-          <span className={styles.logoMark} aria-hidden="true">
-            <Zap size={20} />
-          </span>
-          <Text size="5" weight="bold" aria-label="E.V. Solar">
-            E.V. <span className={styles.accent}>Solar</span>
-          </Text>
+          <picture className={styles.brandLogo}>
+            <source
+              srcSet="/ev-solar-logo-dark.svg"
+              media="(prefers-color-scheme: dark)"
+            />
+            <img src="/ev-solar-logo.svg" alt="E.V. Solar" />
+          </picture>
         </div>
         <nav className={styles.nav}>
           {NAV_ITEMS.map(({ page, label }) => (
@@ -159,7 +160,9 @@ export function AppLayout(
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
         >
-          {mobileMenuOpen ? <X size={26} strokeWidth={2.4} /> : <Menu size={26} strokeWidth={2.4} />}
+          {mobileMenuOpen
+            ? <X size={26} strokeWidth={2.4} />
+            : <Menu size={26} strokeWidth={2.4} />}
         </IconButton>
       </header>
       {mobileMenuOpen && (
