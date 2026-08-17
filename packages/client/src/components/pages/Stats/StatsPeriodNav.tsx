@@ -64,6 +64,7 @@ export function StatsPeriodNav({
           weight="medium"
           className={styles.dateLabel}
           onClick={handleLabelClick}
+          style={{ cursor: isTotal ? "default" : "pointer" }}
         >
           {cursorLabel}
         </Text>
