@@ -2,22 +2,24 @@ import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { fetchSolarWebHomeEvHistory } from "./SolarWebHistory.ts";
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
 describe("fetchSolarWebHomeEvHistory", () => {
+  function jsonResponse(body: unknown, status = 200): Response {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  function requestUrl(input: string | URL | Request): string {
+    if (typeof input === "string") return input;
+    if (input instanceof URL) return input.toString();
+    return input.url;
+  }
+
   it("authenticates once and maps Wattpilot home energy", async () => {
     const calls: string[] = [];
     const fetchFn = (input: string | URL | Request): Promise<Response> => {
-      const url = typeof input === "string"
-        ? input
-        : input instanceof URL
-        ? input.toString()
-        : input.url;
+      const url = requestUrl(input);
       calls.push(url);
       if (url.includes("/iam/jwt")) {
         return Promise.resolve(jsonResponse({ jwtToken: "token" }));
@@ -73,11 +75,7 @@ describe("fetchSolarWebHomeEvHistory", () => {
 
   it("filters zero-energy and out-of-range samples", async () => {
     const fetchFn = (input: string | URL | Request): Promise<Response> => {
-      const url = typeof input === "string"
-        ? input
-        : input instanceof URL
-        ? input.toString()
-        : input.url;
+      const url = requestUrl(input);
       if (url.includes("/iam/jwt")) {
         return Promise.resolve(jsonResponse({ accessToken: "token" }));
       }
