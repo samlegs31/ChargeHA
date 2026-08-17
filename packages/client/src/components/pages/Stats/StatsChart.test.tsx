@@ -9,10 +9,6 @@ import {
   type ReactNode,
 } from "react";
 
-// Tooltip-content capture and shared fixture factory — held in a hoisted
-// container so the `vi.mock("recharts")` factory and the test bodies can both
-// reach them without a module-level `let`/`function` (banned by the
-// `no-test-globals` lint rule). `vi.hoisted` is the rule's only escape hatch.
 const { tooltipState, makeStatsData } = vi.hoisted(() => {
   type SR = import("@chargeha/shared").StatsResponse;
   const tooltipState: { captured: ReactElement | null } = { captured: null };
@@ -37,44 +33,19 @@ const { tooltipState, makeStatsData } = vi.hoisted(() => {
     totalAwayWh: 0,
     selfPoweredPercent: 67,
     totalCostCents: 500,
-    solarSavingsCents: 200,
+    evSolarSavingsCents: 200,
     currencySymbol: "$",
     tariffBreakdown: [],
     vehicleSoc: [],
-    energyBuckets: [
-      {
-        label: "10",
-        solarProductionWh: 2000,
-        solarWh: 1500,
-        batteryChargeWh: 0,
-        batteryDischargeWh: 0,
-        solarToBatteryWh: 0,
-        gridToBatteryWh: 0,
-        gridWh: 200,
-        totalWh: 1700,
-        costCents: 50,
-      },
-      {
-        label: "11",
-        solarProductionWh: 3000,
-        solarWh: 2200,
-        batteryChargeWh: 0,
-        batteryDischargeWh: 0,
-        solarToBatteryWh: 0,
-        gridToBatteryWh: 0,
-        gridWh: 500,
-        totalWh: 2700,
-        costCents: 120,
-      },
-    ],
+    energyBuckets: [],
     buckets: [
       {
         label: "10",
         solarWh: 500,
-        batteryWh: 0,
+        batteryWh: 50,
         gridWh: 100,
         awayWh: 0,
-        totalWh: 600,
+        totalWh: 650,
         costCents: 20,
       },
       {
@@ -93,64 +64,51 @@ const { tooltipState, makeStatsData } = vi.hoisted(() => {
 });
 
 vi.mock("recharts", () => {
-  // Real recharts inspects its children via React.Children.map and matches
-  // against known component types (Bar, Line, etc. by displayName) to decide
-  // what to draw. A wrapper component (e.g. <ChartBars />) breaks this — real
-  // recharts sees one anonymous child and renders nothing. The mock below
-  // mirrors that contract so the test fails loudly if anyone wraps recharts
-  // children in a custom component.
   const RECHARTS_CHILD_NAMES = new Set([
     "Bar",
-    "Line",
     "XAxis",
     "YAxis",
     "CartesianGrid",
     "Tooltip",
   ]);
 
-  const makeRechartsStub = (name: string) => {
+  const Bar = ({ dataKey }: { dataKey: string }) => (
+    <div data-testid={`bar-${dataKey}`} />
+  );
+  Bar.displayName = "Bar";
+
+  const makeStub = (name: string) => {
     const Stub = () => null;
     Stub.displayName = name;
     return Stub;
   };
 
-  const Bar = makeRechartsStub("Bar");
-  const Line = makeRechartsStub("Line");
-  const XAxis = makeRechartsStub("XAxis");
-  const YAxis = makeRechartsStub("YAxis");
-  const CartesianGrid = makeRechartsStub("CartesianGrid");
+  const XAxis = makeStub("XAxis");
+  const YAxis = makeStub("YAxis");
+  const CartesianGrid = makeStub("CartesianGrid");
   const Tooltip = ({ content }: { content: ReactNode }) => {
-    if (isValidElement(content)) {
-      tooltipState.captured = content;
-    }
+    if (isValidElement(content)) tooltipState.captured = content;
     return <div data-testid="tooltip-wrapper" />;
   };
   Tooltip.displayName = "Tooltip";
 
-  // Recursively walk children, transparently descending into Fragments
-  // (real recharts does this too — that's why `{chartBars()}` works but
-  // `<ChartBars />` doesn't). Each leaf must be a known recharts type.
-  const assertRechartsChild = (node: ReactNode) => {
+  const assertChild = (node: ReactNode) => {
     Children.forEach(node, (child) => {
       if (!isValidElement(child)) return;
       if (child.type === Fragment) {
-        assertRechartsChild(
-          (child.props as { children?: ReactNode }).children,
-        );
+        assertChild((child.props as { children?: ReactNode }).children);
         return;
       }
       const type = child.type as { displayName?: string; name?: string };
-      const name = type?.displayName ?? type?.name ?? "(anonymous)";
+      const name = type.displayName ?? type.name ?? "(anonymous)";
       if (!RECHARTS_CHILD_NAMES.has(name)) {
-        throw new Error(
-          `ComposedChart received non-recharts child <${name}>. Bar/Line/etc. must be direct children (or inside a fragment) — wrapping them in a custom component breaks real recharts' Children.map traversal.`,
-        );
+        throw new Error(`Unexpected chart child <${name}>`);
       }
     });
   };
 
   const ComposedChart = ({ children }: { children: ReactNode }) => {
-    assertRechartsChild(children);
+    assertChild(children);
     return <div data-testid="chart">{children}</div>;
   };
 
@@ -160,7 +118,6 @@ vi.mock("recharts", () => {
     ),
     ComposedChart,
     Bar,
-    Line,
     XAxis,
     YAxis,
     CartesianGrid,
@@ -169,12 +126,12 @@ vi.mock("recharts", () => {
 });
 
 vi.mock("./Stats.module.css", () => ({
-  default: new Proxy({}, { get: (_t, prop) => `mock-${String(prop)}` }),
+  default: new Proxy({}, { get: (_target, prop) => `mock-${String(prop)}` }),
 }));
 
 vi.mock("../../../utils/Format.ts", () => ({
-  formatCost: (cents: number, sym: string) =>
-    `${sym}${(cents / 100).toFixed(2)}`,
+  formatCost: (cents: number, symbol: string) =>
+    `${symbol}${(cents / 100).toFixed(2)}`,
 }));
 
 import { cleanup, render, screen } from "@testing-library/react";
@@ -184,178 +141,86 @@ import { StatsChart } from "./StatsChart.tsx";
 import type { StatsResponse } from "@chargeha/shared";
 
 describe("StatsChart", () => {
-  beforeEach(vi.clearAllMocks);
-  afterEach(cleanup);
-
   const defaultProps = {
     data: null as StatsResponse | null,
     loading: false,
     period: "day" as const,
     resolution: "1h" as const,
     setResolution: vi.fn(),
-    dateCursor: new Date(2026, 2, 1), // March 1, 2026
+    dateCursor: new Date(2026, 2, 1),
     onDrillDown: vi.fn(),
   };
 
-  it("shows loading text when loading", () => {
+  beforeEach(vi.clearAllMocks);
+  afterEach(cleanup);
+
+  it("shows loading text", () => {
     renderWithProviders(<StatsChart {...defaultProps} loading />);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 
-  it("renders chart when data is provided", () => {
+  it("renders only the three EV charging bars", () => {
     renderWithProviders(
       <StatsChart {...defaultProps} data={makeStatsData()} />,
     );
     expect(screen.getByTestId("chart")).toBeInTheDocument();
+    expect(screen.getByTestId("bar-solarToCar")).toBeInTheDocument();
+    expect(screen.getByTestId("bar-batteryToCar")).toBeInTheDocument();
+    expect(screen.getByTestId("bar-gridToCar")).toBeInTheDocument();
   });
 
-  it("renders empty chart when data is null and not loading", () => {
-    renderWithProviders(<StatsChart {...defaultProps} />);
-    // No chart, no loading
-    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
-  });
-
-  it("shows resolution toggle for day period", () => {
-    renderWithProviders(
-      <StatsChart {...defaultProps} data={makeStatsData()} period="day" />,
-    );
-    // SegmentedControl renders labels twice (active + inactive) — use getAllByText
-    expect(screen.getAllByText("1h").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("15m").length).toBeGreaterThanOrEqual(1);
-  });
-
-  it.each([["month" as const], ["year" as const]])(
-    "does not show resolution toggle for %s period",
-    (period) => {
-      renderWithProviders(
-        <StatsChart
-          {...defaultProps}
-          data={makeStatsData({ period })}
-          period={period}
-        />,
-      );
-      expect(screen.queryByText("1h")).not.toBeInTheDocument();
-    },
-  );
-
-  it("renders legend items", () => {
+  it("renders only EV charging legend items", () => {
     renderWithProviders(
       <StatsChart {...defaultProps} data={makeStatsData()} />,
     );
-    expect(screen.getByText(/Solar → Home/)).toBeInTheDocument();
-    expect(screen.getByText(/Solar → Car/)).toBeInTheDocument();
-    expect(screen.getByText(/Solar → Grid/)).toBeInTheDocument();
-    expect(screen.getByText(/Grid → Home/)).toBeInTheDocument();
-    expect(screen.getByText(/Grid → Car/)).toBeInTheDocument();
-    expect(screen.getByText(/Solar Production/)).toBeInTheDocument();
-    expect(screen.getByText(/Total Consumption/)).toBeInTheDocument();
+    expect(screen.getByText("Solar → Car")).toBeInTheDocument();
+    expect(screen.getByText("Battery → Car")).toBeInTheDocument();
+    expect(screen.getByText("Grid → Car")).toBeInTheDocument();
+    expect(screen.queryByText("Solar → Home")).not.toBeInTheDocument();
+    expect(screen.queryByText("Grid → Home")).not.toBeInTheDocument();
+    expect(screen.queryByText("Solar Production")).not.toBeInTheDocument();
+    expect(screen.queryByText("Total Consumption")).not.toBeInTheDocument();
   });
 
-  it("calls setResolution when resolution toggle changes", () => {
+  it("shows resolution toggle for day only", () => {
+    renderWithProviders(
+      <StatsChart {...defaultProps} data={makeStatsData()} />,
+    );
+    expect(screen.getAllByText("1h").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("15m").length).toBeGreaterThanOrEqual(1);
+    cleanup();
+    renderWithProviders(
+      <StatsChart
+        {...defaultProps}
+        data={makeStatsData({ period: "month" })}
+        period="month"
+      />,
+    );
+    expect(screen.queryByText("15m")).not.toBeInTheDocument();
+  });
+
+  it("calls setResolution", () => {
     const setResolution = vi.fn();
     renderWithProviders(
       <StatsChart
         {...defaultProps}
         data={makeStatsData()}
-        period="day"
         setResolution={setResolution}
       />,
     );
-    // SegmentedControl renders labels twice — click the first "15m"
     fireEvent.click(screen.getAllByText("15m")[0]);
     expect(setResolution).toHaveBeenCalledWith("15m");
   });
 
-  // Folded edge-data cases: each variant only proves "chart still renders".
-  // Audit notes the vacuousness — kept as a single row table so future work
-  // that surfaces props on the mock can replace the assertion in one place.
-  it.each<[name: string, overrides: Partial<StatsResponse>]>([
-    [
-      "zero values across buckets",
-      {
-        energyBuckets: [
-          {
-            label: "0",
-            solarProductionWh: 0,
-            solarWh: 0,
-            batteryChargeWh: 0,
-            batteryDischargeWh: 0,
-            solarToBatteryWh: 0,
-            gridToBatteryWh: 0,
-            gridWh: 0,
-            totalWh: 0,
-            costCents: 0,
-          },
-        ],
-        buckets: [
-          {
-            label: "0",
-            solarWh: 0,
-            batteryWh: 0,
-            gridWh: 0,
-            awayWh: 0,
-            totalWh: 0,
-            costCents: 0,
-          },
-        ],
-      },
-    ],
-    [
-      "missing charge buckets",
-      {
-        energyBuckets: [
-          {
-            label: "5",
-            solarProductionWh: 1000,
-            solarWh: 800,
-            batteryChargeWh: 0,
-            batteryDischargeWh: 0,
-            solarToBatteryWh: 0,
-            gridToBatteryWh: 0,
-            gridWh: 100,
-            totalWh: 900,
-            costCents: 30,
-          },
-        ],
-        buckets: [],
-      },
-    ],
-    [
-      "totalCostCents only",
-      { totalCostCents: 100, solarSavingsCents: 0 },
-    ],
-    [
-      "solarSavingsCents only",
-      { totalCostCents: 0, solarSavingsCents: 50 },
-    ],
-    [
-      "no cost data",
-      { totalCostCents: 0, solarSavingsCents: 0 },
-    ],
-    [
-      "vehicleSoc payload",
-      {
-        vehicleSoc: [
-          [{ vehicleId: "v1", vehicleName: "Tesla", batteryLevel: 80 }],
-          [],
-        ],
-      },
-    ],
-  ])("renders chart for edge case: %s", (_name, overrides) => {
+  it("renders with no charging buckets", () => {
     renderWithProviders(
-      <StatsChart {...defaultProps} data={makeStatsData(overrides)} />,
+      <StatsChart {...defaultProps} data={makeStatsData({ buckets: [] })} />,
     );
     expect(screen.getByTestId("chart")).toBeInTheDocument();
   });
 });
 
-describe("CustomTooltip", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    tooltipState.captured = null;
-  });
-  afterEach(cleanup);
-
+describe("EV charging tooltip", () => {
   type ChartOverrides = {
     period?: StatsResponse["period"];
     resolution?: "1h" | "15m";
@@ -363,36 +228,25 @@ describe("CustomTooltip", () => {
     bucketLabel?: string;
   };
 
-  // Drives the tooltip via the closure-captured content element. The
-  // unmount/cleanup dance is the minimum surface needed to reach the inner
-  // `<Tooltip content={...}/>` without exposing CustomTooltip directly.
-  const captureTooltipContent = (chart: ChartOverrides = {}) => {
+  beforeEach(() => {
+    vi.clearAllMocks();
     tooltipState.captured = null;
+  });
+  afterEach(cleanup);
+
+  const captureTooltip = (chart: ChartOverrides = {}) => {
     const period = chart.period ?? "day";
     const resolution = chart.resolution ?? "1h";
-    const dateCursor = chart.dateCursor ?? new Date(2026, 2, 1);
     const label = chart.bucketLabel ?? "10";
     const data = makeStatsData({
       period,
-      energyBuckets: [{
-        label,
-        solarProductionWh: 2000,
-        solarWh: 1500,
-        batteryChargeWh: 0,
-        batteryDischargeWh: 0,
-        solarToBatteryWh: 0,
-        gridToBatteryWh: 0,
-        gridWh: 200,
-        totalWh: 1700,
-        costCents: 50,
-      }],
       buckets: [{
         label,
         solarWh: 500,
-        batteryWh: 0,
+        batteryWh: 100,
         gridWh: 100,
         awayWh: 0,
-        totalWh: 600,
+        totalWh: 700,
         costCents: 20,
       }],
     });
@@ -403,189 +257,89 @@ describe("CustomTooltip", () => {
         period={period}
         resolution={resolution}
         setResolution={vi.fn()}
-        dateCursor={dateCursor}
+        dateCursor={chart.dateCursor ?? new Date(2026, 2, 1)}
         onDrillDown={vi.fn()}
       />,
     );
     unmount();
     cleanup();
-
-    if (!tooltipState.captured) {
-      throw new Error("Tooltip content not captured");
-    }
+    if (!tooltipState.captured) throw new Error("Tooltip content not captured");
     return tooltipState.captured;
   };
 
-  const renderTooltipWith = (
+  const renderTooltip = (
     props: Record<string, unknown>,
     chart?: ChartOverrides,
-  ) => render(cloneElement(captureTooltipContent(chart), props));
+  ) => render(cloneElement(captureTooltip(chart), props));
 
-  it("returns null when not active", () => {
-    const { container } = renderTooltipWith({
-      active: false,
-      payload: [],
-      label: "10",
-    });
+  const baseDatum = {
+    label: "10:00",
+    solarToCar: 1.5,
+    batteryToCar: 0.2,
+    gridToCar: 0.3,
+    costCents: 80,
+    vehicleSoc: [],
+  };
+
+  it("returns null when inactive", () => {
+    const { container } = renderTooltip({ active: false, payload: [] });
     expect(container.innerHTML).toBe("");
   });
 
-  it("returns null when payload is empty", () => {
-    const { container } = renderTooltipWith({
+  it("shows only EV charging flows and grid cost", () => {
+    renderTooltip({
       active: true,
-      payload: [],
-      label: "10",
+      label: "10:00",
+      payload: [{ payload: baseDatum }],
     });
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("returns null when label is empty (buildHeaderLabel returns empty)", () => {
-    const { container } = renderTooltipWith({
-      active: true,
-      payload: [{
-        dataKey: "solarToHome",
-        value: 1,
-        payload: {
-          solarToHome: 1,
-          solarToCar: 0,
-          solarToBattery: 0,
-          solarToGrid: 0,
-          batteryToHome: 0,
-          batteryToCar: 0,
-          gridToHome: 0,
-          gridToCar: 0,
-          gridToBattery: 0,
-          solarProduction: 0,
-          totalConsumption: 0,
-          gridToHomeCostCents: 0,
-          gridToCarCostCents: 0,
-          vehicleSoc: [],
-        },
-      }],
-      label: "",
-    });
-    expect(container.innerHTML).toBe("");
-  });
-
-  it("renders tooltip with flow data for day/1h period", () => {
-    renderTooltipWith({
-      active: true,
-      label: "10",
-      payload: [{
-        dataKey: "solarToHome",
-        value: 1.5,
-        payload: {
-          label: "10",
-          solarToHome: 1.5,
-          solarToCar: 0.5,
-          solarToBattery: 0,
-          solarToGrid: 0.3,
-          batteryToHome: 0,
-          batteryToCar: 0,
-          gridToHome: 0.2,
-          gridToCar: 0.1,
-          gridToBattery: 0,
-          solarProduction: 2.0,
-          totalConsumption: 2.3,
-          costCents: 50,
-          gridToHomeCostCents: 30,
-          gridToCarCostCents: 20,
-          vehicleSoc: [],
-        },
-      }],
-    });
-    // Header shows hour range
     expect(screen.getByText("10:00 – 11:00")).toBeInTheDocument();
-    // Flow rows
-    expect(screen.getByText("Solar → Home")).toBeInTheDocument();
-    expect(screen.getByText("1.50 kWh")).toBeInTheDocument();
-    expect(screen.getByText("Grid → Home")).toBeInTheDocument();
+    expect(screen.getByText("Solar → Car")).toBeInTheDocument();
+    expect(screen.getByText("Battery → Car")).toBeInTheDocument();
     expect(screen.getByText("Grid → Car")).toBeInTheDocument();
+    expect(screen.getByText("Grid cost $0.80")).toBeInTheDocument();
+    expect(screen.queryByText("Solar → Home")).not.toBeInTheDocument();
   });
 
-  it("renders tooltip with 15m resolution header", () => {
-    renderTooltipWith({
+  it("hides zero-value charging flows", () => {
+    renderTooltip({
       active: true,
-      label: "10:30",
+      label: "10:00",
       payload: [{
-        dataKey: "solarToHome",
-        value: 1,
         payload: {
-          label: "10:30",
-          solarToHome: 1.0,
+          ...baseDatum,
           solarToCar: 0,
-          solarToBattery: 0,
-          solarToGrid: 0,
-          batteryToHome: 0,
           batteryToCar: 0,
-          gridToHome: 0.5,
-          gridToCar: 0,
-          gridToBattery: 0,
-          solarProduction: 0,
-          totalConsumption: 0,
-          costCents: null,
-          gridToHomeCostCents: 10,
-          gridToCarCostCents: 0,
-          vehicleSoc: [],
+          costCents: 0,
         },
       }],
-    }, { resolution: "15m", bucketLabel: "10:30" });
-    expect(screen.getByText("10:30 – 10:45")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Solar → Car")).not.toBeInTheDocument();
+    expect(screen.queryByText("Battery → Car")).not.toBeInTheDocument();
+    expect(screen.getByText("Grid → Car")).toBeInTheDocument();
+    expect(screen.queryByText(/Grid cost/)).not.toBeInTheDocument();
   });
 
-  it("renders month period header", () => {
-    renderTooltipWith({
+  it("formats 15-minute ranges across the hour boundary", () => {
+    renderTooltip({
+      active: true,
+      label: "10:45",
+      payload: [{ payload: baseDatum }],
+    }, { resolution: "15m", bucketLabel: "10:45" });
+    expect(screen.getByText("10:45 – 11:00")).toBeInTheDocument();
+  });
+
+  it("formats month and year headers", () => {
+    renderTooltip({
       active: true,
       label: "15",
-      payload: [{
-        dataKey: "solarToHome",
-        value: 1,
-        payload: {
-          solarToHome: 1.0,
-          solarToCar: 0,
-          solarToBattery: 0,
-          solarToGrid: 0,
-          batteryToHome: 0,
-          batteryToCar: 0,
-          gridToHome: 0,
-          gridToCar: 0,
-          gridToBattery: 0,
-          solarProduction: 0,
-          totalConsumption: 0,
-          gridToHomeCostCents: 0,
-          gridToCarCostCents: 0,
-          vehicleSoc: [],
-        },
-      }],
+      payload: [{ payload: baseDatum }],
     }, { period: "month", bucketLabel: "15" });
-    // March 15, 2026 is a Sunday
     expect(screen.getByText("Sun, Mar 15")).toBeInTheDocument();
-  });
-
-  it("renders year period header (month name passthrough)", () => {
-    renderTooltipWith({
+    cleanup();
+    renderTooltip({
       active: true,
       label: "Mar",
-      payload: [{
-        dataKey: "solarToHome",
-        value: 1,
-        payload: {
-          solarToHome: 1.0,
-          solarToCar: 0,
-          solarToBattery: 0,
-          solarToGrid: 0,
-          batteryToHome: 0,
-          batteryToCar: 0,
-          gridToHome: 0,
-          gridToCar: 0,
-          gridToBattery: 0,
-          solarProduction: 0,
-          totalConsumption: 0,
-          gridToHomeCostCents: 0,
-          gridToCarCostCents: 0,
-          vehicleSoc: [],
-        },
-      }],
+      payload: [{ payload: baseDatum }],
     }, {
       period: "year",
       bucketLabel: "Mar",
@@ -594,87 +348,13 @@ describe("CustomTooltip", () => {
     expect(screen.getByText("Mar")).toBeInTheDocument();
   });
 
-  it("renders solar production and total consumption lines", () => {
-    renderTooltipWith({
+  it("shows vehicle state of charge context", () => {
+    renderTooltip({
       active: true,
-      label: "10",
+      label: "10:00",
       payload: [{
-        dataKey: "solarToHome",
-        value: 1,
         payload: {
-          solarToHome: 1.0,
-          solarToCar: 0,
-          solarToBattery: 0,
-          solarToGrid: 0,
-          batteryToHome: 0,
-          batteryToCar: 0,
-          gridToHome: 0,
-          gridToCar: 0,
-          gridToBattery: 0,
-          solarProduction: 5.0,
-          totalConsumption: 3.0,
-          gridToHomeCostCents: 0,
-          gridToCarCostCents: 0,
-          vehicleSoc: [],
-        },
-      }],
-    });
-    expect(screen.getByText("Solar Production")).toBeInTheDocument();
-    expect(screen.getByText("5.00 kWh")).toBeInTheDocument();
-    expect(screen.getByText("Total Consumption")).toBeInTheDocument();
-    expect(screen.getByText("3.00 kWh")).toBeInTheDocument();
-  });
-
-  it("hides zero-value flows", () => {
-    renderTooltipWith({
-      active: true,
-      label: "10",
-      payload: [{
-        dataKey: "solarToHome",
-        value: 0,
-        payload: {
-          solarToHome: 0,
-          solarToCar: 0,
-          solarToBattery: 0,
-          solarToGrid: 0,
-          batteryToHome: 0,
-          batteryToCar: 0,
-          gridToHome: 1.0,
-          gridToCar: 0,
-          gridToBattery: 0,
-          solarProduction: 0,
-          totalConsumption: 0,
-          gridToHomeCostCents: 50,
-          gridToCarCostCents: 0,
-          vehicleSoc: [],
-        },
-      }],
-    });
-    expect(screen.queryByText("Solar → Home")).not.toBeInTheDocument();
-    expect(screen.getByText("Grid → Home")).toBeInTheDocument();
-  });
-
-  it("renders vehicle SoC section", () => {
-    renderTooltipWith({
-      active: true,
-      label: "10",
-      payload: [{
-        dataKey: "solarToHome",
-        value: 1,
-        payload: {
-          solarToHome: 1.0,
-          solarToCar: 0,
-          solarToBattery: 0,
-          solarToGrid: 0,
-          batteryToHome: 0,
-          batteryToCar: 0,
-          gridToHome: 0,
-          gridToCar: 0,
-          gridToBattery: 0,
-          solarProduction: 0,
-          totalConsumption: 0,
-          gridToHomeCostCents: 0,
-          gridToCarCostCents: 0,
+          ...baseDatum,
           vehicleSoc: [
             { vehicleId: "v1", vehicleName: "Model 3", batteryLevel: 75 },
           ],
@@ -683,63 +363,5 @@ describe("CustomTooltip", () => {
     });
     expect(screen.getByText("Model 3")).toBeInTheDocument();
     expect(screen.getByText("75%")).toBeInTheDocument();
-  });
-
-  it("shows cost for grid flows when hasCostData is true", () => {
-    renderTooltipWith({
-      active: true,
-      label: "10",
-      payload: [{
-        dataKey: "gridToHome",
-        value: 2,
-        payload: {
-          solarToHome: 0,
-          solarToCar: 0,
-          solarToBattery: 0,
-          solarToGrid: 0,
-          batteryToHome: 0,
-          batteryToCar: 0,
-          gridToHome: 2.0,
-          gridToCar: 1.0,
-          gridToBattery: 0,
-          solarProduction: 0,
-          totalConsumption: 0,
-          gridToHomeCostCents: 150,
-          gridToCarCostCents: 80,
-          vehicleSoc: [],
-        },
-      }],
-    });
-    expect(screen.getByText("$1.50")).toBeInTheDocument();
-    expect(screen.getByText("$0.80")).toBeInTheDocument();
-  });
-
-  it("renders 15m resolution with minute rollover to next hour", () => {
-    renderTooltipWith({
-      active: true,
-      label: "10:45",
-      payload: [{
-        dataKey: "solarToHome",
-        value: 1,
-        payload: {
-          solarToHome: 1.0,
-          solarToCar: 0,
-          solarToBattery: 0,
-          solarToGrid: 0,
-          batteryToHome: 0,
-          batteryToCar: 0,
-          gridToHome: 0,
-          gridToCar: 0,
-          gridToBattery: 0,
-          solarProduction: 0,
-          totalConsumption: 0,
-          gridToHomeCostCents: 0,
-          gridToCarCostCents: 0,
-          vehicleSoc: [],
-        },
-      }],
-    }, { resolution: "15m", bucketLabel: "10:45" });
-    // 10:45 + 15m = 11:00
-    expect(screen.getByText("10:45 – 11:00")).toBeInTheDocument();
   });
 });
