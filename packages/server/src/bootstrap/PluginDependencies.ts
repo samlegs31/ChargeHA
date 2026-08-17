@@ -148,6 +148,17 @@ export class PluginDependencies<K extends string = string> {
     return row?.adapterType === this.pluginId ? row : null;
   }
 
+  /** Resolve an app vehicle by its display name, regardless of adapter type.
+   *  Energy plugins use this only to attach imported energy history to the
+   *  correct vehicle. */
+  async findVehicleByName(name: string): Promise<VehicleRow | null> {
+    const expected = name.trim().toLowerCase();
+    const vehicles = await this.db.getVehicles();
+    return vehicles.find((vehicle) =>
+      vehicle.name.trim().toLowerCase() === expected
+    ) ?? null;
+  }
+
   /** Upsert a vehicle for this plugin. The adapter type is stamped with the
    *  plugin's own id — a plugin cannot write another plugin's vehicles. */
   upsertVehicleRow(
