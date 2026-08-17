@@ -1,4 +1,5 @@
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import {
   authAuthorizeInput,
   authSelectVehicleInput,
@@ -40,6 +41,40 @@ export function createTeslaRouter(
     teslaVehicles: publicProcedure.query(() => {
       return plugin.teslaService.listFleetVehicles();
     }),
+
+    vehicleVisualConfig: publicProcedure
+      .input(z.object({ vin: z.string().min(1) }))
+      .mutation(async ({ input }) => {
+        const token = await plugin.teslaTokenManager.getAccessToken();
+        const fleetBase = await plugin.teslaTokenManager.getFleetApiBaseUrl();
+        const endpoints = encodeURIComponent("vehicle_config");
+        const response = await fetch(
+          `${fleetBase}/api/1/vehicles/${encodeURIComponent(input.vin)}/vehicle_data?endpoints=${endpoints}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(15000),
+          },
+        );
+
+        if (!response.ok) {
+          const detail = await response.text();
+          throw new TRPCError({
+            code: "BAD_GATEWAY",
+            message: `Tesla vehicle_config unavailable (${response.status}): ${detail}`,
+          });
+        }
+
+        const data = await response.json();
+        const config = data.response?.vehicle_config ?? {};
+        return {
+          carType: config.car_type ?? null,
+          exteriorColor: config.exterior_color ?? null,
+          wheelType: config.wheel_type ?? null,
+          trim: config.trim_badging ?? config.trim ?? null,
+          roofColor: config.roof_color ?? null,
+          spoilerType: config.spoiler_type ?? null,
+        };
+      }),
 
     listVehicles: publicProcedure.query(async () => {
       return { vehicles: await deps.getVehiclesWithState() };
