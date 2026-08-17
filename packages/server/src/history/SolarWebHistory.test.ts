@@ -16,6 +16,16 @@ describe("fetchSolarWebHomeEvHistory", () => {
     return input.url;
   }
 
+  function expectMax24HourRange(historyUrl: URL): void {
+    const fromParam = historyUrl.searchParams.get("from");
+    const toParam = historyUrl.searchParams.get("to");
+    expect(fromParam).not.toBeNull();
+    expect(toParam).not.toBeNull();
+    const from = new Date(fromParam ?? "").getTime();
+    const to = new Date(toParam ?? "").getTime();
+    expect(to - from).toBeLessThanOrEqual(24 * 60 * 60 * 1000);
+  }
+
   it("authenticates once and maps Wattpilot home energy", async () => {
     const calls: string[] = [];
     const fetchFn = (input: string | URL | Request): Promise<Response> => {
@@ -45,12 +55,13 @@ describe("fetchSolarWebHomeEvHistory", () => {
       to: "2026-08-01",
     }, fetchFn);
 
-    expect(calls).toHaveLength(2);
-    expect(result.samplesRead).toBe(1);
+    expect(calls).toHaveLength(4);
+    expect(result.samplesRead).toBe(3);
     expect(result.chargedWh).toBe(1000);
     expect(result.solarWh).toBe(500);
     expect(result.batteryWh).toBe(100);
     expect(result.gridWh).toBe(400);
+    expect(result.rows).toHaveLength(1);
     expect(result.rows[0]).toEqual({
       source: "solarweb",
       externalId: "pv-system-1:2026-08-01T12:00:00+02:00",
@@ -65,12 +76,38 @@ describe("fetchSolarWebHomeEvHistory", () => {
       atHomeWh: 1000,
     });
 
-    const historyUrl = new URL(calls[1]);
-    expect(historyUrl.searchParams.get("channel")).toBe(
-      "EnergyEVCCharge,EnergyEVCChargeBatt,EnergyEVCChargeGrid",
-    );
-    expect(historyUrl.searchParams.get("timezone")).toBe("local");
-    expect(historyUrl.searchParams.get("limit")).toBe("1000");
+    const historyUrls = calls.slice(1).map((call) => new URL(call));
+    historyUrls.forEach((historyUrl) => {
+      expect(historyUrl.searchParams.get("channel")).toBe(
+        "EnergyEVCCharge,EnergyEVCChargeBatt,EnergyEVCChargeGrid",
+      );
+      expect(historyUrl.searchParams.get("timezone")).toBe("local");
+      expect(historyUrl.searchParams.get("limit")).toBe("1000");
+      expectMax24HourRange(historyUrl);
+    });
+  });
+
+  it("splits multi-day imports into Solar.web-compatible 24 hour requests", async () => {
+    const historyCalls: URL[] = [];
+    const fetchFn = (input: string | URL | Request): Promise<Response> => {
+      const url = requestUrl(input);
+      if (url.includes("/iam/jwt")) {
+        return Promise.resolve(jsonResponse({ accessToken: "token" }));
+      }
+      historyCalls.push(new URL(url));
+      return Promise.resolve(jsonResponse({ data: [] }));
+    };
+
+    await fetchSolarWebHomeEvHistory({
+      email: "user@example.com",
+      password: "secret",
+      pvSystemId: "pv-system-1",
+      from: "2026-08-01",
+      to: "2026-08-03",
+    }, fetchFn);
+
+    expect(historyCalls).toHaveLength(5);
+    historyCalls.forEach(expectMax24HourRange);
   });
 
   it("filters zero-energy and out-of-range samples", async () => {
