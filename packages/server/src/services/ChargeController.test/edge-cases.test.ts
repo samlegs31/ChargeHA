@@ -59,9 +59,9 @@ describe("ChargeController — edge cases", () => {
       });
       await ctx.runOneLoop();
 
+      expect(ctx.adapter.commands).toHaveLength(0);
       const log = await ctx.getLastLogParsed();
       expect(log?.action).toBe("none");
-      expect(log?.actionDetail).toContain("no schedule or solar tracking");
     });
 
     it("ignores disabled charge schedule", async () => {
