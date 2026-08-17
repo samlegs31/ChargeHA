@@ -49,7 +49,6 @@ export const GATED_MUTATIONS = [
   "plugin.vehicle.tesla.selectVehicles",
   "plugin.vehicle.tesla.setConfig",
   // Fronius — disabled in the wizard, never the active adapter.
-  "plugin.energy.fronius_cloud.importEvHistory",
   "plugin.energy.fronius_cloud.setConfig",
   "plugin.energy.fronius_cloud.testConnection",
   "plugin.energy.fronius_local.discover",
@@ -59,9 +58,10 @@ export const GATED_MUTATIONS = [
   "auth.updateOidcConfig",
   "wizard.saveOidcConfig",
   "wizard.testOidcDiscovery",
-  // ChargeHQ history import needs persistent server storage and is not simulated.
+  // History imports need persistent server storage / external access and are not simulated.
   "history.previewChargeHq",
   "history.importChargeHq",
+  "history.importSolarWeb",
   // Setup tunnel — Tesla-only setup step, never reached.
   "plugin.vehicle.tesla.startTunnel",
   "plugin.vehicle.tesla.stopTunnel",
