@@ -115,15 +115,9 @@ export class HistoryRepository {
   ): Promise<HistoryCoverage> {
     const rows = await this.db.select({
       rowCount: sql<number>`count(*)`,
-      firstStartTimeLocal: sql<
-        string | null
-      >`min(${vehicleChargeHistory.startTimeLocal})`,
-      lastStartTimeLocal: sql<
-        string | null
-      >`max(${vehicleChargeHistory.startTimeLocal})`,
-      chargedWh: sql<
-        number
-      >`coalesce(sum(${vehicleChargeHistory.chargedWh}), 0)`,
+      firstStartTimeLocal: sql<string | null>`min(${vehicleChargeHistory.startTimeLocal})`,
+      lastStartTimeLocal: sql<string | null>`max(${vehicleChargeHistory.startTimeLocal})`,
+      chargedWh: sql<number>`coalesce(sum(${vehicleChargeHistory.chargedWh}), 0)`,
     }).from(vehicleChargeHistory).where(and(
       eq(vehicleChargeHistory.source, source),
       eq(vehicleChargeHistory.vehicleId, vehicleId),
@@ -138,7 +132,6 @@ export class HistoryRepository {
     };
   }
 
-  /** Imported archives grouped by local hour. */
   async getChargeHqStatsDay(
     date: string,
     vehicleId?: string,
@@ -156,6 +149,7 @@ export class HistoryRepository {
       WHERE h.source IN ('chargehq', 'solarweb')
         AND substr(h.start_time_local, 1, 10) = ${date}
         ${vehicleFilter}
+        ${this.archivePriorityFilter()}
         ${this.nativePriorityFilter()}
       GROUP BY bucket
       ORDER BY bucket
@@ -163,7 +157,6 @@ export class HistoryRepository {
     return rows.map((row) => this.mapStatsRow(row));
   }
 
-  /** Imported archives grouped by 15-minute local intervals. */
   async getChargeHqStatsDayDetailed(
     date: string,
     vehicleId?: string,
@@ -182,6 +175,7 @@ export class HistoryRepository {
       WHERE h.source IN ('chargehq', 'solarweb')
         AND substr(h.start_time_local, 1, 10) = ${date}
         ${vehicleFilter}
+        ${this.archivePriorityFilter()}
         ${this.nativePriorityFilter()}
       GROUP BY bucket
       ORDER BY bucket
@@ -192,7 +186,6 @@ export class HistoryRepository {
     }));
   }
 
-  /** Imported archives grouped by local day for a month. */
   async getChargeHqStatsMonth(
     year: number,
     month: number,
@@ -212,6 +205,7 @@ export class HistoryRepository {
       WHERE h.source IN ('chargehq', 'solarweb')
         AND substr(h.start_time_local, 1, 7) = ${yearMonth}
         ${vehicleFilter}
+        ${this.archivePriorityFilter()}
         ${this.nativePriorityFilter()}
       GROUP BY bucket
       ORDER BY bucket
@@ -219,7 +213,6 @@ export class HistoryRepository {
     return rows.map((row) => this.mapStatsRow(row));
   }
 
-  /** Imported archives grouped by local month for a year. */
   async getChargeHqStatsYear(
     year: number,
     vehicleId?: string,
@@ -238,6 +231,7 @@ export class HistoryRepository {
       WHERE h.source IN ('chargehq', 'solarweb')
         AND substr(h.start_time_local, 1, 4) = ${yearString}
         ${vehicleFilter}
+        ${this.archivePriorityFilter()}
         ${this.nativePriorityFilter()}
       GROUP BY bucket
       ORDER BY bucket
@@ -250,10 +244,30 @@ export class HistoryRepository {
   }
 
   /**
-   * Defensive overlap guard for existing archives. New imports already stop at
-   * the native boundary, but this also protects databases created by an older
-   * importer implementation.
+   * Solar.web is the authoritative source for Wattpilot/home charging when it
+   * overlaps a ChargeHQ home interval. ChargeHQ away rows are always retained,
+   * and ChargeHQ home rows still fill gaps where Solar.web has no EV sample.
    */
+  private archivePriorityFilter() {
+    return sql`
+      AND (
+        h.source = 'solarweb'
+        OR h.away_wh > 0
+        OR NOT EXISTS (
+          SELECT 1
+          FROM vehicle_charge_history sw
+          WHERE sw.source = 'solarweb'
+            AND sw.vehicle_id = h.vehicle_id
+            AND sw.start_time_utc >= h.start_time_utc
+            AND sw.start_time_utc < datetime(
+              h.start_time_utc,
+              '+' || h.interval_seconds || ' seconds'
+            )
+        )
+      )
+    `;
+  }
+
   private nativePriorityFilter() {
     return sql`
       AND h.start_time_utc < COALESCE(
@@ -275,8 +289,6 @@ export class HistoryRepository {
       gridWh: Number(row.grid_wh ?? 0),
       awayWh: Number(row.away_wh ?? 0),
       totalWh: Number(row.total_wh ?? 0),
-      // Imported archives do not contain historical tariff prices. Do not
-      // invent costs or savings from today's tariff configuration.
       costCents: 0,
       solarSavingsCents: 0,
     };
