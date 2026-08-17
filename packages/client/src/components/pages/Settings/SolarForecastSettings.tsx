@@ -20,7 +20,6 @@ import {
   SettingsSection,
 } from "./SettingsLayout.tsx";
 
-
 function parseEditorArrays(raw: string): SolarArrayConfig[] {
   try {
     const value = JSON.parse(raw || "[]");
@@ -32,6 +31,14 @@ function parseEditorArrays(raw: string): SolarArrayConfig[] {
 
 function serializeArrays(arrays: SolarArrayConfig[]): string {
   return JSON.stringify(arrays);
+}
+
+function formatCoordinates(
+  latitude: number | null | undefined,
+  longitude: number | null | undefined,
+): string | null {
+  if (latitude == null || longitude == null) return null;
+  return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
 }
 
 function ArrayEditor({
@@ -116,6 +123,97 @@ function ArrayEditor({
   );
 }
 
+function SolarLocationEditor({
+  ac,
+  geocodePending,
+  geocodeError,
+  onSelect,
+  onLookup,
+  address,
+  coords,
+}: {
+  ac: ReturnType<typeof useAddressAutocomplete>;
+  geocodePending: boolean;
+  geocodeError: boolean;
+  onSelect: (suggestion: PhotonResult) => void;
+  onLookup: () => void;
+  address: string | null | undefined;
+  coords: string | null;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <Text size="2">Solar installation location</Text>
+      <AddressSearchInput
+        ac={ac}
+        disabled={geocodePending}
+        onSelect={onSelect}
+        onLookup={onLookup}
+      />
+      {geocodeError && (
+        <Text size="1" color="red">Unable to find this address.</Text>
+      )}
+      {coords && (
+        <Text size="1" color="gray">
+          {address || "Forecast location"} — {coords}
+        </Text>
+      )}
+    </div>
+  );
+}
+
+function SolarArraysEditor({
+  arrays,
+  totalKwp,
+  onAdd,
+  onUpdate,
+}: {
+  arrays: SolarArrayConfig[];
+  totalKwp: number;
+  onAdd: () => void;
+  onUpdate: (next: SolarArrayConfig[]) => void;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <div>
+          <Text size="2" weight="medium">Solar arrays</Text>
+          <Text size="1" color="gray" style={{ display: "block" }}>
+            Total installed capacity: {totalKwp.toFixed(2)} kWp
+          </Text>
+        </div>
+        <Button size="1" variant="soft" onClick={onAdd}>
+          <Plus size={13} />
+          Add array
+        </Button>
+      </div>
+
+      {arrays.map((array, index) => (
+        <ArrayEditor
+          key={`${index}-${array.name}`}
+          array={array}
+          index={index}
+          onChange={(next) =>
+            onUpdate(arrays.map((item, i) => i === index ? next : item))}
+          onRemove={() => onUpdate(arrays.filter((_, i) => i !== index))}
+        />
+      ))}
+
+      {arrays.length === 0 && (
+        <Text size="1" color="orange">
+          Add at least one solar array before enabling the forecast.
+        </Text>
+      )}
+    </div>
+  );
+}
+
 export function SolarForecastSettings() {
   const { data } = useSolarForecastConfig();
   const mutation = useSolarForecastConfigMutation();
@@ -163,11 +261,9 @@ export function SolarForecastSettings() {
       Number(suggestion.lon),
     );
   };
-
   const updateArrays = (next: SolarArrayConfig[]) => {
     setField("solarForecastArraysJson", serializeArrays(next));
   };
-
   const addArray = () => {
     updateArrays([
       ...arrays,
@@ -179,13 +275,10 @@ export function SolarForecastSettings() {
       },
     ]);
   };
-
-  const coords = fields?.solarForecastLatitude !== null &&
-      fields?.solarForecastLatitude !== undefined &&
-      fields?.solarForecastLongitude !== null &&
-      fields?.solarForecastLongitude !== undefined
-    ? `${fields.solarForecastLatitude.toFixed(6)}, ${fields.solarForecastLongitude.toFixed(6)}`
-    : null;
+  const coords = formatCoordinates(
+    fields?.solarForecastLatitude,
+    fields?.solarForecastLongitude,
+  );
 
   return (
     <SettingsSection
@@ -203,7 +296,6 @@ export function SolarForecastSettings() {
           onCheckedChange={(value) => setField("solarForecastEnabled", value)}
         />
       </SettingsRow>
-
       <SettingsRow
         label="Installation date"
         help="Used to apply the average 0.5% annual panel degradation automatically."
@@ -216,65 +308,23 @@ export function SolarForecastSettings() {
             setField("solarForecastInstallationDate", event.target.value)}
         />
       </SettingsRow>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <Text size="2">Solar installation location</Text>
-        <AddressSearchInput
-          ac={ac}
-          disabled={geocodeMutation.isPending}
-          onSelect={selectSuggestion}
-          onLookup={() => {
-            if (ac.query.trim()) geocodeMutation.mutate(ac.query.trim());
-          }}
-        />
-        {geocodeMutation.isError && (
-          <Text size="1" color="red">Unable to find this address.</Text>
-        )}
-        {coords && (
-          <Text size="1" color="gray">
-            {fields?.solarForecastAddress || "Forecast location"} — {coords}
-          </Text>
-        )}
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-          }}
-        >
-          <div>
-            <Text size="2" weight="medium">Solar arrays</Text>
-            <Text size="1" color="gray" style={{ display: "block" }}>
-              Total installed capacity: {totalKwp.toFixed(2)} kWp
-            </Text>
-          </div>
-          <Button size="1" variant="soft" onClick={addArray}>
-            <Plus size={13} />
-            Add array
-          </Button>
-        </div>
-
-        {arrays.map((array, index) => (
-          <ArrayEditor
-            key={`${index}-${array.name}`}
-            array={array}
-            index={index}
-            onChange={(next) =>
-              updateArrays(arrays.map((item, i) => i === index ? next : item))}
-            onRemove={() => updateArrays(arrays.filter((_, i) => i !== index))}
-          />
-        ))}
-
-        {arrays.length === 0 && (
-          <Text size="1" color="orange">
-            Add at least one solar array before enabling the forecast.
-          </Text>
-        )}
-      </div>
+      <SolarLocationEditor
+        ac={ac}
+        geocodePending={geocodeMutation.isPending}
+        geocodeError={geocodeMutation.isError}
+        onSelect={selectSuggestion}
+        onLookup={() => {
+          if (ac.query.trim()) geocodeMutation.mutate(ac.query.trim());
+        }}
+        address={fields?.solarForecastAddress}
+        coords={coords}
+      />
+      <SolarArraysEditor
+        arrays={arrays}
+        totalKwp={totalKwp}
+        onAdd={addArray}
+        onUpdate={updateArrays}
+      />
     </SettingsSection>
   );
 }
