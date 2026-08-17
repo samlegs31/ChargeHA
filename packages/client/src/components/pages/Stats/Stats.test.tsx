@@ -168,7 +168,7 @@ describe("Stats", () => {
 
   it("shows only EV charging summary metrics", () => {
     renderStats();
-    expect(screen.getByText("Total Charged")).toBeInTheDocument();
+    expect(screen.getByText("Charged at Home")).toBeInTheDocument();
     expect(screen.getByText("From Solar")).toBeInTheDocument();
     expect(screen.getByText("From Battery")).toBeInTheDocument();
     expect(screen.getByText("From Grid")).toBeInTheDocument();
