@@ -4,7 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { createTestQueryClient } from "../test-utils.tsx";
 
-type Period = "day" | "month" | "year";
+type Period = "day" | "month" | "year" | "total";
 type QueryState = {
   data: unknown;
   isLoading: boolean;
@@ -22,7 +22,8 @@ const hoisted = vi.hoisted(() => {
       day: initial(),
       month: initial(),
       year: initial(),
-    } as Record<"day" | "month" | "year", QueryState>,
+      total: initial(),
+    } as Record<Period, QueryState>,
   };
 });
 
@@ -45,6 +46,11 @@ vi.mock("../trpc.ts", () => ({
           hoisted.results.year
         ),
       },
+      total: {
+        useQuery: vi.fn((_input: unknown, _opts: unknown) =>
+          hoisted.results.total
+        ),
+      },
     },
   },
 }));
@@ -61,12 +67,17 @@ describe("useStats", () => {
     solarProductionLine: [],
     totalChargedWh: 0,
     totalSolarWh: 0,
+    totalBatteryWh: 0,
     totalGridWh: 0,
     totalAwayWh: 0,
     selfPoweredPercent: 0,
     homeSolarProductionWh: 0,
     homeConsumedWh: 0,
     homeSolarWh: 0,
+    homeBatteryChargeWh: 0,
+    homeBatteryDischargeWh: 0,
+    homeSolarToBatteryWh: 0,
+    homeGridToBatteryWh: 0,
     homeGridWh: 0,
     homeSelfPoweredPercent: 0,
   };
@@ -115,6 +126,7 @@ describe("useStats", () => {
     setResult("day", { isLoading: true, data: undefined });
     setResult("month", { isLoading: true, data: undefined });
     setResult("year", { isLoading: true, data: undefined });
+    setResult("total", { isLoading: true, data: undefined });
   });
 
   it("starts with period='day' and data=null", () => {
@@ -215,6 +227,7 @@ describe("useStats", () => {
     { period: "day", pattern: /\w+ \d{1,2}/ },
     { period: "month", pattern: /\w+ \d{4}/ },
     { period: "year", pattern: /^\d{4}$/ },
+    { period: "total", pattern: /^All years$/ },
   ])("cursorLabel for $period matches pattern", ({ period, pattern }) => {
     const { result } = renderWithDay();
     if (period !== "day") switchTo(result, period);
@@ -222,7 +235,7 @@ describe("useStats", () => {
   });
 
   it.each<{
-    period: Period;
+    period: "day";
     advance: (d: Date) => number;
     diff: number;
   }>([
@@ -276,7 +289,21 @@ describe("useStats", () => {
     expect(result.current.cursor.getFullYear()).toBe(yearBefore - 1);
   });
 
-  it.each<{ period: Period }>([
+  it("Total stays on all years when navigation callbacks run", () => {
+    const { result } = renderWithDay();
+    switchTo(result, "total");
+    const before = result.current.cursor.getTime();
+
+    act(() => {
+      result.current.goBack();
+      result.current.goForward();
+    });
+
+    expect(result.current.cursor.getTime()).toBe(before);
+    expect(result.current.isAtPresent).toBe(true);
+  });
+
+  it.each<{ period: "day" | "month" | "year" }>([
     { period: "day" },
     { period: "month" },
     { period: "year" },
@@ -301,10 +328,20 @@ describe("useStats", () => {
     expect(result.current.data).toEqual(yearResponse);
   });
 
+  it("fetches all-time stats when period is set to Total", () => {
+    const { result } = renderWithDay();
+    const totalResponse = { ...fakeStatsResponse, period: "total" as const };
+    switchTo(result, "total", totalResponse);
+
+    expect(result.current.data).toEqual(totalResponse);
+    expect(result.current.cursorLabel).toBe("All years");
+  });
+
   it.each<{ period: Period; message: string }>([
     { period: "day", message: "Network error" },
     { period: "month", message: "Month fetch failed" },
     { period: "year", message: "Year fetch failed" },
+    { period: "total", message: "Total fetch failed" },
   ])(
     "fetch error for $period sets error state",
     ({ period, message }) => {
