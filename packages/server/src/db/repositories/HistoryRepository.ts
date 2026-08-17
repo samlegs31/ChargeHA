@@ -282,19 +282,19 @@ export class HistoryRepository {
 
   private nativeVehiclePriorityFilter() {
     return sql`
-      AND h.start_time_utc < COALESCE(
-        (SELECT MIN(v.timestamp) FROM vehicle_charge_readings v
+      AND datetime(h.start_time_utc) < COALESCE(
+        (SELECT datetime(MIN(v.timestamp)) FROM vehicle_charge_readings v
          WHERE v.vehicle_id = h.vehicle_id),
-        '9999-12-31 23:59:59'
+        datetime('9999-12-31 23:59:59')
       )
     `;
   }
 
   private nativeAggregatePriorityFilter() {
     return sql`
-      AND a.start_time_utc < COALESCE(
-        (SELECT MIN(v.timestamp) FROM vehicle_charge_readings v),
-        '9999-12-31 23:59:59'
+      AND datetime(a.start_time_utc) < COALESCE(
+        (SELECT datetime(MIN(v.timestamp)) FROM vehicle_charge_readings v),
+        datetime('9999-12-31 23:59:59')
       )
     `;
   }
@@ -304,7 +304,10 @@ export class HistoryRepository {
     nativeCutoff: string | null,
   ): VehicleChargeHistoryRowInput[] {
     if (nativeCutoff === null) return [...rows];
-    const cutoffMs = Date.parse(`${nativeCutoff.replace(" ", "T")}Z`);
+    const normalized = nativeCutoff.includes("T")
+      ? nativeCutoff
+      : `${nativeCutoff.replace(" ", "T")}Z`;
+    const cutoffMs = Date.parse(normalized);
     return rows.filter((row) => Date.parse(row.startTimeUtc) < cutoffMs);
   }
 
