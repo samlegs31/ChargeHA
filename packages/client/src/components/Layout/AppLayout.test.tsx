@@ -25,7 +25,7 @@ describe("AppLayout", () => {
       </AppLayout>,
     );
 
-    expect(screen.getByLabelText("E.V Solar")).toBeInTheDocument();
+    expect(screen.getByLabelText("E.V. Solar")).toBeInTheDocument();
   });
 
   it.each(["Home", "Stats", "Schedules", "Logs", "Settings"])(
@@ -135,14 +135,11 @@ describe("AppLayout", () => {
       </AppLayout>,
     );
 
-    // Open the menu
     await userEvent.click(
       screen.getByRole("button", { name: "Open menu" }),
     );
-    // Mobile menu shows nav items (duplicated from header)
     expect(screen.getAllByText("Stats").length).toBeGreaterThanOrEqual(2);
 
-    // Close the menu and verify it actually closed
     await userEvent.click(
       screen.getByRole("button", { name: "Close menu" }),
     );
@@ -159,14 +156,11 @@ describe("AppLayout", () => {
       </AppLayout>,
     );
 
-    // Open mobile menu
     await userEvent.click(
       screen.getByRole("button", { name: "Open menu" }),
     );
 
-    // Click a mobile nav link — the duplicated ones are in the mobile menu
     const logsLinks = screen.getAllByText("Logs");
-    // Click the last one (mobile menu)
     await userEvent.click(logsLinks[logsLinks.length - 1]);
     expect(onNavigate).toHaveBeenCalledWith("logs");
     expect(screen.queryByRole("button", { name: "Close menu" })).not
@@ -181,12 +175,10 @@ describe("AppLayout", () => {
       </AppLayout>,
     );
 
-    // Open mobile menu
     await userEvent.click(
       screen.getByRole("button", { name: "Open menu" }),
     );
 
-    // Mobile menu shows "Log out" text
     expect(screen.getByText("Log out")).toBeInTheDocument();
   });
 
@@ -197,12 +189,10 @@ describe("AppLayout", () => {
       </AppLayout>,
     );
 
-    // Open mobile menu
     await userEvent.click(
       screen.getByRole("button", { name: "Open menu" }),
     );
 
-    // No logout buttons at all
     expect(screen.queryByRole("button", { name: "Log out" })).not
       .toBeInTheDocument();
   });
