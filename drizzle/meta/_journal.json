@@ -64,6 +64,13 @@
       "when": 1786893780000,
       "tag": "0008_vehicle_charge_history",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1786980000000,
+      "tag": "0009_aggregate_ev_charge_history",
+      "breakpoints": true
     }
   ]
 }

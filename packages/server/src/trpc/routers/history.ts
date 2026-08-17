@@ -5,16 +5,42 @@ import {
   ChargeHqCsvError,
   parseChargeHqIntervalCsv,
 } from "../../history/ChargeHqCsv.ts";
+import {
+  fetchSolarWebHomeEvHistory,
+  SolarWebHistoryError,
+} from "../../history/SolarWebHistory.ts";
 import { publicProcedure, router } from "../trpc.ts";
 
 const csvTextInput = z.string().min(1).max(15_000_000);
 const vehicleIdInput = z.object({ vehicleId: z.string().min(1) });
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const solarWebImportInput = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  pvSystemId: z.string().min(1),
+  from: isoDate,
+  to: isoDate,
+}).refine((input) => input.from <= input.to, {
+  message: "Start date must be before or equal to end date",
+  path: ["from"],
+});
 
 function parseChargeHqCsv(csvText: string) {
   try {
     return parseChargeHqIntervalCsv(csvText);
   } catch (error) {
     if (error instanceof ChargeHqCsvError) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
+    }
+    throw error;
+  }
+}
+
+async function readSolarWebHistory(input: z.infer<typeof solarWebImportInput>) {
+  try {
+    return await fetchSolarWebHomeEvHistory(input);
+  } catch (error) {
+    if (error instanceof SolarWebHistoryError) {
       throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
     }
     throw error;
@@ -69,6 +95,25 @@ export const historyRouter = router({
         parsedIntervals: parsed.summary.intervalCount,
         parsedHistoryRows: parsed.historyRows.length,
         summary: parsed.summary,
+        coverage,
+      };
+    }),
+
+  importSolarWeb: publicProcedure
+    .input(solarWebImportInput)
+    .mutation(async ({ ctx, input }) => {
+      const history = await readSolarWebHistory(input);
+      const repository = new HistoryRepository(ctx.db.db);
+      const importResult = await repository.importAggregateRows(history.rows);
+      const coverage = await repository.getAggregateCoverage("solarweb");
+      return {
+        ...importResult,
+        samplesRead: history.samplesRead,
+        chargingIntervals: history.rows.length,
+        chargedWh: history.chargedWh,
+        solarWh: history.solarWh,
+        batteryWh: history.batteryWh,
+        gridWh: history.gridWh,
         coverage,
       };
     }),

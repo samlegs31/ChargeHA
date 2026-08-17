@@ -48,7 +48,7 @@ describe("mergeChargeHqStats", () => {
     }));
   }
 
-  it("adds exact ChargeHQ Wh without inventing historical costs", () => {
+  it("adds exact home archive Wh without inventing historical costs", () => {
     const buckets = emptyBuckets(24);
     buckets[13] = {
       ...buckets[13],
@@ -64,8 +64,8 @@ describe("mergeChargeHqStats", () => {
       solarWh: 400,
       batteryWh: 100,
       gridWh: 500,
-      awayWh: 1000,
-      totalWh: 2000,
+      awayWh: 0,
+      totalWh: 1000,
       costCents: 0,
       solarSavingsCents: 0,
     }], "day");
@@ -75,18 +75,53 @@ describe("mergeChargeHqStats", () => {
       solarWh: 500,
       batteryWh: 100,
       gridWh: 700,
-      awayWh: 1000,
-      totalWh: 2300,
+      awayWh: 0,
+      totalWh: 1300,
       costCents: 7,
     });
-    expect(merged.totalChargedWh).toBe(2300);
+    expect(merged.totalChargedWh).toBe(1300);
     expect(merged.totalSolarWh).toBe(500);
     expect(merged.totalBatteryWh).toBe(100);
     expect(merged.totalGridWh).toBe(700);
-    expect(merged.totalAwayWh).toBe(1000);
+    expect(merged.totalAwayWh).toBe(0);
     expect(merged.totalCostCents).toBe(7);
     expect(merged.solarSavingsCents).toBe(123);
     expect(merged.evSolarSavingsCents).toBe(45);
+  });
+
+  it("preserves native away charging", () => {
+    const buckets = emptyBuckets(24);
+    buckets[8] = {
+      ...buckets[8],
+      solarWh: 200,
+      gridWh: 300,
+      awayWh: 1500,
+      totalWh: 2000,
+    };
+
+    const merged = mergeChargeHqStats(responseWithBuckets(buckets), [], "day");
+    expect(merged.buckets[8].awayWh).toBe(1500);
+    expect(merged.buckets[8].totalWh).toBe(2000);
+    expect(merged.totalAwayWh).toBe(1500);
+    expect(merged.totalChargedWh).toBe(2000);
+  });
+
+  it("merges attributed away archive energy", () => {
+    const response = responseWithBuckets(emptyBuckets(24));
+    const merged = mergeChargeHqStats(response, [{
+      bucket: "18",
+      solarWh: 0,
+      batteryWh: 0,
+      gridWh: 0,
+      awayWh: 1250,
+      totalWh: 1250,
+      costCents: 0,
+      solarSavingsCents: 0,
+    }], "day");
+
+    expect(merged.buckets[18].awayWh).toBe(1250);
+    expect(merged.totalAwayWh).toBe(1250);
+    expect(merged.totalChargedWh).toBe(1250);
   });
 
   it("maps month and year bucket numbers to zero-based response positions", () => {

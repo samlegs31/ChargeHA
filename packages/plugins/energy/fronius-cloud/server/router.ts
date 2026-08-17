@@ -7,15 +7,11 @@ import { createPluginConfigProcedures } from "../../../createPluginConfigProcedu
 import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDependencies";
 import { resolveFroniusCloudTestPassword } from "./resolveTestPassword.ts";
 
-// ── Typed Zod schema for Fronius Cloud plugin procedure ─────────────────────
-
 const testConnectionInput = z.object({
   email: z.string(),
   password: z.string(),
   pvSystemId: z.string(),
 });
-
-// ── Fronius Cloud plugin tRPC router ────────────────────────────────────────
 
 export function createFroniusCloudRouter(deps: PluginDependencies) {
   return router({
@@ -42,9 +38,6 @@ export function createFroniusCloudRouter(deps: PluginDependencies) {
 
           await adapter.connect();
           try {
-            // A successful login alone is not enough: validate the same
-            // realtime flow endpoint used by the EnergyPoller so Local and
-            // Cloud are tested against the same runtime capability.
             await adapter.getRealtimeData();
             const deviceInfo = await adapter.getDeviceInfo();
             return { success: true as const, systemName: deviceInfo.name };

@@ -11,6 +11,10 @@ import {
 } from "../services/VehicleService.ts";
 import { createLogger, Logger } from "../lib/Logger.ts";
 import { PluginDbLogger } from "@chargeha/plugins/PluginDbLogger";
+import {
+  HistoryRepository,
+  type VehicleChargeHistoryRowInput,
+} from "../db/repositories/HistoryRepository.ts";
 
 /** Tunnel lifecycle exposed to plugins. URLs are live state, never persisted
  *  — quick-tunnel URLs change on every start. */
@@ -175,6 +179,25 @@ export class PluginDependencies<K extends string = string> {
       );
     }
     await this.vehicleManager.deleteVehicle(id);
+  }
+
+  // ── Archived charging history (energy plugins) ──────────────────────
+
+  /**
+   * Import installation-level EV charging intervals. This is intentionally
+   * not tied to a vehicle: an EVSE/energy source may know energy delivered
+   * without knowing which car received it.
+   */
+  async importAggregateEvChargeHistoryRows(
+    rows: readonly VehicleChargeHistoryRowInput[],
+  ) {
+    const repository = new HistoryRepository(this.db.db);
+    return await repository.importAggregateRows(rows);
+  }
+
+  async getAggregateEvChargeHistoryCoverage(source: string) {
+    const repository = new HistoryRepository(this.db.db);
+    return await repository.getAggregateCoverage(source);
   }
 
   // ── Simulated load (Simulated plugin only) ───────────────────────────

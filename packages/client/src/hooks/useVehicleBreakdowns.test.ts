@@ -29,12 +29,12 @@ vi.mock("../trpc.ts", () => ({
       },
     },
     useQueries: (fn: (t: Record<string, unknown>) => unknown[]) => {
-      // Call the factory to exercise the switch branches
       const t = {
         stats: {
           day: vi.fn((..._args: unknown[]) => ({})),
           month: vi.fn((..._args: unknown[]) => ({})),
           year: vi.fn((..._args: unknown[]) => ({})),
+          total: vi.fn((..._args: unknown[]) => ({})),
         },
       };
       fn(t);
@@ -62,11 +62,11 @@ describe("useVehicleBreakdowns", () => {
     homeSelfPoweredPercent: 60,
     solarProductionLine: [],
     buckets: [],
-    totalChargedWh: 5000,
+    totalChargedWh: 5500,
     totalSolarWh: 3000,
     totalBatteryWh: 0,
     totalGridWh: 2000,
-    totalAwayWh: 0,
+    totalAwayWh: 500,
     selfPoweredPercent: 60,
     totalCostCents: 150,
     evSolarSavingsCents: 200,
@@ -75,9 +75,9 @@ describe("useVehicleBreakdowns", () => {
   };
 
   const createWrapper = () => {
-    const qc = createTestQueryClient();
+    const queryClient = createTestQueryClient();
     return ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: qc }, children);
+      React.createElement(QueryClientProvider, { client: queryClient }, children);
   };
 
   type Args = Parameters<typeof useVehicleBreakdowns>[0];
@@ -102,15 +102,13 @@ describe("useVehicleBreakdowns", () => {
     hoisted.state.queriesResults = [];
   });
 
-  it("returns defaults when no vehicles and no data", () => {
+  it("returns EV defaults when no vehicles and no data", () => {
     const { result } = runHook();
 
     expect(result.current.hasChargeData).toBe(false);
     expect(result.current.hasConfiguredVehicles).toBe(false);
     expect(result.current.vehicleBreakdownsLoading).toBe(false);
     expect(result.current.currencySymbol).toBe("$");
-    expect(result.current.gridPercent).toBe(0);
-    expect(result.current.chargeGridPercent).toBe(0);
     expect(result.current.activeVehicleBreakdowns).toEqual([]);
   });
 
@@ -135,39 +133,6 @@ describe("useVehicleBreakdowns", () => {
     expect(result.current.currencySymbol).toBe(expected);
   });
 
-  it.each([
-    {
-      name: "computes from home self-powered percent",
-      data: baseStatsData,
-      expected: 40,
-    },
-    {
-      name: "is 0 when homeConsumedWh is 0",
-      data: { ...baseStatsData, homeConsumedWh: 0 },
-      expected: 0,
-    },
-  ])("gridPercent $name", ({ data, expected }) => {
-    const { result } = runHook({ data });
-    expect(result.current.gridPercent).toBe(expected);
-  });
-
-  it.each([
-    { name: "computes", data: baseStatsData, expected: 40 },
-    {
-      name: "is 0 when chargeHomeTotal is 0",
-      data: {
-        ...baseStatsData,
-        totalSolarWh: 0,
-        totalBatteryWh: 0,
-        totalGridWh: 0,
-      },
-      expected: 0,
-    },
-  ])("chargeGridPercent $name", ({ data, expected }) => {
-    const { result } = runHook({ data });
-    expect(result.current.chargeGridPercent).toBe(expected);
-  });
-
   it("hasConfiguredVehicles is true when vehicles exist", () => {
     hoisted.state.listData = { vehicles: [{ id: "VIN1", name: "Model 3" }] };
     hoisted.state.queriesResults = [{ data: undefined, isPending: false }];
@@ -175,6 +140,27 @@ describe("useVehicleBreakdowns", () => {
     const { result } = runHook({ data: baseStatsData });
 
     expect(result.current.hasConfiguredVehicles).toBe(true);
+  });
+
+  it("supports the Total period for per-vehicle queries", () => {
+    hoisted.state.listData = { vehicles: [{ id: "VIN1", name: "Model 3" }] };
+    hoisted.state.queriesResults = [{
+      data: {
+        totalChargedWh: 5500,
+        totalSolarWh: 3000,
+        totalBatteryWh: 0,
+        totalGridWh: 2000,
+        totalAwayWh: 500,
+        totalCostCents: 150,
+        evSolarSavingsCents: 200,
+      },
+      isPending: false,
+    }];
+
+    const { result } = runHook({ data: baseStatsData, period: "total" });
+
+    expect(result.current.activeVehicleBreakdowns[0]?.vehicleId).toBe("VIN1");
+    expect(result.current.activeVehicleBreakdowns[0]?.totalAwayWh).toBe(500);
   });
 
   it("vehicleBreakdownsLoading is true when vehiclesQuery is pending", () => {
@@ -194,7 +180,7 @@ describe("useVehicleBreakdowns", () => {
     expect(result.current.vehicleBreakdownsLoading).toBe(true);
   });
 
-  it("maps vehicle query results to breakdowns", () => {
+  it("maps vehicle query results to EV breakdowns", () => {
     hoisted.state.listData = {
       vehicles: [
         { id: "VIN1", name: "Model 3" },
@@ -204,10 +190,11 @@ describe("useVehicleBreakdowns", () => {
     hoisted.state.queriesResults = [
       {
         data: {
-          totalChargedWh: 3000,
+          totalChargedWh: 3500,
           totalSolarWh: 2000,
           totalBatteryWh: 0,
           totalGridWh: 1000,
+          totalAwayWh: 500,
           totalCostCents: 100,
           evSolarSavingsCents: 150,
         },
@@ -215,10 +202,11 @@ describe("useVehicleBreakdowns", () => {
       },
       {
         data: {
-          totalChargedWh: 2000,
+          totalChargedWh: 2250,
           totalSolarWh: 1000,
           totalBatteryWh: 0,
           totalGridWh: 1000,
+          totalAwayWh: 250,
           totalCostCents: null,
           evSolarSavingsCents: null,
         },
@@ -232,20 +220,22 @@ describe("useVehicleBreakdowns", () => {
       {
         vehicleId: "VIN1",
         vehicleName: "Model 3",
-        totalChargedWh: 3000,
+        totalChargedWh: 3500,
         totalSolarWh: 2000,
         totalBatteryWh: 0,
         totalGridWh: 1000,
+        totalAwayWh: 500,
         totalCostCents: 100,
         evSolarSavingsCents: 150,
       },
       {
         vehicleId: "VIN2",
         vehicleName: "Model Y",
-        totalChargedWh: 2000,
+        totalChargedWh: 2250,
         totalSolarWh: 1000,
         totalBatteryWh: 0,
         totalGridWh: 1000,
+        totalAwayWh: 250,
         totalCostCents: 0,
         evSolarSavingsCents: 0,
       },
@@ -266,6 +256,7 @@ describe("useVehicleBreakdowns", () => {
           totalSolarWh: 2000,
           totalBatteryWh: 0,
           totalGridWh: 1000,
+          totalAwayWh: 0,
           totalCostCents: 100,
           evSolarSavingsCents: 150,
         },
@@ -277,6 +268,7 @@ describe("useVehicleBreakdowns", () => {
           totalSolarWh: 0,
           totalBatteryWh: 0,
           totalGridWh: 0,
+          totalAwayWh: 0,
           totalCostCents: 0,
           evSolarSavingsCents: 0,
         },

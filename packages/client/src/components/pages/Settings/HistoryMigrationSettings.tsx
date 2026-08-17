@@ -294,7 +294,7 @@ function DestinationVehicle(
     <div>
       <Text size="2" weight="medium">Destination vehicle</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
-        Imported history is attached to this vehicle. Native E.V Solar readings
+        ChargeHQ history is attached to this vehicle. Native E.V Solar readings
         always take priority where histories overlap.
       </Text>
       <select
@@ -313,9 +313,7 @@ function DestinationVehicle(
           padding: "0 10px",
         }}
       >
-        {vehicles.length === 0 && (
-          <option value="">No vehicle configured</option>
-        )}
+        {vehicles.length === 0 && <option value="">No vehicle configured</option>}
         {vehicles.map((vehicle) => (
           <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>
         ))}
@@ -408,18 +406,15 @@ function ChargeHqPreview({ summary }: { summary: ChargeHqSummary }) {
     <Card>
       <Text size="2" weight="bold">Import preview</Text>
       <Text size="2" style={{ display: "block", marginTop: 6 }}>
-        {summary.intervalCount} intervals · {formatKwh(summary.chargedKwh)}{" "}
-        kWh total
+        {summary.intervalCount} intervals · {formatKwh(summary.chargedKwh)} kWh total
       </Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-        {summary.firstStartTimeLocal ?? "?"} →{" "}
-        {summary.lastStartTimeLocal ?? "?"}
+        {summary.firstStartTimeLocal ?? "?"} → {summary.lastStartTimeLocal ?? "?"}
       </Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
         Home solar {formatKwh(summary.solarKwh)} kWh · Home battery{" "}
-        {formatKwh(summary.batteryKwh)} kWh · Grid {formatKwh(summary.gridKwh)}
-        {" "}
-        kWh · Away {formatKwh(summary.awayKwh)} kWh
+        {formatKwh(summary.batteryKwh)} kWh · Grid {formatKwh(summary.gridKwh)} kWh · Away{" "}
+        {formatKwh(summary.awayKwh)} kWh
       </Text>
     </Card>
   );
@@ -431,9 +426,8 @@ function ExistingArchive({ coverage }: { coverage: HistoryCoverage | null }) {
     <Card>
       <Text size="2" weight="bold">Existing ChargeHQ archive</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-        {coverage.firstStartTimeLocal ?? "?"} →{" "}
-        {coverage.lastStartTimeLocal ?? "?"} · {coverage.rowCount} rows ·{" "}
-        {formatKwh(coverage.chargedWh / 1000)} kWh
+        {coverage.firstStartTimeLocal ?? "?"} → {coverage.lastStartTimeLocal ?? "?"} ·{" "}
+        {coverage.rowCount} rows · {formatKwh(coverage.chargedWh / 1000)} kWh
       </Text>
     </Card>
   );
@@ -444,20 +438,11 @@ function importButtonLabel(isImporting: boolean, fileCount: number): string {
   return `Import ${fileCount || ""} file${fileCount === 1 ? "" : "s"}`;
 }
 
-function ImportControls(
-  { model }: { model: HistoryMigrationModel },
-) {
+function ImportControls({ model }: { model: HistoryMigrationModel }) {
   const hasVehicle = model.vehicleId !== "" && model.vehicles.length > 0;
   const disabled = model.busy || !model.readyToImport || !hasVehicle;
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        flexWrap: "wrap",
-      }}
-    >
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
       <Button size="2" disabled={disabled} onClick={model.importHistory}>
         <Upload size={15} />
         {importButtonLabel(model.isImporting, model.files.length)}
@@ -475,9 +460,9 @@ function ImportResultCard({ result }: { result: ImportTotals | null }) {
     <Card style={{ borderLeft: "3px solid var(--green-9)" }}>
       <Text size="2" weight="bold">Migration complete</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-        {result.files} files · {result.parsedIntervals} intervals ·{" "}
-        {result.insertedRows} rows added · {result.duplicateRows}{" "}
-        duplicates skipped · {result.overlapRows} native-overlap rows skipped
+        {result.files} files · {result.parsedIntervals} intervals · {result.insertedRows}{" "}
+        rows added · {result.duplicateRows} duplicates skipped · {result.overlapRows}{" "}
+        native-overlap rows skipped
       </Text>
     </Card>
   );
@@ -487,8 +472,8 @@ function HistoryMigrationView({ model }: { model: HistoryMigrationModel }) {
   return (
     <SettingsSection
       icon={<DatabaseBackup size={18} />}
-      title="History & Migration"
-      description="Migrate legacy ChargeHQ Interval Data into E.V Solar Stats without changing live charging."
+      title="ChargeHQ history"
+      description="Import legacy ChargeHQ Interval Data into E.V Solar Stats without changing live charging."
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <DestinationVehicle
@@ -505,9 +490,7 @@ function HistoryMigrationView({ model }: { model: HistoryMigrationModel }) {
           onAnalyze={model.analyze}
         />
         <ChargeHqFileList files={model.files} previews={model.previews} />
-        {model.readyToImport && (
-          <ChargeHqPreview summary={model.previewTotals} />
-        )}
+        {model.readyToImport && <ChargeHqPreview summary={model.previewTotals} />}
         <ExistingArchive coverage={model.coverage} />
         <ImportControls model={model} />
         <ImportResultCard result={model.lastImport} />

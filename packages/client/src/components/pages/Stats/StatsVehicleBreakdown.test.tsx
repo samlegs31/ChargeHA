@@ -37,10 +37,10 @@ describe("StatsVehicleBreakdown", () => {
     selfPoweredPercent: 82,
   };
 
-  const renderComponent = () =>
+  const renderComponent = (data: StatsResponse = baseData) =>
     renderWithProviders(
       <StatsVehicleBreakdown
-        data={baseData}
+        data={data}
         loading={false}
         period="day"
         cursor={new Date("2026-03-01")}
@@ -56,8 +56,6 @@ describe("StatsVehicleBreakdown", () => {
       hasConfiguredVehicles: true,
       vehicleBreakdownsLoading: false,
       currencySymbol: "$",
-      gridPercent: 0,
-      chargeGridPercent: 0,
       activeVehicleBreakdowns: [],
       ...overrides,
     });
@@ -71,41 +69,51 @@ describe("StatsVehicleBreakdown", () => {
     cleanup();
   });
 
-  it("renders per-vehicle card titles when breakdowns are available", () => {
+  it("renders complete per-vehicle charging", () => {
     setBreakdowns({
-      activeVehicleBreakdowns: [
-        {
-          vehicleId: "VIN-1",
-          vehicleName: "Model Y",
-          totalChargedWh: 1700,
-          totalSolarWh: 1400,
-          totalBatteryWh: 0,
-          totalGridWh: 300,
-          totalCostCents: 20,
-          evSolarSavingsCents: 1,
-        },
-      ],
+      activeVehicleBreakdowns: [{
+        vehicleId: "VIN-1",
+        vehicleName: "Model Y",
+        totalChargedWh: 2000,
+        totalSolarWh: 1400,
+        totalBatteryWh: 0,
+        totalGridWh: 300,
+        totalAwayWh: 300,
+        totalCostCents: 20,
+        evSolarSavingsCents: 10,
+      }],
     });
-
     renderComponent();
-
     expect(screen.getByText("Model Y")).toBeInTheDocument();
-    expect(screen.queryByText("Vehicle Charging")).not.toBeInTheDocument();
+    expect(screen.getByText("Total Charged")).toBeInTheDocument();
+    expect(screen.getByText("From Solar")).toBeInTheDocument();
+    expect(screen.getByText("From Battery")).toBeInTheDocument();
+    expect(screen.getByText("From Grid")).toBeInTheDocument();
+    expect(screen.getByText("Away")).toBeInTheDocument();
+    expect(screen.queryByText("Home Battery")).not.toBeInTheDocument();
+    expect(screen.queryByText("Energy Sources")).not.toBeInTheDocument();
   });
 
-  it("does not render generic fallback while per-vehicle breakdowns are loading", () => {
+  it("does not render generic fallback while vehicle data loads", () => {
     setBreakdowns({ vehicleBreakdownsLoading: true });
-
     renderComponent();
-
     expect(screen.queryByText("Vehicle Charging")).not.toBeInTheDocument();
   });
 
-  it("renders generic fallback only when no configured vehicles exist", () => {
+  it("renders generic fallback only without configured vehicles", () => {
     setBreakdowns({ hasConfiguredVehicles: false });
-
     renderComponent();
-
     expect(screen.getByText("Vehicle Charging")).toBeInTheDocument();
+  });
+
+  it("renders away charging in the generic fallback when available", () => {
+    setBreakdowns({ hasConfiguredVehicles: false });
+    renderComponent({
+      ...baseData,
+      totalAwayWh: 500,
+      totalChargedWh: 2200,
+    });
+    expect(screen.getByText("Vehicle Charging")).toBeInTheDocument();
+    expect(screen.getByText("Away")).toBeInTheDocument();
   });
 });

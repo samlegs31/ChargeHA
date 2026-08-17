@@ -17,21 +17,21 @@ function rowBucketIndex(
 }
 
 /**
- * Merge exact Wh from the ChargeHQ archive into an already-built StatsResponse.
- *
- * HistoryRepository has already removed rows that overlap native E.V Solar
- * readings. ChargeHQ has no historical tariff price, so cost/savings values are
- * intentionally left untouched instead of being reconstructed with today's
- * tariff configuration.
+ * Merge archived vehicle charging into the native response. Solar.web history
+ * contributes home charging only; vehicle-attributed sources may also carry
+ * away charging. HistoryRepository has already removed rows that overlap native
+ * E.V Solar readings. Historical tariff values are intentionally left at zero.
  */
 export function mergeChargeHqStats(
   response: StatsResponse,
   historyRows: readonly ChargeHqStatsRow[],
   period: ChargeHqStatsPeriod,
 ): StatsResponse {
-  if (historyRows.length === 0) return response;
+  const buckets = response.buckets.map((bucket) => ({
+    ...bucket,
+    totalWh: bucket.solarWh + bucket.batteryWh + bucket.gridWh + bucket.awayWh,
+  }));
 
-  const buckets = response.buckets.map((bucket) => ({ ...bucket }));
   historyRows.forEach((row) => {
     const index = rowBucketIndex(row, period);
     if (!Number.isInteger(index) || index < 0 || index >= buckets.length) {

@@ -1,10 +1,10 @@
 import { useMemo } from "react";
+import type { VehicleWithState } from "@chargeha/shared";
 import type {
-  StatsPeriod,
-  StatsResponse,
-  VehicleWithState,
-} from "@chargeha/shared";
-import type { DayResolution } from "./useStats.ts";
+  DayResolution,
+  StatsViewPeriod,
+  StatsViewResponse,
+} from "./useStats.ts";
 import { trpc } from "../trpc.ts";
 
 export interface VehicleBreakdown {
@@ -14,14 +14,15 @@ export interface VehicleBreakdown {
   totalSolarWh: number;
   totalBatteryWh: number;
   totalGridWh: number;
+  totalAwayWh: number;
   totalCostCents: number;
   evSolarSavingsCents: number;
 }
 
 interface UseVehicleBreakdownsArgs {
-  data: StatsResponse | null;
+  data: StatsViewResponse | null;
   loading: boolean;
-  period: StatsPeriod;
+  period: StatsViewPeriod;
   cursor: Date;
   resolution: DayResolution;
 }
@@ -31,8 +32,6 @@ interface UseVehicleBreakdownsResult {
   hasConfiguredVehicles: boolean;
   vehicleBreakdownsLoading: boolean;
   currencySymbol: string;
-  gridPercent: number;
-  chargeGridPercent: number;
   activeVehicleBreakdowns: VehicleBreakdown[];
 }
 
@@ -51,29 +50,27 @@ export function useVehicleBreakdowns({
   cursor,
   resolution,
 }: UseVehicleBreakdownsArgs): UseVehicleBreakdownsResult {
-  // Shared vehicle list cache via tRPC
   const vehiclesQuery = trpc.vehicle.list.useQuery();
   const vehicles = useMemo(() => {
-    const data = vehiclesQuery.data;
-    if (!data) return [];
-    return data.vehicles as VehicleWithState[];
+    const queryData = vehiclesQuery.data;
+    if (!queryData) return [];
+    return queryData.vehicles as VehicleWithState[];
   }, [vehiclesQuery.data]);
   const hasConfiguredVehicles = vehicles.length > 0;
 
-  // Build per-vehicle stats queries
   const year = cursor.getFullYear();
   const month = cursor.getMonth() + 1;
   const dateStr = cursorToDateStr(cursor);
   const tz = useMemo(() => -(new Date().getTimezoneOffset() / 60), []);
 
   const vehicleQueries = trpc.useQueries((t) =>
-    vehicles.map((v) => {
+    vehicles.map((vehicle) => {
       switch (period) {
         case "day":
           return t.stats.day(
             {
               date: dateStr,
-              vehicleId: v.id,
+              vehicleId: vehicle.id,
               tz,
               resolution: resolution === "15m" ? "15m" : undefined,
             },
@@ -81,70 +78,53 @@ export function useVehicleBreakdowns({
           );
         case "month":
           return t.stats.month(
-            { year, month, vehicleId: v.id, tz },
+            { year, month, vehicleId: vehicle.id, tz },
             { enabled: !loading },
           );
         case "year":
           return t.stats.year(
-            { year, vehicleId: v.id, tz },
+            { year, vehicleId: vehicle.id, tz },
+            { enabled: !loading },
+          );
+        case "total":
+          return t.stats.total(
+            { vehicleId: vehicle.id, tz },
             { enabled: !loading },
           );
       }
     })
   );
 
-  // Prevent fallback UI from rendering while per-vehicle queries are still settling.
   const vehicleBreakdownsLoading = vehiclesQuery.isPending ||
-    vehicleQueries.some((q) => q.isPending);
+    vehicleQueries.some((query) => query.isPending);
 
-  // Map query results to VehicleBreakdown[]
   const vehicleBreakdowns = useMemo(() => {
     return vehicles
-      .map((v, i) => {
-        const res = vehicleQueries[i]?.data;
-        if (!res) return null;
+      .map((vehicle, index) => {
+        const response = vehicleQueries[index]?.data;
+        if (!response) return null;
         return {
-          vehicleId: v.id,
-          vehicleName: v.name,
-          totalChargedWh: res.totalChargedWh,
-          totalSolarWh: res.totalSolarWh,
-          totalBatteryWh: res.totalBatteryWh,
-          totalGridWh: res.totalGridWh,
-          totalCostCents: res.totalCostCents ?? 0,
-          evSolarSavingsCents: res.evSolarSavingsCents ?? 0,
+          vehicleId: vehicle.id,
+          vehicleName: vehicle.name,
+          totalChargedWh: response.totalChargedWh,
+          totalSolarWh: response.totalSolarWh,
+          totalBatteryWh: response.totalBatteryWh,
+          totalGridWh: response.totalGridWh,
+          totalAwayWh: response.totalAwayWh,
+          totalCostCents: response.totalCostCents ?? 0,
+          evSolarSavingsCents: response.evSolarSavingsCents ?? 0,
         };
       })
-      .filter((vb): vb is VehicleBreakdown => vb !== null);
+      .filter((value): value is VehicleBreakdown => value !== null);
   }, [vehicles, vehicleQueries]);
 
-  const hasChargeData = data ? data.totalChargedWh > 0 : false;
-  const currencySymbol = data?.currencySymbol ?? "$";
-
-  // Grid % for energy breakdown
-  const gridPercent = data && data.homeConsumedWh > 0
-    ? 100 - data.homeSelfPoweredPercent
-    : 0;
-
-  // Charge self-powered % for vehicle breakdown
-  const chargeHomeTotal = (data?.totalSolarWh ?? 0) +
-    (data?.totalBatteryWh ?? 0) +
-    (data?.totalGridWh ?? 0);
-  const chargeGridPercent = chargeHomeTotal > 0
-    ? Math.round(((data?.totalGridWh ?? 0) / chargeHomeTotal) * 100)
-    : 0;
-
-  // Filter per-vehicle breakdowns to those with charge data
-  const activeVehicleBreakdowns = vehicleBreakdowns.filter(
-    (vb) => vb.totalChargedWh > 0,
-  );
-
   return {
-    hasChargeData,
+    hasChargeData: (data?.totalChargedWh ?? 0) > 0,
     hasConfiguredVehicles,
     vehicleBreakdownsLoading,
-    currencySymbol,
-    gridPercent,
-    chargeGridPercent,
-    activeVehicleBreakdowns,
+    currencySymbol: data?.currencySymbol ?? "$",
+    activeVehicleBreakdowns: vehicleBreakdowns.filter(
+      (vehicle) => vehicle.totalChargedWh > 0,
+    ),
   };
 }

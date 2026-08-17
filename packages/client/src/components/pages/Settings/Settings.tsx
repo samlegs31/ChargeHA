@@ -19,6 +19,7 @@ import { TariffSettings } from "./TariffSettings.tsx";
 import { GeneralSettings } from "./GeneralSettings.tsx";
 import { NotificationSettings } from "./NotificationSettings.tsx";
 import { HistoryMigrationSettings } from "./HistoryMigrationSettings.tsx";
+import { SolarWebHistoryImport } from "./SolarWebHistoryImport.tsx";
 
 function EncryptionWarning() {
   return (
@@ -163,6 +164,7 @@ export function Settings() {
         description="Bring historical charging data into E.V Solar independently from the active realtime energy source."
       >
         <HistoryMigrationSettings />
+        <SolarWebHistoryImport />
       </SettingsGroup>
 
       <SettingsGroup

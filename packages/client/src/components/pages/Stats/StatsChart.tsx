@@ -4,18 +4,17 @@ import {
   Bar,
   CartesianGrid,
   ComposedChart,
-  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import type { VehicleSocSnapshot } from "@chargeha/shared";
 import type {
-  StatsPeriod,
-  StatsResponse,
-  VehicleSocSnapshot,
-} from "@chargeha/shared";
-import type { DayResolution } from "../../../hooks/useStats.ts";
+  DayResolution,
+  StatsViewPeriod,
+  StatsViewResponse,
+} from "../../../hooks/useStats.ts";
 import { formatCost } from "../../../utils/Format.ts";
 import styles from "./Stats.module.css";
 
@@ -34,90 +33,88 @@ const MONTH_ABBRS = [
   "Dec",
 ];
 
+const FLOW_KEYS = ["solarToCar", "batteryToCar", "gridToCar", "away"] as const;
+
+const FLOW_COLORS: Record<(typeof FLOW_KEYS)[number], string> = {
+  solarToCar: "var(--color-solar-car)",
+  batteryToCar: "var(--color-battery-car)",
+  gridToCar: "var(--color-grid-car)",
+  away: "var(--color-away)",
+};
+
+const FLOW_NAMES: Record<(typeof FLOW_KEYS)[number], string> = {
+  solarToCar: "Solar → Car",
+  batteryToCar: "Battery → Car",
+  gridToCar: "Grid → Car",
+  away: "Away",
+};
+
 interface ChartDatum {
   label: string;
-  solarToHome: number;
   solarToCar: number;
-  solarToBattery: number;
-  solarToGrid: number;
-  batteryToHome: number;
   batteryToCar: number;
-  gridToHome: number;
   gridToCar: number;
-  gridToBattery: number;
-  solarProduction: number;
-  totalConsumption: number;
-  costCents: number | null;
-  gridToHomeCostCents: number;
-  gridToCarCostCents: number;
+  away: number;
+  costCents: number;
   vehicleSoc: VehicleSocSnapshot[];
 }
 
-const FLOW_COLORS: Record<string, string> = {
-  solarToHome: "var(--color-solar)",
-  solarToCar: "var(--color-solar-car)",
-  solarToBattery: "var(--color-solar-battery)",
-  solarToGrid: "var(--color-grid-export)",
-  batteryToHome: "var(--color-battery-home)",
-  batteryToCar: "var(--color-battery-car)",
-  gridToHome: "var(--color-grid-import)",
-  gridToCar: "var(--color-grid-car)",
-  gridToBattery: "var(--color-grid-battery)",
-};
+interface StatsChartProps {
+  data: StatsViewResponse | null;
+  loading: boolean;
+  period: StatsViewPeriod;
+  resolution: DayResolution;
+  setResolution: (r: DayResolution) => void;
+  dateCursor: Date;
+  onDrillDown: (period: StatsViewPeriod, date: Date) => void;
+}
 
-const TOOLTIP_NAMES: Record<string, string> = {
-  solarToHome: "Solar \u2192 Home",
-  solarToCar: "Solar \u2192 Car",
-  solarToBattery: "Solar \u2192 Battery",
-  solarToGrid: "Solar \u2192 Grid",
-  batteryToHome: "Battery \u2192 Home",
-  batteryToCar: "Battery \u2192 Car",
-  gridToHome: "Grid \u2192 Home",
-  gridToCar: "Grid \u2192 Car",
-  gridToBattery: "Grid \u2192 Battery",
-  solarProduction: "Solar Production",
-  totalConsumption: "Total Consumption",
-};
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{ payload: ChartDatum }>;
+  label?: string;
+  period: StatsViewPeriod;
+  resolution: DayResolution;
+  dateCursor: Date;
+  currencySymbol: string;
+}
 
-// Flow keys in stacking order (bottom to top), excluding the line
-const FLOW_KEYS = [
-  "solarToHome",
-  "solarToCar",
-  "solarToBattery",
-  "solarToGrid",
-  "batteryToHome",
-  "batteryToCar",
-  "gridToHome",
-  "gridToCar",
-  "gridToBattery",
-] as const;
+function roundKwh(wh: number): number {
+  return Math.round((wh / 1000) * 100) / 100;
+}
 
-/** Build a time-range header label for the tooltip. */
+function bucketLabel(
+  label: string,
+  period: StatsViewPeriod,
+  resolution: DayResolution,
+): string {
+  if (period !== "day" || resolution === "15m") return label;
+  return `${label}:00`;
+}
+
+function buildBucketDatum(
+  bucket: NonNullable<StatsChartProps["data"]>["buckets"][number],
+  period: StatsViewPeriod,
+  resolution: DayResolution,
+  vehicleSoc: VehicleSocSnapshot[] | undefined,
+): ChartDatum {
+  return {
+    label: bucketLabel(bucket.label, period, resolution),
+    solarToCar: roundKwh(bucket.solarWh ?? 0),
+    batteryToCar: roundKwh(bucket.batteryWh ?? 0),
+    gridToCar: roundKwh(bucket.gridWh ?? 0),
+    away: roundKwh(bucket.awayWh ?? 0),
+    costCents: bucket.costCents ?? 0,
+    vehicleSoc: vehicleSoc ?? [],
+  };
+}
+
 function buildHeaderLabel(
   label: string,
-  period: StatsPeriod,
+  period: StatsViewPeriod,
   resolution: DayResolution,
   cursor: Date,
 ): string {
-  if (period === "day") {
-    if (!label) return "";
-    const hour = parseInt(label, 10);
-    if (resolution === "15m") {
-      // Labels are now "HH:MM" — show the 15-minute range
-      const [hh, mm] = label.split(":");
-      const startMin = parseInt(mm, 10);
-      const endMin = startMin + 15;
-      const endHour = endMin >= 60 ? parseInt(hh, 10) + 1 : parseInt(hh, 10);
-      const endMinStr = String(endMin % 60).padStart(2, "0");
-      return `${hh}:${mm} \u2013 ${
-        String(endHour).padStart(2, "0")
-      }:${endMinStr}`;
-    }
-    const end = hour + 1;
-    return `${String(hour).padStart(2, "0")}:00 \u2013 ${
-      String(end).padStart(2, "0")
-    }:00`;
-  }
   if (period === "month") {
     const day = parseInt(label, 10);
     const date = new Date(cursor.getFullYear(), cursor.getMonth(), day);
@@ -127,120 +124,63 @@ function buildHeaderLabel(
       day: "numeric",
     });
   }
-  // year: label is already a month name
-  return label;
+  if (period === "year" || period === "total") return label;
+  if (!label) return "";
+  if (resolution !== "15m") {
+    const hour = parseInt(label, 10);
+    return `${String(hour).padStart(2, "0")}:00 – ${
+      String(hour + 1).padStart(2, "0")
+    }:00`;
+  }
+  const [hh, mm] = label.split(":");
+  const endMinutes = parseInt(mm, 10) + 15;
+  const endHour = parseInt(hh, 10) + Math.floor(endMinutes / 60);
+  return `${hh}:${mm} – ${String(endHour).padStart(2, "0")}:${
+    String(endMinutes % 60).padStart(2, "0")
+  }`;
 }
 
-interface CustomTooltipProps {
-  active?: boolean;
-  payload?: Array<{ dataKey: string; value: number; payload: ChartDatum }>;
-  label?: string;
-  period: StatsPeriod;
-  resolution: DayResolution;
-  dateCursor: Date;
-  currencySymbol: string;
-  hasCostData: boolean;
-}
-
-function CustomTooltip({
-  active,
-  payload,
-  label,
-  period,
-  resolution,
-  dateCursor,
-  currencySymbol,
-  hasCostData,
-}: CustomTooltipProps) {
-  if (!active || !payload || payload.length === 0) return null;
-
-  const datum = payload[0]?.payload;
+function CustomTooltip(props: CustomTooltipProps) {
+  if (!props.active || !props.payload?.length) return null;
+  const datum = props.payload[0]?.payload;
   if (!datum) return null;
-
-  const headerLabel = buildHeaderLabel(
-    label ?? "",
-    period,
-    resolution,
-    dateCursor,
+  const header = buildHeaderLabel(
+    props.label ?? "",
+    props.period,
+    props.resolution,
+    props.dateCursor,
   );
-  if (!headerLabel) return null;
-
-  // Cost map: flow key → cost cents (only grid flows have cost)
-  const costMap: Record<string, number> = {
-    gridToHome: datum.gridToHomeCostCents,
-    gridToCar: datum.gridToCarCostCents,
-  };
-
-  // Show cost column when there's cost data for the dataset
-  const showCost = hasCostData;
 
   return (
     <div className={styles.customTooltip}>
-      <div className={styles.tooltipHeader}>{headerLabel}</div>
+      <div className={styles.tooltipHeader}>{header}</div>
       {FLOW_KEYS.map((key) => {
         const value = datum[key];
-        if (value === 0) return null;
-        const cost = costMap[key];
-        const isGridFlow = key === "gridToHome" || key === "gridToCar";
+        if (value <= 0) return null;
         return (
           <div key={key} className={styles.tooltipRow}>
             <span
               className={styles.tooltipSwatch}
               style={{ backgroundColor: FLOW_COLORS[key] }}
             />
-            <span className={styles.tooltipLabel}>
-              {TOOLTIP_NAMES[key]}
-            </span>
-            <span className={styles.tooltipValue}>
-              {value.toFixed(2)} kWh
-            </span>
-            {showCost && (
-              <span className={styles.tooltipCost}>
-                {isGridFlow ? formatCost(cost ?? 0, currencySymbol) : ""}
-              </span>
-            )}
+            <span className={styles.tooltipLabel}>{FLOW_NAMES[key]}</span>
+            <span className={styles.tooltipValue}>{value.toFixed(2)} kWh</span>
           </div>
         );
       })}
-      {datum.solarProduction > 0 && (
-        <div className={styles.tooltipRow}>
-          <span
-            className={styles.tooltipLine}
-            style={{ backgroundColor: "var(--color-solar-production)" }}
-          />
-          <span className={styles.tooltipLabel}>
-            {TOOLTIP_NAMES.solarProduction}
-          </span>
-          <span className={styles.tooltipValue}>
-            {datum.solarProduction.toFixed(2)} kWh
-          </span>
-          {showCost && <span className={styles.tooltipCost} />}
-        </div>
-      )}
-      {datum.totalConsumption > 0 && (
-        <div className={styles.tooltipRow}>
-          <span
-            className={styles.tooltipLine}
-            style={{ backgroundColor: "var(--color-consumption)" }}
-          />
-          <span className={styles.tooltipLabel}>
-            {TOOLTIP_NAMES.totalConsumption}
-          </span>
-          <span className={styles.tooltipValue}>
-            {datum.totalConsumption.toFixed(2)} kWh
-          </span>
-          {showCost && <span className={styles.tooltipCost} />}
+      {datum.costCents > 0 && (
+        <div className={styles.tooltipCostRow}>
+          Grid cost {formatCost(datum.costCents, props.currencySymbol)}
         </div>
       )}
       {datum.vehicleSoc.length > 0 && (
         <>
           <div className={styles.tooltipDivider} />
-          {datum.vehicleSoc.map((v) => (
-            <div key={v.vehicleId} className={styles.tooltipRow}>
+          {datum.vehicleSoc.map((vehicle) => (
+            <div key={vehicle.vehicleId} className={styles.tooltipRow}>
               <span className={styles.tooltipSocIcon}>🔋</span>
-              <span className={styles.tooltipLabel}>{v.vehicleName}</span>
-              <span className={styles.tooltipValue}>{v.batteryLevel}%</span>
-              {showCost && <span className={styles.tooltipCost} />}
+              <span className={styles.tooltipLabel}>{vehicle.vehicleName}</span>
+              <span className={styles.tooltipValue}>{vehicle.batteryLevel}%</span>
             </div>
           ))}
         </>
@@ -249,18 +189,8 @@ function CustomTooltip({
   );
 }
 
-interface StatsChartProps {
-  data: StatsResponse | null;
-  loading: boolean;
-  period: StatsPeriod;
-  resolution: DayResolution;
-  setResolution: (r: DayResolution) => void;
-  dateCursor: Date;
-  onDrillDown: (period: StatsPeriod, date: Date) => void;
-}
-
 function computeTickInterval(
-  period: StatsPeriod,
+  period: StatsViewPeriod,
   resolution: DayResolution,
 ): number {
   if (period === "day") return resolution === "15m" ? 11 : 2;
@@ -269,285 +199,77 @@ function computeTickInterval(
 }
 
 function useChartClickHandler(
-  period: StatsPeriod,
+  period: StatsViewPeriod,
   dateCursor: Date,
-  onDrillDown: (period: StatsPeriod, date: Date) => void,
+  onDrillDown: (period: StatsViewPeriod, date: Date) => void,
 ) {
-  return useCallback((e: { activeLabel?: string }) => {
-    if (!e?.activeLabel) return;
+  return useCallback((event: { activeLabel?: string }) => {
+    if (!event.activeLabel) return;
+    if (period === "total") {
+      const year = parseInt(event.activeLabel, 10);
+      if (!isNaN(year)) onDrillDown("year", new Date(year, 0, 1));
+      return;
+    }
     if (period === "month") {
-      const day = parseInt(e.activeLabel, 10);
+      const day = parseInt(event.activeLabel, 10);
       if (!isNaN(day)) {
         onDrillDown(
           "day",
           new Date(dateCursor.getFullYear(), dateCursor.getMonth(), day),
         );
       }
-    } else if (period === "year") {
-      const monthIndex = MONTH_ABBRS.indexOf(e.activeLabel);
-      if (monthIndex >= 0) {
-        onDrillDown("month", new Date(dateCursor.getFullYear(), monthIndex, 1));
-      }
+      return;
     }
+    if (period !== "year") return;
+    const monthIndex = MONTH_ABBRS.indexOf(event.activeLabel);
+    if (monthIndex < 0) return;
+    onDrillDown("month", new Date(dateCursor.getFullYear(), monthIndex, 1));
   }, [period, dateCursor, onDrillDown]);
-}
-
-function buildBucketDatum(
-  eb: NonNullable<StatsChartProps["data"]>["energyBuckets"][number],
-  cb: NonNullable<StatsChartProps["data"]>["buckets"][number] | undefined,
-  period: StatsPeriod,
-  resolution: DayResolution,
-  vehicleSoc: ChartDatum["vehicleSoc"] | undefined,
-): ChartDatum {
-  const solarToCar = Math.round(
-    ((cb?.solarWh ?? 0) / 1000) * 100,
-  ) / 100;
-
-  const batteryToCar = Math.round(
-    ((cb?.batteryWh ?? 0) / 1000) * 100,
-  ) / 100;
-
-  const gridToCar = Math.round(
-    ((cb?.gridWh ?? 0) / 1000) * 100,
-  ) / 100;
-
-  const solarToBattery = Math.round(
-    (eb.solarToBatteryWh / 1000) * 100,
-  ) / 100;
-
-  const gridToBattery = Math.round(
-    (eb.gridToBatteryWh / 1000) * 100,
-  ) / 100;
-
-  const batteryDischarge = Math.round(
-    (eb.batteryDischargeWh / 1000) * 100,
-  ) / 100;
-
-  const batteryToHome = Math.round(
-    Math.max(0, batteryDischarge - batteryToCar) * 100,
-  ) / 100;
-
-  const solarToHome = Math.round(
-    (Math.max(0, eb.solarWh - (cb?.solarWh ?? 0)) / 1000) * 100,
-  ) / 100;
-
-  const gridToHome = Math.round(
-    (
-      Math.max(
-        0,
-        eb.gridWh -
-          (cb?.gridWh ?? 0) -
-          eb.gridToBatteryWh,
-      ) / 1000
-    ) * 100,
-  ) / 100;
-
-  const solarProduction = Math.round(
-    (eb.solarProductionWh / 1000) * 100,
-  ) / 100;
-
-  const solarToGrid = Math.round(
-    Math.max(
-      0,
-      solarProduction -
-        solarToHome -
-        solarToCar -
-        solarToBattery,
-    ) * 100,
-  ) / 100;
-
-  const energyCost = eb.costCents ?? 0;
-  const chargeCost = cb?.costCents ?? 0;
-  const gridToCarCostCents = chargeCost;
-  const gridToHomeCostCents = Math.max(0, energyCost - chargeCost);
-  const totalConsumption = Math.round(
-    (eb.totalWh / 1000) * 100,
-  ) / 100;
-  return {
-    label: period === "day" && resolution !== "15m"
-      ? `${eb.label}:00`
-      : eb.label,
-    solarToHome,
-    solarToCar,
-    solarToBattery,
-    solarToGrid,
-    batteryToHome,
-    batteryToCar,
-    gridToHome,
-    gridToCar,
-    gridToBattery,
-    solarProduction,
-    totalConsumption,
-    costCents: cb?.costCents ?? null,
-    gridToHomeCostCents,
-    gridToCarCostCents,
-    vehicleSoc: vehicleSoc ?? [],
-  };
 }
 
 function ChartLegend() {
   return (
     <div className={styles.legend}>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-solar)" }}
-        />
-        Solar → Home
-      </span>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-solar-car)" }}
-        />
-        Solar → Car
-      </span>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-solar-battery)" }}
-        />
-        Solar → Battery
-      </span>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-grid-export)" }}
-        />
-        Solar → Grid
-      </span>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-battery-home)" }}
-        />
-        Battery → Home
-      </span>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-battery-car)" }}
-        />
-        Battery → Car
-      </span>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-grid-import)" }}
-        />
-        Grid → Home
-      </span>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-grid-car)" }}
-        />
-        Grid → Car
-      </span>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendSwatch}
-          style={{ backgroundColor: "var(--color-grid-battery)" }}
-        />
-        Grid → Battery
-      </span>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendLine}
-          style={{ backgroundColor: "var(--color-solar-production)" }}
-        />
-        Solar Production
-      </span>
-      <span className={styles.legendItem}>
-        <span
-          className={styles.legendLineDashed}
-          style={{ backgroundColor: "var(--color-consumption)" }}
-        />
-        Total Consumption
-      </span>
+      {FLOW_KEYS.map((key) => (
+        <span key={key} className={styles.legendItem}>
+          <span
+            className={styles.legendSwatch}
+            style={{ backgroundColor: FLOW_COLORS[key] }}
+          />
+          {FLOW_NAMES[key]}
+        </span>
+      ))}
     </div>
   );
 }
 
-/** Returns the recharts Bar/Line elements for ComposedChart. Called as a
- *  function (not JSX) so the fragment lands directly in ComposedChart's
- *  children — recharts walks `Children.map` to find Bar/Line by displayName,
- *  and a wrapper component (e.g. `<ChartBars />`) hides them and the chart
- *  renders blank. */
 function chartBars() {
   return (
     <>
       <Bar
-        dataKey="solarToHome"
-        stackId="energy"
-        fill="var(--color-solar)"
-        name="solarToHome"
-      />
-      <Bar
         dataKey="solarToCar"
-        stackId="energy"
+        stackId="charging"
         fill="var(--color-solar-car)"
         name="solarToCar"
       />
       <Bar
-        dataKey="solarToBattery"
-        stackId="energy"
-        fill="var(--color-solar-battery)"
-        name="solarToBattery"
-      />
-      <Bar
-        dataKey="solarToGrid"
-        stackId="energy"
-        fill="var(--color-grid-export)"
-        name="solarToGrid"
-      />
-      <Bar
-        dataKey="batteryToHome"
-        stackId="energy"
-        fill="var(--color-battery-home)"
-        name="batteryToHome"
-      />
-      <Bar
         dataKey="batteryToCar"
-        stackId="energy"
+        stackId="charging"
         fill="var(--color-battery-car)"
         name="batteryToCar"
       />
       <Bar
-        dataKey="gridToHome"
-        stackId="energy"
-        fill="var(--color-grid-import)"
-        name="gridToHome"
-      />
-      <Bar
         dataKey="gridToCar"
-        stackId="energy"
+        stackId="charging"
         fill="var(--color-grid-car)"
         name="gridToCar"
       />
       <Bar
-        dataKey="gridToBattery"
-        stackId="energy"
-        fill="var(--color-grid-battery)"
-        name="gridToBattery"
+        dataKey="away"
+        stackId="charging"
+        fill="var(--color-away)"
+        name="away"
         radius={[2, 2, 0, 0]}
-      />
-      <Line
-        dataKey="solarProduction"
-        name="solarProduction"
-        type="monotone"
-        stroke="var(--color-solar-production)"
-        strokeWidth={2.5}
-        dot={false}
-      />
-      <Line
-        dataKey="totalConsumption"
-        name="totalConsumption"
-        type="monotone"
-        stroke="var(--color-consumption)"
-        strokeWidth={2.5}
-        strokeDasharray="6 3"
-        dot={false}
       />
     </>
   );
@@ -562,34 +284,19 @@ export function StatsChart({
   dateCursor,
   onDrillDown,
 }: StatsChartProps) {
-  const currencySymbol = data?.currencySymbol ?? "$";
-  // Show cost column when any cost data exists — vehicle charging OR home energy
-  const hasTotalCost = (data?.totalCostCents ?? 0) > 0;
-  const hasSavings = (data?.solarSavingsCents ?? 0) > 0;
-  const hasBucketCost =
-    data?.energyBuckets?.some((b) => (b.costCents ?? 0) > 0) ?? false;
-  const hasCostData = hasTotalCost || hasSavings || hasBucketCost;
-
-  const chartData: ChartDatum[] = useMemo(() => {
+  const chartData = useMemo(() => {
     if (!data) return [];
-    return data.energyBuckets.map((eb, i) =>
+    return data.buckets.map((bucket, index) =>
       buildBucketDatum(
-        eb,
-        data.buckets[i],
+        bucket,
         period,
         resolution,
-        data.vehicleSoc?.[i],
+        data.vehicleSoc?.[index],
       )
     );
-  }, [data]);
-
-  // Determine X-axis tick display — show every Nth label on dense axes
-  // Day 15m: 96 buckets, show every 12th (every 3 hours)
-  // Day 1h: 24 buckets, show every 2nd
-  // Month view: 28-31 buckets, show every 5th
-  // Year view: 12 buckets, show all
-  const tickInterval = computeTickInterval(period, resolution);
-  const canDrillDown = period === "month" || period === "year";
+  }, [data, period, resolution]);
+  const canDrillDown = period === "month" || period === "year" ||
+    period === "total";
   const handleChartClick = useChartClickHandler(
     period,
     dateCursor,
@@ -598,12 +305,11 @@ export function StatsChart({
 
   return (
     <Card className={styles.chartCard}>
-      {/* Resolution toggle — day view only */}
       {period === "day" && (
         <div className={styles.resolutionToggle}>
           <SegmentedControl.Root
             value={resolution}
-            onValueChange={(v) => setResolution(v as DayResolution)}
+            onValueChange={(value) => setResolution(value as DayResolution)}
             size="1"
           >
             <SegmentedControl.Item value="1h">1h</SegmentedControl.Item>
@@ -629,11 +335,11 @@ export function StatsChart({
               <XAxis
                 dataKey="label"
                 tick={{ fontSize: 12 }}
-                interval={tickInterval}
+                interval={computeTickInterval(period, resolution)}
               />
               <YAxis
                 tick={{ fontSize: 12 }}
-                tickFormatter={(v: number) => `${v} kWh`}
+                tickFormatter={(value: number) => `${value} kWh`}
                 width={70}
               />
               <Tooltip
@@ -642,8 +348,7 @@ export function StatsChart({
                     period={period}
                     resolution={resolution}
                     dateCursor={dateCursor}
-                    currencySymbol={currencySymbol}
-                    hasCostData={hasCostData}
+                    currencySymbol={data?.currencySymbol ?? "$"}
                   />
                 }
               />

@@ -3,16 +3,12 @@ import { trpc } from "./trpc.ts";
 import { SettingsRow } from "../../../hostUi.ts";
 
 export function FroniusCloudConfig(): JSX.Element | null {
-  const { data: config } = trpc.plugin.energy.fronius_cloud.getConfig
-    .useQuery();
+  const { data: config } = trpc.plugin.energy.fronius_cloud.getConfig.useQuery();
   const utils = trpc.useUtils();
-  const configMutation = trpc.plugin.energy.fronius_cloud.setConfig.useMutation(
-    {
-      onSuccess: () => utils.plugin.energy.fronius_cloud.getConfig.invalidate(),
-    },
-  );
-  const testMutation = trpc.plugin.energy.fronius_cloud.testConnection
-    .useMutation();
+  const configMutation = trpc.plugin.energy.fronius_cloud.setConfig.useMutation({
+    onSuccess: () => utils.plugin.energy.fronius_cloud.getConfig.invalidate(),
+  });
+  const testMutation = trpc.plugin.energy.fronius_cloud.testConnection.useMutation();
 
   if (!config) return null;
 
@@ -21,8 +17,7 @@ export function FroniusCloudConfig(): JSX.Element | null {
       <Text size="1" color="gray">
         Use a Solar.web account that has <code>guest</code>{" "}
         access to this PV system. An existing guest account is fine for local
-        testing; a dedicated service account can be used later for hosted E.V
-        Solar.
+        testing; a dedicated service account can be used later for hosted E.V Solar.
       </Text>
 
       <SettingsRow label="Email">
@@ -62,15 +57,12 @@ export function FroniusCloudConfig(): JSX.Element | null {
         />
       </SettingsRow>
 
-      {/* Test connection */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Button
           size="2"
           variant="soft"
-          disabled={!config.froniusCloudEmail ||
-            !config.froniusCloudPassword ||
-            !config.froniusCloudPvSystemId ||
-            testMutation.isPending}
+          disabled={!config.froniusCloudEmail || !config.froniusCloudPassword ||
+            !config.froniusCloudPvSystemId || testMutation.isPending}
           onClick={() =>
             testMutation.mutate({
               email: config.froniusCloudEmail,
@@ -83,9 +75,7 @@ export function FroniusCloudConfig(): JSX.Element | null {
 
         {testMutation.isSuccess && testMutation.data.success && (
           <Badge color="green" size="2">
-            Connected{testMutation.data.systemName
-              ? ` — ${testMutation.data.systemName}`
-              : ""}
+            Connected{testMutation.data.systemName ? ` — ${testMutation.data.systemName}` : ""}
           </Badge>
         )}
         {testMutation.isError && (

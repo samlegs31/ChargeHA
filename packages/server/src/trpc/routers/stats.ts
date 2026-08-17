@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { publicProcedure, router } from "../trpc.ts";
 import {
   statsDayInput,
@@ -5,7 +6,13 @@ import {
   statsYearInput,
 } from "@chargeha/shared/schemas";
 import { HistoryRepository } from "../../db/repositories/HistoryRepository.ts";
+import { buildTotalStats } from "../../history/TotalStats.ts";
 import { mergeChargeHqStats } from "../../history/mergeChargeHqStats.ts";
+
+const statsTotalInput = z.object({
+  tz: z.number().min(-14).max(14).optional(),
+  vehicleId: z.string().optional(),
+});
 
 export const statsRouter = router({
   day: publicProcedure
@@ -19,6 +26,8 @@ export const statsRouter = router({
         input.vehicleId,
         detailed,
       );
+      // Archived stats combine vehicle-attributed ChargeHQ history with
+      // installation-level Solar.web/Wattpilot history for the global view.
       const history = new HistoryRepository(ctx.db.db);
       const historyRows = detailed
         ? await history.getChargeHqStatsDayDetailed(input.date, input.vehicleId)
@@ -61,4 +70,15 @@ export const statsRouter = router({
       );
       return mergeChargeHqStats(response, historyRows, "year");
     }),
+
+  total: publicProcedure
+    .input(statsTotalInput)
+    .query(async ({ ctx, input }) =>
+      await buildTotalStats(
+        ctx.db,
+        ctx.statsService,
+        input.tz ?? 0,
+        input.vehicleId,
+      )
+    ),
 });

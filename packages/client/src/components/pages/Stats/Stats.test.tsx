@@ -25,29 +25,6 @@ vi.mock("../../../hooks/useStats.ts", () => ({
   })),
 }));
 
-vi.mock("../../../hooks/useVehicles.ts", () => ({
-  useVehicles: vi.fn(() => ({
-    vehicles: [],
-    loading: false,
-    error: null,
-    commandPending: {},
-    startCharging: vi.fn(),
-    stopCharging: vi.fn(),
-    setAmps: vi.fn(),
-    changeMode: vi.fn(),
-    refreshVehicles: vi.fn(),
-  })),
-}));
-
-vi.mock("../../../hooks/useToast.tsx", async (importOriginal) => ({
-  ...await importOriginal<typeof import("../../../hooks/useToast.tsx")>(),
-  useToast: vi.fn(() => ({
-    addToast: vi.fn(),
-    removeToast: vi.fn(),
-    toasts: [],
-  })),
-}));
-
 vi.mock("../../../trpc.ts", () => ({
   widenTrpc: vi.fn(),
   trpc: {
@@ -73,12 +50,10 @@ vi.mock("recharts", () => ({
     <div data-testid="chart">{children}</div>
   ),
   Bar: () => null,
-  Line: () => null,
   XAxis: () => null,
   YAxis: () => null,
   CartesianGrid: () => null,
   Tooltip: () => null,
-  Legend: () => null,
 }));
 
 describe("Stats", () => {
@@ -120,15 +95,14 @@ describe("Stats", () => {
     homeGridWh: 300,
     homeSelfPoweredPercent: 75,
     solarProductionLine: [],
-    // Vehicle charge data
     buckets: [
       {
         label: "10",
         solarWh: 800,
         batteryWh: 0,
         gridWh: 200,
-        awayWh: 0,
-        totalWh: 1000,
+        awayWh: 300,
+        totalWh: 1300,
       },
       {
         label: "11",
@@ -139,11 +113,11 @@ describe("Stats", () => {
         totalWh: 700,
       },
     ],
-    totalChargedWh: 1700,
+    totalChargedWh: 2000,
     totalSolarWh: 1400,
     totalBatteryWh: 0,
     totalGridWh: 300,
-    totalAwayWh: 0,
+    totalAwayWh: 300,
     selfPoweredPercent: 82,
   };
 
@@ -183,359 +157,150 @@ describe("Stats", () => {
     cleanup();
   });
 
-  // ---- Basic rendering ----
-
-  it("renders period selector buttons", () => {
+  it("renders period navigation including Total", () => {
     renderStats();
-
-    // Radix SegmentedControl renders labels twice (active + inactive)
     expect(screen.getAllByText("Day").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Month").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Year").length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("renders navigation buttons", () => {
-    renderStats();
-
+    expect(screen.getAllByText("Total").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByLabelText("Previous period")).toBeInTheDocument();
     expect(screen.getByLabelText("Next period")).toBeInTheDocument();
   });
 
-  it("renders cursor label", () => {
+  it("shows All years without navigation arrows in Total view", () => {
+    setStats({ period: "total", cursorLabel: "All years" });
     renderStats();
-
-    expect(screen.getByText("Sat, Mar 1, 2026")).toBeInTheDocument();
+    expect(screen.getByText("All years")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Previous period")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Next period")).not.toBeInTheDocument();
   });
 
-  it("renders summary card labels", () => {
+  it("shows only EV charging summary metrics", () => {
     renderStats();
-
-    expect(screen.getByText("Solar Produced")).toBeInTheDocument();
-    expect(screen.getByText("Total Consumed")).toBeInTheDocument();
-    expect(screen.getByText("Self Powered")).toBeInTheDocument();
+    expect(screen.getByText("Total Charged")).toBeInTheDocument();
+    expect(screen.getByText("Charged at Home")).toBeInTheDocument();
+    expect(screen.getByText("From Solar")).toBeInTheDocument();
+    expect(screen.getByText("From Battery")).toBeInTheDocument();
+    expect(screen.getByText("From Grid")).toBeInTheDocument();
+    expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Solar Share")).toBeInTheDocument();
+    expect(screen.queryByText("Solar Produced")).not.toBeInTheDocument();
+    expect(screen.queryByText("Total Consumed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Self Powered")).not.toBeInTheDocument();
   });
 
-  // ---- Loading state ----
-
-  it("shows — in summary cards when loading is true", () => {
+  it("shows seven summary placeholders while loading", () => {
     setStats({ loading: true });
-
     renderStats();
-
-    // All three summary cards should show — when loading
-    const dashes = screen.getAllByText("—");
-    expect(dashes.length).toBe(3);
-  });
-
-  it("shows chart loading state when loading is true", () => {
-    setStats({ loading: true });
-
-    renderStats();
-
+    expect(screen.getAllByText("—")).toHaveLength(7);
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 
-  // ---- Data rendering (folds L214 + L280) ----
-
-  it(
-    "renders summary self-powered value and Energy Sources percentages",
-    () => {
-      setStats({ isAtPresent: false, data: mockStatsData });
-
-      renderStats();
-
-      // Summary card keeps the backend self-powered metric.
-      expect(screen.getByText("75%")).toBeInTheDocument();
-
-      // Energy Sources is normalized across Solar + Battery + Grid:
-      // 3700 + 0 + 300 = 4000 Wh.
-      expect(screen.getByText("93%")).toBeInTheDocument();
-      expect(screen.getByText("7%")).toBeInTheDocument();
-    },
-  );
-
-  it("includes home battery in Energy Sources percentages", () => {
-    setStats({
-      isAtPresent: false,
-      data: {
-        ...mockStatsData,
-        homeBatteryDischargeWh: 500,
-      },
-    });
-
+  it("calculates solar share from total charging including Away", () => {
+    setStats({ isAtPresent: false, data: mockStatsData });
     renderStats();
-
-    // 3700 solar + 500 battery + 300 grid = 4500 Wh
-    // Largest-remainder rounding => 82% + 11% + 7% = 100%.
-    expect(screen.getAllByText("82%").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("11%")).toBeInTheDocument();
-    expect(screen.getByText("7%")).toBeInTheDocument();
+    expect(screen.getAllByText("70%").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders chart when data is present", () => {
+  it("does not render home energy or home battery cards", () => {
     setStats({ isAtPresent: false, data: mockStatsData });
-
     renderStats();
+    expect(screen.queryByText("Energy Sources")).not.toBeInTheDocument();
+    expect(screen.queryByText("Home Battery")).not.toBeInTheDocument();
+    expect(screen.queryByText("Solar → Battery")).not.toBeInTheDocument();
+    expect(screen.queryByText("Battery → Home")).not.toBeInTheDocument();
+  });
 
+  it("renders the charging chart", () => {
+    setStats({ isAtPresent: false, data: mockStatsData });
+    renderStats();
     expect(screen.getByTestId("chart")).toBeInTheDocument();
   });
 
-  // ---- Resolution toggle ----
-
-  it("shows resolution toggle (1h / 15m) when period is day", () => {
-    setStats();
-
+  it("shows the day resolution toggle only on day view", () => {
     renderStats();
-
     expect(screen.getAllByText("1h").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("15m").length).toBeGreaterThanOrEqual(1);
+    setStats({ period: "month", cursorLabel: "March 2026" });
+    cleanup();
+    renderStats();
+    expect(screen.queryByText("15m")).not.toBeInTheDocument();
   });
 
-  it.each([
-    ["month" as const, "March 2026"],
-    ["year" as const, "2026"],
-  ])(
-    "does not show resolution toggle when period is %s",
-    (period, cursorLabel) => {
-      setStats({ period, cursorLabel });
-
-      renderStats();
-
-      expect(screen.queryByText("15m")).not.toBeInTheDocument();
-    },
-  );
-
-  // ---- Energy source breakdown ----
-
-  it("renders Energy Sources breakdown card", () => {
+  it("renders only EV charging flow legend labels", () => {
     renderStats();
-
-    expect(screen.getByText("Energy Sources")).toBeInTheDocument();
-    expect(screen.getByText("From Solar")).toBeInTheDocument();
-    expect(screen.getByText("From Grid")).toBeInTheDocument();
-  });
-
-  // ---- Vehicle charging section ----
-
-  it("does not show Vehicle Charging section when totalChargedWh is 0", () => {
-    setStats({
-      isAtPresent: false,
-      data: { ...mockStatsData, totalChargedWh: 0 },
-    });
-
-    renderStats();
-
-    expect(screen.queryByText("Vehicle Charging")).not.toBeInTheDocument();
-  });
-
-  it(
-    "shows Vehicle Charging section with selfPoweredPercent and " +
-      "chargeGridPercent when totalChargedWh > 0",
-    async () => {
-      setStats({ isAtPresent: false, data: mockStatsData });
-
-      renderStats();
-
-      expect(await screen.findByText("Vehicle Charging")).toBeInTheDocument();
-      expect(screen.getByText("Total Charged")).toBeInTheDocument();
-      // Vehicle charging breakdown also has solar/grid from rows
-      const fromSolarItems = screen.getAllByText("From Solar");
-      expect(fromSolarItems.length).toBe(2); // one in Energy Sources, one in Vehicle Charging
-      const fromGridItems = screen.getAllByText("From Grid");
-      expect(fromGridItems.length).toBe(2);
-      // selfPoweredPercent = 82 in mock data
-      expect(screen.getByText("82%")).toBeInTheDocument();
-      // chargeGridPercent = round(300 / (1400 + 300) * 100) = round(17.6) = 18
-      expect(screen.getByText("18%")).toBeInTheDocument();
-    },
-  );
-
-  // ---- Away charging row ----
-
-  it("does not show Away row when totalAwayWh is 0", () => {
-    setStats({ isAtPresent: false, data: mockStatsData });
-
-    renderStats();
-
-    expect(screen.queryByText("Away")).not.toBeInTheDocument();
-  });
-
-  it("shows Away row when totalAwayWh > 0", async () => {
-    setStats({
-      isAtPresent: false,
-      data: {
-        ...mockStatsData,
-        totalAwayWh: 500,
-        totalChargedWh: 2200, // 1400 solar + 300 grid + 500 away
-      },
-    });
-
-    renderStats();
-
-    expect(await screen.findByText("Away")).toBeInTheDocument();
-    // awayPercent = round(500/2200 * 100) = round(22.7) = 23
-    expect(screen.getByText("23%")).toBeInTheDocument();
-  });
-
-  // ---- Navigation callbacks (folds L381/L395/L409) ----
-
-  it.each<
-    [
-      name: string,
-      target: string,
-      query: "label" | "text",
-      key: "goBack" | "goForward" | "goToToday",
-    ]
-  >([
-    ["Previous period", "Previous period", "label", "goBack"],
-    ["Next period", "Next period", "label", "goForward"],
-    ["cursor label", "Sat, Mar 1, 2026", "text", "goToToday"],
-  ])("calls %s when clicked", (_name, target, query, key) => {
-    const callback = vi.fn();
-    setStats({ isAtPresent: false, [key]: callback });
-
-    renderStats();
-
-    const el = query === "label"
-      ? screen.getByLabelText(target)
-      : screen.getByText(target);
-    fireEvent.click(el);
-
-    expect(callback).toHaveBeenCalledOnce();
-  });
-
-  // ---- Chart legend ----
-
-  it("renders chart legend labels", () => {
-    renderStats();
-
-    expect(screen.getByText("Solar → Home")).toBeInTheDocument();
     expect(screen.getByText("Solar → Car")).toBeInTheDocument();
-    expect(screen.getByText("Solar → Grid")).toBeInTheDocument();
-    expect(screen.getByText("Grid → Home")).toBeInTheDocument();
+    expect(screen.getByText("Battery → Car")).toBeInTheDocument();
     expect(screen.getByText("Grid → Car")).toBeInTheDocument();
-    expect(screen.getByText("Solar Production")).toBeInTheDocument();
+    expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("Solar → Home")).not.toBeInTheDocument();
+    expect(screen.queryByText("Grid → Home")).not.toBeInTheDocument();
+    expect(screen.queryByText("Solar Production")).not.toBeInTheDocument();
+    expect(screen.queryByText("Total Consumption")).not.toBeInTheDocument();
   });
 
-  // ---- Edge cases (honest retitle per audit) ----
-
-  it(
-    "still renders Vehicle Charging when totalSolar+totalGrid totals are 0",
-    async () => {
-      setStats({
-        isAtPresent: false,
-        data: {
-          ...mockStatsData,
-          totalSolarWh: 0,
-          totalGridWh: 0,
-          totalChargedWh: 1000,
-        },
-      });
-
-      renderStats();
-
-      // Vehicle Charging section is shown (totalChargedWh = 1000)
-      expect(await screen.findByText("Vehicle Charging")).toBeInTheDocument();
-    },
-  );
-
-  it("still renders Energy Sources when homeConsumedWh is 0", () => {
-    setStats({
-      isAtPresent: false,
-      data: {
-        ...mockStatsData,
-        homeConsumedWh: 0,
-        homeSelfPoweredPercent: 0,
-      },
-    });
-
+  it("renders complete vehicle charging including Away", async () => {
+    setStats({ isAtPresent: false, data: mockStatsData });
     renderStats();
-
-    // Component renders without error; gridPercent collapses to 0%.
-    expect(screen.getByText("Energy Sources")).toBeInTheDocument();
+    expect(await screen.findByText("Vehicle Charging")).toBeInTheDocument();
+    expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(2);
   });
 
-  // ---- Cost cards ----
-
-  it("shows Grid Cost and Solar Savings cards when tariff data exists", () => {
+  it("uses EV-only cost and savings metrics", () => {
     setStats({
       isAtPresent: false,
       data: {
         ...mockStatsData,
-        energyBuckets: [
-          {
-            label: "10",
-            solarProductionWh: 2000,
-            solarWh: 1500,
-            batteryChargeWh: 0,
-            batteryDischargeWh: 0,
-            solarToBatteryWh: 0,
-            gridToBatteryWh: 0,
-            gridWh: 200,
-            totalWh: 1700,
-            costCents: 800,
-          },
-          {
-            label: "11",
-            solarProductionWh: 3000,
-            solarWh: 2200,
-            batteryChargeWh: 0,
-            batteryDischargeWh: 0,
-            solarToBatteryWh: 0,
-            gridToBatteryWh: 0,
-            gridWh: 100,
-            totalWh: 2300,
-            costCents: 450,
-          },
-        ],
         totalCostCents: 1250,
+        evSolarSavingsCents: 250,
         solarSavingsCents: 830,
         currencySymbol: "$",
         currencyCode: "AUD",
       },
     });
-
     renderStats();
-
-    expect(screen.getByText("Grid Cost")).toBeInTheDocument();
+    expect(screen.getAllByText("Grid Cost").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("$12.50").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Solar Savings")).toBeInTheDocument();
-    expect(screen.getAllByText("$8.30").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Solar Savings").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("$2.50").length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText("$8.30")).not.toBeInTheDocument();
   });
 
-  it("does not show cost cards when no tariff data exists", () => {
+  it("hides financial cards when no EV financial data exists", () => {
     setStats({
       isAtPresent: false,
       data: {
         ...mockStatsData,
         totalCostCents: 0,
-        solarSavingsCents: 0,
+        evSolarSavingsCents: 0,
+        solarSavingsCents: 900,
         currencySymbol: "$",
         currencyCode: "AUD",
       },
     });
-
     renderStats();
-
     expect(screen.queryByText("Grid Cost")).not.toBeInTheDocument();
     expect(screen.queryByText("Solar Savings")).not.toBeInTheDocument();
   });
 
-  it("shows Solar Savings card when only solar savings exist (all-solar charging)", () => {
-    setStats({
-      isAtPresent: false,
-      data: {
-        ...mockStatsData,
-        totalCostCents: 0,
-        solarSavingsCents: 500,
-        currencySymbol: "$",
-        currencyCode: "AUD",
-      },
-    });
-
+  it.each<
+    [
+      target: string,
+      query: "label" | "text",
+      key: "goBack" | "goForward" | "goToToday",
+    ]
+  >([
+    ["Previous period", "label", "goBack"],
+    ["Next period", "label", "goForward"],
+    ["Sat, Mar 1, 2026", "text", "goToToday"],
+  ])("calls %s navigation callback", (target, query, key) => {
+    const callback = vi.fn();
+    setStats({ isAtPresent: false, [key]: callback });
     renderStats();
-
-    expect(screen.getByText("Solar Savings")).toBeInTheDocument();
-    expect(screen.getAllByText("$5.00").length).toBeGreaterThanOrEqual(1);
+    const element = query === "label"
+      ? screen.getByLabelText(target)
+      : screen.getByText(target);
+    fireEvent.click(element);
+    expect(callback).toHaveBeenCalledOnce();
   });
 });
