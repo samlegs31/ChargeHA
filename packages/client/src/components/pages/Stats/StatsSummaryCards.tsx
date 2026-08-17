@@ -1,10 +1,10 @@
 import { Card, Text } from "@radix-ui/themes";
-import type { StatsResponse } from "@chargeha/shared";
+import type { StatsViewResponse } from "../../../hooks/useStats.ts";
 import { formatCost, kwhValue } from "../../../utils/Format.ts";
 import styles from "./Stats.module.css";
 
 interface StatsSummaryCardsProps {
-  data: StatsResponse | null;
+  data: StatsViewResponse | null;
   loading: boolean;
 }
 
@@ -19,7 +19,7 @@ function SummaryCard(
   );
 }
 
-function solarShare(data: StatsResponse | null): number {
+function solarShare(data: StatsViewResponse | null): number {
   const totalWh = data?.totalChargedWh ?? 0;
   if (totalWh <= 0) return 0;
   return Math.round(((data?.totalSolarWh ?? 0) / totalWh) * 100);
