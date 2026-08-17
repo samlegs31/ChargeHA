@@ -50,7 +50,8 @@ jobs:
           status=$?
           cat typecheck.log
           if [ "$status" -ne 0 ]; then
-            message=$(sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e ':a;N;$!ba;s/\n/%0A/g' typecheck.log)
+            tail -n 120 typecheck.log > typecheck-tail.log
+            message=$(sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e ':a;N;$!ba;s/\n/%0A/g' typecheck-tail.log)
             echo "::error title=Deno type-check::$message"
           fi
           exit "$status"
