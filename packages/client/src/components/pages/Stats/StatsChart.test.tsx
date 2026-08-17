@@ -28,11 +28,11 @@ const { chartState, makeStatsData } = vi.hoisted(() => {
     homeGridWh: 0,
     homeSelfPoweredPercent: 0,
     solarProductionLine: [],
-    totalChargedWh: 3000,
+    totalChargedWh: 3500,
     totalSolarWh: 2000,
     totalBatteryWh: 0,
     totalGridWh: 1000,
-    totalAwayWh: 0,
+    totalAwayWh: 500,
     selfPoweredPercent: 67,
     totalCostCents: 500,
     solarSavingsCents: 200,
@@ -47,8 +47,8 @@ const { chartState, makeStatsData } = vi.hoisted(() => {
         solarWh: 500,
         batteryWh: 0,
         gridWh: 100,
-        awayWh: 0,
-        totalWh: 600,
+        awayWh: 500,
+        totalWh: 1100,
         costCents: 20,
       },
       {
@@ -176,13 +176,14 @@ describe("StatsChart", () => {
     },
   );
 
-  it("renders only EV charging legend items", () => {
+  it("renders only EV charging legend items including Away", () => {
     renderWithProviders(
       <StatsChart {...defaultProps} data={makeStatsData()} />,
     );
     expect(screen.getByText("Solar → Car")).toBeInTheDocument();
     expect(screen.getByText("Battery → Car")).toBeInTheDocument();
     expect(screen.getByText("Grid → Car")).toBeInTheDocument();
+    expect(screen.getByText("Away")).toBeInTheDocument();
     expect(screen.queryByText("Solar → Home")).not.toBeInTheDocument();
   });
 
@@ -207,8 +208,8 @@ describe("StatsChart", () => {
         solarWh: 5000,
         batteryWh: 1000,
         gridWh: 2000,
-        awayWh: 0,
-        totalWh: 8000,
+        awayWh: 500,
+        totalWh: 8500,
         costCents: 100,
       }],
     });
