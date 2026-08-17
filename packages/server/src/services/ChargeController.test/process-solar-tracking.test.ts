@@ -259,10 +259,10 @@ describe("ChargeController — processSolarTracking", () => {
       expect(log?.actionDetail).toContain("grace period expired");
     });
 
-    it("uses gross solar reference when configured", async () => {
-      // Gross mode: available = solarProductionW - margin (5200 - 200 = 5000W).
-      // That clears the 3-phase startup headroom; excess mode would still see
-      // 0A from gridPowerW=+1000 (importing).
+    it("forces excess-solar behavior even with legacy gross config", async () => {
+      // Stored solar modes intentionally ignore the legacy gross reference.
+      // The house is importing 1 kW here, so E.V Solar must not start the car
+      // even though PV production alone would be high enough in gross mode.
       ctx = await setupController(
         { chargerVoltage: 230 },
         "auto",
@@ -273,8 +273,8 @@ describe("ChargeController — processSolarTracking", () => {
 
       const log = await ctx.getLastLogParsed();
       assertExists(log);
-      expect(log.action).toBe("start");
-      expect(log.targetAmps).toBeGreaterThanOrEqual(5);
+      expect(log.action).toBe("none");
+      expect(ctx.adapter.commands).not.toContainEqual({ cmd: "start" });
     });
 
     it("not charging below min solar reports correct detail", async () => {
