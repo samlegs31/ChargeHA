@@ -157,13 +157,22 @@ describe("Stats", () => {
     cleanup();
   });
 
-  it("renders period navigation", () => {
+  it("renders period navigation including Total", () => {
     renderStats();
     expect(screen.getAllByText("Day").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Month").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Year").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Total").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByLabelText("Previous period")).toBeInTheDocument();
     expect(screen.getByLabelText("Next period")).toBeInTheDocument();
+  });
+
+  it("shows All years without navigation arrows in Total view", () => {
+    setStats({ period: "total", cursorLabel: "All years" });
+    renderStats();
+    expect(screen.getByText("All years")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Previous period")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Next period")).not.toBeInTheDocument();
   });
 
   it("shows only EV charging summary metrics", () => {
