@@ -193,7 +193,7 @@ describe("HistoryRepository", () => {
     }]);
   });
 
-  it("excludes away charging from EV Stats", async () => {
+  it("returns attributed away charging in per-vehicle Stats", async () => {
     const home = historyRow(
       "1760000000:home",
       "2025-10-09 08:53:20",
@@ -232,8 +232,8 @@ describe("HistoryRepository", () => {
       solarWh: 250,
       batteryWh: 100,
       gridWh: 400,
-      awayWh: 0,
-      totalWh: 750,
+      awayWh: 1250,
+      totalWh: 2000,
       costCents: 0,
       solarSavingsCents: 0,
     }]);
@@ -276,7 +276,7 @@ describe("HistoryRepository", () => {
     expect(vehicleStats).toEqual([]);
   });
 
-  it("prefers Solar.web for overlapping home energy and excludes away energy", async () => {
+  it("keeps Solar.web home priority and gates global away by vehicle config", async () => {
     const chargeHqHome = historyRow(
       "home-overlap",
       "2025-06-01T08:00:00Z",
@@ -310,9 +310,18 @@ describe("HistoryRepository", () => {
     await repository.importChargeHqRows("vehicle-1", [chargeHqHome, chargeHqAway]);
     await repository.importAggregateRows([solarweb]);
 
-    const stats = await repository.getChargeHqStatsDay("2025-06-01");
-    expect(stats.reduce((sum, row) => sum + row.totalWh, 0)).toBe(900);
-    expect(stats.reduce((sum, row) => sum + row.awayWh, 0)).toBe(0);
-    expect(stats.reduce((sum, row) => sum + row.solarWh, 0)).toBe(500);
+    const beforeVehicle = await repository.getChargeHqStatsDay("2025-06-01");
+    expect(beforeVehicle.reduce((sum, row) => sum + row.totalWh, 0)).toBe(900);
+    expect(beforeVehicle.reduce((sum, row) => sum + row.awayWh, 0)).toBe(0);
+
+    db.getDriver().exec(`
+      INSERT INTO vehicles (id, name, adapter_type, config)
+      VALUES ('vehicle-1', 'Model Y', 'tesla', '{}')
+    `);
+
+    const afterVehicle = await repository.getChargeHqStatsDay("2025-06-01");
+    expect(afterVehicle.reduce((sum, row) => sum + row.totalWh, 0)).toBe(1200);
+    expect(afterVehicle.reduce((sum, row) => sum + row.awayWh, 0)).toBe(300);
+    expect(afterVehicle.reduce((sum, row) => sum + row.solarWh, 0)).toBe(500);
   });
 });
