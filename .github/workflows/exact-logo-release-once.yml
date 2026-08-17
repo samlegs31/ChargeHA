@@ -1,0 +1,22 @@
+name: Exact E.V. Solar logo production release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/exact-logo-release-once.yml
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: write
+
+  release:
+    needs: build
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+      packages: write
