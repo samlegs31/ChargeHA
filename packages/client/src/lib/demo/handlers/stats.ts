@@ -4,6 +4,7 @@ import {
   aggregateMonth,
   aggregateYear,
 } from "../demoAggregate.ts";
+import { aggregateTotal } from "../demoAggregateTotal.ts";
 import { demoNow } from "../demoClock.ts";
 
 interface DayInput {
@@ -18,6 +19,9 @@ interface MonthInput {
 }
 interface YearInput {
   year: number;
+  vehicleId?: string;
+}
+interface TotalInput {
   vehicleId?: string;
 }
 
@@ -39,5 +43,9 @@ export const statsHandlers: Record<string, QueryHandler> = {
   "stats.year": (input, s) => {
     const i = input as YearInput;
     return aggregateYear(s.series, i.year, i.vehicleId, demoNow());
+  },
+  "stats.total": (input, s) => {
+    const i = input as TotalInput;
+    return aggregateTotal(s.series, i.vehicleId, demoNow());
   },
 };
