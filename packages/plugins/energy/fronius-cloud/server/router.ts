@@ -5,6 +5,7 @@ import { FroniusCloudAdapter } from "./FroniusCloudAdapter.ts";
 import { FRONIUS_CLOUD_SECRET_KEYS, froniusCloudConfigDef } from "./config.ts";
 import { createPluginConfigProcedures } from "../../../createPluginConfigProcedures.ts";
 import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDependencies";
+import type { VehicleChargeHistoryRowInput } from "@chargeha/server/db/repositories/HistoryRepository";
 import { resolveFroniusCloudTestPassword } from "./resolveTestPassword.ts";
 import { fetchFroniusCloudEvHistory } from "./FroniusCloudHistory.ts";
 
@@ -26,14 +27,28 @@ const importHistoryInput = z.object({
   path: ["from"],
 });
 
-function startOfDayIso(date: string): string {
-  return `${date}T00:00:00Z`;
+function shiftedDayIso(date: string, days: number): string {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().replace(".000Z", "Z");
 }
 
-function dayAfterIso(date: string): string {
-  const value = new Date(`${date}T00:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + 1);
-  return value.toISOString().replace(".000Z", "Z");
+function rowsInLocalDateRange(
+  rows: readonly VehicleChargeHistoryRowInput[],
+  from: string,
+  to: string,
+): VehicleChargeHistoryRowInput[] {
+  return rows.filter((row) => {
+    const localDate = row.startTimeLocal.slice(0, 10);
+    return localDate >= from && localDate <= to;
+  });
+}
+
+function sumWh(
+  rows: readonly VehicleChargeHistoryRowInput[],
+  pick: (row: VehicleChargeHistoryRowInput) => number,
+): number {
+  return rows.reduce((sum, row) => sum + pick(row), 0);
 }
 
 // ── Fronius Cloud plugin tRPC router ────────────────────────────────────────
@@ -101,15 +116,19 @@ export function createFroniusCloudRouter(deps: PluginDependencies) {
           new Logger("FroniusCloudHistory", "error"),
         );
         try {
+          // Query one extra UTC day on each side, then keep the requested
+          // Solar.web local dates. This preserves local midnight boundaries
+          // regardless of the PV system's UTC offset or DST.
           const history = await fetchFroniusCloudEvHistory(
             adapter,
             pvSystemId,
-            startOfDayIso(input.from),
-            dayAfterIso(input.to),
+            shiftedDayIso(input.from, -1),
+            shiftedDayIso(input.to, 2),
           );
+          const rows = rowsInLocalDateRange(history.rows, input.from, input.to);
           const importResult = await deps.importVehicleChargeHistoryRows(
             input.vehicleId,
-            history.rows,
+            rows,
           );
           const coverage = await deps.getVehicleChargeHistoryCoverage(
             "solarweb",
@@ -119,11 +138,11 @@ export function createFroniusCloudRouter(deps: PluginDependencies) {
           return {
             ...importResult,
             samplesRead: history.samplesRead,
-            chargingIntervals: history.rows.length,
-            chargedWh: history.chargedWh,
-            solarWh: history.solarWh,
-            batteryWh: history.batteryWh,
-            gridWh: history.gridWh,
+            chargingIntervals: rows.length,
+            chargedWh: sumWh(rows, (row) => row.chargedWh),
+            solarWh: sumWh(rows, (row) => row.solarWh),
+            batteryWh: sumWh(rows, (row) => row.batteryWh),
+            gridWh: sumWh(rows, (row) => row.gridWh),
             coverage,
           };
         } finally {
