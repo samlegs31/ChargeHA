@@ -193,7 +193,7 @@ describe("HistoryRepository", () => {
     }]);
   });
 
-  it("keeps away charging separate from home energy sources", async () => {
+  it("excludes away charging from EV Stats", async () => {
     const home = historyRow(
       "1760000000:home",
       "2025-10-09 08:53:20",
@@ -227,16 +227,16 @@ describe("HistoryRepository", () => {
       "vehicle-1",
     );
 
-    expect(stats[0]).toEqual({
+    expect(stats).toEqual([{
       bucket: "10",
       solarWh: 250,
       batteryWh: 100,
       gridWh: 400,
-      awayWh: 1250,
-      totalWh: 2000,
+      awayWh: 0,
+      totalWh: 750,
       costCents: 0,
       solarSavingsCents: 0,
-    });
+    }]);
   });
 
   it("stores Solar.web Wattpilot history globally without a vehicle", async () => {
@@ -276,7 +276,7 @@ describe("HistoryRepository", () => {
     expect(vehicleStats).toEqual([]);
   });
 
-  it("prefers Solar.web for home energy but keeps ChargeHQ away energy", async () => {
+  it("prefers Solar.web for overlapping home energy and excludes away energy", async () => {
     const chargeHqHome = historyRow(
       "home-overlap",
       "2025-06-01T08:00:00Z",
@@ -311,8 +311,8 @@ describe("HistoryRepository", () => {
     await repository.importAggregateRows([solarweb]);
 
     const stats = await repository.getChargeHqStatsDay("2025-06-01");
-    expect(stats.reduce((sum, row) => sum + row.totalWh, 0)).toBe(1200);
-    expect(stats.reduce((sum, row) => sum + row.awayWh, 0)).toBe(300);
+    expect(stats.reduce((sum, row) => sum + row.totalWh, 0)).toBe(900);
+    expect(stats.reduce((sum, row) => sum + row.awayWh, 0)).toBe(0);
     expect(stats.reduce((sum, row) => sum + row.solarWh, 0)).toBe(500);
   });
 });
