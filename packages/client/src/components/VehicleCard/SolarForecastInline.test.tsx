@@ -5,23 +5,23 @@ import { renderWithProviders } from "../../test-utils.tsx";
 import type { SolarChargeForecastResult } from "@chargeha/shared/forecast";
 import { SolarForecastInline } from "./SolarForecastInline.tsx";
 
-const baseForecast: SolarChargeForecastResult = {
-  available: true,
-  vehicleId: "vin-123",
-  mode: "vacation",
-  generatedAt: "2026-08-14T17:00:00.000Z",
-  timezone: "Europe/Paris",
-  pvRemainingKwh: 5.8,
-  solarChargeRemainingKwh: 3.7,
-  solarEndAt: "2026-08-14T17:24:00.000Z",
-  socAtSolarEnd: 67,
-  finalSoc: 67,
-  finalAt: "2026-08-14T17:24:00.000Z",
-  schedule: null,
-  confidence: "high",
-};
-
 describe("SolarForecastInline", () => {
+  const baseForecast: SolarChargeForecastResult = {
+    available: true,
+    vehicleId: "vin-123",
+    mode: "vacation",
+    generatedAt: "2026-08-14T17:00:00.000Z",
+    timezone: "Europe/Paris",
+    pvRemainingKwh: 5.8,
+    solarChargeRemainingKwh: 3.7,
+    solarEndAt: "2026-08-14T17:24:00.000Z",
+    socAtSolarEnd: 67,
+    finalSoc: 67,
+    finalAt: "2026-08-14T17:24:00.000Z",
+    schedule: null,
+    confidence: "high",
+  };
+
   afterEach(cleanup);
 
   it("renders compact Solar Only forecast", () => {
