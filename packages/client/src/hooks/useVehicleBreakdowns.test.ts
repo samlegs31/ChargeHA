@@ -62,11 +62,11 @@ describe("useVehicleBreakdowns", () => {
     homeSelfPoweredPercent: 60,
     solarProductionLine: [],
     buckets: [],
-    totalChargedWh: 5000,
+    totalChargedWh: 5500,
     totalSolarWh: 3000,
     totalBatteryWh: 0,
     totalGridWh: 2000,
-    totalAwayWh: 0,
+    totalAwayWh: 500,
     selfPoweredPercent: 60,
     totalCostCents: 150,
     evSolarSavingsCents: 200,
@@ -146,10 +146,11 @@ describe("useVehicleBreakdowns", () => {
     hoisted.state.listData = { vehicles: [{ id: "VIN1", name: "Model 3" }] };
     hoisted.state.queriesResults = [{
       data: {
-        totalChargedWh: 5000,
+        totalChargedWh: 5500,
         totalSolarWh: 3000,
         totalBatteryWh: 0,
         totalGridWh: 2000,
+        totalAwayWh: 500,
         totalCostCents: 150,
         evSolarSavingsCents: 200,
       },
@@ -159,7 +160,7 @@ describe("useVehicleBreakdowns", () => {
     const { result } = runHook({ data: baseStatsData, period: "total" });
 
     expect(result.current.activeVehicleBreakdowns[0]?.vehicleId).toBe("VIN1");
-    expect(result.current.activeVehicleBreakdowns[0]?.totalChargedWh).toBe(5000);
+    expect(result.current.activeVehicleBreakdowns[0]?.totalAwayWh).toBe(500);
   });
 
   it("vehicleBreakdownsLoading is true when vehiclesQuery is pending", () => {
@@ -189,10 +190,11 @@ describe("useVehicleBreakdowns", () => {
     hoisted.state.queriesResults = [
       {
         data: {
-          totalChargedWh: 3000,
+          totalChargedWh: 3500,
           totalSolarWh: 2000,
           totalBatteryWh: 0,
           totalGridWh: 1000,
+          totalAwayWh: 500,
           totalCostCents: 100,
           evSolarSavingsCents: 150,
         },
@@ -200,10 +202,11 @@ describe("useVehicleBreakdowns", () => {
       },
       {
         data: {
-          totalChargedWh: 2000,
+          totalChargedWh: 2250,
           totalSolarWh: 1000,
           totalBatteryWh: 0,
           totalGridWh: 1000,
+          totalAwayWh: 250,
           totalCostCents: null,
           evSolarSavingsCents: null,
         },
@@ -217,20 +220,22 @@ describe("useVehicleBreakdowns", () => {
       {
         vehicleId: "VIN1",
         vehicleName: "Model 3",
-        totalChargedWh: 3000,
+        totalChargedWh: 3500,
         totalSolarWh: 2000,
         totalBatteryWh: 0,
         totalGridWh: 1000,
+        totalAwayWh: 500,
         totalCostCents: 100,
         evSolarSavingsCents: 150,
       },
       {
         vehicleId: "VIN2",
         vehicleName: "Model Y",
-        totalChargedWh: 2000,
+        totalChargedWh: 2250,
         totalSolarWh: 1000,
         totalBatteryWh: 0,
         totalGridWh: 1000,
+        totalAwayWh: 250,
         totalCostCents: 0,
         evSolarSavingsCents: 0,
       },
@@ -251,6 +256,7 @@ describe("useVehicleBreakdowns", () => {
           totalSolarWh: 2000,
           totalBatteryWh: 0,
           totalGridWh: 1000,
+          totalAwayWh: 0,
           totalCostCents: 100,
           evSolarSavingsCents: 150,
         },
@@ -262,6 +268,7 @@ describe("useVehicleBreakdowns", () => {
           totalSolarWh: 0,
           totalBatteryWh: 0,
           totalGridWh: 0,
+          totalAwayWh: 0,
           totalCostCents: 0,
           evSolarSavingsCents: 0,
         },
