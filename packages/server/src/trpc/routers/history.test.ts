@@ -6,18 +6,19 @@ import { appRouter } from "../root.ts";
 import { createCallerFactory } from "../trpc.ts";
 import type { TrpcContext } from "../trpc.ts";
 
-const SOLARWEB_EMAIL_KEY = "solarweb.history.email";
-const SOLARWEB_PASSWORD_KEY = "solarweb.history.password";
-const SOLARWEB_PV_SYSTEM_ID_KEY = "solarweb.history.pv_system_id";
-const ENCRYPTION_KEY = btoa(String.fromCharCode(...new Uint8Array(32).fill(7)));
-
 describe("History tRPC Router", () => {
+  const solarWebEmailKey = "solarweb.history.email";
+  const solarWebPasswordKey = "solarweb.history.password";
+  const solarWebPvSystemIdKey = "solarweb.history.pv_system_id";
+  const encryptionKey = btoa(
+    String.fromCharCode(...new Uint8Array(32).fill(7)),
+  );
   const createCaller = createCallerFactory(appRouter);
   let db: AppDatabase;
   let caller: ReturnType<typeof createCaller>;
 
   beforeEach(async () => {
-    db = new AppDatabase(":memory:", ENCRYPTION_KEY);
+    db = new AppDatabase(":memory:", encryptionKey);
     await db.init();
     caller = createCaller(throwingMock<TrpcContext>("TrpcContext", { db }));
   });
@@ -38,12 +39,12 @@ describe("History tRPC Router", () => {
 
     it("returns saved identity without exposing the encrypted password", async () => {
       await Promise.all([
-        db.storeSecret(SOLARWEB_EMAIL_KEY, "solar@example.com"),
-        db.storeSecret(SOLARWEB_PASSWORD_KEY, "super-secret-password"),
-        db.storeSecret(SOLARWEB_PV_SYSTEM_ID_KEY, "pv-system-id"),
+        db.storeSecret(solarWebEmailKey, "solar@example.com"),
+        db.storeSecret(solarWebPasswordKey, "super-secret-password"),
+        db.storeSecret(solarWebPvSystemIdKey, "pv-system-id"),
       ]);
 
-      const storedPassword = await db.getSecret(SOLARWEB_PASSWORD_KEY);
+      const storedPassword = await db.getSecret(solarWebPasswordKey);
       expect(storedPassword?.isEncrypted).toBe(true);
       expect(storedPassword?.value).not.toBe("super-secret-password");
 
