@@ -58,6 +58,9 @@ export const GATED_MUTATIONS = [
   "auth.updateOidcConfig",
   "wizard.saveOidcConfig",
   "wizard.testOidcDiscovery",
+  // ChargeHQ history import needs persistent server storage and is not simulated.
+  "history.previewChargeHq",
+  "history.importChargeHq",
   // Setup tunnel — Tesla-only setup step, never reached.
   "plugin.vehicle.tesla.startTunnel",
   "plugin.vehicle.tesla.stopTunnel",
