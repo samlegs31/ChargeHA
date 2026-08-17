@@ -1,7 +1,6 @@
 import { Badge, Button, Text, TextField } from "@radix-ui/themes";
 import { trpc } from "./trpc.ts";
 import { SettingsRow } from "../../../hostUi.ts";
-import { FroniusCloudHistoryImport } from "./FroniusCloudHistoryImport.tsx";
 
 export function FroniusCloudConfig(): JSX.Element | null {
   const { data: config } = trpc.plugin.energy.fronius_cloud.getConfig.useQuery();
@@ -88,8 +87,6 @@ export function FroniusCloudConfig(): JSX.Element | null {
           </Text>
         )}
       </div>
-
-      <FroniusCloudHistoryImport />
     </>
   );
 }
