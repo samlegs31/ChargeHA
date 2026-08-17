@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - .github/workflows/exact-logo-release-once.yml
+      - packages/client/index.html
+      - packages/client/public/manifest.json
+      - packages/client/public/ev-solar-favicon-exact.png
 
 jobs:
   build:

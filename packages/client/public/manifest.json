@@ -7,7 +7,7 @@
   "theme_color": "#12B4ED",
   "icons": [
     {
-      "src": "/icon-192-exact.png",
+      "src": "/ev-solar-favicon-exact.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
