@@ -8,6 +8,7 @@ import {
   notificationConfigDef,
   serializeSection,
   solarConfigDef,
+  solarForecastConfigDef,
   systemConfigDef,
 } from "@chargeha/shared/configSections";
 
@@ -15,6 +16,7 @@ type ConfigMutations = Pick<
   MutationHandlers,
   | "config.charging.set"
   | "config.solar.set"
+  | "config.solarForecast.set"
   | "config.battery.set"
   | "config.home.set"
   | "config.equipment.set"
@@ -34,6 +36,9 @@ export const configMutations: ConfigMutations = {
   },
   "config.solar.set": (input) => {
     mergeSection(serializeSection(solarConfigDef, input));
+  },
+  "config.solarForecast.set": (input) => {
+    mergeSection(serializeSection(solarForecastConfigDef, input));
   },
   "config.battery.set": (input) => {
     mergeSection(serializeSection(batteryConfigDef, input));
