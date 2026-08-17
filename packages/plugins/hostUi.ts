@@ -30,10 +30,6 @@ export {
 } from "../client/src/components/pages/Settings/PluginConfigForm.tsx";
 export { usePluginSettingsHost } from "../client/src/components/pages/Settings/pluginSettingsHost.ts";
 export { useSaveStatus } from "../client/src/hooks/useSectionConfig.ts";
-export {
-  type VehicleOption,
-  useVehicleOptions,
-} from "../client/src/hooks/useVehicleOptions.ts";
 
 // Shared UI primitives.
 export { Spinner } from "../client/src/components/ui/Spinner.tsx";
