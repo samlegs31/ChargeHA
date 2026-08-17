@@ -59,6 +59,36 @@ interface RawHistoryStatsRow {
   total_wh: number | null;
 }
 
+interface LocalRange {
+  start: string;
+  endExclusive: string;
+}
+
+function dayRange(date: string): LocalRange {
+  const end = new Date(`${date}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return {
+    start: `${date} 00:00:00`,
+    endExclusive: `${end.toISOString().slice(0, 10)} 00:00:00`,
+  };
+}
+
+function monthRange(year: number, month: number): LocalRange {
+  const start = `${year}-${String(month).padStart(2, "0")}-01 00:00:00`;
+  const end = new Date(Date.UTC(year, month, 1));
+  return {
+    start,
+    endExclusive: `${end.toISOString().slice(0, 10)} 00:00:00`,
+  };
+}
+
+function yearRange(year: number): LocalRange {
+  return {
+    start: `${year}-01-01 00:00:00`,
+    endExclusive: `${year + 1}-01-01 00:00:00`,
+  };
+}
+
 export class HistoryRepository {
   constructor(private db: BetterSQLite3Database) {}
 
@@ -151,7 +181,7 @@ export class HistoryRepository {
     date: string,
     vehicleId?: string,
   ): Promise<HistoryStatsRow[]> {
-    const archive = this.archiveRows(vehicleId);
+    const archive = this.archiveRows(vehicleId, dayRange(date));
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
       WITH archive AS (${archive})
       SELECT
@@ -162,7 +192,6 @@ export class HistoryRepository {
         SUM(away_wh) AS away_wh,
         SUM(charged_wh) AS total_wh
       FROM archive
-      WHERE substr(start_time_local, 1, 10) = ${date}
       GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => this.mapStatsRow(row));
@@ -172,7 +201,7 @@ export class HistoryRepository {
     date: string,
     vehicleId?: string,
   ): Promise<HistoryDetailedStatsRow[]> {
-    const archive = this.archiveRows(vehicleId);
+    const archive = this.archiveRows(vehicleId, dayRange(date));
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
       WITH archive AS (${archive})
       SELECT
@@ -184,7 +213,6 @@ export class HistoryRepository {
         SUM(away_wh) AS away_wh,
         SUM(charged_wh) AS total_wh
       FROM archive
-      WHERE substr(start_time_local, 1, 10) = ${date}
       GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => ({ ...this.mapStatsRow(row), bucket: Number(row.bucket) }));
@@ -195,8 +223,7 @@ export class HistoryRepository {
     month: number,
     vehicleId?: string,
   ): Promise<HistoryStatsRow[]> {
-    const yearMonth = `${year}-${String(month).padStart(2, "0")}`;
-    const archive = this.archiveRows(vehicleId);
+    const archive = this.archiveRows(vehicleId, monthRange(year, month));
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
       WITH archive AS (${archive})
       SELECT
@@ -207,7 +234,6 @@ export class HistoryRepository {
         SUM(away_wh) AS away_wh,
         SUM(charged_wh) AS total_wh
       FROM archive
-      WHERE substr(start_time_local, 1, 7) = ${yearMonth}
       GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => this.mapStatsRow(row));
@@ -217,7 +243,7 @@ export class HistoryRepository {
     year: number,
     vehicleId?: string,
   ): Promise<HistoryStatsRow[]> {
-    const archive = this.archiveRows(vehicleId);
+    const archive = this.archiveRows(vehicleId, yearRange(year));
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
       WITH archive AS (${archive})
       SELECT
@@ -228,7 +254,6 @@ export class HistoryRepository {
         SUM(away_wh) AS away_wh,
         SUM(charged_wh) AS total_wh
       FROM archive
-      WHERE substr(start_time_local, 1, 4) = ${String(year)}
       GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => this.mapStatsRow(row));
@@ -239,8 +264,12 @@ export class HistoryRepository {
    * charging. Global Stats combine Solar.web home history with ChargeHQ history.
    * ChargeHQ home intervals are suppressed when overlapping Solar.web intervals,
    * while away energy is kept only for vehicles currently configured in E.V Solar.
+   *
+   * Keep the requested local period inside each UNION branch. This is important:
+   * filtering only after the archive CTE forces SQLite to evaluate overlap rules
+   * for the whole imported archive on every Day/Month/Year request.
    */
-  private archiveRows(vehicleId?: string) {
+  private archiveRows(vehicleId: string | undefined, range: LocalRange) {
     if (vehicleId) {
       return sql`
         SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
@@ -249,6 +278,8 @@ export class HistoryRepository {
         FROM vehicle_charge_history h
         WHERE h.source = 'chargehq'
           AND h.vehicle_id = ${vehicleId}
+          AND h.start_time_local >= ${range.start}
+          AND h.start_time_local < ${range.endExclusive}
           AND h.at_home_wh > 0
           ${this.nativeVehiclePriorityFilter()}
         UNION ALL
@@ -258,6 +289,8 @@ export class HistoryRepository {
         FROM vehicle_charge_history h
         WHERE h.source = 'chargehq'
           AND h.vehicle_id = ${vehicleId}
+          AND h.start_time_local >= ${range.start}
+          AND h.start_time_local < ${range.endExclusive}
           AND h.away_wh > 0
           ${this.nativeVehiclePriorityFilter()}
       `;
@@ -268,17 +301,28 @@ export class HistoryRepository {
         0.0 AS away_wh, h.at_home_wh
       FROM vehicle_charge_history h
       WHERE h.source = 'chargehq'
+        AND h.start_time_local >= ${range.start}
+        AND h.start_time_local < ${range.endExclusive}
         AND h.at_home_wh > 0
         ${this.nativeVehiclePriorityFilter()}
         AND NOT EXISTS (
           SELECT 1 FROM aggregate_ev_charge_history sw
           WHERE sw.source = 'solarweb'
-            AND datetime(sw.start_time_utc) < datetime(
+            AND sw.start_time_utc >= datetime(
+              h.start_time_utc,
+              '-' || COALESCE(
+                (SELECT MAX(s.interval_seconds)
+                 FROM aggregate_ev_charge_history s
+                 WHERE s.source = 'solarweb'),
+                0
+              ) || ' seconds'
+            )
+            AND sw.start_time_utc < datetime(
               h.start_time_utc, '+' || h.interval_seconds || ' seconds'
             )
             AND datetime(
               sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
-            ) > datetime(h.start_time_utc)
+            ) > h.start_time_utc
         )
       UNION ALL
       SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
@@ -286,6 +330,8 @@ export class HistoryRepository {
         0.0 AS grid_wh, h.away_wh, 0.0 AS at_home_wh
       FROM vehicle_charge_history h
       WHERE h.source = 'chargehq'
+        AND h.start_time_local >= ${range.start}
+        AND h.start_time_local < ${range.endExclusive}
         AND h.away_wh > 0
         ${this.nativeVehiclePriorityFilter()}
         AND EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
@@ -295,25 +341,27 @@ export class HistoryRepository {
         a.at_home_wh
       FROM aggregate_ev_charge_history a
       WHERE a.source = 'solarweb'
+        AND a.start_time_local >= ${range.start}
+        AND a.start_time_local < ${range.endExclusive}
         ${this.nativeAggregatePriorityFilter()}
     `;
   }
 
   private nativeVehiclePriorityFilter() {
     return sql`
-      AND datetime(h.start_time_utc) < COALESCE(
-        (SELECT datetime(MIN(v.timestamp)) FROM vehicle_charge_readings v
+      AND h.start_time_utc < COALESCE(
+        (SELECT MIN(v.timestamp) FROM vehicle_charge_readings v
          WHERE v.vehicle_id = h.vehicle_id),
-        datetime('9999-12-31 23:59:59')
+        '9999-12-31 23:59:59'
       )
     `;
   }
 
   private nativeAggregatePriorityFilter() {
     return sql`
-      AND datetime(a.start_time_utc) < COALESCE(
-        (SELECT datetime(MIN(v.timestamp)) FROM vehicle_charge_readings v),
-        datetime('9999-12-31 23:59:59')
+      AND a.start_time_utc < COALESCE(
+        (SELECT MIN(v.timestamp) FROM vehicle_charge_readings v),
+        '9999-12-31 23:59:59'
       )
     `;
   }
