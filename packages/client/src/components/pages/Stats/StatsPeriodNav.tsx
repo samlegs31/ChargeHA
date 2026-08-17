@@ -23,6 +23,9 @@ export function StatsPeriodNav({
   goToToday,
 }: StatsPeriodNavProps) {
   const isTotal = period === "total";
+  const handleLabelClick = () => {
+    if (!isTotal) goToToday();
+  };
   return (
     <>
       <div className={styles.periodToggle}>
@@ -39,52 +42,49 @@ export function StatsPeriodNav({
       </div>
 
       <div className={styles.dateNav}>
-        {isTotal
-          ? <span aria-hidden="true" />
-          : (
-            <button
-              type="button"
-              onClick={goBack}
-              aria-label="Previous period"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 4,
-                color: "var(--gray-11)",
-              }}
-            >
-              <ChevronLeft size={20} />
-            </button>
-          )}
+        {isTotal && <span aria-hidden="true" />}
+        {!isTotal && (
+          <button
+            type="button"
+            onClick={goBack}
+            aria-label="Previous period"
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: 4,
+              color: "var(--gray-11)",
+            }}
+          >
+            <ChevronLeft size={20} />
+          </button>
+        )}
         <Text
           size="3"
           weight="medium"
           className={styles.dateLabel}
-          onClick={isTotal ? undefined : goToToday}
-          style={isTotal ? { cursor: "default" } : undefined}
+          onClick={handleLabelClick}
         >
           {cursorLabel}
         </Text>
-        {isTotal
-          ? <span aria-hidden="true" />
-          : (
-            <button
-              type="button"
-              onClick={goForward}
-              disabled={isAtPresent}
-              aria-label="Next period"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: isAtPresent ? "default" : "pointer",
-                padding: 4,
-                color: isAtPresent ? "var(--gray-6)" : "var(--gray-11)",
-              }}
-            >
-              <ChevronRight size={20} />
-            </button>
-          )}
+        {isTotal && <span aria-hidden="true" />}
+        {!isTotal && (
+          <button
+            type="button"
+            onClick={goForward}
+            disabled={isAtPresent}
+            aria-label="Next period"
+            style={{
+              background: "none",
+              border: "none",
+              cursor: isAtPresent ? "default" : "pointer",
+              padding: 4,
+              color: isAtPresent ? "var(--gray-6)" : "var(--gray-11)",
+            }}
+          >
+            <ChevronRight size={20} />
+          </button>
+        )}
       </div>
     </>
   );
