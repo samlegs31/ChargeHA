@@ -33,6 +33,12 @@
   height: auto;
 }
 
+@media (prefers-color-scheme: dark) {
+  .logo {
+    mix-blend-mode: lighten;
+  }
+}
+
 .formWrapper {
   width: 100%;
 }
