@@ -5,52 +5,13 @@ import { FroniusCloudAdapter } from "./FroniusCloudAdapter.ts";
 import { FRONIUS_CLOUD_SECRET_KEYS, froniusCloudConfigDef } from "./config.ts";
 import { createPluginConfigProcedures } from "../../../createPluginConfigProcedures.ts";
 import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDependencies";
-import type { VehicleChargeHistoryRowInput } from "@chargeha/server/db/repositories/HistoryRepository";
 import { resolveFroniusCloudTestPassword } from "./resolveTestPassword.ts";
-import { fetchFroniusCloudEvHistory } from "./FroniusCloudHistory.ts";
-
-// ── Typed Zod schemas for Fronius Cloud plugin procedures ───────────────────
 
 const testConnectionInput = z.object({
   email: z.string(),
   password: z.string(),
   pvSystemId: z.string(),
 });
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const importHistoryInput = z.object({
-  from: isoDate,
-  to: isoDate,
-}).refine((input) => input.from <= input.to, {
-  message: "Start date must be before or equal to end date",
-  path: ["from"],
-});
-
-function shiftedDayIso(date: string, days: number): string {
-  const value = new Date(`${date}T00:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + days);
-  return value.toISOString().replace(".000Z", "Z");
-}
-
-function rowsInLocalDateRange(
-  rows: readonly VehicleChargeHistoryRowInput[],
-  from: string,
-  to: string,
-): VehicleChargeHistoryRowInput[] {
-  return rows.filter((row) => {
-    const localDate = row.startTimeLocal.slice(0, 10);
-    return localDate >= from && localDate <= to;
-  });
-}
-
-function sumWh(
-  rows: readonly VehicleChargeHistoryRowInput[],
-  pick: (row: VehicleChargeHistoryRowInput) => number,
-): number {
-  return rows.reduce((sum, row) => sum + pick(row), 0);
-}
-
-// ── Fronius Cloud plugin tRPC router ────────────────────────────────────────
 
 export function createFroniusCloudRouter(deps: PluginDependencies) {
   return router({
@@ -88,57 +49,6 @@ export function createFroniusCloudRouter(deps: PluginDependencies) {
             success: false as const,
             error: err instanceof Error ? err.message : "Connection failed",
           };
-        }
-      }),
-
-    importEvHistory: publicProcedure
-      .input(importHistoryInput)
-      .mutation(async ({ input }) => {
-        const [email, password, pvSystemId] = await Promise.all([
-          deps.getConfig("email"),
-          deps.getSecret("password"),
-          deps.getConfig("pv_system_id"),
-        ]);
-        if (!email || !password || !pvSystemId) {
-          throw new Error(
-            "Configure and save the Solar.web email, password and PV System ID before importing history",
-          );
-        }
-
-        const adapter = new FroniusCloudAdapter(
-          email,
-          password,
-          pvSystemId,
-          new Logger("FroniusCloudHistory", "error"),
-        );
-        try {
-          // Query one extra UTC day on each side, then keep the requested
-          // Solar.web local dates. This preserves local midnight boundaries
-          // regardless of the PV system's UTC offset or DST.
-          const history = await fetchFroniusCloudEvHistory(
-            adapter,
-            pvSystemId,
-            shiftedDayIso(input.from, -1),
-            shiftedDayIso(input.to, 2),
-          );
-          const rows = rowsInLocalDateRange(history.rows, input.from, input.to);
-          const importResult = await deps.importAggregateEvChargeHistoryRows(rows);
-          const coverage = await deps.getAggregateEvChargeHistoryCoverage(
-            "solarweb",
-          );
-
-          return {
-            ...importResult,
-            samplesRead: history.samplesRead,
-            chargingIntervals: rows.length,
-            chargedWh: sumWh(rows, (row) => row.chargedWh),
-            solarWh: sumWh(rows, (row) => row.solarWh),
-            batteryWh: sumWh(rows, (row) => row.batteryWh),
-            gridWh: sumWh(rows, (row) => row.gridWh),
-            coverage,
-          };
-        } finally {
-          await adapter.disconnect();
         }
       }),
   });
