@@ -75,4 +75,14 @@ jobs:
           retention-days: 1
 
       - name: Client tests
-        run: deno task test:client
+        run: |
+          set -o pipefail
+          deno task test:client 2>&1 | tee client-tests.log
+
+      - name: Upload client-test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-test-diagnostics
+          path: client-tests.log
+          retention-days: 1
