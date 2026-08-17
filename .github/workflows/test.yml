@@ -43,19 +43,7 @@ jobs:
         run: deno lint
 
       - name: Type check
-        shell: bash
-        run: |
-          set +e
-          deno check > typecheck.log 2>&1
-          status=$?
-          cat typecheck.log
-          if [ "$status" -ne 0 ]; then
-            grep -E -A 12 -B 2 'error:|TS[0-9]{4}' typecheck.log > typecheck-errors.log || true
-            if [ ! -s typecheck-errors.log ]; then tail -n 40 typecheck.log > typecheck-errors.log; fi
-            message=$(sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e ':a;N;$!ba;s/\n/%0A/g' typecheck-errors.log)
-            echo "::error title=Deno type-check::$message"
-          fi
-          exit "$status"
+        run: deno check
 
       - name: Check unused files
         run: deno task check:unused
