@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { pageFromPath, useRouter } from "./useRouter.ts";
 
 describe("pageFromPath", () => {
@@ -18,7 +18,7 @@ describe("pageFromPath", () => {
 
 describe("useRouter", () => {
   beforeEach(() => {
-    globalThis.history.pushState(null, "", "/");
+    window.history.pushState(null, "", "/");
   });
 
   afterEach(() => {
@@ -40,7 +40,7 @@ describe("useRouter", () => {
     ["/simulator", { type: "app", page: "dashboard" }],
     ["/unknown", { type: "app", page: "dashboard" }],
   ])("resolves %s", (path, expected) => {
-    globalThis.history.pushState(null, "", path);
+    window.history.pushState(null, "", path);
     const { result } = renderHook(() => useRouter());
     expect(result.current.route).toEqual(expected);
   });
@@ -62,28 +62,20 @@ describe("useRouter", () => {
       });
 
       expect(result.current.route).toEqual(target);
-      expect(globalThis.location.pathname).toBe(path);
+      expect(window.location.pathname).toBe(path);
     });
   });
 
   describe("popstate", () => {
-    it("updates route on browser back/forward", async () => {
+    it("updates route on browser back/forward events", () => {
       const { result } = renderHook(() => useRouter());
 
-      // Navigate forward
       act(() => {
-        result.current.navigate({ type: "app", page: "stats" });
+        window.history.pushState(null, "", "/stats");
+        window.dispatchEvent(new window.PopStateEvent("popstate"));
       });
-      expect(result.current.route).toEqual({ type: "app", page: "stats" });
 
-      // Simulate browser back
-      globalThis.history.back();
-      await waitFor(() => {
-        expect(result.current.route).toEqual({
-          type: "app",
-          page: "dashboard",
-        });
-      });
+      expect(result.current.route).toEqual({ type: "app", page: "stats" });
     });
   });
 
