@@ -2,6 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { pageFromPath, useRouter } from "./useRouter.ts";
 
+function browserWindow() {
+  const browser = globalThis.document.defaultView;
+  if (!browser) throw new Error("jsdom window is unavailable");
+  return browser;
+}
+
 describe("pageFromPath", () => {
   it.each([
     ["/", "dashboard"],
@@ -18,7 +24,7 @@ describe("pageFromPath", () => {
 
 describe("useRouter", () => {
   beforeEach(() => {
-    window.history.pushState(null, "", "/");
+    browserWindow().history.pushState(null, "", "/");
   });
 
   afterEach(() => {
@@ -40,7 +46,7 @@ describe("useRouter", () => {
     ["/simulator", { type: "app", page: "dashboard" }],
     ["/unknown", { type: "app", page: "dashboard" }],
   ])("resolves %s", (path, expected) => {
-    window.history.pushState(null, "", path);
+    browserWindow().history.pushState(null, "", path);
     const { result } = renderHook(() => useRouter());
     expect(result.current.route).toEqual(expected);
   });
@@ -62,17 +68,18 @@ describe("useRouter", () => {
       });
 
       expect(result.current.route).toEqual(target);
-      expect(window.location.pathname).toBe(path);
+      expect(browserWindow().location.pathname).toBe(path);
     });
   });
 
   describe("popstate", () => {
     it("updates route on browser back/forward events", () => {
       const { result } = renderHook(() => useRouter());
+      const browser = browserWindow();
 
       act(() => {
-        window.history.pushState(null, "", "/stats");
-        window.dispatchEvent(new window.PopStateEvent("popstate"));
+        browser.history.pushState(null, "", "/stats");
+        browser.dispatchEvent(new browser.PopStateEvent("popstate"));
       });
 
       expect(result.current.route).toEqual({ type: "app", page: "stats" });
