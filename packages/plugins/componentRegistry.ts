@@ -1,15 +1,9 @@
 import type { ComponentType } from "react";
 import type { PluginStepDef } from "./hostUi.ts";
 
-// Simulated energy settings component
-import { SimulatedEnergyConfig } from "./energy/simulated/client/SimulatedEnergyConfig.tsx";
-
 // Tesla settings + development components
 import { TeslaSettings } from "./vehicles/tesla/client/TeslaSettings.tsx";
 import { TeslaVehicleVisualDev } from "./vehicles/tesla/client/TeslaVehicleVisualDev.tsx";
-
-// Simulated vehicle settings component
-import { SimulatedVehicleSettings } from "./vehicles/simulated/client/SimulatedVehicleSettings.tsx";
 
 // Fronius settings components
 import { FroniusCloudConfig } from "./energy/fronius-cloud/client/FroniusCloudConfig.tsx";
@@ -39,10 +33,6 @@ import {
   enphaseLocalWizardSteps,
 } from "./energy/enphase-local/client/wizardSteps.ts";
 import {
-  simulatedEnergyOption,
-  simulatedEnergyWizardSteps,
-} from "./energy/simulated/client/wizardSteps.ts";
-import {
   teslaScheduleNote,
   teslaVehicleOption,
   teslaWizardSteps,
@@ -64,7 +54,6 @@ export const energyPluginOptions: EnergyPluginOption[] = [
   froniusCloudOption,
   sigenergyLocalOption,
   enphaseLocalOption,
-  simulatedEnergyOption,
 ];
 
 /** A schedule-related note contributed by a vehicle plugin. */
@@ -88,23 +77,7 @@ export interface VehiclePluginOption {
 }
 
 /** Vehicle plugin options for the vehicle type selection step. */
-export const vehiclePluginOptions: VehiclePluginOption[] = [
-  teslaVehicleOption,
-  {
-    id: "simulated",
-    label: "Simulated",
-    description:
-      "Creates a virtual vehicle for testing. You can add a real vehicle later in Settings.",
-    iconKey: "monitor",
-    demoSetup: true,
-    demoAvailable: true,
-    defaultVehicleConfig: {
-      batteryCapacityKwh: 75,
-      initialSocPercent: 50,
-      chargeLimitPercent: 80,
-    },
-  },
-];
+export const vehiclePluginOptions: VehiclePluginOption[] = [teslaVehicleOption];
 
 /** Schedule notes from vehicle plugins, shown on the Schedules page. */
 export const vehicleScheduleNotes: PluginScheduleNote[] = [
@@ -114,7 +87,6 @@ export const vehicleScheduleNotes: PluginScheduleNote[] = [
 /** Vehicle plugin wizard steps, keyed by VehicleAdapterType. */
 export const vehiclePluginSteps: Record<string, PluginStepDef[]> = {
   tesla: teslaWizardSteps,
-  simulated: [],
 };
 
 /** Energy plugin wizard steps, keyed by energy adapter type. */
@@ -123,7 +95,6 @@ export const energyPluginSteps: Record<string, PluginStepDef[]> = {
   fronius_cloud: froniusCloudWizardSteps,
   sigenergy_local: sigenergyLocalWizardSteps,
   enphase_local: enphaseLocalWizardSteps,
-  simulated_energy: simulatedEnergyWizardSteps,
 };
 
 /**
@@ -132,12 +103,10 @@ export const energyPluginSteps: Record<string, PluginStepDef[]> = {
  */
 export const pluginSettingsComponents: Record<string, ComponentType> = {
   "tesla-settings": TeslaSettings,
-  "simulated-settings": SimulatedVehicleSettings,
   "fronius-local-config": FroniusLocalConfig,
   "fronius-cloud-config": FroniusCloudConfig,
   "sigenergy-local-config": SigenergyLocalConfig,
   "enphase-local-config": EnphaseLocalConfig,
-  "simulated-energy-config": SimulatedEnergyConfig,
 };
 
 /** Development-only pages implemented by plugins but mounted by the host. */
