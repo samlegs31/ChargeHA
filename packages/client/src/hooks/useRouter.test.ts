@@ -7,8 +7,9 @@ describe("pageFromPath", () => {
     ["/", "dashboard"],
     ["/stats", "stats"],
     ["/schedules", "schedules"],
-    ["/logs", "logs"],
     ["/settings", "settings"],
+    ["/logs", "dashboard"],
+    ["/simulator", "dashboard"],
     ["/unknown", "dashboard"],
   ])("maps %s to %s", (path, page) => {
     expect(pageFromPath(path)).toBe(page);
@@ -35,6 +36,8 @@ describe("useRouter", () => {
       { type: "pluginSetup", pluginId: "fronius_local" },
     ],
     ["/login", { type: "login" }],
+    ["/logs", { type: "app", page: "dashboard" }],
+    ["/simulator", { type: "app", page: "dashboard" }],
     ["/unknown", { type: "app", page: "dashboard" }],
   ])("resolves %s", (path, expected) => {
     globalThis.history.pushState(null, "", path);
