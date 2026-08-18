@@ -1,7 +1,6 @@
 import { useRef } from "react";
 import type { SSEEvent } from "@chargeha/shared";
 import { trpc } from "../trpc.ts";
-import { connectionStatusStore } from "./useConnectionStatus.ts";
 
 /** Extract the data type for a specific SSEEvent type. */
 type EventData<T extends SSEEvent["type"]> = Extract<
@@ -44,7 +43,6 @@ export function useRealtimeEvents(handlers: {
 
   trpc.subscription.onEvents.useSubscription(undefined, {
     onData: (event) => {
-      connectionStatusStore.setState("connected");
       switch (event.type) {
         case "energy_update":
           handlersRef.current.onEnergyUpdate(event.data);
@@ -64,7 +62,8 @@ export function useRealtimeEvents(handlers: {
       }
     },
     onError: () => {
-      connectionStatusStore.setState("disconnected");
+      // The real-time stream reconnects automatically. There is no user-facing
+      // LIVE/OFFLINE state: if E.V. Solar is reachable, the dashboard simply works.
     },
   });
 }
