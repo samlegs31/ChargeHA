@@ -82,6 +82,16 @@ function spinImageUrl(baseUrl: string | null | undefined, frame: number) {
   return baseUrl ? `${baseUrl}&angle=${200 + frame}` : null;
 }
 
+function availableImageUrl(
+  preferredUrl: string | null,
+  staticUrl: string | null,
+  failedUrls: string[],
+): string | null {
+  if (preferredUrl && !failedUrls.includes(preferredUrl)) return preferredUrl;
+  if (staticUrl && !failedUrls.includes(staticUrl)) return staticUrl;
+  return null;
+}
+
 function VehiclePreview(
   { model, visual }: { model: string; visual: VisualProvider | null },
 ) {
@@ -89,12 +99,7 @@ function VehiclePreview(
   const [failedUrls, setFailedUrls] = useState<string[]>([]);
   const staticUrl = visual?.imageUrl ?? null;
   const spinUrl = spinImageUrl(visual?.spinBaseUrl, spinFrame);
-  const preferredUrl = spinUrl ?? staticUrl;
-  const imageUrl = preferredUrl && !failedUrls.includes(preferredUrl)
-    ? preferredUrl
-    : staticUrl && !failedUrls.includes(staticUrl)
-    ? staticUrl
-    : null;
+  const imageUrl = availableImageUrl(spinUrl ?? staticUrl, staticUrl, failedUrls);
   const is360 = visual?.spinBaseUrl !== null && visual?.spinBaseUrl !== undefined;
 
   const markFailed = () => {
