@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@radix-ui/themes";
 import { trpc } from "./trpc.ts";
+import { TeslaLocal3DPreview } from "./TeslaLocal3DPreview.tsx";
 import styles from "./TeslaVehicleVisualDev.module.css";
 
 type VisualConfig = {
@@ -72,11 +73,13 @@ function VisualHero(
     batteryLevel,
     chargeLimit,
     model,
+    exteriorColor,
   }: {
     vehicleName: string;
     batteryLevel: number | null;
     chargeLimit: number | null;
     model: string;
+    exteriorColor?: string | null;
   },
 ) {
   const batteryLabel = batteryLevel === null ? "—" : `${batteryLevel} %`;
@@ -92,11 +95,7 @@ function VisualHero(
           <p className={styles.model}>{model}</p>
         </div>
       </div>
-      <div className={styles.visualStage} aria-label="E.V. Solar vehicle preview">
-        <div className={styles.glow} />
-        <CarFront className={styles.carIcon} strokeWidth={1.35} />
-        <span className={styles.visualBadge}>{model}</span>
-      </div>
+      <TeslaLocal3DPreview exteriorColor={exteriorColor} model={model} />
       <div className={styles.socBlock}>
         <div>
           <span>Vehicle battery</span>
@@ -170,6 +169,7 @@ function ConfigPanels(
         <h2><CarFront size={18} /> Visual mapping</h2>
         <DataRow label="E.V. Solar key" value={visualKey} />
         <DataRow label="Adapter" value={adapterType} />
+        <DataRow label="Renderer" value="Local WebGL · event driven" />
         <DataRow
           label="Source"
           value={config ? "Fleet API · vehicle_config" : null}
@@ -184,10 +184,11 @@ function SafetyNotice() {
     <div className={styles.notice}>
       <ShieldCheck size={20} />
       <div>
-        <strong>No private vehicle render is used</strong>
+        <strong>Local 3D performance POC</strong>
         <p>
-          The POC only reads documented Fleet API configuration data. Missing values
-          remain marked as unavailable instead of being guessed.
+          This test uses a lightweight local prototype mesh and renders only when the
+          view changes. No external image or 3D service is contacted. A final licensed
+          Tesla mesh can replace the prototype after performance is validated.
         </p>
       </div>
     </div>
@@ -220,12 +221,13 @@ export function TeslaVehicleVisualDev() {
   const errorMessage = configProbe.error?.message ?? null;
   return (
     <section className={styles.page}>
-      <div className={styles.kicker}><Sparkles size={15} /> POC · Vehicle visual</div>
+      <div className={styles.kicker}><Sparkles size={15} /> POC · Local vehicle 3D</div>
       <VisualHero
         vehicleName={state?.vehicleName || vehicle.name}
         batteryLevel={state?.batteryLevel ?? null}
         chargeLimit={state?.chargeLimit ?? null}
         model={model}
+        exteriorColor={config?.exteriorColor}
       />
       <ProbePanel
         pending={configProbe.isPending}
