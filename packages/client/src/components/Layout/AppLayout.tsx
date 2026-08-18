@@ -18,6 +18,7 @@ export type Page =
   | "stats"
   | "schedules"
   | "settings"
+  | "simulator"
   | "vehicleVisualDev";
 
 interface AppLayoutProps {
