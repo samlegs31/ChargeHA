@@ -10,7 +10,6 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { ConnectionBadge } from "../ConnectionBadge/ConnectionBadge.tsx";
 import styles from "./AppLayout.module.css";
 
 export type Page =
@@ -133,7 +132,6 @@ export function AppLayout(
           ))}
         </nav>
         <div className={styles.status}>
-          <ConnectionBadge />
           {authMode && authMode !== "none" && onLogout && (
             <span className={styles.statusLogout}>
               <Tooltip content="Log out">
