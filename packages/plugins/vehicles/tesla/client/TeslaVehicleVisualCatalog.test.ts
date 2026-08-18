@@ -28,6 +28,13 @@ describe("TeslaVehicleVisualCatalog", () => {
     expect(resolveTeslaModel("", "CarTypeSemiTruck")).toBe("semi");
   });
 
+  it("falls back to official VIN line codes when vehicle_config is unavailable", () => {
+    expect(resolveTeslaModel("5YJSA1E20HF000001", null)).toBe("models");
+    expect(resolveTeslaModel("5YJXCDE20HF000001", null)).toBe("modelx");
+    expect(resolveTeslaModel("7SAYGDEE0SA000001", null)).toBe("modely");
+    expect(resolveTeslaModel("7SACEHED0RA000001", null)).toBe("cybertruck");
+  });
+
   it("maps documented exterior colors and paint codes", () => {
     expect(resolveTeslaPaint("DeepBlue").key).toBe("blue");
     expect(resolveTeslaPaint("PPSB").key).toBe("blue");
