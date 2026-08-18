@@ -8,6 +8,7 @@ const {
   mockPriorityMutateAsync,
   mockCreateMutate,
   mockInvalidateVehicleList,
+  mockNavigate,
   c,
   m,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   mockPriorityMutateAsync: vi.fn(),
   mockCreateMutate: vi.fn(),
   mockInvalidateVehicleList: vi.fn(),
+  mockNavigate: vi.fn(),
   c: {
     deleteOpts: {} as { onSuccess?: () => void },
     priorityMutationOpts: {} as {
@@ -43,6 +45,10 @@ const {
 
 vi.mock("../../../hooks/useSectionConfig.ts", () => ({
   useHomeConfig: () => ({ data: m.homeConfigData }),
+}));
+
+vi.mock("../../../hooks/useRouter.ts", () => ({
+  useRouter: () => ({ navigate: mockNavigate }),
 }));
 
 vi.mock("../../../trpc.ts", () => ({
@@ -144,6 +150,7 @@ describe("useVehicleSettings", () => {
     c.deleteOpts = {};
     c.priorityMutationOpts = {};
     c.addSimOpts = {};
+    mockNavigate.mockClear();
   });
 
   afterEach(() => {
@@ -233,15 +240,15 @@ describe("useVehicleSettings", () => {
     expect(result.current.vehiclePlugins).toEqual([]);
   });
 
-  it("handleStartOnboarding navigates to setup path", () => {
-    const pushStateSpy = vi.spyOn(globalThis.history, "pushState");
+  it("handleStartOnboarding navigates to setup route", () => {
     const { result } = renderHook(() => useVehicleSettings());
 
     result.current.handleStartOnboarding("tesla");
 
-    expect(pushStateSpy).toHaveBeenCalledWith(null, "", "/setup/tesla");
-
-    pushStateSpy.mockRestore();
+    expect(mockNavigate).toHaveBeenCalledWith({
+      type: "pluginSetup",
+      pluginId: "tesla",
+    });
   });
 
   it("handleAddSimulatedVehicle creates simulated vehicle without home location", async () => {
