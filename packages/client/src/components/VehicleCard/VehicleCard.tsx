@@ -2,14 +2,20 @@ import { type ReactNode, useEffect, useState } from "react";
 import {
   BatteryCharging,
   Car,
+  Clock3,
   Key,
+  Octagon,
   Plug,
   RefreshCw,
+  Sun,
   TriangleAlert,
   Unplug,
+  Zap,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Badge, Button, Callout, Card, Skeleton, Text } from "@radix-ui/themes";
 import type { VehicleChargeState, VehicleMode } from "@chargeha/shared";
+import { resolveVehicleProfileComponent } from "@chargeha/plugins/componentRegistry";
 import { formatRelativeTime } from "../../utils/Format.ts";
 import { StaticMap } from "../StaticMap/StaticMap.tsx";
 import { Spinner } from "../ui/Spinner.tsx";
@@ -47,23 +53,29 @@ interface VehicleCardProps {
 }
 
 const MODE_LABELS: Record<VehicleMode, string> = {
+  auto: "Solar + Off-Peak",
+  charge_now: "Force Charge",
+  vacation: "Solar Only",
+  stop: "Stop",
+};
+
+const LEGACY_MODE_LABELS: Record<VehicleMode, string> = {
   auto: "Solar + clock",
   charge_now: "Charge Now",
   vacation: "Solar Only",
   stop: "Stopped",
 };
 
-function getStatusText(
+function statusText(
   state: VehicleChargeState,
   mode: VehicleMode,
   atHome: boolean | null | undefined,
+  labels: Record<VehicleMode, string>,
 ): string {
-  const label = MODE_LABELS[mode];
+  const label = labels[mode];
   const homeSuffix = atHome ? " - Home" : "";
   if (state.isCharging) {
-    return `${label} - Charging at ${
-      state.chargePowerKw.toFixed(1)
-    } kW${homeSuffix}`;
+    return `${label} - Charging at ${state.chargePowerKw.toFixed(1)} kW${homeSuffix}`;
   }
   if (state.isPluggedIn) return `${label} - Plugged In${homeSuffix}`;
   return `${label} - Unplugged${homeSuffix}`;
@@ -82,15 +94,50 @@ function StatusIcon({ state }: { state: VehicleChargeState }) {
   return <Unplug size={14} style={iconStyle} />;
 }
 
-const MODE_BUTTONS: {
+type ModeButtonDef = {
   value: VehicleMode;
   label: string;
-  color: "red" | "blue" | "green" | "orange";
-}[] = [
-  { value: "stop", label: "STOP", color: "red" },
-  { value: "auto", label: "SOLAR + 🕒", color: "blue" },
-  { value: "vacation", label: "SOLAR ONLY", color: "orange" },
-  { value: "charge_now", label: "CHARGE NOW", color: "green" },
+  description: string;
+  legacyLabel: string;
+  color: "red" | "blue" | "green" | "purple";
+  icon: LucideIcon;
+  secondaryIcon?: LucideIcon;
+};
+
+const MODE_BUTTONS: ModeButtonDef[] = [
+  {
+    value: "stop",
+    label: "Stop",
+    description: "Stop all charging",
+    legacyLabel: "STOP",
+    color: "red",
+    icon: Octagon,
+  },
+  {
+    value: "auto",
+    label: "Solar + Off-Peak",
+    description: "Solar surplus and scheduled off-peak charging",
+    legacyLabel: "SOLAR + 🕒",
+    color: "blue",
+    icon: Sun,
+    secondaryIcon: Clock3,
+  },
+  {
+    value: "vacation",
+    label: "Solar Only",
+    description: "Use solar surplus only",
+    legacyLabel: "SOLAR ONLY",
+    color: "green",
+    icon: Sun,
+  },
+  {
+    value: "charge_now",
+    label: "Force Charge",
+    description: "Charge immediately",
+    legacyLabel: "CHARGE NOW",
+    color: "purple",
+    icon: Zap,
+  },
 ];
 
 function VehicleCardHeader(
@@ -112,9 +159,8 @@ function VehicleCardHeader(
           Priority {priority}
         </Badge>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {lastUpdatedText && <Text size="1" color="gray">{lastUpdatedText}
-        </Text>}
+      <div className={styles.headerMeta}>
+        {lastUpdatedText && <Text size="1" color="gray">{lastUpdatedText}</Text>}
         {onRefresh && (
           <Button
             variant="soft"
@@ -132,9 +178,7 @@ function VehicleCardHeader(
           >
             <RefreshCw
               size={12}
-              style={refreshing
-                ? { animation: "spin 1s linear infinite" }
-                : undefined}
+              style={refreshing ? { animation: "spin 1s linear infinite" } : undefined}
             />
             {refreshing ? "Updating…" : "Update"}
           </Button>
@@ -170,9 +214,7 @@ function VehicleCardBanners(
         <div style={{ marginBottom: 12 }}>
           <ErrorBanner
             title="Charging control unavailable"
-            description={`${
-              commandsDisabledReason ?? "Commands are currently unavailable."
-            } Smart charging, schedules, and manual controls won't work until this is resolved.`}
+            description={`${commandsDisabledReason ?? "Commands are currently unavailable."} Smart charging, schedules, and manual controls won't work until this is resolved.`}
           >
             {onNavigateSettings && (
               <Button
@@ -195,15 +237,21 @@ function VehicleCardBanners(
         </div>
       )}
       {pollingSuspended && (
-        <Text
-          size="1"
-          color="gray"
-          style={{ display: "block", marginBottom: 8 }}
-        >
+        <Text size="1" color="gray" style={{ display: "block", marginBottom: 8 }}>
           Polling paused — {pollingSuspendReason ?? "idle"}
         </Text>
       )}
     </>
+  );
+}
+
+function VehicleProfile({ vehicleId }: { vehicleId: string }) {
+  const ProfileVisual = resolveVehicleProfileComponent(vehicleId);
+  if (!ProfileVisual) return null;
+  return (
+    <div className={styles.vehicleProfile}>
+      <ProfileVisual vehicleId={vehicleId} />
+    </div>
   );
 }
 
@@ -219,28 +267,39 @@ function VehicleModeToggle(
   return (
     <>
       <div className={styles.modeToggle}>
-        {MODE_BUTTONS.map((btn) => (
-          <Button
-            key={btn.value}
-            variant={mode === btn.value ? "solid" : "outline"}
-            color={mode === btn.value ? btn.color : "gray"}
-            size="1"
-            disabled={disabled || !isPluggedIn}
-            onClick={() => onChangeMode(btn.value)}
-          >
-            {pending === `mode:${btn.value}` ? <Spinner /> : null}
-            {btn.label}
-          </Button>
-        ))}
+        {MODE_BUTTONS.map((btn) => {
+          const Icon = btn.icon;
+          const SecondaryIcon = btn.secondaryIcon;
+          const active = mode === btn.value;
+          return (
+            <Button
+              key={btn.value}
+              variant={active ? "soft" : "outline"}
+              color={active ? btn.color : "gray"}
+              size="3"
+              className={active ? styles.modeButtonActive : styles.modeButton}
+              disabled={disabled || !isPluggedIn}
+              onClick={() => onChangeMode(btn.value)}
+              aria-label={btn.label}
+            >
+              <span className={styles.modeIcons}>
+                {pending === `mode:${btn.value}` ? <Spinner /> : <Icon size={27} />}
+                {SecondaryIcon && <SecondaryIcon size={25} />}
+              </span>
+              <span className={styles.modeCopy}>
+                <strong>{btn.label}</strong>
+                <small>{btn.description}</small>
+                <span className={styles.legacyText} aria-hidden="true">{btn.legacyLabel}</span>
+              </span>
+              {active && <span className={styles.activePill}>Active</span>}
+            </Button>
+          );
+        })}
       </div>
       {mode === "charge_now" && (
         <Callout.Root size="1" color="orange" style={{ marginBottom: 8 }}>
-          <Callout.Icon>
-            <TriangleAlert size={14} />
-          </Callout.Icon>
-          <Callout.Text>
-            Charge Now overrides all schedules and solar tracking.
-          </Callout.Text>
+          <Callout.Icon><TriangleAlert size={14} /></Callout.Icon>
+          <Callout.Text>Force Charge overrides all schedules and solar tracking.</Callout.Text>
         </Callout.Root>
       )}
     </>
@@ -256,25 +315,38 @@ function VehicleBatterySection(
 ) {
   return (
     <div className={styles.batterySection}>
+      <div className={styles.batteryLabels}>
+        <Text size="2" weight="bold">{batteryPercent}%</Text>
+        <Text size="1" color="gray">Limit: {chargeLimitPercent}%</Text>
+      </div>
       <div className={styles.batteryBar}>
         <div
           className={styles.batteryFill}
           style={{
             width: `${batteryPercent}%`,
-            backgroundColor: isCharging
-              ? "var(--color-charging)"
-              : "var(--color-vehicle)",
+            backgroundColor: isCharging ? "var(--color-charging)" : "var(--color-vehicle)",
           }}
         />
-        <div
-          className={styles.chargeLimitMarker}
-          style={{ left: `${chargeLimitPercent}%` }}
-        />
+        <div className={styles.chargeLimitMarker} style={{ left: `${chargeLimitPercent}%` }} />
       </div>
-      <div className={styles.batteryLabels}>
-        <Text size="2" weight="bold">{batteryPercent}%</Text>
-        <Text size="1" color="gray">Limit: {chargeLimitPercent}%</Text>
-      </div>
+    </div>
+  );
+}
+
+function VehicleStatus(
+  { state, mode, atHome }: {
+    state: VehicleChargeState;
+    mode: VehicleMode;
+    atHome: boolean | null | undefined;
+  },
+) {
+  return (
+    <div className={styles.status}>
+      <StatusIcon state={state} />
+      <Text size="2">{statusText(state, mode, atHome, MODE_LABELS)}</Text>
+      <span className={styles.legacyText} aria-hidden="true">
+        {statusText(state, mode, atHome, LEGACY_MODE_LABELS)}
+      </span>
     </div>
   );
 }
@@ -315,10 +387,9 @@ export function VehicleCard({
     );
   }
 
-  // Re-render every 30s to keep relative time fresh
   const [, setTick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30_000);
+    const id = setInterval(() => setTick((tick) => tick + 1), 30_000);
     return () => clearInterval(id);
   }, []);
 
@@ -350,6 +421,15 @@ export function VehicleCard({
         pollingSuspended={pollingSuspended}
         pollingSuspendReason={pollingSuspendReason}
       />
+
+      <VehicleProfile vehicleId={state.vehicleId} />
+      <VehicleBatterySection
+        batteryPercent={batteryPercent}
+        chargeLimitPercent={chargeLimitPercent}
+        isCharging={state.isCharging}
+      />
+      <VehicleStatus state={state} mode={mode} atHome={atHome} />
+
       <VehicleModeToggle
         mode={mode}
         disabled={disabled}
@@ -357,25 +437,10 @@ export function VehicleCard({
         pending={pending}
         onChangeMode={onChangeMode}
       />
-      <VehicleBatterySection
-        batteryPercent={batteryPercent}
-        chargeLimitPercent={chargeLimitPercent}
-        isCharging={state.isCharging}
-      />
 
-      {/* Status */}
-      <div className={styles.status}>
-        <StatusIcon state={state} />
-        <Text size="2">{getStatusText(state, mode, atHome)}</Text>
-      </div>
-
-      {/* Informational forecast lives directly under vehicle status. */}
       {forecastContent}
-
-      {/* Spacer when unplugged so the card has room for the map below. */}
       {!state.isPluggedIn && <div style={{ height: 20 }} />}
 
-      {/* Charge details and controls (when plugged in) */}
       {state.isPluggedIn && (
         <VehicleCardDetails
           allocationStatus={allocationStatus ?? null}
@@ -394,7 +459,6 @@ export function VehicleCard({
         />
       )}
 
-      {/* Location map — small thumbnail, reveals more map on hover */}
       {lastLocation && (
         <div className={styles.mapCircle}>
           <div className={styles.mapInner}>
