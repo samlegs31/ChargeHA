@@ -119,11 +119,10 @@ export const historyRouter = router({
     .input(solarWebImportInput)
     .mutation(async ({ ctx, input }) => {
       const savedEmail = await ctx.db.readSecret(SOLARWEB_EMAIL_KEY);
-      const password = input.password !== ""
-        ? input.password
-        : savedEmail === input.email
+      const savedPassword = savedEmail === input.email
         ? await ctx.db.readSecret(SOLARWEB_PASSWORD_KEY)
         : null;
+      const password = input.password !== "" ? input.password : savedPassword;
       if (password === null || password === "") {
         throw new TRPCError({
           code: "BAD_REQUEST",
