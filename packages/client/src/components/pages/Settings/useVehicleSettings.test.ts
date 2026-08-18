@@ -1,31 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup } from "@testing-library/react";
-import { renderHook } from "@testing-library/react";
+import { cleanup, renderHook } from "@testing-library/react";
 import { useVehicleSettings } from "./useVehicleSettings.ts";
 
 const {
   mockDeleteMutate,
   mockPriorityMutateAsync,
-  mockCreateMutate,
   mockInvalidateVehicleList,
   mockNavigate,
+  mockClearPluginOnboarding,
   c,
   m,
 } = vi.hoisted(() => ({
   mockDeleteMutate: vi.fn(),
   mockPriorityMutateAsync: vi.fn(),
-  mockCreateMutate: vi.fn(),
   mockInvalidateVehicleList: vi.fn(),
   mockNavigate: vi.fn(),
+  mockClearPluginOnboarding: vi.fn(),
   c: {
-    deleteOpts: {} as { onSuccess?: () => void },
     priorityMutationOpts: {} as {
-      mutationFn?: (updates: unknown) => Promise<void>;
+      mutationFn?: (
+        updates: Array<{ id: string; priority: number }>,
+      ) => Promise<void>;
       onSuccess?: () => void;
-    },
-    addSimOpts: {} as {
-      mutationFn?: () => Promise<string>;
-      onSuccess?: (id: string) => void;
     },
   },
   m: {
@@ -34,22 +30,30 @@ const {
     vehiclesError: null as { message: string } | null,
     vehiclesIsError: false,
     pluginsData: undefined as unknown[] | undefined,
-    homeConfigData: undefined as
-      | { homeLatitude?: number; homeLongitude?: number }
-      | undefined,
     deleteError: null as { message: string } | null,
     priorityError: null as { message: string } | null,
-    addSimError: null as { message: string } | null,
   },
 }));
 
-vi.mock("../../../hooks/useSectionConfig.ts", () => ({
-  useHomeConfig: () => ({ data: m.homeConfigData }),
-}));
+vi.mock("../../../hooks/useRouter.ts", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../../../hooks/useRouter.ts")
+  >();
+  return {
+    ...actual,
+    useRouter: () => ({ navigate: mockNavigate }),
+  };
+});
 
-vi.mock("../../../hooks/useRouter.ts", () => ({
-  useRouter: () => ({ navigate: mockNavigate }),
-}));
+vi.mock("../../../hooks/usePluginOnboardingState.ts", async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import("../../../hooks/usePluginOnboardingState.ts")
+  >();
+  return {
+    ...actual,
+    clearPluginOnboarding: mockClearPluginOnboarding,
+  };
+});
 
 vi.mock("../../../trpc.ts", () => ({
   widenTrpc: vi.fn(),
@@ -57,11 +61,6 @@ vi.mock("../../../trpc.ts", () => ({
     useUtils: () => ({
       vehicle: {
         list: { invalidate: mockInvalidateVehicleList },
-      },
-      client: {
-        vehicle: {
-          create: { mutate: mockCreateMutate },
-        },
       },
     }),
     vehicle: {
@@ -80,13 +79,10 @@ vi.mock("../../../trpc.ts", () => ({
         })),
       },
       delete: {
-        useMutation: vi.fn((opts?: { onSuccess?: () => void }) => {
-          c.deleteOpts = opts ?? {};
-          return {
-            mutate: mockDeleteMutate,
-            error: m.deleteError,
-          };
-        }),
+        useMutation: vi.fn(() => ({
+          mutate: mockDeleteMutate,
+          error: m.deleteError,
+        })),
       },
       setPriority: {
         useMutation: vi.fn(() => ({
@@ -102,35 +98,22 @@ vi.mock("../../../trpc.ts", () => ({
   },
 }));
 
-// Mock @tanstack/react-query useMutation to capture mutationFn and onSuccess
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
     ...actual,
     useMutation: vi.fn((opts: {
-      mutationFn: (...args: unknown[]) => Promise<unknown>;
-      onSuccess?: (...args: unknown[]) => void;
+      mutationFn: (
+        updates: Array<{ id: string; priority: number }>,
+      ) => Promise<void>;
+      onSuccess?: () => void;
     }) => {
-      // Distinguish between priority mutation and addSim mutation by checking
-      // if the mutationFn accepts arguments
-      const fnStr = opts.mutationFn.toString();
-      if (fnStr.includes("updates") || fnStr.includes("Promise.all")) {
-        c.priorityMutationOpts = opts as typeof c.priorityMutationOpts;
-        return {
-          mutate: vi.fn((updates: unknown) => {
-            opts.mutationFn(updates);
-          }),
-          error: m.priorityError,
-        };
-      }
-      c.addSimOpts = opts as typeof c.addSimOpts;
+      c.priorityMutationOpts = opts;
       return {
-        mutate: vi.fn(() => {
-          opts.mutationFn().then((id: unknown) => {
-            opts.onSuccess?.(id as string);
-          });
+        mutate: vi.fn((updates: Array<{ id: string; priority: number }>) => {
+          void opts.mutationFn(updates);
         }),
-        error: m.addSimError,
+        error: m.priorityError,
       };
     }),
   };
@@ -143,19 +126,18 @@ describe("useVehicleSettings", () => {
     m.vehiclesError = null;
     m.vehiclesIsError = false;
     m.pluginsData = undefined;
-    m.homeConfigData = undefined;
     m.deleteError = null;
     m.priorityError = null;
-    m.addSimError = null;
-    c.deleteOpts = {};
     c.priorityMutationOpts = {};
-    c.addSimOpts = {};
+    mockDeleteMutate.mockClear();
+    mockPriorityMutateAsync.mockClear();
+    mockInvalidateVehicleList.mockClear();
     mockNavigate.mockClear();
+    mockClearPluginOnboarding.mockClear();
   });
 
   afterEach(() => {
     cleanup();
-    vi.restoreAllMocks();
   });
 
   it("returns loading state when vehicles query is pending", () => {
@@ -240,95 +222,15 @@ describe("useVehicleSettings", () => {
     expect(result.current.vehiclePlugins).toEqual([]);
   });
 
-  it("handleStartOnboarding navigates to setup route", () => {
+  it("handleStartOnboarding clears state and navigates to setup route", () => {
     const { result } = renderHook(() => useVehicleSettings());
 
     result.current.handleStartOnboarding("tesla");
 
+    expect(mockClearPluginOnboarding).toHaveBeenCalledWith("tesla");
     expect(mockNavigate).toHaveBeenCalledWith({
       type: "pluginSetup",
       pluginId: "tesla",
     });
-  });
-
-  it("handleAddSimulatedVehicle creates simulated vehicle without home location", async () => {
-    mockCreateMutate.mockResolvedValue(undefined);
-    m.homeConfigData = undefined;
-    const { result } = renderHook(() => useVehicleSettings());
-    await act(() => {
-      result.current.handleAddSimulatedVehicle();
-    });
-    expect(mockCreateMutate).toHaveBeenCalled();
-    const callArg = mockCreateMutate.mock.calls[0]?.[0] as { config: string };
-    const parsed = JSON.parse(callArg.config);
-    expect(parsed.homeLat).toBeUndefined();
-  });
-
-  it("handleAddSimulatedVehicle includes home location when configured", async () => {
-    mockCreateMutate.mockResolvedValue(undefined);
-    m.homeConfigData = { homeLatitude: -33.86, homeLongitude: 151.20 };
-    const { result } = renderHook(() => useVehicleSettings());
-    await act(() => {
-      result.current.handleAddSimulatedVehicle();
-    });
-    expect(mockCreateMutate).toHaveBeenCalled();
-    const callArg = mockCreateMutate.mock.calls[0]?.[0] as { config: string };
-    const parsed = JSON.parse(callArg.config);
-    expect(parsed.homeLat).toBe(-33.86);
-    expect(parsed.homeLng).toBe(151.20);
-  });
-
-  it("handleAddSimulatedVehicle assigns DEMO-001 when no demo vehicles exist", async () => {
-    mockCreateMutate.mockResolvedValue(undefined);
-    const { result } = renderHook(() => useVehicleSettings());
-    await act(() => {
-      result.current.handleAddSimulatedVehicle();
-    });
-    const callArg = mockCreateMutate.mock.calls[0]?.[0] as {
-      id: string;
-      name: string;
-    };
-    expect(callArg.id).toBe("DEMO-001");
-    expect(callArg.name).toBe("Demo EV");
-  });
-
-  it("handleAddSimulatedVehicle continues the wizard's DEMO sequence", async () => {
-    mockCreateMutate.mockResolvedValue(undefined);
-    m.vehiclesData = {
-      vehicles: [
-        { id: "DEMO-001", name: "Demo EV", adapterType: "sim", priority: 1 },
-      ],
-    };
-    const { result } = renderHook(() => useVehicleSettings());
-    await act(() => {
-      result.current.handleAddSimulatedVehicle();
-    });
-    const callArg = mockCreateMutate.mock.calls[0]?.[0] as {
-      id: string;
-      name: string;
-    };
-    expect(callArg.id).toBe("DEMO-002");
-    expect(callArg.name).toBe("Demo EV 2");
-  });
-
-  it("handleAddSimulatedVehicle numbers past the highest existing DEMO id", async () => {
-    mockCreateMutate.mockResolvedValue(undefined);
-    m.vehiclesData = {
-      vehicles: [
-        { id: "DEMO-001", name: "Demo EV", adapterType: "sim", priority: 1 },
-        { id: "DEMO-003", name: "Demo EV 3", adapterType: "sim", priority: 2 },
-        { id: "5YJ3E1EA", name: "Model 3", adapterType: "tesla", priority: 3 },
-      ],
-    };
-    const { result } = renderHook(() => useVehicleSettings());
-    await act(() => {
-      result.current.handleAddSimulatedVehicle();
-    });
-    const callArg = mockCreateMutate.mock.calls[0]?.[0] as {
-      id: string;
-      name: string;
-    };
-    expect(callArg.id).toBe("DEMO-004");
-    expect(callArg.name).toBe("Demo EV 4");
   });
 });
