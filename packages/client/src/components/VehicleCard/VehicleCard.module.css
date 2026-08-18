@@ -15,7 +15,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 18px;
+  margin-bottom: 10px;
 }
 
 .headerLeft {
@@ -30,28 +30,121 @@
   letter-spacing: 0.02em;
 }
 
+.headerMeta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vehicleProfile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 126px;
+  margin: 2px 0 2px;
+  padding: 0 4%;
+  overflow: hidden;
+}
+
+.vehicleProfile svg {
+  display: block;
+  width: min(100%, 680px);
+  height: auto;
+  max-height: 190px;
+  filter: drop-shadow(0 12px 12px rgba(0, 0, 0, 0.24));
+}
+
 .modeToggle {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  margin: 4px 0 18px;
-  padding: 4px;
-  border-radius: 14px;
-  background: var(--gray-a3);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 0;
 }
 
 .modeToggle button {
-  min-height: 44px;
-  border-radius: 11px !important;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.025em;
+  position: relative;
+  display: grid !important;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  justify-content: stretch !important;
+  gap: 12px;
+  min-height: 116px;
+  height: auto !important;
+  padding: 16px !important;
+  border-radius: 16px !important;
+  white-space: normal;
+  text-align: left;
+  overflow: hidden;
+}
+
+.modeButton {
+  background: color-mix(in srgb, var(--gray-a2) 88%, transparent) !important;
+  border-color: var(--gray-a5) !important;
+}
+
+.modeButtonActive {
+  border: 1px solid var(--accent-8) !important;
+  box-shadow: 0 0 22px color-mix(in srgb, var(--accent-8) 24%, transparent);
+}
+
+.modeIcons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 48px;
+}
+
+.modeCopy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+}
+
+.modeCopy strong {
+  color: var(--gray-12);
+  font-size: 1rem;
+  line-height: 1.15;
+  font-weight: 750;
+}
+
+.modeCopy small {
+  color: var(--gray-10);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  font-weight: 450;
+}
+
+.activePill {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #9bf45c;
+  color: #0c2510;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.legacyText {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
   white-space: nowrap;
-  padding-inline: 8px;
+  border: 0;
 }
 
 .batterySection {
-  margin-bottom: 14px;
+  margin: 2px 0 12px;
 }
 
 .batteryBar {
@@ -60,7 +153,7 @@
   background: var(--gray-a4);
   border-radius: 999px;
   overflow: hidden;
-  margin-bottom: 8px;
+  margin-top: 10px;
 }
 
 .batteryFill {
@@ -86,15 +179,17 @@
 }
 
 .batteryLabels > :first-child {
-  font-size: 1.35rem;
+  font-size: 2rem;
+  line-height: 1;
 }
 
 .status {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 9px;
   min-height: 28px;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
 .details {
@@ -197,21 +292,61 @@
   }
 
   .header {
-    margin-bottom: 14px;
+    margin-bottom: 8px;
   }
 
   .headerLeft {
     width: 100%;
   }
 
+  .headerMeta {
+    gap: 8px;
+  }
+
+  .vehicleProfile {
+    min-height: 116px;
+    padding: 0 1%;
+  }
+
+  .vehicleProfile svg {
+    width: 100%;
+    max-height: 160px;
+  }
+
   .modeToggle {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
+    gap: 8px;
+    margin-top: 16px;
   }
 
   .modeToggle button {
-    min-height: 48px;
-    font-size: 0.82rem;
+    grid-template-columns: 43px minmax(0, 1fr);
+    gap: 8px;
+    min-height: 112px;
+    padding: 13px 10px !important;
+  }
+
+  .modeIcons {
+    min-width: 38px;
+  }
+
+  .modeIcons svg {
+    width: 25px;
+    height: 25px;
+  }
+
+  .modeCopy strong {
+    font-size: 0.92rem;
+  }
+
+  .modeCopy small {
+    font-size: 0.7rem;
+  }
+
+  .activePill {
+    top: 7px;
+    right: 7px;
+    padding: 2px 6px;
+    font-size: 0.64rem;
   }
 
   .controls {
