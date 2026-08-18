@@ -61,9 +61,5 @@ export function useRealtimeEvents(handlers: {
           break;
       }
     },
-    onError: () => {
-      // The real-time stream reconnects automatically. There is no user-facing
-      // LIVE/OFFLINE state: if E.V. Solar is reachable, the dashboard simply works.
-    },
   });
 }
