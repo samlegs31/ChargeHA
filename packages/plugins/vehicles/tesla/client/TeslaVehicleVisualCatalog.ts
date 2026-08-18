@@ -105,6 +105,7 @@ function modelFromVin(vin: string): TeslaVisualModel {
   if (series === "Y") return "modely";
   if (series === "S") return "models";
   if (series === "X") return "modelx";
+  if (series === "C") return "cybertruck";
   return "unknown";
 }
 
@@ -126,10 +127,18 @@ export function resolveTeslaGeneration(
   model: TeslaVisualModel,
   year: number | null,
 ): TeslaVisualGeneration {
-  if (model === "model3") return year !== null && year >= 2024 ? "model3-highland" : "model3-classic";
-  if (model === "modely") return year !== null && year >= 2025 ? "modely-2025" : "modely-classic";
-  if (model === "models") return year !== null && year <= 2020 ? "models-legacy" : "models-refresh";
-  if (model === "modelx") return year !== null && year <= 2020 ? "modelx-legacy" : "modelx-refresh";
+  if (model === "model3") {
+    return year !== null && year >= 2024 ? "model3-highland" : "model3-classic";
+  }
+  if (model === "modely") {
+    return year !== null && year >= 2025 ? "modely-2025" : "modely-classic";
+  }
+  if (model === "models") {
+    return year !== null && year <= 2020 ? "models-legacy" : "models-refresh";
+  }
+  if (model === "modelx") {
+    return year !== null && year <= 2020 ? "modelx-legacy" : "modelx-refresh";
+  }
   if (model === "cybertruck") return "cybertruck";
   if (model === "semi") return "semi";
   return "unknown";
@@ -138,21 +147,21 @@ export function resolveTeslaGeneration(
 export function resolveTeslaPaint(exteriorColor?: string | null): TeslaPaint {
   const color = normalized(exteriorColor);
   if (!color) return PAINTS.gray;
-  if (color.includes("pearlwhite") || color.includes("basewhite") || color.includes("white")) return PAINTS.white;
-  if (color.includes("diamondblack") || color.includes("obsidianblack") || color.includes("solidblack") || color.includes("baseblack") || color.includes("black")) return PAINTS.black;
-  if (color.includes("glacierblue") || color.includes("frostblue")) return PAINTS.lightBlue;
-  if (color.includes("marineblue")) return PAINTS.marineBlue;
-  if (color.includes("deepblue") || color.includes("oceanblue") || color === "blue" || color.includes("ppsb")) return PAINTS.blue;
-  if (color.includes("midnightcherry") || color.includes("garnetred") || color.includes("signaturered")) return PAINTS.cherry;
-  if (color.includes("ultrared") || color.includes("redmulticoat") || color.includes("basered") || color === "red") return PAINTS.red;
-  if (color.includes("quicksilver") || color.includes("cosmicsilver")) return PAINTS.quicksilver;
-  if (color.includes("silvermetallic") || color === "silver" || color.includes("lunarsilver")) return PAINTS.silver;
-  if (color.includes("stealthgray") || color.includes("stealthgrey")) return PAINTS.stealthGray;
-  if (color.includes("midnightsilver") || color.includes("steelgray") || color.includes("steelgrey") || color === "gray" || color === "grey") return PAINTS.gray;
-  if (color.includes("titanium")) return PAINTS.titanium;
-  if (color.includes("brown")) return PAINTS.brown;
-  if (color.includes("green")) return PAINTS.green;
-  if (color.includes("shieldblack") || color.includes("stainless")) return PAINTS.stainless;
+  if (["ppsw", "pbcw", "pm00"].includes(color) || color.includes("white")) return PAINTS.white;
+  if (["pbsb", "pmbl", "px02"].includes(color) || color.includes("black")) return PAINTS.black;
+  if (["pb00", "pb01"].includes(color) || color.includes("glacierblue") || color.includes("frostblue")) return PAINTS.lightBlue;
+  if (color === "pb02" || color.includes("marineblue")) return PAINTS.marineBlue;
+  if (color === "ppsb" || color.includes("deepblue") || color.includes("oceanblue") || color === "blue") return PAINTS.blue;
+  if (["pr00", "pr02", "ppsr"].includes(color) || color.includes("midnightcherry") || color.includes("garnetred") || color.includes("signaturered")) return PAINTS.cherry;
+  if (["ppmr", "pr01"].includes(color) || color.includes("ultrared") || color.includes("redmulticoat") || color.includes("basered") || color === "red") return PAINTS.red;
+  if (["pn00", "pn02", "pn03"].includes(color) || color.includes("quicksilver") || color.includes("cosmicsilver") || color.includes("lunarsilver")) return PAINTS.quicksilver;
+  if (color === "pmss" || color.includes("silvermetallic") || color === "silver") return PAINTS.silver;
+  if (color === "pn01" || color.includes("stealthgray") || color.includes("stealthgrey")) return PAINTS.stealthGray;
+  if (["pmng", "pmtg"].includes(color) || color.includes("midnightsilver") || color.includes("steelgray") || color.includes("steelgrey") || color === "gray" || color === "grey") return PAINTS.gray;
+  if (color === "ppti" || color.includes("titanium")) return PAINTS.titanium;
+  if (color === "pmab" || color.includes("brown")) return PAINTS.brown;
+  if (color === "pmsg" || color.includes("green")) return PAINTS.green;
+  if (color.includes("stainless") || color.includes("shieldblack")) return PAINTS.stainless;
   return PAINTS.gray;
 }
 
@@ -164,18 +173,18 @@ const WHEEL_RULES: Array<{
   cover?: boolean;
   turbine?: boolean;
 }> = [
-  { tokens: ["stiletto"], family: "stiletto", spokes: 10 },
+  { tokens: ["stiletto", "sportwheel19"], family: "stiletto", spokes: 10 },
   { tokens: ["pinwheel", "aero18", "aerowheel", "aerocover"], family: "aero", spokes: 10, cover: true, dark: true },
   { tokens: ["photon"], family: "photon", spokes: 10, cover: true, dark: true },
   { tokens: ["prismata"], family: "prismata", spokes: 10, cover: true, dark: true },
   { tokens: ["nova"], family: "nova", spokes: 10 },
   { tokens: ["warp"], family: "warp", spokes: 10, dark: true, turbine: true },
   { tokens: ["zerog", "zero-g"], family: "zero-g", spokes: 10, dark: true },
-  { tokens: ["uberturbine", "uberturbine"], family: "uberturbine", spokes: 10, dark: true, turbine: true },
+  { tokens: ["uberturbine"], family: "uberturbine", spokes: 10, dark: true, turbine: true },
   { tokens: ["induction"], family: "induction", spokes: 10, dark: true, turbine: true },
   { tokens: ["gemini", "apollo"], family: "gemini", spokes: 10, cover: true },
   { tokens: ["crossflow"], family: "crossflow", spokes: 10, cover: true, dark: true },
-  { tokens: ["helix2", "helix20"], family: "helix-2", spokes: 10 },
+  { tokens: ["helix2", "helix20", "helix"], family: "helix", spokes: 10 },
   { tokens: ["aperture"], family: "aperture", spokes: 8, cover: true, dark: true },
   { tokens: ["machina"], family: "machina", spokes: 10 },
   { tokens: ["arachnid"], family: "arachnid", spokes: 14, dark: true },
@@ -188,7 +197,7 @@ const WHEEL_RULES: Array<{
   { tokens: ["halo"], family: "halo", spokes: 10, dark: true },
   { tokens: ["slipstream"], family: "slipstream", spokes: 10 },
   { tokens: ["cyclone"], family: "cyclone", spokes: 10 },
-  { tokens: ["turbine"], family: "turbine", spokes: 10, dark: true, turbine: true },
+  { tokens: ["aeroturbine", "turbine"], family: "turbine", spokes: 10, dark: true, turbine: true },
   { tokens: ["wheel20", "wheelcover20", "stealthblack"], family: "cybertruck", spokes: 7, dark: true, cover: true },
 ];
 
@@ -198,12 +207,20 @@ export function resolveTeslaWheel(wheelType?: string | null): TeslaWheelVisual {
     candidate.tokens.some((token) => value.includes(normalized(token)))
   );
   if (!rule) {
-    return { family: "generic", spokes: 10, dark: false, cover: false, turbine: false };
+    return {
+      family: "generic",
+      spokes: 10,
+      dark: false,
+      cover: false,
+      turbine: false,
+    };
   }
+  const inferredDark = value.includes("dark") || value.includes("grey") ||
+    value.includes("gray") || value.includes("black");
   return {
     family: rule.family,
     spokes: rule.spokes,
-    dark: rule.dark ?? value.includes("dark") || value.includes("grey") || value.includes("gray"),
+    dark: rule.dark ?? inferredDark,
     cover: rule.cover ?? false,
     turbine: rule.turbine ?? false,
   };
@@ -224,7 +241,8 @@ export function resolveTeslaVisualSpec(
       ? PAINTS.stainless
       : resolveTeslaPaint(config?.exteriorColor),
     wheel: resolveTeslaWheel(config?.wheelType),
-    performance: trim.includes("performance") || trim.includes("plaid") || trim.startsWith("p"),
+    performance: trim.includes("performance") || trim.includes("plaid") ||
+      trim.startsWith("p"),
   };
 }
 
