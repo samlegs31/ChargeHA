@@ -10,6 +10,16 @@ export type TeslaVehicleVisualConfig = {
   spoilerType: string | null;
 };
 
+type TeslaVehicleDataResponse = {
+  response?: {
+    vehicle_config?: Record<string, unknown>;
+  };
+};
+
+function optionalString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
 export async function fetchTeslaVehicleVisualConfig(
   plugin: TeslaVehiclePlugin,
   vin: string,
@@ -33,14 +43,14 @@ export async function fetchTeslaVehicleVisualConfig(
     });
   }
 
-  const data = await response.json();
+  const data = await response.json() as TeslaVehicleDataResponse;
   const config = data.response?.vehicle_config ?? {};
   return {
-    carType: config.car_type ?? null,
-    exteriorColor: config.exterior_color ?? null,
-    wheelType: config.wheel_type ?? null,
-    trim: config.trim_badging ?? config.trim ?? null,
-    roofColor: config.roof_color ?? null,
-    spoilerType: config.spoiler_type ?? null,
+    carType: optionalString(config.car_type),
+    exteriorColor: optionalString(config.exterior_color),
+    wheelType: optionalString(config.wheel_type),
+    trim: optionalString(config.trim_badging) ?? optionalString(config.trim),
+    roofColor: optionalString(config.roof_color),
+    spoilerType: optionalString(config.spoiler_type),
   };
 }
