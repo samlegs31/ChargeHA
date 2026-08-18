@@ -10,6 +10,14 @@ import { Button } from "@radix-ui/themes";
 import { trpc } from "./trpc.ts";
 import styles from "./TeslaVehicleVisualDev.module.css";
 
+type VisualProvider = {
+  provider: string | null;
+  imageUrl: string | null;
+  paintCode: string | null;
+  modelYear: number | null;
+  note: string;
+};
+
 type VisualConfig = {
   carType: string | null;
   exteriorColor: string | null;
@@ -17,6 +25,7 @@ type VisualConfig = {
   trim: string | null;
   roofColor: string | null;
   spoilerType: string | null;
+  visual: VisualProvider;
 };
 
 function readableModel(carType?: string | null): string {
@@ -66,17 +75,43 @@ function DataRow(
   );
 }
 
+function VehiclePreview(
+  { model, visual }: { model: string; visual: VisualProvider | null },
+) {
+  return (
+    <div className={styles.visualStage} aria-label="E.V. Solar vehicle preview">
+      <div className={styles.glow} />
+      <CarFront className={styles.carIcon} strokeWidth={1.35} />
+      {visual?.imageUrl && (
+        <img
+          className={styles.vehicleRender}
+          src={visual.imageUrl}
+          alt={`${model} vehicle render`}
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+      <span className={styles.visualBadge}>
+        {visual?.provider ?? "Local fallback"}
+      </span>
+    </div>
+  );
+}
+
 function VisualHero(
   {
     vehicleName,
     batteryLevel,
     chargeLimit,
     model,
+    visual,
   }: {
     vehicleName: string;
     batteryLevel: number | null;
     chargeLimit: number | null;
     model: string;
+    visual: VisualProvider | null;
   },
 ) {
   const batteryLabel = batteryLevel === null ? "—" : `${batteryLevel} %`;
@@ -92,11 +127,7 @@ function VisualHero(
           <p className={styles.model}>{model}</p>
         </div>
       </div>
-      <div className={styles.visualStage} aria-label="E.V. Solar vehicle preview">
-        <div className={styles.glow} />
-        <CarFront className={styles.carIcon} strokeWidth={1.35} />
-        <span className={styles.visualBadge}>{model}</span>
-      </div>
+      <VehiclePreview model={model} visual={visual} />
       <div className={styles.socBlock}>
         <div>
           <span>Vehicle battery</span>
@@ -170,24 +201,25 @@ function ConfigPanels(
         <h2><CarFront size={18} /> Visual mapping</h2>
         <DataRow label="E.V. Solar key" value={visualKey} />
         <DataRow label="Adapter" value={adapterType} />
-        <DataRow
-          label="Source"
-          value={config ? "Fleet API · vehicle_config" : null}
-        />
+        <DataRow label="Render provider" value={config?.visual.provider} />
+        <DataRow label="Tesla paint code" value={config?.visual.paintCode} />
+        <DataRow label="Model year" value={config?.visual.modelYear} />
+        <DataRow label="Provider note" value={config?.visual.note} />
       </article>
     </div>
   );
 }
 
-function SafetyNotice() {
+function SafetyNotice({ provider }: { provider?: string | null }) {
   return (
     <div className={styles.notice}>
       <ShieldCheck size={20} />
       <div>
-        <strong>No private vehicle render is used</strong>
+        <strong>{provider ? "Licensed visual provider enabled" : "Safe fallback active"}</strong>
         <p>
-          The POC only reads documented Fleet API configuration data. Missing values
-          remain marked as unavailable instead of being guessed.
+          E.V. Solar does not use Tesla private app assets. External renders are loaded
+          directly from the configured licensed CDN; the local vehicle icon remains as
+          a fallback if no provider is configured or an image cannot be served.
         </p>
       </div>
     </div>
@@ -226,6 +258,7 @@ export function TeslaVehicleVisualDev() {
         batteryLevel={state?.batteryLevel ?? null}
         chargeLimit={state?.chargeLimit ?? null}
         model={model}
+        visual={config?.visual ?? null}
       />
       <ProbePanel
         pending={configProbe.isPending}
@@ -233,7 +266,7 @@ export function TeslaVehicleVisualDev() {
         errorMessage={errorMessage}
       />
       <ConfigPanels adapterType={vehicle.adapterType} config={config} />
-      <SafetyNotice />
+      <SafetyNotice provider={config?.visual.provider} />
     </section>
   );
 }
