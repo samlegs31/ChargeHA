@@ -123,7 +123,7 @@ export const energyPluginSteps: Record<string, PluginStepDef[]> = {
   fronius_local: froniusLocalWizardSteps,
   fronius_cloud: froniusCloudWizardSteps,
   sigenergy_local: sigenergyLocalWizardSteps,
-  enphase_local: enphaseWizardSteps,
+  enphase_local: enphaseLocalWizardSteps,
   simulated_energy: simulatedEnergyWizardSteps,
 };
 
