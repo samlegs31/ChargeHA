@@ -4,6 +4,7 @@ import {
   CarFront,
   Database,
   Loader2,
+  Rotate3D,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
@@ -14,6 +15,7 @@ import styles from "./TeslaVehicleVisualDev.module.css";
 type VisualProvider = {
   provider: string | null;
   imageUrl: string | null;
+  spinBaseUrl: string | null;
   paintCode: string | null;
   modelYear: number | null;
   note: string;
@@ -76,27 +78,60 @@ function DataRow(
   );
 }
 
+function spinImageUrl(baseUrl: string | null | undefined, frame: number) {
+  return baseUrl ? `${baseUrl}&angle=${200 + frame}` : null;
+}
+
 function VehiclePreview(
   { model, visual }: { model: string; visual: VisualProvider | null },
 ) {
-  const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  const imageUrl = visual?.imageUrl ?? null;
-  const showImage = imageUrl !== null && imageUrl !== failedUrl;
+  const [spinFrame, setSpinFrame] = useState(0);
+  const [failedUrls, setFailedUrls] = useState<string[]>([]);
+  const staticUrl = visual?.imageUrl ?? null;
+  const spinUrl = spinImageUrl(visual?.spinBaseUrl, spinFrame);
+  const preferredUrl = spinUrl ?? staticUrl;
+  const imageUrl = preferredUrl && !failedUrls.includes(preferredUrl)
+    ? preferredUrl
+    : staticUrl && !failedUrls.includes(staticUrl)
+    ? staticUrl
+    : null;
+  const is360 = visual?.spinBaseUrl !== null && visual?.spinBaseUrl !== undefined;
+
+  const markFailed = () => {
+    if (!imageUrl || failedUrls.includes(imageUrl)) return;
+    setFailedUrls((urls) => [...urls, imageUrl]);
+  };
+
   return (
     <div className={styles.visualStage} aria-label="E.V. Solar vehicle preview">
       <div className={styles.glow} />
       <CarFront className={styles.carIcon} strokeWidth={1.35} />
-      {showImage && (
+      {imageUrl && (
         <img
           className={styles.vehicleRender}
           src={imageUrl}
           alt={`${model} vehicle render`}
-          onError={() => setFailedUrl(imageUrl)}
+          onError={markFailed}
+          draggable={false}
         />
       )}
       <span className={styles.visualBadge}>
-        {visual?.provider ?? "Local fallback"}
+        {is360 ? "360° · " : ""}{visual?.provider ?? "Local fallback"}
       </span>
+      {is360 && imageUrl && (
+        <label className={styles.spinControl}>
+          <span><Rotate3D size={15} /> Rotate vehicle</span>
+          <input
+            type="range"
+            min="0"
+            max="31"
+            step="1"
+            value={spinFrame}
+            onChange={(event) => setSpinFrame(Number(event.currentTarget.value))}
+            aria-label="Rotate vehicle 360 degrees"
+          />
+        </label>
+      )}
     </div>
   );
 }
@@ -206,6 +241,10 @@ function ConfigPanels(
         <DataRow label="Render provider" value={config?.visual.provider} />
         <DataRow label="Tesla paint code" value={config?.visual.paintCode} />
         <DataRow label="Model year" value={config?.visual.modelYear} />
+        <DataRow
+          label="360° spin"
+          value={config?.visual.spinBaseUrl ? "Enabled" : "Not enabled"}
+        />
         <DataRow label="Provider note" value={config?.visual.note} />
       </article>
     </div>
