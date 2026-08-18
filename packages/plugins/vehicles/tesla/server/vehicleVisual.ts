@@ -110,6 +110,16 @@ function buildSpinBaseUrl(
   return `https://cdn.imagin.studio/getImage?${params.toString()}`;
 }
 
+function providerNote(spinBaseUrl: string | null, paint: PaintMapping | null) {
+  if (spinBaseUrl) {
+    return "Licensed 360° spin enabled; Tesla model and paint are mapped. Exact wheel rendering depends on provider rim coverage";
+  }
+  if (paint) {
+    return "Model and official Tesla paint code are mapped; optional 360° requires IMAGIN Premium/Enterprise";
+  }
+  return "Model is mapped; exact paint and wheel rendering depend on provider coverage";
+}
+
 export function buildTeslaVehicleVisual(config: TeslaVisualConfig, vin: string) {
   const customer = Deno.env.get("IMAGIN_CUSTOMER_ID")?.trim() ?? "";
   const family = modelFamily(config.carType);
@@ -136,10 +146,6 @@ export function buildTeslaVehicleVisual(config: TeslaVisualConfig, vin: string) 
     spinBaseUrl,
     paintCode: paint?.id ?? null,
     modelYear: year,
-    note: spinBaseUrl
-      ? "Licensed 360° spin enabled; Tesla model and paint are mapped. Exact wheel rendering depends on provider rim coverage"
-      : paint
-      ? "Model and official Tesla paint code are mapped; optional 360° requires IMAGIN Premium/Enterprise"
-      : "Model is mapped; exact paint and wheel rendering depend on provider coverage",
+    note: providerNote(spinBaseUrl, paint),
   };
 }
