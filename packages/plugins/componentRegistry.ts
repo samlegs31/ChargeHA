@@ -7,10 +7,7 @@ import { SimulatedEnergyConfig } from "./energy/simulated/client/SimulatedEnergy
 // Tesla settings + development components
 import { TeslaSettings } from "./vehicles/tesla/client/TeslaSettings.tsx";
 import { TeslaVehicleVisualDev } from "./vehicles/tesla/client/TeslaVehicleVisualDev.tsx";
-import {
-  isTeslaVehicleId,
-  TeslaVehicleProfile,
-} from "./vehicles/tesla/client/TeslaVehicleProfile.tsx";
+import { TeslaVehicleProfile } from "./vehicles/tesla/client/TeslaVehicleProfile.tsx";
 
 // Simulated vehicle settings component
 import { SimulatedVehicleSettings } from "./vehicles/simulated/client/SimulatedVehicleSettings.tsx";
@@ -126,7 +123,7 @@ export const energyPluginSteps: Record<string, PluginStepDef[]> = {
   fronius_local: froniusLocalWizardSteps,
   fronius_cloud: froniusCloudWizardSteps,
   sigenergy_local: sigenergyLocalWizardSteps,
-  enphase_local: enphaseLocalWizardSteps,
+  enphase_local: enphaseWizardSteps,
   simulated_energy: simulatedEnergyWizardSteps,
 };
 
@@ -147,22 +144,24 @@ export const pluginSettingsComponents: Record<string, ComponentType> = {
 /** Props accepted by a plugin-provided vehicle profile visual. */
 export interface VehicleProfileVisualProps {
   vehicleId: string;
+  isOnline?: boolean;
 }
 
 type VehicleProfileProvider = {
-  matches: (vehicleId: string) => boolean;
+  adapterType: string;
   component: ComponentType<VehicleProfileVisualProps>;
 };
 
 const vehicleProfileProviders: VehicleProfileProvider[] = [
-  { matches: isTeslaVehicleId, component: TeslaVehicleProfile },
+  { adapterType: "tesla", component: TeslaVehicleProfile },
 ];
 
-/** Resolves a lightweight home-card visual without hardcoding a plugin in host UI. */
+/** Resolves a home-card visual without coupling the host UI to a specific plugin. */
 export function resolveVehicleProfileComponent(
-  vehicleId: string,
+  adapterType?: string,
 ): ComponentType<VehicleProfileVisualProps> | null {
-  return vehicleProfileProviders.find((provider) => provider.matches(vehicleId))
+  if (!adapterType) return null;
+  return vehicleProfileProviders.find((provider) => provider.adapterType === adapterType)
     ?.component ?? null;
 }
 
