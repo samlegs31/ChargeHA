@@ -11,6 +11,7 @@ import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDepend
 import type { TeslaVehiclePlugin } from "./index.ts";
 import { TESLA_SECRET_KEYS, teslaConfigDef } from "./config.ts";
 import { createPluginConfigProcedures } from "../../../createPluginConfigProcedures.ts";
+import { buildTeslaVehicleVisual } from "./vehicleVisual.ts";
 
 async function collectProxyWarnings(
   plugin: TeslaVehiclePlugin,
@@ -52,14 +53,18 @@ function vehicleVisualConfigProcedure(plugin: TeslaVehiclePlugin) {
       }
 
       const data = await response.json();
-      const config = data.response?.vehicle_config ?? {};
+      const source = data.response?.vehicle_config ?? {};
+      const config = {
+        carType: source.car_type ?? null,
+        exteriorColor: source.exterior_color ?? null,
+        wheelType: source.wheel_type ?? null,
+        trim: source.trim_badging ?? source.trim ?? null,
+        roofColor: source.roof_color ?? null,
+        spoilerType: source.spoiler_type ?? null,
+      };
       return {
-        carType: config.car_type ?? null,
-        exteriorColor: config.exterior_color ?? null,
-        wheelType: config.wheel_type ?? null,
-        trim: config.trim_badging ?? config.trim ?? null,
-        roofColor: config.roof_color ?? null,
-        spoilerType: config.spoiler_type ?? null,
+        ...config,
+        visual: buildTeslaVehicleVisual(config, input.vin),
       };
     });
 }
