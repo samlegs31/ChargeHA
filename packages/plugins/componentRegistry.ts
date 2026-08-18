@@ -7,6 +7,10 @@ import { SimulatedEnergyConfig } from "./energy/simulated/client/SimulatedEnergy
 // Tesla settings + development components
 import { TeslaSettings } from "./vehicles/tesla/client/TeslaSettings.tsx";
 import { TeslaVehicleVisualDev } from "./vehicles/tesla/client/TeslaVehicleVisualDev.tsx";
+import {
+  isTeslaVehicleId,
+  TeslaVehicleProfile,
+} from "./vehicles/tesla/client/TeslaVehicleProfile.tsx";
 
 // Simulated vehicle settings component
 import { SimulatedVehicleSettings } from "./vehicles/simulated/client/SimulatedVehicleSettings.tsx";
@@ -139,6 +143,28 @@ export const pluginSettingsComponents: Record<string, ComponentType> = {
   "enphase-local-config": EnphaseLocalConfig,
   "simulated-energy-config": SimulatedEnergyConfig,
 };
+
+/** Props accepted by a plugin-provided vehicle profile visual. */
+export interface VehicleProfileVisualProps {
+  vehicleId: string;
+}
+
+type VehicleProfileProvider = {
+  matches: (vehicleId: string) => boolean;
+  component: ComponentType<VehicleProfileVisualProps>;
+};
+
+const vehicleProfileProviders: VehicleProfileProvider[] = [
+  { matches: isTeslaVehicleId, component: TeslaVehicleProfile },
+];
+
+/** Resolves a lightweight home-card visual without hardcoding a plugin in host UI. */
+export function resolveVehicleProfileComponent(
+  vehicleId: string,
+): ComponentType<VehicleProfileVisualProps> | null {
+  return vehicleProfileProviders.find((provider) => provider.matches(vehicleId))
+    ?.component ?? null;
+}
 
 /** Development-only pages implemented by plugins but mounted by the host. */
 export const pluginDevComponents: Record<string, ComponentType> = {
