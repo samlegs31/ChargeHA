@@ -247,7 +247,6 @@ describe("App", () => {
       error: null,
     });
   };
-
   const setAuthPending = () => {
     mocks.authSessionUseQuery.mockReturnValue({
       data: undefined,
@@ -309,10 +308,10 @@ describe("App", () => {
       expect(screen.getByText("Settings Page")).toBeInTheDocument();
     });
 
-    it("renders Logs when path is /logs", () => {
+    it("falls back to Dashboard when path is /logs", () => {
       globalThis.history.pushState(null, "", "/logs");
       render(<App />);
-      expect(screen.getByText("Logs Page")).toBeInTheDocument();
+      expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
     });
 
     it("falls back to Dashboard for unknown paths", () => {
