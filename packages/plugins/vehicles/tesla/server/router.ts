@@ -11,6 +11,7 @@ import type { PluginDependencies } from "@chargeha/server/bootstrap/PluginDepend
 import type { TeslaVehiclePlugin } from "./index.ts";
 import { TESLA_SECRET_KEYS, teslaConfigDef } from "./config.ts";
 import { createPluginConfigProcedures } from "../../../createPluginConfigProcedures.ts";
+import { fetchTeslaVehicleVisualConfig } from "./vehicleVisualConfig.ts";
 
 async function collectProxyWarnings(
   plugin: TeslaVehiclePlugin,
@@ -30,38 +31,13 @@ async function collectProxyWarnings(
 function vehicleVisualConfigProcedure(plugin: TeslaVehiclePlugin) {
   return publicProcedure
     .input(z.object({ vin: z.string().min(1) }))
-    .mutation(async ({ input }) => {
-      const token = await plugin.teslaTokenManager.getAccessToken();
-      const fleetBase = await plugin.teslaTokenManager.getFleetApiBaseUrl();
-      const endpoints = encodeURIComponent("vehicle_config");
-      const response = await fetch(
-        `${fleetBase}/api/1/vehicles/${encodeURIComponent(input.vin)}/vehicle_data?endpoints=${endpoints}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(15000),
-        },
-      );
+    .mutation(({ input }) => fetchTeslaVehicleVisualConfig(plugin, input.vin));
+}
 
-      if (!response.ok) {
-        const detail = await response.text();
-        throw new TRPCError({
-          code: "BAD_GATEWAY",
-          message:
-            `Tesla vehicle_config unavailable (${response.status}): ${detail}`,
-        });
-      }
-
-      const data = await response.json();
-      const config = data.response?.vehicle_config ?? {};
-      return {
-        carType: config.car_type ?? null,
-        exteriorColor: config.exterior_color ?? null,
-        wheelType: config.wheel_type ?? null,
-        trim: config.trim_badging ?? config.trim ?? null,
-        roofColor: config.roof_color ?? null,
-        spoilerType: config.spoiler_type ?? null,
-      };
-    });
+function vehicleVisualConfigAutoProcedure(plugin: TeslaVehiclePlugin) {
+  return publicProcedure
+    .input(z.object({ vin: z.string().min(1) }))
+    .query(({ input }) => fetchTeslaVehicleVisualConfig(plugin, input.vin));
 }
 
 export function createTeslaRouter(
@@ -80,6 +56,7 @@ export function createTeslaRouter(
     }),
 
     vehicleVisualConfig: vehicleVisualConfigProcedure(plugin),
+    vehicleVisualConfigAuto: vehicleVisualConfigAutoProcedure(plugin),
 
     listVehicles: publicProcedure.query(async () => {
       return { vehicles: await deps.getVehiclesWithState() };
