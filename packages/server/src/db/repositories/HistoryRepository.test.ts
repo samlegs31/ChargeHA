@@ -279,13 +279,13 @@ describe("HistoryRepository", () => {
   it("keeps Solar.web home priority and gates global away by vehicle config", async () => {
     const chargeHqHome = historyRow(
       "home-overlap",
-      "2025-06-01T08:00:00Z",
+      "2025-06-01 08:00:00",
       "2025-06-01T10:00:00",
       { chargedWh: 1000, solarWh: 200, batteryWh: 0, gridWh: 800 },
     );
     const chargeHqAway = historyRow(
       "away-overlap",
-      "2025-06-01T08:00:00Z",
+      "2025-06-01 08:00:00",
       "2025-06-01T10:00:00",
       {
         chargedWh: 300,
@@ -299,7 +299,7 @@ describe("HistoryRepository", () => {
     const solarweb = {
       ...historyRow(
         "pv-overlap",
-        "2025-06-01T08:05:00Z",
+        "2025-06-01 08:05:00",
         "2025-06-01T10:05:00",
         { chargedWh: 900, solarWh: 500, batteryWh: 100, gridWh: 300 },
       ),
