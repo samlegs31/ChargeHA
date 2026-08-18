@@ -11,6 +11,7 @@ interface TeslaVehicleProfileProps {
   isOnline?: boolean;
 }
 
+const TESLA_WMIS = ["5YJ", "7SA", "LRW", "XP7"] as const;
 const CACHE_PREFIX = "evsolar:tesla-visual:";
 const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60_000;
 
@@ -18,6 +19,11 @@ type CachedVisualConfig = {
   savedAt: number;
   config: TeslaVisualConfig;
 };
+
+export function isTeslaVehicleId(vehicleId: string): boolean {
+  const upper = vehicleId.toUpperCase();
+  return TESLA_WMIS.some((wmi) => upper.startsWith(wmi));
+}
 
 function readCachedConfig(vehicleId: string): TeslaVisualConfig | null {
   if (!("localStorage" in globalThis)) return null;
@@ -53,7 +59,7 @@ export function TeslaVehicleProfile(
   const configQuery = trpc.plugin.vehicle.tesla.vehicleVisualConfigAuto.useQuery(
     { vin: vehicleId },
     {
-      enabled: isOnline,
+      enabled: isOnline && !cachedConfig,
       retry: false,
       staleTime: 24 * 60 * 60_000,
       refetchOnWindowFocus: false,
