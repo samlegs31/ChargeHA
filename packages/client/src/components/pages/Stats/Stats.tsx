@@ -1,9 +1,20 @@
+import { Card, Text } from "@radix-ui/themes";
 import { useStats } from "../../../hooks/useStats.ts";
 import { StatsPeriodNav } from "./StatsPeriodNav.tsx";
 import { StatsSummaryCards } from "./StatsSummaryCards.tsx";
 import { StatsChart } from "./StatsChart.tsx";
 import { StatsVehicleBreakdown } from "./StatsVehicleBreakdown.tsx";
 import styles from "./Stats.module.css";
+
+function StatsError({ message }: { message: string }) {
+  return (
+    <Card>
+      <Text color="red" size="2">
+        Stats could not be loaded: {message}
+      </Text>
+    </Card>
+  );
+}
 
 export function Stats() {
   const {
@@ -16,6 +27,7 @@ export function Stats() {
     isAtPresent,
     data,
     loading,
+    error,
     goBack,
     goForward,
     goToToday,
@@ -34,25 +46,30 @@ export function Stats() {
         goToToday={goToToday}
       />
 
-      <StatsSummaryCards data={data} loading={loading} />
+      {error && <StatsError message={error} />}
+      {!error && (
+        <>
+          <StatsSummaryCards data={data} loading={loading} />
 
-      <StatsChart
-        data={data}
-        loading={loading}
-        period={period}
-        resolution={resolution}
-        setResolution={setResolution}
-        dateCursor={cursor}
-        onDrillDown={drillDown}
-      />
+          <StatsChart
+            data={data}
+            loading={loading}
+            period={period}
+            resolution={resolution}
+            setResolution={setResolution}
+            dateCursor={cursor}
+            onDrillDown={drillDown}
+          />
 
-      <StatsVehicleBreakdown
-        data={data}
-        loading={loading}
-        period={period}
-        cursor={cursor}
-        resolution={resolution}
-      />
+          <StatsVehicleBreakdown
+            data={data}
+            loading={loading}
+            period={period}
+            cursor={cursor}
+            resolution={resolution}
+          />
+        </>
+      )}
     </div>
   );
 }
