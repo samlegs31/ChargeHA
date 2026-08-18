@@ -91,6 +91,9 @@ vi.mock("@chargeha/plugins/componentRegistry", () => ({
       },
     ],
   },
+  pluginDevComponents: {
+    "vehicle-visual": stepMocks.Stub,
+  },
 }));
 vi.mock("./hooks/useWizardState.ts", () => ({
   useWizardState: vi.fn(() => ({
