@@ -7,7 +7,10 @@ import { SimulatedEnergyConfig } from "./energy/simulated/client/SimulatedEnergy
 // Tesla settings + development components
 import { TeslaSettings } from "./vehicles/tesla/client/TeslaSettings.tsx";
 import { TeslaVehicleVisualDev } from "./vehicles/tesla/client/TeslaVehicleVisualDev.tsx";
-import { TeslaVehicleProfile } from "./vehicles/tesla/client/TeslaVehicleProfile.tsx";
+import {
+  isTeslaVehicleId,
+  TeslaVehicleProfile,
+} from "./vehicles/tesla/client/TeslaVehicleProfile.tsx";
 
 // Simulated vehicle settings component
 import { SimulatedVehicleSettings } from "./vehicles/simulated/client/SimulatedVehicleSettings.tsx";
@@ -148,20 +151,19 @@ export interface VehicleProfileVisualProps {
 }
 
 type VehicleProfileProvider = {
-  adapterType: string;
+  matches: (vehicleId: string) => boolean;
   component: ComponentType<VehicleProfileVisualProps>;
 };
 
 const vehicleProfileProviders: VehicleProfileProvider[] = [
-  { adapterType: "tesla", component: TeslaVehicleProfile },
+  { matches: isTeslaVehicleId, component: TeslaVehicleProfile },
 ];
 
-/** Resolves a home-card visual without coupling the host UI to a specific plugin. */
+/** Resolves a lightweight home-card visual without hardcoding a plugin in host UI. */
 export function resolveVehicleProfileComponent(
-  adapterType?: string,
+  vehicleId: string,
 ): ComponentType<VehicleProfileVisualProps> | null {
-  if (!adapterType) return null;
-  return vehicleProfileProviders.find((provider) => provider.adapterType === adapterType)
+  return vehicleProfileProviders.find((provider) => provider.matches(vehicleId))
     ?.component ?? null;
 }
 
