@@ -13,19 +13,22 @@ const PAGE_LABELS: Record<Page, string> = {
   stats: "Stats",
   schedules: "Schedules",
   settings: "Settings",
+  simulator: "Dashboard",
   vehicleVisualDev: "Vehicle visual POC",
 };
 
 export function renderPage(page: Page, onNavigate: (p: Page) => void) {
+  const dashboard = () => (
+    <Dashboard onNavigateSettings={() => onNavigate("settings")} />
+  );
   const pages: Record<Page, () => React.JSX.Element> = {
-    dashboard: () => (
-      <Dashboard onNavigateSettings={() => onNavigate("settings")} />
-    ),
+    dashboard,
     stats: () => <Stats />,
     schedules: () => (
       <Schedules onNavigateSettings={() => onNavigate("settings")} />
     ),
     settings: () => <Settings />,
+    simulator: dashboard,
     vehicleVisualDev: () => <VehicleVisualDev />,
   };
   const content = pages[page]();
