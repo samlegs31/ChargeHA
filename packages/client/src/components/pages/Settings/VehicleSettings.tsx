@@ -1,4 +1,4 @@
-import { Car, FlaskConical, Plus, Trash2 } from "lucide-react";
+import { Car, Plus, Trash2 } from "lucide-react";
 import { ArrowDownIcon, ArrowUpIcon } from "@radix-ui/react-icons";
 import { Badge, Button, Card, Switch, Text } from "@radix-ui/themes";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
@@ -25,14 +25,12 @@ function VehicleRow(
     v,
     idx,
     vehiclesLength,
-    recentlyAddedVins,
     handleMovePriority,
     handleDelete,
   }: {
     v: Vehicle;
     idx: number;
     vehiclesLength: number;
-    recentlyAddedVins: Set<string>;
     handleMovePriority: (vin: string, direction: "up" | "down") => void;
     handleDelete: (vin: string) => void;
   },
@@ -46,10 +44,6 @@ function VehicleRow(
         padding: "8px 10px",
         borderBottom: "1px solid var(--gray-a3)",
         borderRadius: 6,
-        background: recentlyAddedVins.has(v.id)
-          ? "var(--green-a3)"
-          : "transparent",
-        transition: "background 1s ease-out",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -70,8 +64,8 @@ function VehicleRow(
               variant="soft"
               size="1"
               disabled={idx === 0}
-              onClick={() =>
-                handleMovePriority(v.id, "up")}
+              onClick={() => handleMovePriority(v.id, "up")}
+              aria-label={`Move ${v.name} up`}
             >
               <ArrowUpIcon />
             </Button>
@@ -80,6 +74,7 @@ function VehicleRow(
               size="1"
               disabled={idx === vehiclesLength - 1}
               onClick={() => handleMovePriority(v.id, "down")}
+              aria-label={`Move ${v.name} down`}
             >
               <ArrowDownIcon />
             </Button>
@@ -90,6 +85,7 @@ function VehicleRow(
           color="red"
           size="1"
           onClick={() => handleDelete(v.id)}
+          aria-label={`Delete ${v.name}`}
         >
           <Trash2 size={14} />
         </Button>
@@ -134,40 +130,6 @@ function UnconfiguredPluginCard(
       >
         <Plus size={14} />
         Set up {plugin.displayName}
-      </Button>
-    </div>
-  );
-}
-
-function SimulatedVehicleSection(
-  { handleAddSimulatedVehicle }: { handleAddSimulatedVehicle: () => void },
-) {
-  return (
-    <div
-      style={{
-        marginTop: 12,
-        paddingTop: 12,
-        borderTop: "1px solid var(--gray-a4)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 8,
-        }}
-      >
-        <FlaskConical size={14} />
-        <Text size="2" weight="medium">Simulated Vehicle</Text>
-      </div>
-      <Text size="1" color="gray" style={{ display: "block", marginBottom: 8 }}>
-        Add a virtual EV for testing charge control, schedules, and solar
-        tracking without a real vehicle.
-      </Text>
-      <Button size="1" variant="soft" onClick={handleAddSimulatedVehicle}>
-        <FlaskConical size={14} />
-        Add Simulated Vehicle
       </Button>
     </div>
   );
@@ -228,14 +190,12 @@ function PriorityChargingHeader(
 }
 
 function VehicleListBlock(
-  { vehicles, loadFailed, recentlyAddedVins, handleMovePriority, handleDelete }:
-    {
-      vehicles: Vehicle[];
-      loadFailed: boolean;
-      recentlyAddedVins: Set<string>;
-      handleMovePriority: (vin: string, direction: "up" | "down") => void;
-      handleDelete: (vin: string) => void;
-    },
+  { vehicles, loadFailed, handleMovePriority, handleDelete }: {
+    vehicles: Vehicle[];
+    loadFailed: boolean;
+    handleMovePriority: (vin: string, direction: "up" | "down") => void;
+    handleDelete: (vin: string) => void;
+  },
 ) {
   return (
     <>
@@ -254,7 +214,6 @@ function VehicleListBlock(
           v={v}
           idx={idx}
           vehiclesLength={vehicles.length}
-          recentlyAddedVins={recentlyAddedVins}
           handleMovePriority={handleMovePriority}
           handleDelete={handleDelete}
         />
@@ -269,10 +228,8 @@ export function VehicleSettings() {
     loading,
     loadFailed,
     error,
-    recentlyAddedVins,
     handleDelete,
     handleMovePriority,
-    handleAddSimulatedVehicle,
     vehiclePlugins,
     handleStartOnboarding,
   } = useVehicleSettings();
@@ -297,10 +254,8 @@ export function VehicleSettings() {
     );
   }
 
-  // In demo, hide plugins the demo can't set up (Tesla), mirroring wizard gating.
   const demoBlockedIds = demoMode.blockedPlugins(vehiclePluginOptions);
 
-  // Unconfigured vehicle plugins with wizard steps (excludes simulated, which has none)
   const unconfiguredPlugins = vehiclePlugins.filter(
     (p) =>
       !p.configured && (vehiclePluginSteps[p.id]?.length ?? 0) > 0 &&
@@ -338,7 +293,6 @@ export function VehicleSettings() {
         <VehicleListBlock
           vehicles={vehicles}
           loadFailed={loadFailed}
-          recentlyAddedVins={recentlyAddedVins}
           handleMovePriority={handleMovePriority}
           handleDelete={handleDelete}
         />
@@ -350,10 +304,6 @@ export function VehicleSettings() {
             handleStartOnboarding={handleStartOnboarding}
           />
         ))}
-
-        <SimulatedVehicleSection
-          handleAddSimulatedVehicle={handleAddSimulatedVehicle}
-        />
 
         <ConfiguredPluginSettings vehiclePlugins={vehiclePlugins} />
       </SettingsSection>
