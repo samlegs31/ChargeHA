@@ -77,6 +77,7 @@ interface FieldsProps {
   from: string;
   to: string;
   disabled: boolean;
+  hasSavedPassword: boolean;
   setEmail: (value: string) => void;
   setPassword: (value: string) => void;
   setPvSystemId: (value: string) => void;
@@ -95,9 +96,15 @@ function SolarWebFields(props: FieldsProps) {
           style={{ width: 260 }}
         />
       </SettingsRow>
-      <SettingsRow label="Solar.web password">
+      <SettingsRow
+        label="Solar.web password"
+        help={props.hasSavedPassword
+          ? "Saved encrypted password will be used if this field is left blank."
+          : undefined}
+      >
         <TextField.Root
-          size="2" type="password" placeholder="Password"
+          size="2" type="password"
+          placeholder={props.hasSavedPassword ? "Saved password" : "Password"}
           value={props.password} disabled={props.disabled}
           onChange={(event) => props.setPassword(event.currentTarget.value)}
           style={{ width: 260 }}
@@ -151,9 +158,10 @@ function ImportResult(props: ImportSummary) {
 function ImportDescription() {
   return (
     <Text size="1" color="gray">
-      Solar.web credentials are used only for this import request and are not saved as
-      your realtime energy source. Only home Wattpilot charging is imported, for all
-      vehicles combined.
+      Solar.web email, PV System ID and password are saved on this E.V. Solar
+      installation for future archive imports. The password is encrypted at rest and is
+      never returned to the browser. These credentials are not used as your realtime
+      energy source. Only home Wattpilot charging is imported, for all vehicles combined.
     </Text>
   );
 }
@@ -167,22 +175,49 @@ function ImportHelpText() {
   );
 }
 
-export function SolarWebHistoryImport() {
-  const [email, setEmail] = useState("");
+function useSolarWebCredentialFields() {
+  const [emailOverride, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
-  const [pvSystemId, setPvSystemId] = useState("");
+  const [pvSystemIdOverride, setPvSystemId] = useState<string | null>(null);
+  const savedCredentials = trpc.history.getSolarWebImportCredentials.useQuery();
+  const savedEmail = savedCredentials.data?.email ?? "";
+  const email = emailOverride ?? savedEmail;
+  const pvSystemId = pvSystemIdOverride ?? savedCredentials.data?.pvSystemId ?? "";
+  const hasSavedPassword = savedCredentials.data?.hasPassword === true &&
+    savedEmail !== "" && email === savedEmail;
+
+  const reset = async () => {
+    await savedCredentials.refetch();
+    setEmail(null);
+    setPvSystemId(null);
+    setPassword("");
+  };
+
+  return {
+    email,
+    password,
+    pvSystemId,
+    hasSavedPassword,
+    setEmail,
+    setPassword,
+    setPvSystemId,
+    reset,
+  };
+}
+
+export function SolarWebHistoryImport() {
+  const credentials = useSolarWebCredentialFields();
   const [from, setFrom] = useState(oneYearAgoIsoDate);
   const [to, setTo] = useState(todayIsoDate);
   const [isImporting, setIsImporting] = useState(false);
   const [progress, setProgress] = useState("");
   const [result, setResult] = useState<ImportSummary | null>(null);
   const [importError, setImportError] = useState("");
-
-  if (!trpc.history?.importSolarWeb) return null;
-
   const mutation = trpc.history.importSolarWeb.useMutation();
-  const ready = email !== "" && password !== "" && pvSystemId !== "" &&
-    from !== "" && to !== "" && from <= to && !isImporting;
+  const hasCredentials = credentials.email !== "" && credentials.pvSystemId !== "";
+  const hasPassword = credentials.password !== "" || credentials.hasSavedPassword;
+  const hasValidDates = from !== "" && to !== "" && from <= to;
+  const ready = hasCredentials && hasPassword && hasValidDates && !isImporting;
 
   async function importBatchSequence(
     batches: readonly DateBatch[],
@@ -196,9 +231,9 @@ export function SolarWebHistoryImport() {
       `Importing batch ${index + 1} / ${batches.length} · ${batch.from} → ${batch.to}`,
     );
     const batchResult = await mutation.mutateAsync({
-      email,
-      password,
-      pvSystemId,
+      email: credentials.email,
+      password: credentials.password,
+      pvSystemId: credentials.pvSystemId,
       from: batch.from,
       to: batch.to,
     });
@@ -219,6 +254,7 @@ export function SolarWebHistoryImport() {
       const completed = await importBatchSequence(batches, 0, EMPTY_SUMMARY);
       setResult(completed);
       setProgress(`Import complete · ${batches.length} batches`);
+      await credentials.reset();
     } catch (error) {
       setImportError(error instanceof Error ? error.message : String(error));
       setProgress("Import stopped. Re-importing the same period is safe.");
@@ -236,10 +272,11 @@ export function SolarWebHistoryImport() {
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <ImportDescription />
         <SolarWebFields
-          email={email} password={password} pvSystemId={pvSystemId}
-          from={from} to={to} disabled={isImporting}
-          setEmail={setEmail} setPassword={setPassword} setPvSystemId={setPvSystemId}
-          setFrom={setFrom} setTo={setTo}
+          email={credentials.email} password={credentials.password}
+          pvSystemId={credentials.pvSystemId} from={from} to={to}
+          disabled={isImporting} hasSavedPassword={credentials.hasSavedPassword}
+          setEmail={credentials.setEmail} setPassword={credentials.setPassword}
+          setPvSystemId={credentials.setPvSystemId} setFrom={setFrom} setTo={setTo}
         />
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <Button size="2" disabled={!ready} onClick={importHistory}>
