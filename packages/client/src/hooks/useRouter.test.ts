@@ -2,12 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook } from "@testing-library/react";
 import { pageFromPath, useRouter } from "./useRouter.ts";
 
-function browserWindow() {
-  const browser = globalThis.document.defaultView;
-  if (!browser) throw new Error("jsdom window is unavailable");
-  return browser;
-}
-
 describe("pageFromPath", () => {
   it.each([
     ["/", "dashboard"],
@@ -23,6 +17,12 @@ describe("pageFromPath", () => {
 });
 
 describe("useRouter", () => {
+  const browserWindow = () => {
+    const browser = globalThis.document.defaultView;
+    if (!browser) throw new Error("jsdom window is unavailable");
+    return browser;
+  };
+
   beforeEach(() => {
     browserWindow().history.pushState(null, "", "/");
   });
