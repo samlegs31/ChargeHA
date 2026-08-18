@@ -89,17 +89,19 @@
 .visualStage {
   position: relative;
   display: grid;
-  min-height: 250px;
+  min-height: 270px;
   place-items: center;
   margin: 12px 0 6px;
+  overflow: hidden;
+  border-radius: 20px;
   isolation: isolate;
 }
 
 .glow {
   position: absolute;
   z-index: -1;
-  width: min(76vw, 430px);
-  height: 140px;
+  width: min(76vw, 520px);
+  height: 160px;
   border-radius: 50%;
   background: radial-gradient(
     ellipse,
@@ -111,25 +113,41 @@
 }
 
 .carIcon {
+  z-index: 0;
   width: min(62vw, 330px);
   height: min(62vw, 330px);
   max-height: 210px;
   color: color-mix(in srgb, var(--gray-12) 82%, var(--accent-9));
+  opacity: 0.2;
   filter:
     drop-shadow(0 16px 24px rgb(0 0 0 / 45%))
     drop-shadow(0 0 20px rgb(45 125 255 / 16%));
 }
 
+.vehicleRender {
+  position: absolute;
+  z-index: 1;
+  width: min(84%, 680px);
+  height: 88%;
+  object-fit: contain;
+  object-position: center;
+  filter:
+    drop-shadow(0 28px 30px rgb(0 0 0 / 24%))
+    drop-shadow(0 0 28px rgb(45 125 255 / 10%));
+}
+
 .visualBadge {
   position: absolute;
+  z-index: 2;
   right: 6px;
   bottom: 8px;
   padding: 6px 10px;
   border: 1px solid var(--gray-6);
   border-radius: 999px;
-  background: rgb(0 0 0 / 22%);
+  background: color-mix(in srgb, var(--gray-2) 86%, transparent);
   color: var(--gray-10);
   font-size: 12px;
+  backdrop-filter: blur(10px);
 }
 
 .socBlock,
@@ -314,7 +332,11 @@
   }
 
   .visualStage {
-    min-height: 210px;
+    min-height: 220px;
+  }
+
+  .vehicleRender {
+    width: 96%;
   }
 
   .visualBadge {
