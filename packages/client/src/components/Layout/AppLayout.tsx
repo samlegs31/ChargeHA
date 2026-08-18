@@ -21,7 +21,8 @@ export type Page =
   | "schedules"
   | "logs"
   | "settings"
-  | "simulator";
+  | "simulator"
+  | "vehicleVisualDev";
 
 interface AppLayoutProps {
   children: ReactNode;

@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { pluginDevComponents } from "@chargeha/plugins/componentRegistry";
 import type { Page } from "./Layout/AppLayout.tsx";
 import { ErrorBoundary } from "./ui/ErrorBoundary.tsx";
 import { Dashboard } from "./pages/Dashboard/Dashboard.tsx";
@@ -12,6 +13,7 @@ const LazySimulator = lazy(() =>
     default: m.Simulator,
   }))
 );
+const VehicleVisualDev = pluginDevComponents["vehicle-visual"];
 
 const PAGE_LABELS: Record<Page, string> = {
   dashboard: "Dashboard",
@@ -20,6 +22,7 @@ const PAGE_LABELS: Record<Page, string> = {
   logs: "Logs",
   settings: "Settings",
   simulator: "Simulator",
+  vehicleVisualDev: "Vehicle visual POC",
 };
 
 export function renderPage(page: Page, onNavigate: (p: Page) => void) {
@@ -38,6 +41,7 @@ export function renderPage(page: Page, onNavigate: (p: Page) => void) {
         <LazySimulator />
       </Suspense>
     ),
+    vehicleVisualDev: () => <VehicleVisualDev />,
   };
   const content = pages[page]();
   return <ErrorBoundary label={PAGE_LABELS[page]}>{content}</ErrorBoundary>;

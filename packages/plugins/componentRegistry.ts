@@ -4,8 +4,9 @@ import type { PluginStepDef } from "./hostUi.ts";
 // Simulated energy settings component
 import { SimulatedEnergyConfig } from "./energy/simulated/client/SimulatedEnergyConfig.tsx";
 
-// Tesla settings component
+// Tesla settings + development components
 import { TeslaSettings } from "./vehicles/tesla/client/TeslaSettings.tsx";
+import { TeslaVehicleVisualDev } from "./vehicles/tesla/client/TeslaVehicleVisualDev.tsx";
 
 // Simulated vehicle settings component
 import { SimulatedVehicleSettings } from "./vehicles/simulated/client/SimulatedVehicleSettings.tsx";
@@ -137,4 +138,9 @@ export const pluginSettingsComponents: Record<string, ComponentType> = {
   "sigenergy-local-config": SigenergyLocalConfig,
   "enphase-local-config": EnphaseLocalConfig,
   "simulated-energy-config": SimulatedEnergyConfig,
+};
+
+/** Development-only pages implemented by plugins but mounted by the host. */
+export const pluginDevComponents: Record<string, ComponentType> = {
+  "vehicle-visual": TeslaVehicleVisualDev,
 };

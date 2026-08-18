@@ -48,6 +48,7 @@ export const GATED_MUTATIONS = [
   "plugin.vehicle.tesla.selectVehicle",
   "plugin.vehicle.tesla.selectVehicles",
   "plugin.vehicle.tesla.setConfig",
+  "plugin.vehicle.tesla.vehicleVisualConfig",
   // Fronius — disabled in the wizard, never the active adapter.
   "plugin.energy.fronius_cloud.setConfig",
   "plugin.energy.fronius_cloud.testConnection",
