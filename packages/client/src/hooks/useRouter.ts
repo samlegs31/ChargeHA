@@ -21,6 +21,7 @@ const PAGE_TO_PATH: Record<Page, string> = {
   stats: "/stats",
   schedules: "/schedules",
   settings: "/settings",
+  simulator: "/",
   vehicleVisualDev: "/dev/vehicle-visual",
 };
 
