@@ -59,18 +59,21 @@ function imageWidth(): string {
   return configured && /^\d+$/.test(configured) ? configured : "400";
 }
 
-function buildImageUrl(
+function spinEnabled(): boolean {
+  return Deno.env.get("IMAGIN_360_ENABLED")?.trim().toLowerCase() === "true";
+}
+
+function baseImageParams(
   customer: string,
   family: string,
   vin: string,
   paint: PaintMapping | null,
-): string {
+): URLSearchParams {
   const params = new URLSearchParams({
     customer,
     make: "tesla",
     modelFamily: family,
     powerTrain: "electric",
-    angle: "23",
     width: imageWidth(),
     zoomType: "fullscreen",
     position: "bottom",
@@ -81,6 +84,29 @@ function buildImageUrl(
     params.set("paintId", paint.id);
     params.set("paintDescription", paint.description);
   }
+  return params;
+}
+
+function buildImageUrl(
+  customer: string,
+  family: string,
+  vin: string,
+  paint: PaintMapping | null,
+): string {
+  const params = baseImageParams(customer, family, vin, paint);
+  params.set("angle", "23");
+  return `https://cdn.imagin.studio/getImage?${params.toString()}`;
+}
+
+function buildSpinBaseUrl(
+  customer: string,
+  family: string,
+  vin: string,
+  paint: PaintMapping | null,
+): string | null {
+  if (!spinEnabled()) return null;
+  const params = baseImageParams(customer, family, vin, paint);
+  params.set("fileType", "webp");
   return `https://cdn.imagin.studio/getImage?${params.toString()}`;
 }
 
@@ -94,6 +120,7 @@ export function buildTeslaVehicleVisual(config: TeslaVisualConfig, vin: string) 
     return {
       provider: null,
       imageUrl: null,
+      spinBaseUrl: null,
       paintCode: paint?.id ?? null,
       modelYear: year,
       note: !customer
@@ -102,13 +129,17 @@ export function buildTeslaVehicleVisual(config: TeslaVisualConfig, vin: string) 
     };
   }
 
+  const spinBaseUrl = buildSpinBaseUrl(customer, family, vin, paint);
   return {
     provider: "IMAGIN.studio",
     imageUrl: buildImageUrl(customer, family, vin, paint),
+    spinBaseUrl,
     paintCode: paint?.id ?? null,
     modelYear: year,
-    note: paint
-      ? "Model and official Tesla paint code are mapped; exact wheel rendering depends on provider coverage"
+    note: spinBaseUrl
+      ? "Licensed 360° spin enabled; Tesla model and paint are mapped. Exact wheel rendering depends on provider rim coverage"
+      : paint
+      ? "Model and official Tesla paint code are mapped; optional 360° requires IMAGIN Premium/Enterprise"
       : "Model is mapped; exact paint and wheel rendering depend on provider coverage",
   };
 }
