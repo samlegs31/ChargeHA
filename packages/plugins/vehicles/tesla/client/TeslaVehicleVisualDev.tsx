@@ -42,6 +42,16 @@ function slugPart(value?: string | null): string {
     .replace(/(^-|-$)/g, "") || "unknown";
 }
 
+function visualMappingKey(config: VisualConfig | null): string | null {
+  if (!config) return null;
+  return [
+    "tesla",
+    slugPart(config.carType),
+    slugPart(config.exteriorColor),
+    slugPart(config.wheelType),
+  ].join("__");
+}
+
 function DataRow(
   { label, value }: { label: string; value?: string | number | null },
 ) {
@@ -144,9 +154,7 @@ function ConfigPanels(
     config: VisualConfig | null;
   },
 ) {
-  const visualKey = config
-    ? `tesla__${slugPart(config.carType)}__${slugPart(config.exteriorColor)}__${slugPart(config.wheelType)}`
-    : null;
+  const visualKey = visualMappingKey(config);
   return (
     <div className={styles.grid}>
       <article className={styles.panel}>
@@ -187,7 +195,7 @@ function SafetyNotice() {
 }
 
 export function TeslaVehicleVisualDev() {
-  const vehiclesQuery = trpc.vehicle.list.useQuery();
+  const vehiclesQuery = trpc.plugin.vehicle.tesla.listVehicles.useQuery();
   const configProbe = trpc.plugin.vehicle.tesla.vehicleVisualConfig.useMutation();
   const vehicles = vehiclesQuery.data?.vehicles ?? [];
   const vehicle = vehicles.find((item) => item.adapterType === "tesla");
