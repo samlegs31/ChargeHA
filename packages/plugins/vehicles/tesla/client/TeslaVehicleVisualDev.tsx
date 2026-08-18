@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   BatteryCharging,
   CarFront,
@@ -78,18 +79,19 @@ function DataRow(
 function VehiclePreview(
   { model, visual }: { model: string; visual: VisualProvider | null },
 ) {
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  const imageUrl = visual?.imageUrl ?? null;
+  const showImage = imageUrl !== null && imageUrl !== failedUrl;
   return (
     <div className={styles.visualStage} aria-label="E.V. Solar vehicle preview">
       <div className={styles.glow} />
       <CarFront className={styles.carIcon} strokeWidth={1.35} />
-      {visual?.imageUrl && (
+      {showImage && (
         <img
           className={styles.vehicleRender}
-          src={visual.imageUrl}
+          src={imageUrl}
           alt={`${model} vehicle render`}
-          onError={(event) => {
-            event.currentTarget.style.display = "none";
-          }}
+          onError={() => setFailedUrl(imageUrl)}
         />
       )}
       <span className={styles.visualBadge}>
