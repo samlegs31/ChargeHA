@@ -80,6 +80,12 @@
   gap: 8px;
 }
 
+/* Connection freshness remains available to the app, but no longer consumes
+   valuable header space. Errors are still surfaced where they are actionable. */
+.status > :first-child {
+  display: none;
+}
+
 .main {
   flex: 1;
   padding: 20px 24px 28px;
@@ -118,7 +124,7 @@
 
 @media (max-width: 900px) {
   .header {
-    padding: 9px 12px;
+    padding: 8px 12px;
     gap: 8px;
   }
 
@@ -142,18 +148,15 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-
-    width: 44px;
-    height: 44px;
-    min-width: 44px;
-    min-height: 44px;
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    min-height: 52px;
     padding: 0;
-
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1px solid var(--gray-a5);
     background: var(--gray-a3);
     color: var(--gray-12);
-
     transition:
       background-color 150ms ease,
       border-color 150ms ease,
@@ -171,14 +174,14 @@
   }
 
   .menuButton svg {
-    width: 26px;
-    height: 26px;
+    width: 30px;
+    height: 30px;
     stroke-width: 2.4;
   }
 
   .mobileMenu {
     position: sticky;
-    top: 51px;
+    top: 60px;
     z-index: 49;
     display: flex;
     flex-direction: column;
