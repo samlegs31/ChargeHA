@@ -59,7 +59,7 @@ export function TeslaVehicleProfile(
   const configQuery = trpc.plugin.vehicle.tesla.vehicleVisualConfigAuto.useQuery(
     { vin: vehicleId },
     {
-      enabled: isOnline && !cachedConfig,
+      enabled: isOnline,
       retry: false,
       staleTime: 24 * 60 * 60_000,
       refetchOnWindowFocus: false,
