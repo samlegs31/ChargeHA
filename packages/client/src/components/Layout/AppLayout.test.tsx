@@ -28,7 +28,7 @@ describe("AppLayout", () => {
     expect(screen.getByLabelText("E.V. Solar")).toBeInTheDocument();
   });
 
-  it.each(["Home", "Stats", "Schedules", "Logs", "Settings"])(
+  it.each(["Home", "Stats", "Schedules", "Settings"])(
     "renders %s nav link",
     (label) => {
       renderWithProviders(
@@ -40,6 +40,17 @@ describe("AppLayout", () => {
       expect(screen.getByText(label)).toBeInTheDocument();
     },
   );
+
+  it("does not expose development navigation", () => {
+    renderWithProviders(
+      <AppLayout {...defaultProps}>
+        <div />
+      </AppLayout>,
+    );
+
+    expect(screen.queryByText("Logs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Simulator")).not.toBeInTheDocument();
+  });
 
   it("renders the connection badge", () => {
     renderWithProviders(
@@ -160,9 +171,9 @@ describe("AppLayout", () => {
       screen.getByRole("button", { name: "Open menu" }),
     );
 
-    const logsLinks = screen.getAllByText("Logs");
-    await userEvent.click(logsLinks[logsLinks.length - 1]);
-    expect(onNavigate).toHaveBeenCalledWith("logs");
+    const settingsLinks = screen.getAllByText("Settings");
+    await userEvent.click(settingsLinks[settingsLinks.length - 1]);
+    expect(onNavigate).toHaveBeenCalledWith("settings");
     expect(screen.queryByRole("button", { name: "Close menu" })).not
       .toBeInTheDocument();
   });
