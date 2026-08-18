@@ -178,7 +178,9 @@ function cylinderMesh(center: Vec3, radius: number, halfDepth: number): MeshData
     const p1f = cylinderPoint(center, radius, a1, halfDepth);
     const p0b = cylinderPoint(center, radius, a0, -halfDepth);
     const p1b = cylinderPoint(center, radius, a1, -halfDepth);
-    const sideNormal = normalizeVector(vec3(Math.cos((a0 + a1) / 2), Math.sin((a0 + a1) / 2), 0));
+    const sideNormal = normalizeVector(
+      vec3(Math.cos((a0 + a1) / 2), Math.sin((a0 + a1) / 2), 0),
+    );
     const frontCenter = vec3(center[0], center[1], center[2] + halfDepth);
     const backCenter = vec3(center[0], center[1], center[2] - halfDepth);
     return [
@@ -199,7 +201,9 @@ function mergeMeshes(meshes: readonly MeshData[]): MeshData {
 }
 
 function wheelMeshes(radius: number, depth: number, z: number): MeshData[] {
-  return [-1.45, 1.45].map((x) => cylinderMesh(vec3(x, -0.34, z), radius, depth));
+  return [-1.45, 1.45].map((x) =>
+    cylinderMesh(vec3(x, -0.34, z), radius, depth)
+  );
 }
 
 function createCarMeshes(bodyColor: Vec3): readonly [MeshData, Vec3][] {
@@ -229,12 +233,15 @@ function createShader(
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) return shader;
-  const message = gl.getShaderInfoLog(shader) ?? "WebGL shader compilation failed";
+  const message = gl.getShaderInfoLog(shader) ??
+    "WebGL shader compilation failed";
   gl.deleteShader(shader);
   throw new Error(message);
 }
 
-function createProgram(gl: WebGLRenderingContext | WebGL2RenderingContext): WebGLProgram {
+function createProgram(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+): WebGLProgram {
   const vertexShader = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
   const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
   const program = gl.createProgram();
@@ -257,21 +264,41 @@ function uploadMesh(
 ): GpuMesh {
   const positionBuffer = gl.createBuffer();
   const normalBuffer = gl.createBuffer();
-  if (!positionBuffer || !normalBuffer) throw new Error("Unable to allocate WebGL buffers");
+  if (!positionBuffer || !normalBuffer) {
+    throw new Error("Unable to allocate WebGL buffers");
+  }
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data.positions), gl.STATIC_DRAW);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array(data.positions),
+    gl.STATIC_DRAW,
+  );
   gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data.normals), gl.STATIC_DRAW);
-  return { positionBuffer, normalBuffer, vertices: data.positions.length / 3, color };
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array(data.normals),
+    gl.STATIC_DRAW,
+  );
+  return {
+    positionBuffer,
+    normalBuffer,
+    vertices: data.positions.length / 3,
+    color,
+  };
 }
 
-function getLocation(gl: WebGLRenderingContext | WebGL2RenderingContext, program: WebGLProgram, name: string) {
+function getLocation(
+  gl: WebGLRenderingContext | WebGL2RenderingContext,
+  program: WebGLProgram,
+  name: string,
+) {
   const location = gl.getUniformLocation(program, name);
   if (!location) throw new Error(`Missing WebGL uniform ${name}`);
   return location;
 }
 
 class LocalCarRenderer {
+  private readonly canvas: HTMLCanvasElement;
   private readonly gl: WebGLRenderingContext | WebGL2RenderingContext;
   private readonly program: WebGLProgram;
   private readonly meshes: readonly GpuMesh[];
@@ -286,14 +313,26 @@ class LocalCarRenderer {
   private pitch = -0.12;
   private pointer = { active: false, x: 0, y: 0 };
 
-  constructor(canvas: HTMLCanvasElement, color: Vec3, onStats: (stats: RenderStats) => void) {
-    const options: WebGLContextAttributes = { antialias: true, alpha: true, powerPreference: "low-power" };
-    const gl = canvas.getContext("webgl2", options) ?? canvas.getContext("webgl", options);
+  constructor(
+    canvas: HTMLCanvasElement,
+    color: Vec3,
+    onStats: (stats: RenderStats) => void,
+  ) {
+    const options: WebGLContextAttributes = {
+      antialias: true,
+      alpha: true,
+      powerPreference: "low-power",
+    };
+    const gl = canvas.getContext("webgl2", options) ??
+      canvas.getContext("webgl", options);
     if (!gl) throw new Error("WebGL is not available in this browser");
     const program = createProgram(gl);
     const positionLocation = gl.getAttribLocation(program, "aPosition");
     const normalLocation = gl.getAttribLocation(program, "aNormal");
-    if (positionLocation < 0 || normalLocation < 0) throw new Error("Missing WebGL vertex attributes");
+    if (positionLocation < 0 || normalLocation < 0) {
+      throw new Error("Missing WebGL vertex attributes");
+    }
+    this.canvas = canvas;
     this.gl = gl;
     this.program = program;
     this.positionLocation = positionLocation;
@@ -302,20 +341,22 @@ class LocalCarRenderer {
     this.pitchLocation = getLocation(gl, program, "uPitch");
     this.aspectLocation = getLocation(gl, program, "uAspect");
     this.colorLocation = getLocation(gl, program, "uColor");
-    this.meshes = createCarMeshes(color).map(([mesh, meshColor]) => uploadMesh(gl, mesh, meshColor));
+    this.meshes = createCarMeshes(color).map(([mesh, meshColor]) =>
+      uploadMesh(gl, mesh, meshColor)
+    );
     this.onStats = onStats;
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.clearColor(0, 0, 0, 0);
   }
 
-  resize(canvas: HTMLCanvasElement) {
-    const bounds = canvas.getBoundingClientRect();
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.5);
+  resize() {
+    const bounds = this.canvas.getBoundingClientRect();
+    const pixelRatio = Math.min(globalThis.devicePixelRatio || 1, 1.5);
     const width = Math.max(1, Math.round(bounds.width * pixelRatio));
     const height = Math.max(1, Math.round(bounds.height * pixelRatio));
-    if (canvas.width !== width) canvas.width = width;
-    if (canvas.height !== height) canvas.height = height;
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
     this.gl.viewport(0, 0, width, height);
     this.render(width / height);
   }
@@ -324,14 +365,17 @@ class LocalCarRenderer {
     this.pointer = { active: true, x, y };
   }
 
-  pointerMove(x: number, y: number, canvas: HTMLCanvasElement) {
+  pointerMove(x: number, y: number) {
     if (!this.pointer.active) return;
     const deltaX = x - this.pointer.x;
     const deltaY = y - this.pointer.y;
     this.pointer = { active: true, x, y };
     this.yaw += deltaX * 0.012;
-    this.pitch = Math.max(-0.38, Math.min(0.22, this.pitch + deltaY * 0.006));
-    this.render(canvas.width / canvas.height);
+    this.pitch = Math.max(
+      -0.38,
+      Math.min(0.22, this.pitch + deltaY * 0.006),
+    );
+    this.render(this.canvas.width / this.canvas.height);
   }
 
   pointerUp() {
@@ -347,9 +391,17 @@ class LocalCarRenderer {
     gl.uniform1f(this.pitchLocation, this.pitch);
     gl.uniform1f(this.aspectLocation, Math.max(0.1, aspect));
     this.meshes.forEach((mesh) => this.draw(mesh));
-    const triangles = this.meshes.reduce((total, mesh) => total + mesh.vertices / 3, 0);
-    const webgl2 = typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
-    this.onStats({ backend: webgl2 ? "WebGL 2" : "WebGL 1", triangles, renderMs: performance.now() - startedAt });
+    const triangles = this.meshes.reduce(
+      (total, mesh) => total + mesh.vertices / 3,
+      0,
+    );
+    const webgl2 = typeof WebGL2RenderingContext !== "undefined" &&
+      gl instanceof WebGL2RenderingContext;
+    this.onStats({
+      backend: webgl2 ? "WebGL 2" : "WebGL 1",
+      triangles,
+      renderMs: performance.now() - startedAt,
+    });
   }
 
   dispose() {
@@ -364,11 +416,23 @@ class LocalCarRenderer {
     const gl = this.gl;
     gl.bindBuffer(gl.ARRAY_BUFFER, mesh.positionBuffer);
     gl.enableVertexAttribArray(this.positionLocation);
-    gl.vertexAttribPointer(this.positionLocation, 3, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(
+      this.positionLocation,
+      3,
+      gl.FLOAT,
+      false,
+      0,
+      0,
+    );
     gl.bindBuffer(gl.ARRAY_BUFFER, mesh.normalBuffer);
     gl.enableVertexAttribArray(this.normalLocation);
     gl.vertexAttribPointer(this.normalLocation, 3, gl.FLOAT, false, 0, 0);
-    gl.uniform3f(this.colorLocation, mesh.color[0], mesh.color[1], mesh.color[2]);
+    gl.uniform3f(
+      this.colorLocation,
+      mesh.color[0],
+      mesh.color[1],
+      mesh.color[2],
+    );
     gl.drawArrays(gl.TRIANGLES, 0, mesh.vertices);
   }
 }
@@ -378,15 +442,16 @@ function bindRenderer(canvas: HTMLCanvasElement, renderer: LocalCarRenderer) {
     canvas.setPointerCapture(event.pointerId);
     renderer.pointerDown(event.clientX, event.clientY);
   };
-  const pointerMove = (event: PointerEvent) => renderer.pointerMove(event.clientX, event.clientY, canvas);
+  const pointerMove = (event: PointerEvent) =>
+    renderer.pointerMove(event.clientX, event.clientY);
   const pointerUp = () => renderer.pointerUp();
-  const resizeObserver = new ResizeObserver(() => renderer.resize(canvas));
+  const resizeObserver = new ResizeObserver(() => renderer.resize());
   canvas.addEventListener("pointerdown", pointerDown);
   canvas.addEventListener("pointermove", pointerMove);
   canvas.addEventListener("pointerup", pointerUp);
   canvas.addEventListener("pointercancel", pointerUp);
   resizeObserver.observe(canvas);
-  renderer.resize(canvas);
+  renderer.resize();
   return () => {
     resizeObserver.disconnect();
     canvas.removeEventListener("pointerdown", pointerDown);
@@ -398,7 +463,10 @@ function bindRenderer(canvas: HTMLCanvasElement, renderer: LocalCarRenderer) {
 }
 
 export function TeslaLocal3DPreview(
-  { exteriorColor, model }: { exteriorColor?: string | null; model: string },
+  { exteriorColor, model }: {
+    exteriorColor?: string | null;
+    model: string;
+  },
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [stats, setStats] = useState<RenderStats | null>(null);
@@ -408,16 +476,26 @@ export function TeslaLocal3DPreview(
     const canvas = canvasRef.current;
     if (!canvas) return;
     try {
-      const renderer = new LocalCarRenderer(canvas, paintColor(exteriorColor), setStats);
+      const renderer = new LocalCarRenderer(
+        canvas,
+        paintColor(exteriorColor),
+        setStats,
+      );
       return bindRenderer(canvas, renderer);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Local 3D renderer failed");
+      setError(
+        cause instanceof Error ? cause.message : "Local 3D renderer failed",
+      );
     }
   }, [exteriorColor]);
 
   return (
     <div className={styles.local3d}>
-      <canvas ref={canvasRef} className={styles.local3dCanvas} aria-label={`${model} local 3D preview`} />
+      <canvas
+        ref={canvasRef}
+        className={styles.local3dCanvas}
+        aria-label={`${model} local 3D preview`}
+      />
       <div className={styles.local3dTopline}>
         <span>LOCAL 3D ENGINE TEST</span>
         <span>{exteriorColor ?? "Default blue"}</span>
