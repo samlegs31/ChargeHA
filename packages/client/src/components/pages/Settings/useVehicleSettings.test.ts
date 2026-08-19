@@ -5,6 +5,7 @@ import { useVehicleSettings } from "./useVehicleSettings.ts";
 const {
   mockDeleteMutate,
   mockPriorityMutateAsync,
+  mockChargeControllerMutate,
   mockInvalidateVehicleList,
   mockNavigate,
   mockClearPluginOnboarding,
@@ -13,6 +14,7 @@ const {
 } = vi.hoisted(() => ({
   mockDeleteMutate: vi.fn(),
   mockPriorityMutateAsync: vi.fn(),
+  mockChargeControllerMutate: vi.fn(),
   mockInvalidateVehicleList: vi.fn(),
   mockNavigate: vi.fn(),
   mockClearPluginOnboarding: vi.fn(),
@@ -32,6 +34,7 @@ const {
     pluginsData: undefined as unknown[] | undefined,
     deleteError: null as { message: string } | null,
     priorityError: null as { message: string } | null,
+    chargeControllerError: null as { message: string } | null,
   },
 }));
 
@@ -89,6 +92,15 @@ vi.mock("../../../trpc.ts", () => ({
           mutateAsync: mockPriorityMutateAsync,
         })),
       },
+      setChargeController: {
+        useMutation: vi.fn((opts?: { onSuccess?: () => void }) => ({
+          mutate: vi.fn((input: unknown) => {
+            mockChargeControllerMutate(input);
+            opts?.onSuccess?.();
+          }),
+          error: m.chargeControllerError,
+        })),
+      },
       getPlugins: {
         useQuery: vi.fn(() => ({
           data: m.pluginsData,
@@ -128,9 +140,11 @@ describe("useVehicleSettings", () => {
     m.pluginsData = undefined;
     m.deleteError = null;
     m.priorityError = null;
+    m.chargeControllerError = null;
     c.priorityMutationOpts = {};
     mockDeleteMutate.mockClear();
     mockPriorityMutateAsync.mockClear();
+    mockChargeControllerMutate.mockClear();
     mockInvalidateVehicleList.mockClear();
     mockNavigate.mockClear();
     mockClearPluginOnboarding.mockClear();
@@ -154,7 +168,13 @@ describe("useVehicleSettings", () => {
   it("returns vehicles from query", () => {
     m.vehiclesData = {
       vehicles: [
-        { id: "VIN1", name: "Model 3", adapterType: "tesla", priority: 1 },
+        {
+          id: "VIN1",
+          name: "Model 3",
+          adapterType: "tesla",
+          priority: 1,
+          config: "{}",
+        },
       ],
     };
     const { result } = renderHook(() => useVehicleSettings());
@@ -196,6 +216,18 @@ describe("useVehicleSettings", () => {
     expect(mockPriorityMutateAsync).not.toHaveBeenCalled();
   });
 
+  it("updates the per-vehicle charge controller", () => {
+    const { result } = renderHook(() => useVehicleSettings());
+
+    result.current.handleChargeControllerChange("VIN2", "wattpilot");
+
+    expect(mockChargeControllerMutate).toHaveBeenCalledWith({
+      vehicleId: "VIN2",
+      chargeController: "wattpilot",
+    });
+    expect(mockInvalidateVehicleList).toHaveBeenCalled();
+  });
+
   it("returns loadFailed when query errors", () => {
     m.vehiclesIsError = true;
     m.vehiclesError = { message: "Network error" };
@@ -207,6 +239,12 @@ describe("useVehicleSettings", () => {
     m.vehiclesError = { message: "Network error" };
     const { result } = renderHook(() => useVehicleSettings());
     expect(result.current.error).toBe("Network error");
+  });
+
+  it("returns charge-controller mutation error", () => {
+    m.chargeControllerError = { message: "Save failed" };
+    const { result } = renderHook(() => useVehicleSettings());
+    expect(result.current.error).toBe("Save failed");
   });
 
   it("returns vehiclePlugins from query", () => {
