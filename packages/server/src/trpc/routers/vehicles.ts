@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { publicProcedure, router } from "../trpc.ts";
 import {
   vehicleCommandInput,
@@ -7,6 +8,11 @@ import {
   vehicleSetModeInput,
   vehicleSetPriorityInput,
 } from "@chargeha/shared/schemas";
+
+const vehicleSetChargeControllerInput = z.object({
+  vehicleId: z.string().min(1),
+  chargeController: z.enum(["vehicle", "wattpilot"]),
+});
 
 export const vehiclesRouter = router({
   // Returns registered vehicle plugins for dynamic UI rendering
@@ -55,6 +61,16 @@ export const vehiclesRouter = router({
       return await ctx.vehicleService.setPriority(
         input.vehicleId,
         input.priority,
+      );
+    }),
+
+  // Select whether E.V. Solar or Wattpilot controls vehicle charging
+  setChargeController: publicProcedure
+    .input(vehicleSetChargeControllerInput)
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.vehicleService.setChargeController(
+        input.vehicleId,
+        input.chargeController,
       );
     }),
 
