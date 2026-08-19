@@ -2,6 +2,7 @@ import { type ComponentProps, type ReactNode, useMemo } from "react";
 import { Car, Settings, Zap } from "lucide-react";
 import { Button, Card, Text } from "@radix-ui/themes";
 import type { VehicleMode } from "@chargeha/shared";
+import { getVehicleChargeController } from "@chargeha/shared/vehicleControl";
 import type { SolarChargeForecastResult } from "@chargeha/shared/forecast";
 import { isHome } from "@chargeha/shared/geo";
 import {
@@ -47,7 +48,8 @@ function ConnectedVehicleCard(
     { vehicleId },
     { refetchInterval: 30_000 },
   );
-  const forecastEligible = props.state.isPluggedIn && props.atHome !== false &&
+  const forecastEligible = props.chargeController !== "wattpilot" &&
+    props.state.isPluggedIn && props.atHome !== false &&
     (props.mode === "vacation" || props.mode === "auto");
   const forecast = trpc.forecast.today.useQuery(
     { vehicleId },
@@ -174,7 +176,10 @@ function useAllocationStatus(
 ) {
   return useMemo(() => {
     if (!priorityChargingEnabled || vehicles.length < 2) return {};
-    const sorted = [...vehicles].sort((a, b) => a.priority - b.priority);
+    const managedVehicles = vehicles.filter((v) =>
+      getVehicleChargeController(v.config) !== "wattpilot"
+    );
+    const sorted = [...managedVehicles].sort((a, b) => a.priority - b.priority);
     const topCharging = sorted.find((v) =>
       v.state?.isCharging &&
       controllerStatuses[v.id]?.reason === "solar_tracking"
@@ -238,6 +243,8 @@ function VehicleCards(
   return (
     <>
       {vehicles.map((v) => {
+        const chargeController = getVehicleChargeController(v.config);
+        const externallyManaged = chargeController === "wattpilot";
         if (v.state) {
           return (
             <ConnectedVehicleCard
@@ -247,6 +254,7 @@ function VehicleCards(
               state={v.state}
               priority={v.priority}
               mode={v.mode as VehicleMode}
+              chargeController={chargeController}
               commandPending={commandPending[v.id] ?? false}
               onStartCharging={() => startCharging(v.id)}
               onStopCharging={() => stopCharging(v.id)}
@@ -259,11 +267,17 @@ function VehicleCards(
               lastLocation={v.lastLocation}
               atHome={v.lastLocation ? isHome(home, v.lastLocation) : null}
               vehicleError={vehicleErrors[v.id]}
-              allocationStatus={allocationStatus[v.id] ?? null}
+              allocationStatus={externallyManaged
+                ? null
+                : allocationStatus[v.id] ?? null}
               pollingSuspended={v.pollingSuspended}
               pollingSuspendReason={v.pollingSuspendReason}
-              controllerReason={controllerStatuses[v.id]?.reason ?? null}
-              controllerDetail={controllerStatuses[v.id]?.detail ?? null}
+              controllerReason={externallyManaged
+                ? null
+                : controllerStatuses[v.id]?.reason ?? null}
+              controllerDetail={externallyManaged
+                ? null
+                : controllerStatuses[v.id]?.detail ?? null}
               onNavigateSettings={onNavigateSettings}
               onRefresh={() =>
                 refreshMutation.mutateAsync({ vehicleId: v.id })}
