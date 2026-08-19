@@ -39,7 +39,7 @@ describe("fetchSolarWebHomeEvHistory", () => {
           logDateTime: "2026-08-01T12:00:00+02:00",
           logDuration: 300,
           channels: [
-            { channelName: "EnergyEVCCharge", value: 500 },
+            { channelName: "EnergyEVCCharge", value: 1000 },
             { channelName: "EnergyEVCChargeBatt", value: 100 },
             { channelName: "EnergyEVCChargeGrid", value: 400 },
           ],
@@ -84,6 +84,145 @@ describe("fetchSolarWebHomeEvHistory", () => {
       expect(historyUrl.searchParams.get("timezone")).toBe("local");
       expect(historyUrl.searchParams.get("limit")).toBe("1000");
       expectMax24HourRange(historyUrl);
+    });
+  });
+
+  it("conserves total energy across solar, battery and grid", async () => {
+    const fetchFn = (input: string | URL | Request): Promise<Response> => {
+      const url = requestUrl(input);
+      if (url.includes("/iam/jwt")) {
+        return Promise.resolve(jsonResponse({ jwtToken: "token" }));
+      }
+      return Promise.resolve(jsonResponse({
+        data: [
+          {
+            logDateTime: "2026-08-01T01:00:00+02:00",
+            channels: [
+              { channelName: "EnergyEVCCharge", value: 1000 },
+              { channelName: "EnergyEVCChargeGrid", value: 1000 },
+            ],
+          },
+          {
+            logDateTime: "2026-08-01T12:00:00+02:00",
+            channels: [
+              { channelName: "EnergyEVCCharge", value: 1000 },
+            ],
+          },
+          {
+            logDateTime: "2026-08-01T13:00:00+02:00",
+            channels: [
+              { channelName: "EnergyEVCCharge", value: 1000 },
+              { channelName: "EnergyEVCChargeBatt", value: 200 },
+              { channelName: "EnergyEVCChargeGrid", value: 300 },
+            ],
+          },
+        ],
+      }));
+    };
+
+    const result = await fetchSolarWebHomeEvHistory({
+      email: "user@example.com",
+      password: "secret",
+      pvSystemId: "pv-system-1",
+      from: "2026-08-01",
+      to: "2026-08-01",
+    }, fetchFn);
+
+    expect(result.rows).toHaveLength(3);
+    expect(result.rows[0]).toMatchObject({
+      chargedWh: 1000,
+      solarWh: 0,
+      batteryWh: 0,
+      gridWh: 1000,
+      startTimeLocal: "2026-08-01 01:00:00",
+    });
+    expect(result.rows[1]).toMatchObject({
+      chargedWh: 1000,
+      solarWh: 1000,
+      batteryWh: 0,
+      gridWh: 0,
+      startTimeLocal: "2026-08-01 12:00:00",
+    });
+    expect(result.rows[2]).toMatchObject({
+      chargedWh: 1000,
+      solarWh: 500,
+      batteryWh: 200,
+      gridWh: 300,
+      startTimeLocal: "2026-08-01 13:00:00",
+    });
+    for (const row of result.rows) {
+      expect(row.solarWh + row.batteryWh + row.gridWh).toBe(row.chargedWh);
+    }
+  });
+
+  it("normalizes inconsistent source components without exceeding total", async () => {
+    const fetchFn = (input: string | URL | Request): Promise<Response> => {
+      const url = requestUrl(input);
+      if (url.includes("/iam/jwt")) {
+        return Promise.resolve(jsonResponse({ jwtToken: "token" }));
+      }
+      return Promise.resolve(jsonResponse({
+        data: [{
+          logDateTime: "2026-08-01T14:00:00+02:00",
+          channels: [
+            { channelName: "EnergyEVCCharge", value: 1000 },
+            { channelName: "EnergyEVCChargeBatt", value: 800 },
+            { channelName: "EnergyEVCChargeGrid", value: 800 },
+          ],
+        }],
+      }));
+    };
+
+    const result = await fetchSolarWebHomeEvHistory({
+      email: "user@example.com",
+      password: "secret",
+      pvSystemId: "pv-system-1",
+      from: "2026-08-01",
+      to: "2026-08-01",
+    }, fetchFn);
+
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({
+      chargedWh: 1000,
+      solarWh: 0,
+      batteryWh: 500,
+      gridWh: 500,
+    });
+    expect(
+      result.rows[0].solarWh + result.rows[0].batteryWh + result.rows[0].gridWh,
+    ).toBe(result.rows[0].chargedWh);
+  });
+
+  it("uses known battery and grid energy when total channel is missing", async () => {
+    const fetchFn = (input: string | URL | Request): Promise<Response> => {
+      const url = requestUrl(input);
+      if (url.includes("/iam/jwt")) {
+        return Promise.resolve(jsonResponse({ jwtToken: "token" }));
+      }
+      return Promise.resolve(jsonResponse({
+        data: [{
+          logDateTime: "2026-08-01T15:00:00+02:00",
+          channels: [
+            { channelName: "EnergyEVCChargeBatt", value: 200 },
+            { channelName: "EnergyEVCChargeGrid", value: 300 },
+          ],
+        }],
+      }));
+    };
+
+    const result = await fetchSolarWebHomeEvHistory({
+      email: "user@example.com",
+      password: "secret",
+      pvSystemId: "pv-system-1",
+      from: "2026-08-01",
+      to: "2026-08-01",
+    }, fetchFn);
+
+    expect(result.rows[0]).toMatchObject({
+      chargedWh: 500,
+      solarWh: 0,
+      batteryWh: 200,
+      gridWh: 300,
     });
   });
 
