@@ -150,9 +150,9 @@ describe("fetchSolarWebHomeEvHistory", () => {
       gridWh: 300,
       startTimeLocal: "2026-08-01 13:00:00",
     });
-    for (const row of result.rows) {
+    result.rows.forEach((row) => {
       expect(row.solarWh + row.batteryWh + row.gridWh).toBe(row.chargedWh);
-    }
+    });
   });
 
   it("normalizes inconsistent source components without exceeding total", async () => {
