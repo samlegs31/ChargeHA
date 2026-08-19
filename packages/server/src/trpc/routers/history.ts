@@ -10,6 +10,11 @@ import {
   SolarWebHistoryError,
 } from "../../history/SolarWebHistory.ts";
 import { publicProcedure, router } from "../trpc.ts";
+import type { TrpcContext } from "../trpc.ts";
+
+const SOLARWEB_EMAIL_KEY = "solarweb.history.email";
+const SOLARWEB_PASSWORD_KEY = "solarweb.history.password";
+const SOLARWEB_SYSTEM_ID_KEY = "solarweb.history.pv_system_id";
 
 const csvTextInput = z.string().min(1).max(15_000_000);
 const vehicleIdInput = z.object({ vehicleId: z.string().min(1) });
@@ -29,7 +34,7 @@ const archiveRangeInput = z.object({
 const solarWebImportInput = z.object({
   vehicleId: z.string().min(1),
   email: z.string().email(),
-  password: z.string().min(1),
+  password: z.string().min(1).optional(),
   pvSystemId: z.string().min(1),
   from: isoDate,
   to: isoDate,
@@ -37,6 +42,11 @@ const solarWebImportInput = z.object({
   message: "Start date must be before or equal to end date",
   path: ["from"],
 });
+
+type SolarWebImportInput = z.infer<typeof solarWebImportInput>;
+type SolarWebResolvedInput = Omit<SolarWebImportInput, "password"> & {
+  password: string;
+};
 
 function parseChargeHqCsv(csvText: string) {
   try {
@@ -49,7 +59,7 @@ function parseChargeHqCsv(csvText: string) {
   }
 }
 
-async function readSolarWebHistory(input: z.infer<typeof solarWebImportInput>) {
+async function readSolarWebHistory(input: SolarWebResolvedInput) {
   try {
     return await fetchSolarWebHomeEvHistory(input);
   } catch (error) {
@@ -57,6 +67,36 @@ async function readSolarWebHistory(input: z.infer<typeof solarWebImportInput>) {
       throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
     }
     throw error;
+  }
+}
+
+async function resolveSolarWebInput(
+  ctx: Pick<TrpcContext, "db">,
+  input: SolarWebImportInput,
+): Promise<SolarWebResolvedInput> {
+  const savedPassword = input.password === undefined
+    ? await ctx.db.readSecret(SOLARWEB_PASSWORD_KEY)
+    : null;
+  const password = input.password ?? savedPassword;
+  if (!password) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Solar.web password is required",
+    });
+  }
+  return { ...input, password };
+}
+
+async function saveSolarWebCredentials(
+  ctx: Pick<TrpcContext, "db" | "encryptionKey">,
+  input: SolarWebImportInput,
+): Promise<void> {
+  await Promise.all([
+    ctx.db.setPluginConfig(SOLARWEB_EMAIL_KEY, input.email),
+    ctx.db.setPluginConfig(SOLARWEB_SYSTEM_ID_KEY, input.pvSystemId),
+  ]);
+  if (input.password !== undefined && ctx.encryptionKey !== null) {
+    await ctx.db.storeSecret(SOLARWEB_PASSWORD_KEY, input.password);
   }
 }
 
@@ -112,6 +152,19 @@ export const historyRouter = router({
       const repository = new HistoryRepository(ctx.db.db);
       return await repository.getCoverage("chargehq", input.vehicleId);
     }),
+
+  getSolarWebCredentials: publicProcedure.query(async ({ ctx }) => {
+    const [email, pvSystemId, passwordRow] = await Promise.all([
+      ctx.db.getPluginConfig(SOLARWEB_EMAIL_KEY),
+      ctx.db.getPluginConfig(SOLARWEB_SYSTEM_ID_KEY),
+      ctx.db.getSecret(SOLARWEB_PASSWORD_KEY),
+    ]);
+    return {
+      email: email ?? "",
+      pvSystemId: pvSystemId ?? "",
+      hasPassword: passwordRow !== null,
+    };
+  }),
 
   importChargeHq: publicProcedure
     .input(z.object({
@@ -171,7 +224,9 @@ export const historyRouter = router({
     .input(solarWebImportInput)
     .mutation(async ({ ctx, input }) => {
       const vehicle = await requireVehicle(ctx, input.vehicleId);
-      const history = await readSolarWebHistory(input);
+      const resolvedInput = await resolveSolarWebInput(ctx, input);
+      const history = await readSolarWebHistory(resolvedInput);
+      await saveSolarWebCredentials(ctx, input);
       const repository = new HistoryRepository(ctx.db.db);
       const importResult = await repository.importRows(input.vehicleId, history.rows);
       const coverage = await repository.getCoverage("solarweb", input.vehicleId);
