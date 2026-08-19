@@ -5,6 +5,11 @@ import { trpc } from "../../../trpc.ts";
 import { useRouter } from "../../../hooks/useRouter.ts";
 import { clearPluginOnboarding } from "../../../hooks/usePluginOnboardingState.ts";
 
+export type HomeChargingSource = "chargehq" | "solarweb";
+export type VehicleSettingsRow = VehicleWithState & {
+  homeChargingSource: HomeChargingSource | null;
+};
+
 function usePriorityMutation(utils: ReturnType<typeof trpc.useUtils>) {
   const priorityMutationRaw = trpc.vehicle.setPriority.useMutation();
   return useMutation({
@@ -22,7 +27,7 @@ function usePriorityMutation(utils: ReturnType<typeof trpc.useUtils>) {
 }
 
 function computePriorityUpdates(
-  vehicles: VehicleWithState[],
+  vehicles: VehicleSettingsRow[],
   vin: string,
   direction: "up" | "down",
 ) {
@@ -46,14 +51,22 @@ export function useVehicleSettings() {
 
   const utils = trpc.useUtils();
   const vehiclesQuery = trpc.vehicle.list.useQuery(undefined, {
-    select: (data) => data.vehicles as VehicleWithState[],
+    select: (data) => data.vehicles as VehicleSettingsRow[],
   });
 
   const vehicles = vehiclesQuery.data ?? [];
 
-  // No onSuccess cache work: RealtimeSync handles vehicles_changed invalidation.
+  // No onSuccess cache work for ordinary vehicle state: RealtimeSync handles
+  // vehicles_changed invalidation. Home-history source is configuration, so it
+  // explicitly invalidates vehicle metadata and stats after a user change.
   const deleteMutation = trpc.vehicle.delete.useMutation();
   const priorityMutation = usePriorityMutation(utils);
+  const homeSourceMutation = trpc.history.setHomeChargingSource.useMutation({
+    onSuccess: () => {
+      utils.vehicle.list.invalidate();
+      utils.stats.invalidate();
+    },
+  });
 
   const handleDelete = (vin: string) =>
     deleteMutation.mutate({ vehicleId: vin });
@@ -64,6 +77,13 @@ export function useVehicleSettings() {
     priorityMutation.mutate(updates);
   };
 
+  const handleHomeChargingSource = (
+    vin: string,
+    source: HomeChargingSource | null,
+  ) => {
+    homeSourceMutation.mutate({ vehicleId: vin, source });
+  };
+
   const vehiclePluginsQuery = trpc.vehicle.getPlugins.useQuery();
   const vehiclePlugins = vehiclePluginsQuery.data ?? [];
 
@@ -72,7 +92,7 @@ export function useVehicleSettings() {
     navigate({ type: "pluginSetup", pluginId });
   }, [navigate]);
 
-  const mutations = [deleteMutation, priorityMutation];
+  const mutations = [deleteMutation, priorityMutation, homeSourceMutation];
   const displayError = vehiclesQuery.error?.message ??
     mutations.find((m) => m.error)?.error?.message ?? null;
 
@@ -83,6 +103,8 @@ export function useVehicleSettings() {
     error: displayError,
     handleDelete,
     handleMovePriority,
+    handleHomeChargingSource,
+    homeSourcePending: homeSourceMutation.isPending,
     vehiclePlugins,
     handleStartOnboarding,
   };
