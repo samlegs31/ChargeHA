@@ -10,32 +10,31 @@ import { MockEventEmitter } from "../test-helpers/MockEventEmitter.ts";
 import { TypedEventEmitter } from "./TypedEventEmitter.ts";
 import { VehicleManager } from "./VehicleManager.ts";
 
-const state: VehicleChargeState = {
-  vehicleId: "edith",
-  batteryLevel: 75,
-  chargeLimit: 100,
-  isCharging: true,
-  isPluggedIn: true,
-  isOnline: true,
-  chargeAmps: 20,
-  chargeAmpsMax: 20,
-  chargeAmpsMin: 6,
-  chargePowerKw: 4.6,
-  chargerVoltage: 230,
-  chargerPhases: 1,
-  energyAddedKwh: 8.9,
-  minutesToFull: 215,
-  chargePortOpen: true,
-  vehicleName: "E.D.I.T.H.",
-  lastUpdated: new Date().toISOString(),
-  latitude: 43.6,
-  longitude: 1.5,
-  isHome: true,
-};
-
-const commandContext = { origin: "controller:test", traceId: "test" };
-
 describe("VehicleManager Wattpilot safety gate", () => {
+  const state: VehicleChargeState = {
+    vehicleId: "edith",
+    batteryLevel: 75,
+    chargeLimit: 100,
+    isCharging: true,
+    isPluggedIn: true,
+    isOnline: true,
+    chargeAmps: 20,
+    chargeAmpsMax: 20,
+    chargeAmpsMin: 6,
+    chargePowerKw: 4.6,
+    chargerVoltage: 230,
+    chargerPhases: 1,
+    energyAddedKwh: 8.9,
+    minutesToFull: 215,
+    chargePortOpen: true,
+    vehicleName: "E.D.I.T.H.",
+    lastUpdated: new Date().toISOString(),
+    latitude: 43.6,
+    longitude: 1.5,
+    isHome: true,
+  };
+  const commandContext = { origin: "controller:test", traceId: "test" };
+
   let db: AppDatabase;
   let manager: VehicleManager;
   let middleware: MockMiddleware;
