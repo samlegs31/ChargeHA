@@ -13,6 +13,7 @@ type VehicleMutations = Pick<
   | "vehicle.delete"
   | "vehicle.setMode"
   | "vehicle.setPriority"
+  | "vehicle.setChargeController"
   | "vehicle.command"
   | "vehicle.setAmps"
   | "vehicle.refreshState"
@@ -124,6 +125,14 @@ export const vehicleMutations: VehicleMutations = {
   "vehicle.setPriority": (input) => {
     patchVehicle(input.vehicleId, (v) => ({ ...v, priority: input.priority }));
     return { success: true, priority: input.priority };
+  },
+
+  "vehicle.setChargeController": (input) => {
+    patchVehicle(input.vehicleId, (v) => ({
+      ...v,
+      chargeController: input.chargeController,
+    }));
+    return { success: true, chargeController: input.chargeController };
   },
 
   "vehicle.command": (input) => {
