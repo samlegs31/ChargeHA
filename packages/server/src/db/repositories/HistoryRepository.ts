@@ -319,6 +319,7 @@ export class HistoryRepository {
             AND datetime(
               vh.start_time_utc, '+' || vh.interval_seconds || ' seconds'
             ) > h.start_time_utc
+            ${this.nativeHistorySelectedHomeExclusion()}
         ))
     `;
   }
@@ -382,6 +383,7 @@ export class HistoryRepository {
             AND datetime(
               vh.start_time_utc, '+' || vh.interval_seconds || ' seconds'
             ) > h.start_time_utc
+            ${this.nativeHistorySelectedHomeExclusion()}
         ))
     `;
   }
@@ -466,6 +468,34 @@ export class HistoryRepository {
               home.start_time_utc, '+' || home.interval_seconds || ' seconds'
             ) > h.start_time_utc
         )
+      )
+    `;
+  }
+
+  /**
+   * A native Tesla row only suppresses ChargeHQ Away when that Tesla row would
+   * itself remain visible after applying the selected Home source. This avoids
+   * dropping both rows when a Home session replaces the Tesla duplicate.
+   */
+  private nativeHistorySelectedHomeExclusion() {
+    return sql`
+      AND NOT EXISTS (
+        SELECT 1 FROM vehicle_charge_history home
+        WHERE home.vehicle_id = vh.vehicle_id
+          AND home.source IN ('chargehq', 'solarweb')
+          AND home.at_home_wh > 0
+          AND (
+            (SELECT v.home_charging_source FROM vehicles v WHERE v.id = vh.vehicle_id) IS NULL
+            OR home.source = (
+              SELECT v.home_charging_source FROM vehicles v WHERE v.id = vh.vehicle_id
+            )
+          )
+          AND home.start_time_utc < datetime(
+            vh.start_time_utc, '+' || vh.interval_seconds || ' seconds'
+          )
+          AND datetime(
+            home.start_time_utc, '+' || home.interval_seconds || ' seconds'
+          ) > vh.start_time_utc
       )
     `;
   }
