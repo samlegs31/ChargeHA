@@ -68,6 +68,8 @@ interface TeslaChargeState {
 type TeslaAdapterChargeState = AdapterVehicleChargeState & {
   /** Tesla charger_actual_current: measured draw, not the control target. */
   chargeAmpsActual: number;
+  /** Exterior paint reported by Tesla vehicle_config. */
+  exteriorColor: string | null;
 };
 
 /** Tesla Fleet API vehicle_state fields used by this adapter. */
@@ -76,16 +78,22 @@ interface TeslaVehicleState {
   car_type?: string;
 }
 
+/** Tesla Fleet API vehicle_config fields used by this adapter. */
+interface TeslaVehicleConfig {
+  exterior_color?: string;
+}
+
 /** Tesla Fleet API drive_state fields used by this adapter. */
 interface TeslaDriveState {
   latitude?: number;
   longitude?: number;
 }
 
-/** Response shape for /vehicle_data with charge_state + vehicle_state endpoints. */
+/** Response shape for /vehicle_data endpoints used by the adapter. */
 interface TeslaVehicleDataResponse {
   charge_state: TeslaChargeState;
   vehicle_state?: TeslaVehicleState;
+  vehicle_config?: TeslaVehicleConfig;
   drive_state?: TeslaDriveState;
   state?: string;
 }
@@ -141,12 +149,12 @@ export class TeslaAdapter implements VehicleAdapter {
     // No persistent connection to clean up
   }
 
-  async getChargeState(ctx: CallContext): Promise<AdapterVehicleChargeState> {
+  async getChargeState(ctx: CallContext): Promise<TeslaAdapterChargeState> {
     // `;` must be percent-encoded — Tesla's gateway treats raw `;` as a
     // query-param separator and silently drops everything after the
-    // first endpoint, leaving drive_state / vehicle_state missing.
+    // first endpoint, leaving later endpoint groups missing.
     const endpoints = encodeURIComponent(
-      "charge_state;vehicle_state;location_data",
+      "charge_state;vehicle_state;location_data;vehicle_config",
     );
     const data = await this.fleetApiGet<TeslaVehicleDataResponse>(
       `/api/1/vehicles/${this.vin}/vehicle_data?endpoints=${endpoints}`,
@@ -156,6 +164,7 @@ export class TeslaAdapter implements VehicleAdapter {
     const response = data.response;
     const charge = response.charge_state;
     const vehicle = response.vehicle_state;
+    const vehicleConfig = response.vehicle_config;
     const drive = response.drive_state;
     const chargingState = charge.charging_state ?? "Unknown";
 
@@ -203,6 +212,7 @@ export class TeslaAdapter implements VehicleAdapter {
       minutesToFull: charge.minutes_to_full_charge ?? 0,
       chargePortOpen: charge.charge_port_door_open ?? false,
       vehicleName: vehicle?.vehicle_name ?? "Tesla",
+      exteriorColor: vehicleConfig?.exterior_color ?? null,
       lastUpdated: new Date().toISOString(),
       latitude: drive?.latitude ?? null,
       longitude: drive?.longitude ?? null,
