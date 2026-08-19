@@ -15,12 +15,14 @@ const { makeHookReturn, hookRef } = vi.hoisted(() => {
       name: string;
       adapterType: string;
       priority: number;
+      config: string;
     }>,
     loading: false,
     loadFailed: false,
     error: null as string | null,
     handleDelete: vi.fn(),
     handleMovePriority: vi.fn(),
+    handleChargeControllerChange: vi.fn(),
     vehiclePlugins: [] as Array<{
       id: string;
       displayName: string;
@@ -125,7 +127,13 @@ describe("VehicleSettings", () => {
   it("renders vehicle list", () => {
     hookRef.current = makeHookReturn({
       vehicles: [
-        { id: "VIN1", name: "Model 3", adapterType: "tesla", priority: 1 },
+        {
+          id: "VIN1",
+          name: "Model 3",
+          adapterType: "tesla",
+          priority: 1,
+          config: "{}",
+        },
       ],
     });
     renderWithProviders(<VehicleSettings />);
@@ -137,8 +145,20 @@ describe("VehicleSettings", () => {
   it("renders priority controls when multiple vehicles", () => {
     hookRef.current = makeHookReturn({
       vehicles: [
-        { id: "VIN1", name: "Model 3", adapterType: "tesla", priority: 1 },
-        { id: "VIN2", name: "Model Y", adapterType: "tesla", priority: 2 },
+        {
+          id: "VIN1",
+          name: "Model 3",
+          adapterType: "tesla",
+          priority: 1,
+          config: "{}",
+        },
+        {
+          id: "VIN2",
+          name: "Model Y",
+          adapterType: "tesla",
+          priority: 2,
+          config: "{}",
+        },
       ],
     });
     renderWithProviders(<VehicleSettings />);
@@ -152,7 +172,13 @@ describe("VehicleSettings", () => {
   it("does not render priority controls for single vehicle", () => {
     hookRef.current = makeHookReturn({
       vehicles: [
-        { id: "VIN1", name: "Model 3", adapterType: "tesla", priority: 1 },
+        {
+          id: "VIN1",
+          name: "Model 3",
+          adapterType: "tesla",
+          priority: 1,
+          config: "{}",
+        },
       ],
     });
     renderWithProviders(<VehicleSettings />);
@@ -163,7 +189,13 @@ describe("VehicleSettings", () => {
     const handleDelete = vi.fn();
     hookRef.current = makeHookReturn({
       vehicles: [
-        { id: "VIN1", name: "Model 3", adapterType: "tesla", priority: 1 },
+        {
+          id: "VIN1",
+          name: "Model 3",
+          adapterType: "tesla",
+          priority: 1,
+          config: "{}",
+        },
       ],
       handleDelete,
     });
@@ -178,8 +210,20 @@ describe("VehicleSettings", () => {
     const handleMovePriority = vi.fn();
     hookRef.current = makeHookReturn({
       vehicles: [
-        { id: "VIN1", name: "Model 3", adapterType: "tesla", priority: 1 },
-        { id: "VIN2", name: "Model Y", adapterType: "tesla", priority: 2 },
+        {
+          id: "VIN1",
+          name: "Model 3",
+          adapterType: "tesla",
+          priority: 1,
+          config: "{}",
+        },
+        {
+          id: "VIN2",
+          name: "Model Y",
+          adapterType: "tesla",
+          priority: 2,
+          config: "{}",
+        },
       ],
       handleMovePriority,
     });
@@ -188,6 +232,52 @@ describe("VehicleSettings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Move Model 3 down" }));
 
     expect(handleMovePriority).toHaveBeenCalledWith("VIN1", "down");
+  });
+
+  it("selects Wattpilot as the vehicle charge controller", () => {
+    const handleChargeControllerChange = vi.fn();
+    hookRef.current = makeHookReturn({
+      vehicles: [
+        {
+          id: "VIN2",
+          name: "E.D.I.T.H.",
+          adapterType: "tesla",
+          priority: 1,
+          config: "{}",
+        },
+      ],
+      handleChargeControllerChange,
+    });
+    renderWithProviders(<VehicleSettings />);
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Charge control for E.D.I.T.H." }),
+      { target: { value: "wattpilot" } },
+    );
+
+    expect(handleChargeControllerChange).toHaveBeenCalledWith(
+      "VIN2",
+      "wattpilot",
+    );
+  });
+
+  it("shows Wattpilot when stored in the vehicle config", () => {
+    hookRef.current = makeHookReturn({
+      vehicles: [
+        {
+          id: "VIN2",
+          name: "E.D.I.T.H.",
+          adapterType: "tesla",
+          priority: 1,
+          config: '{"chargeController":"wattpilot"}',
+        },
+      ],
+    });
+    renderWithProviders(<VehicleSettings />);
+
+    expect(
+      screen.getByRole("combobox", { name: "Charge control for E.D.I.T.H." }),
+    ).toHaveValue("wattpilot");
   });
 
   it("does not expose simulated vehicle controls", () => {
