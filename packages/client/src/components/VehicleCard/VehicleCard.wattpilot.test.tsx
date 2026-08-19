@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import type { VehicleChargeState } from "@chargeha/shared";
 import { renderWithProviders } from "../../test-utils.tsx";
 import { VehicleCard } from "./VehicleCard.tsx";
@@ -9,7 +10,9 @@ vi.mock("../StaticMap/StaticMap.tsx", () => ({
   StaticMap: () => <div data-testid="static-map" />,
 }));
 
-const state = (overrides: Partial<VehicleChargeState> = {}): VehicleChargeState => ({
+const state = (
+  overrides: Partial<VehicleChargeState> = {},
+): VehicleChargeState => ({
   vehicleId: "edith",
   batteryLevel: 75,
   chargeLimit: 100,
@@ -33,7 +36,9 @@ const state = (overrides: Partial<VehicleChargeState> = {}): VehicleChargeState 
   ...overrides,
 });
 
-function renderWattpilot(overrides: Record<string, unknown> = {}) {
+type VehicleCardProps = ComponentProps<typeof VehicleCard>;
+
+function renderWattpilot(overrides: Partial<VehicleCardProps> = {}) {
   return renderWithProviders(
     <VehicleCard
       name="E.D.I.T.H."
