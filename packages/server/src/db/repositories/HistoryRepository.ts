@@ -234,7 +234,7 @@ export class HistoryRepository {
         SUM(grid_wh) AS grid_wh, SUM(away_wh) AS away_wh,
         SUM(charged_wh) AS total_wh
       FROM archive GROUP BY bucket ORDER BY bucket
-    `);
+    `;
     return rows.map((row) => this.mapStatsRow(row));
   }
 
@@ -446,23 +446,26 @@ export class HistoryRepository {
    */
   private selectedHomeOverlapExclusion() {
     return sql`
-      AND NOT EXISTS (
-        SELECT 1 FROM vehicle_charge_history home
-        WHERE home.vehicle_id = h.vehicle_id
-          AND home.source IN ('chargehq', 'solarweb')
-          AND home.at_home_wh > 0
-          AND (
-            (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
-            OR home.source = (
-              SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+      AND (
+        h.source <> 'vehicle-history'
+        OR NOT EXISTS (
+          SELECT 1 FROM vehicle_charge_history home
+          WHERE home.vehicle_id = h.vehicle_id
+            AND home.source IN ('chargehq', 'solarweb')
+            AND home.at_home_wh > 0
+            AND (
+              (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
+              OR home.source = (
+                SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+              )
             )
-          )
-          AND home.start_time_utc < datetime(
-            h.start_time_utc, '+' || h.interval_seconds || ' seconds'
-          )
-          AND datetime(
-            home.start_time_utc, '+' || home.interval_seconds || ' seconds'
-          ) > h.start_time_utc
+            AND home.start_time_utc < datetime(
+              h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+            )
+            AND datetime(
+              home.start_time_utc, '+' || home.interval_seconds || ' seconds'
+            ) > h.start_time_utc
+        )
       )
     `;
   }
