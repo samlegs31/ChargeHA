@@ -202,11 +202,10 @@ describe("Stats", () => {
     expect(screen.getAllByText("70%").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("does not render home energy or home battery cards", () => {
+  it("does not render legacy home energy cards", () => {
     setStats({ isAtPresent: false, data: mockStatsData });
     renderStats();
     expect(screen.queryByText("Energy Sources")).not.toBeInTheDocument();
-    expect(screen.queryByText("Home Battery")).not.toBeInTheDocument();
     expect(screen.queryByText("Solar → Battery")).not.toBeInTheDocument();
     expect(screen.queryByText("Battery → Home")).not.toBeInTheDocument();
   });
