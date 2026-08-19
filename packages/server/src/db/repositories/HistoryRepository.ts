@@ -262,6 +262,11 @@ export class HistoryRepository {
     `;
   }
 
+  /**
+   * Home rows follow the vehicle's explicit source selection. Vehicles created
+   * before this setting existed keep the historical behaviour: Solar.web wins
+   * only where it overlaps ChargeHQ, otherwise ChargeHQ remains a fallback.
+   */
   private vehicleHomeRows(vehicleId: string, range: LocalRange) {
     return sql`
       SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
@@ -274,11 +279,21 @@ export class HistoryRepository {
         AND h.start_time_local < ${range.endExclusive}
         AND h.at_home_wh > 0
         ${this.nativeVehiclePriorityFilter()}
-        AND (h.source = 'solarweb' OR NOT EXISTS (
-          SELECT 1 FROM vehicle_charge_history sw
-          WHERE sw.source = 'solarweb' AND sw.vehicle_id = h.vehicle_id
-            ${this.vehicleOverlapFilter()}
-        ))
+        AND (
+          (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
+          OR h.source = (
+            SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+          )
+        )
+        AND (
+          (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NOT NULL
+          OR h.source = 'solarweb'
+          OR NOT EXISTS (
+            SELECT 1 FROM vehicle_charge_history sw
+            WHERE sw.source = 'solarweb' AND sw.vehicle_id = h.vehicle_id
+              ${this.vehicleOverlapFilter()}
+          )
+        )
     `;
   }
 
@@ -294,11 +309,7 @@ export class HistoryRepository {
         AND h.start_time_local < ${range.endExclusive}
         AND h.away_wh > 0
         ${this.nativeVehiclePriorityFilter()}
-        AND NOT EXISTS (
-          SELECT 1 FROM vehicle_charge_history sw
-          WHERE sw.source = 'solarweb' AND sw.vehicle_id = h.vehicle_id
-            ${this.vehicleOverlapFilter()}
-        )
+        ${this.selectedHomeOverlapExclusion()}
         AND (h.source = 'vehicle-history' OR NOT EXISTS (
           SELECT 1 FROM vehicle_charge_history vh
           WHERE vh.source = 'vehicle-history' AND vh.vehicle_id = h.vehicle_id
@@ -319,22 +330,33 @@ export class HistoryRepository {
         0.0 AS away_wh, h.at_home_wh
       FROM vehicle_charge_history h
       WHERE h.source IN ('chargehq', 'solarweb')
+        AND EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
         AND h.start_time_local >= ${range.start}
         AND h.start_time_local < ${range.endExclusive}
         AND h.at_home_wh > 0
         ${this.nativeVehiclePriorityFilter()}
-        AND (h.source = 'solarweb' OR (
-          NOT EXISTS (
-            SELECT 1 FROM vehicle_charge_history sw
-            WHERE sw.source = 'solarweb' AND sw.vehicle_id = h.vehicle_id
-              ${this.vehicleOverlapFilter()}
+        AND (
+          (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
+          OR h.source = (
+            SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
           )
-          AND NOT EXISTS (
-            SELECT 1 FROM aggregate_ev_charge_history sw
-            WHERE sw.source = 'solarweb'
-              ${this.aggregateOverlapWithVehicleFilter()}
+        )
+        AND (
+          (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NOT NULL
+          OR h.source = 'solarweb'
+          OR (
+            NOT EXISTS (
+              SELECT 1 FROM vehicle_charge_history sw
+              WHERE sw.source = 'solarweb' AND sw.vehicle_id = h.vehicle_id
+                ${this.vehicleOverlapFilter()}
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM aggregate_ev_charge_history sw
+              WHERE sw.source = 'solarweb'
+                ${this.aggregateOverlapWithVehicleFilter()}
+            )
           )
-        ))
+        )
     `;
   }
 
@@ -350,11 +372,7 @@ export class HistoryRepository {
         AND h.away_wh > 0
         ${this.nativeVehiclePriorityFilter()}
         AND EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
-        AND NOT EXISTS (
-          SELECT 1 FROM vehicle_charge_history sw
-          WHERE sw.source = 'solarweb' AND sw.vehicle_id = h.vehicle_id
-            ${this.vehicleOverlapFilter()}
-        )
+        ${this.selectedHomeOverlapExclusion()}
         AND (h.source = 'vehicle-history' OR NOT EXISTS (
           SELECT 1 FROM vehicle_charge_history vh
           WHERE vh.source = 'vehicle-history' AND vh.vehicle_id = h.vehicle_id
@@ -379,13 +397,21 @@ export class HistoryRepository {
         AND a.start_time_local < ${range.endExclusive}
         ${this.nativeAggregatePriorityFilter()}
         AND NOT EXISTS (
-          SELECT 1 FROM vehicle_charge_history sw
-          WHERE sw.source = 'solarweb'
-            AND sw.start_time_utc < datetime(
+          SELECT 1 FROM vehicle_charge_history h
+          WHERE h.source IN ('chargehq', 'solarweb')
+            AND h.at_home_wh > 0
+            AND EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
+            AND (
+              (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
+              OR h.source = (
+                SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+              )
+            )
+            AND h.start_time_utc < datetime(
               a.start_time_utc, '+' || a.interval_seconds || ' seconds'
             )
             AND datetime(
-              sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
+              h.start_time_utc, '+' || h.interval_seconds || ' seconds'
             ) > a.start_time_utc
         )
     `;
@@ -410,6 +436,34 @@ export class HistoryRepository {
       AND datetime(
         sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
       ) > h.start_time_utc
+    `;
+  }
+
+  /**
+   * Tesla/vehicle archive rows are External only when they do not overlap the
+   * selected home source for that same VIN. Before a source is configured,
+   * either recognised home source may suppress an external duplicate.
+   */
+  private selectedHomeOverlapExclusion() {
+    return sql`
+      AND NOT EXISTS (
+        SELECT 1 FROM vehicle_charge_history home
+        WHERE home.vehicle_id = h.vehicle_id
+          AND home.source IN ('chargehq', 'solarweb')
+          AND home.at_home_wh > 0
+          AND (
+            (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
+            OR home.source = (
+              SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+            )
+          )
+          AND home.start_time_utc < datetime(
+            h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+          )
+          AND datetime(
+            home.start_time_utc, '+' || home.interval_seconds || ' seconds'
+          ) > h.start_time_utc
+      )
     `;
   }
 
