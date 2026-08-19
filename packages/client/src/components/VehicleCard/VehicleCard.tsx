@@ -268,6 +268,28 @@ function ExternalControllerNotice() {
   );
 }
 
+function ChargeControlModeSection(
+  { externallyManaged, mode, disabled, isPluggedIn, pending, onChangeMode }: {
+    externallyManaged: boolean;
+    mode: VehicleMode;
+    disabled: boolean;
+    isPluggedIn: boolean;
+    pending: string;
+    onChangeMode: (mode: VehicleMode) => void;
+  },
+) {
+  if (externallyManaged) return <ExternalControllerNotice />;
+  return (
+    <VehicleModeToggle
+      mode={mode}
+      disabled={disabled}
+      isPluggedIn={isPluggedIn}
+      pending={pending}
+      onChangeMode={onChangeMode}
+    />
+  );
+}
+
 function VehicleBatterySection(
   { batteryPercent, chargeLimitPercent, isCharging }: {
     batteryPercent: number;
@@ -300,11 +322,35 @@ function VehicleBatterySection(
   );
 }
 
-function isTeslaPairingError(error: string | null | undefined): boolean {
+function isPublicKeyPairingError(error: string | null | undefined): boolean {
   if (!error) return false;
   const normalized = error.toLowerCase();
   return normalized.includes("public key") &&
     (normalized.includes("not been paired") || normalized.includes("not paired"));
+}
+
+function getVisibleVehicleError(
+  externallyManaged: boolean,
+  vehicleError: string | null | undefined,
+) {
+  if (externallyManaged && isPublicKeyPairingError(vehicleError)) return null;
+  return vehicleError;
+}
+
+function VehicleStatus(
+  { state, mode, atHome, chargeController }: {
+    state: VehicleChargeState;
+    mode: VehicleMode;
+    atHome: boolean | null | undefined;
+    chargeController: VehicleChargeController;
+  },
+) {
+  return (
+    <div className={styles.status}>
+      <StatusIcon state={state} />
+      <Text size="2">{getStatusText(state, mode, atHome, chargeController)}</Text>
+    </div>
+  );
 }
 
 export function VehicleCard({
@@ -344,7 +390,6 @@ export function VehicleCard({
     );
   }
 
-  // Re-render every 30s to keep relative time fresh
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30_000);
@@ -354,11 +399,12 @@ export function VehicleCard({
   const batteryPercent = Math.round(state.batteryLevel);
   const chargeLimitPercent = Math.round(state.chargeLimit);
   const pending = commandPending || "";
-  const wattpilotManaged = chargeController === "wattpilot";
+  const externallyManaged = chargeController === "wattpilot";
   const disabled = !!commandPending || commandsDisabled;
-  const visibleVehicleError = wattpilotManaged && isTeslaPairingError(vehicleError)
-    ? null
-    : vehicleError;
+  const visibleVehicleError = getVisibleVehicleError(
+    externallyManaged,
+    vehicleError,
+  );
   const lastUpdatedText = state.lastUpdated
     ? formatRelativeTime(new Date(state.lastUpdated))
     : null;
@@ -376,45 +422,34 @@ export function VehicleCard({
         onRefresh={onRefresh}
       />
       <VehicleCardBanners
-        commandsDisabled={wattpilotManaged ? false : commandsDisabled}
+        commandsDisabled={externallyManaged ? false : commandsDisabled}
         commandsDisabledReason={commandsDisabledReason}
         onNavigateSettings={onNavigateSettings}
         vehicleError={visibleVehicleError}
         pollingSuspended={pollingSuspended}
         pollingSuspendReason={pollingSuspendReason}
       />
-      {wattpilotManaged
-        ? <ExternalControllerNotice />
-        : (
-          <VehicleModeToggle
-            mode={mode}
-            disabled={disabled}
-            isPluggedIn={state.isPluggedIn}
-            pending={pending}
-            onChangeMode={onChangeMode}
-          />
-        )}
+      <ChargeControlModeSection
+        externallyManaged={externallyManaged}
+        mode={mode}
+        disabled={disabled}
+        isPluggedIn={state.isPluggedIn}
+        pending={pending}
+        onChangeMode={onChangeMode}
+      />
       <VehicleBatterySection
         batteryPercent={batteryPercent}
         chargeLimitPercent={chargeLimitPercent}
         isCharging={state.isCharging}
       />
-
-      {/* Status */}
-      <div className={styles.status}>
-        <StatusIcon state={state} />
-        <Text size="2">
-          {getStatusText(state, mode, atHome, chargeController)}
-        </Text>
-      </div>
-
-      {/* Informational forecast lives directly under vehicle status. */}
+      <VehicleStatus
+        state={state}
+        mode={mode}
+        atHome={atHome}
+        chargeController={chargeController}
+      />
       {forecastContent}
-
-      {/* Spacer when unplugged so the card has room for the map below. */}
       {!state.isPluggedIn && <div style={{ height: 20 }} />}
-
-      {/* Charge details and controls (when plugged in) */}
       {state.isPluggedIn && (
         <VehicleCardDetails
           allocationStatus={allocationStatus ?? null}
@@ -430,11 +465,9 @@ export function VehicleCard({
           batteryPowerW={batteryPowerW}
           gridPowerW={gridPowerW}
           chargeLimitPercent={chargeLimitPercent}
-          externalControllerLabel={wattpilotManaged ? "Wattpilot" : null}
+          externalControllerLabel={externallyManaged ? "Wattpilot" : null}
         />
       )}
-
-      {/* Location map — small thumbnail, reveals more map on hover */}
       {lastLocation && (
         <div className={styles.mapCircle}>
           <div className={styles.mapInner}>
