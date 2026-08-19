@@ -48,9 +48,10 @@ function ConnectedVehicleCard(
     { vehicleId },
     { refetchInterval: 30_000 },
   );
-  const forecastEligible = props.chargeController !== "wattpilot" &&
-    props.state.isPluggedIn && props.atHome !== false &&
-    (props.mode === "vacation" || props.mode === "auto");
+  const directControl = props.chargeController !== "wattpilot";
+  const pluggedAtHome = props.state.isPluggedIn && props.atHome !== false;
+  const forecastMode = props.mode === "vacation" || props.mode === "auto";
+  const forecastEligible = directControl && pluggedAtHome && forecastMode;
   const forecast = trpc.forecast.today.useQuery(
     { vehicleId },
     {
