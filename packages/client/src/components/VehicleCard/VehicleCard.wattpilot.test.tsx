@@ -10,54 +10,54 @@ vi.mock("../StaticMap/StaticMap.tsx", () => ({
   StaticMap: () => <div data-testid="static-map" />,
 }));
 
-const state = (
-  overrides: Partial<VehicleChargeState> = {},
-): VehicleChargeState => ({
-  vehicleId: "edith",
-  batteryLevel: 75,
-  chargeLimit: 100,
-  isCharging: true,
-  isPluggedIn: true,
-  isOnline: true,
-  chargeAmps: 20,
-  chargeAmpsMax: 20,
-  chargeAmpsMin: 6,
-  chargePowerKw: 4.6,
-  chargerVoltage: 230,
-  chargerPhases: 1,
-  energyAddedKwh: 8.9,
-  minutesToFull: 215,
-  chargePortOpen: true,
-  vehicleName: "E.D.I.T.H.",
-  lastUpdated: new Date().toISOString(),
-  latitude: 43.6,
-  longitude: 1.5,
-  isHome: true,
-  ...overrides,
-});
-
 type VehicleCardProps = ComponentProps<typeof VehicleCard>;
 
-function renderWattpilot(overrides: Partial<VehicleCardProps> = {}) {
-  return renderWithProviders(
-    <VehicleCard
-      name="E.D.I.T.H."
-      state={state()}
-      priority={2}
-      mode="vacation"
-      chargeController="wattpilot"
-      commandPending={false}
-      onStartCharging={vi.fn()}
-      onStopCharging={vi.fn()}
-      onSetAmps={vi.fn()}
-      onChangeMode={vi.fn()}
-      atHome={true}
-      {...overrides}
-    />,
-  );
-}
-
 describe("VehicleCard Wattpilot control", () => {
+  const state = (
+    overrides: Partial<VehicleChargeState> = {},
+  ): VehicleChargeState => ({
+    vehicleId: "edith",
+    batteryLevel: 75,
+    chargeLimit: 100,
+    isCharging: true,
+    isPluggedIn: true,
+    isOnline: true,
+    chargeAmps: 20,
+    chargeAmpsMax: 20,
+    chargeAmpsMin: 6,
+    chargePowerKw: 4.6,
+    chargerVoltage: 230,
+    chargerPhases: 1,
+    energyAddedKwh: 8.9,
+    minutesToFull: 215,
+    chargePortOpen: true,
+    vehicleName: "E.D.I.T.H.",
+    lastUpdated: new Date().toISOString(),
+    latitude: 43.6,
+    longitude: 1.5,
+    isHome: true,
+    ...overrides,
+  });
+
+  const renderWattpilot = (overrides: Partial<VehicleCardProps> = {}) => {
+    return renderWithProviders(
+      <VehicleCard
+        name="E.D.I.T.H."
+        state={state()}
+        priority={2}
+        mode="vacation"
+        chargeController="wattpilot"
+        commandPending={false}
+        onStartCharging={vi.fn()}
+        onStopCharging={vi.fn()}
+        onSetAmps={vi.fn()}
+        onChangeMode={vi.fn()}
+        atHome={true}
+        {...overrides}
+      />,
+    );
+  };
+
   afterEach(cleanup);
 
   it("shows Wattpilot as the active charging controller and hides Tesla controls", () => {
