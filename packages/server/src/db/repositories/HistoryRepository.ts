@@ -234,7 +234,7 @@ export class HistoryRepository {
         SUM(grid_wh) AS grid_wh, SUM(away_wh) AS away_wh,
         SUM(charged_wh) AS total_wh
       FROM archive GROUP BY bucket ORDER BY bucket
-    `;
+    `);
     return rows.map((row) => this.mapStatsRow(row));
   }
 
