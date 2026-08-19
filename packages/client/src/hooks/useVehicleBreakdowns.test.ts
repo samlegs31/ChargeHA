@@ -5,10 +5,17 @@ import React from "react";
 import { createTestQueryClient } from "../test-utils.tsx";
 import type { StatsResponse } from "@chargeha/shared";
 
+interface TestVehicle {
+  id: string;
+  name: string;
+  homeChargingSource?: "chargehq" | "solarweb" | null;
+  state?: { exteriorColor?: string | null } | null;
+}
+
 const hoisted = vi.hoisted(() => ({
   state: {
     listData: undefined as
-      | { vehicles: Array<{ id: string; name: string }> }
+      | { vehicles: TestVehicle[] }
       | undefined,
     listIsPending: false,
     queriesResults: [] as Array<
@@ -180,11 +187,21 @@ describe("useVehicleBreakdowns", () => {
     expect(result.current.vehicleBreakdownsLoading).toBe(true);
   });
 
-  it("maps vehicle query results to EV breakdowns", () => {
+  it("maps vehicle query results and visual metadata to EV breakdowns", () => {
     hoisted.state.listData = {
       vehicles: [
-        { id: "VIN1", name: "Model 3" },
-        { id: "VIN2", name: "Model Y" },
+        {
+          id: "VIN1",
+          name: "Model 3",
+          homeChargingSource: "solarweb",
+          state: { exteriorColor: "PearlWhiteMultiCoat" },
+        },
+        {
+          id: "VIN2",
+          name: "Model Y",
+          homeChargingSource: "chargehq",
+          state: { exteriorColor: "RedMulticoat" },
+        },
       ],
     };
     hoisted.state.queriesResults = [
@@ -220,6 +237,8 @@ describe("useVehicleBreakdowns", () => {
       {
         vehicleId: "VIN1",
         vehicleName: "Model 3",
+        exteriorColor: "PearlWhiteMultiCoat",
+        homeChargingSource: "solarweb",
         totalChargedWh: 3500,
         totalSolarWh: 2000,
         totalBatteryWh: 0,
@@ -231,6 +250,8 @@ describe("useVehicleBreakdowns", () => {
       {
         vehicleId: "VIN2",
         vehicleName: "Model Y",
+        exteriorColor: "RedMulticoat",
+        homeChargingSource: "chargehq",
         totalChargedWh: 2250,
         totalSolarWh: 1000,
         totalBatteryWh: 0,
@@ -280,6 +301,8 @@ describe("useVehicleBreakdowns", () => {
 
     expect(result.current.activeVehicleBreakdowns).toHaveLength(1);
     expect(result.current.activeVehicleBreakdowns[0].vehicleId).toBe("VIN1");
+    expect(result.current.activeVehicleBreakdowns[0].exteriorColor).toBeNull();
+    expect(result.current.activeVehicleBreakdowns[0].homeChargingSource).toBeNull();
   });
 
   it("filters out vehicles with no query data", () => {
