@@ -6,18 +6,10 @@ import React from "react";
 import { createTestQueryClient } from "../test-utils.tsx";
 
 const hoisted = vi.hoisted(() => ({
-  setStatus: vi.fn(),
   captured: {
     onData: undefined as
       | ((event: Record<string, unknown>) => void)
       | undefined,
-    onError: undefined as (() => void) | undefined,
-  },
-}));
-
-vi.mock("./useConnectionStatus.ts", () => ({
-  connectionStatusStore: {
-    setState: (...args: unknown[]) => hoisted.setStatus(...args),
   },
 }));
 
@@ -30,11 +22,9 @@ vi.mock("../trpc.ts", () => ({
           _input: unknown,
           opts: {
             onData: (event: Record<string, unknown>) => void;
-            onError: () => void;
           },
         ) => {
           hoisted.captured.onData = opts.onData;
-          hoisted.captured.onError = opts.onError;
         },
       },
     },
@@ -64,9 +54,7 @@ describe("useRealtimeEvents", () => {
   };
 
   beforeEach(() => {
-    hoisted.setStatus.mockClear();
     hoisted.captured.onData = undefined;
-    hoisted.captured.onError = undefined;
   });
 
   it.each([
@@ -95,24 +83,6 @@ describe("useRealtimeEvents", () => {
     (Object.keys(handlers) as (keyof typeof handlers)[])
       .filter((k) => k !== handlerKey)
       .forEach((k) => expect(handlers[k]).not.toHaveBeenCalled());
-  });
-
-  it("sets connection status to connected on data event", () => {
-    setup();
-
-    assertExists(hoisted.captured.onData);
-    hoisted.captured.onData({ type: "energy_update", data: {} });
-
-    expect(hoisted.setStatus).toHaveBeenCalledWith("connected");
-  });
-
-  it("sets connection status to disconnected on error", () => {
-    setup();
-
-    assertExists(hoisted.captured.onError);
-    hoisted.captured.onError();
-
-    expect(hoisted.setStatus).toHaveBeenCalledWith("disconnected");
   });
 
   it("uses latest handler refs (handlers can change without re-subscribing)", () => {

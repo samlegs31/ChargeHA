@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { pageFromPath, useRouter } from "./useRouter.ts";
 
 describe("pageFromPath", () => {
@@ -7,8 +7,9 @@ describe("pageFromPath", () => {
     ["/", "dashboard"],
     ["/stats", "stats"],
     ["/schedules", "schedules"],
-    ["/logs", "logs"],
     ["/settings", "settings"],
+    ["/logs", "dashboard"],
+    ["/simulator", "dashboard"],
     ["/unknown", "dashboard"],
   ])("maps %s to %s", (path, page) => {
     expect(pageFromPath(path)).toBe(page);
@@ -16,8 +17,14 @@ describe("pageFromPath", () => {
 });
 
 describe("useRouter", () => {
+  const browserWindow = () => {
+    const browser = globalThis.document.defaultView;
+    if (!browser) throw new Error("jsdom window is unavailable");
+    return browser;
+  };
+
   beforeEach(() => {
-    globalThis.history.pushState(null, "", "/");
+    browserWindow().history.pushState(null, "", "/");
   });
 
   afterEach(() => {
@@ -35,9 +42,11 @@ describe("useRouter", () => {
       { type: "pluginSetup", pluginId: "fronius_local" },
     ],
     ["/login", { type: "login" }],
+    ["/logs", { type: "app", page: "dashboard" }],
+    ["/simulator", { type: "app", page: "dashboard" }],
     ["/unknown", { type: "app", page: "dashboard" }],
   ])("resolves %s", (path, expected) => {
-    globalThis.history.pushState(null, "", path);
+    browserWindow().history.pushState(null, "", path);
     const { result } = renderHook(() => useRouter());
     expect(result.current.route).toEqual(expected);
   });
@@ -59,28 +68,21 @@ describe("useRouter", () => {
       });
 
       expect(result.current.route).toEqual(target);
-      expect(globalThis.location.pathname).toBe(path);
+      expect(browserWindow().location.pathname).toBe(path);
     });
   });
 
   describe("popstate", () => {
-    it("updates route on browser back/forward", async () => {
+    it("updates route on browser back/forward events", () => {
       const { result } = renderHook(() => useRouter());
+      const browser = browserWindow();
 
-      // Navigate forward
       act(() => {
-        result.current.navigate({ type: "app", page: "stats" });
+        browser.history.pushState(null, "", "/stats");
+        browser.dispatchEvent(new browser.PopStateEvent("popstate"));
       });
-      expect(result.current.route).toEqual({ type: "app", page: "stats" });
 
-      // Simulate browser back
-      globalThis.history.back();
-      await waitFor(() => {
-        expect(result.current.route).toEqual({
-          type: "app",
-          page: "dashboard",
-        });
-      });
+      expect(result.current.route).toEqual({ type: "app", page: "stats" });
     });
   });
 

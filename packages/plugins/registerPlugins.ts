@@ -6,17 +6,15 @@ import type { VehiclePluginRegistry } from "@chargeha/server/bootstrap/VehiclePl
 import type { EnergyPluginRegistry } from "@chargeha/server/bootstrap/EnergyPluginRegistry";
 import { TeslaVehiclePlugin } from "./vehicles/tesla/server/index.ts";
 import { TeslaProxyManager } from "./vehicles/tesla/server/TeslaProxyManager.ts";
-import { SimulatedVehiclePlugin } from "./vehicles/simulated/server/index.ts";
 import { FroniusLocalPlugin } from "./energy/fronius-local/server/index.ts";
 import { FroniusCloudPlugin } from "./energy/fronius-cloud/server/index.ts";
 import { SigenergyLocalPlugin } from "./energy/sigenergy-local/server/index.ts";
 import { EnphaseLocalPlugin } from "./energy/enphase-local/server/index.ts";
-import { SimulatedEnergyPlugin } from "./energy/simulated/server/index.ts";
 
 /**
- * Instantiate every plugin the app supports and register each with its
- * registry. Plugins self-initialize in their constructors via the
- * `PluginDependencies` handed to them here.
+ * Instantiate the production plugins supported by E.V. Solar and register each
+ * with its registry. Development-only simulated adapters are intentionally not
+ * registered in production.
  *
  * The encryption key does not appear in this signature on purpose — secret
  * storage is encapsulated inside `AppDatabase`.
@@ -36,12 +34,8 @@ export function registerPlugins(
       new TeslaProxyManager(teslaDeps, teslaDeps.log),
     ),
   );
-  vehicleRegistry.register(new SimulatedVehiclePlugin(make("simulated")));
   energyRegistry.register(new FroniusLocalPlugin(make("fronius_local")));
   energyRegistry.register(new FroniusCloudPlugin(make("fronius_cloud")));
   energyRegistry.register(new SigenergyLocalPlugin(make("sigenergy_local")));
   energyRegistry.register(new EnphaseLocalPlugin(make("enphase_local")));
-  energyRegistry.register(
-    new SimulatedEnergyPlugin(make("simulated_energy")),
-  );
 }

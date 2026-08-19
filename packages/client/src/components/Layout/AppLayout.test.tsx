@@ -4,10 +4,6 @@ import { cleanup, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { renderWithProviders } from "../../test-utils.tsx";
 
-vi.mock("../ConnectionBadge/ConnectionBadge.tsx", () => ({
-  ConnectionBadge: () => <div data-testid="connection-badge" />,
-}));
-
 import { AppLayout } from "./AppLayout.tsx";
 
 describe("AppLayout", () => {
@@ -28,7 +24,7 @@ describe("AppLayout", () => {
     expect(screen.getByLabelText("E.V. Solar")).toBeInTheDocument();
   });
 
-  it.each(["Home", "Stats", "Schedules", "Logs", "Settings"])(
+  it.each(["Home", "Stats", "Schedules", "Settings"])(
     "renders %s nav link",
     (label) => {
       renderWithProviders(
@@ -41,14 +37,27 @@ describe("AppLayout", () => {
     },
   );
 
-  it("renders the connection badge", () => {
+  it("does not expose development navigation", () => {
     renderWithProviders(
       <AppLayout {...defaultProps}>
         <div />
       </AppLayout>,
     );
 
-    expect(screen.getByTestId("connection-badge")).toBeInTheDocument();
+    expect(screen.queryByText("Logs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Simulator")).not.toBeInTheDocument();
+  });
+
+  it("does not render realtime connection status labels", () => {
+    renderWithProviders(
+      <AppLayout {...defaultProps}>
+        <div />
+      </AppLayout>,
+    );
+
+    expect(screen.queryByText("LIVE")).not.toBeInTheDocument();
+    expect(screen.queryByText("CONNECTING")).not.toBeInTheDocument();
+    expect(screen.queryByText("OFFLINE")).not.toBeInTheDocument();
   });
 
   it("does not render a manual theme switch", () => {
@@ -160,9 +169,9 @@ describe("AppLayout", () => {
       screen.getByRole("button", { name: "Open menu" }),
     );
 
-    const logsLinks = screen.getAllByText("Logs");
-    await userEvent.click(logsLinks[logsLinks.length - 1]);
-    expect(onNavigate).toHaveBeenCalledWith("logs");
+    const settingsLinks = screen.getAllByText("Settings");
+    await userEvent.click(settingsLinks[settingsLinks.length - 1]);
+    expect(onNavigate).toHaveBeenCalledWith("settings");
     expect(screen.queryByRole("button", { name: "Close menu" })).not
       .toBeInTheDocument();
   });

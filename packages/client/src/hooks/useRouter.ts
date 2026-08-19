@@ -12,9 +12,7 @@ const PATH_TO_PAGE: Record<string, Page> = {
   "/": "dashboard",
   "/stats": "stats",
   "/schedules": "schedules",
-  "/logs": "logs",
   "/settings": "settings",
-  "/simulator": "simulator",
   "/dev/vehicle-visual": "vehicleVisualDev",
 };
 
@@ -22,9 +20,8 @@ const PAGE_TO_PATH: Record<Page, string> = {
   dashboard: "/",
   stats: "/stats",
   schedules: "/schedules",
-  logs: "/logs",
   settings: "/settings",
-  simulator: "/simulator",
+  simulator: "/",
   vehicleVisualDev: "/dev/vehicle-visual",
 };
 
@@ -96,7 +93,7 @@ const replacePath = (path: string): void => {
 // Browser back/forward: re-derive the route from the URL.
 globalThis.addEventListener("popstate", () => setRoute(routeFromUrl()));
 
-const subscribe = (notify: () => void): () => void => {
+const subscribe = (notify: () => void): (() => void) => {
   // First subscriber after a fresh mount re-syncs from the URL, so a direct
   // history change (e.g. between tests) is reflected.
   if (listeners.size === 0) currentRoute = routeFromUrl();

@@ -3,23 +3,19 @@ import { IconButton, Text, Tooltip } from "@radix-ui/themes";
 import {
   BarChart3,
   Calendar,
-  FlaskConical,
   LayoutDashboard,
   LogOut,
   Menu,
-  ScrollText,
   Settings,
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { ConnectionBadge } from "../ConnectionBadge/ConnectionBadge.tsx";
 import styles from "./AppLayout.module.css";
 
 export type Page =
   | "dashboard"
   | "stats"
   | "schedules"
-  | "logs"
   | "settings"
   | "simulator"
   | "vehicleVisualDev";
@@ -36,8 +32,6 @@ const NAV_ITEMS: { page: Page; label: string; icon: LucideIcon }[] = [
   { page: "dashboard", label: "Home", icon: LayoutDashboard },
   { page: "stats", label: "Stats", icon: BarChart3 },
   { page: "schedules", label: "Schedules", icon: Calendar },
-  { page: "logs", label: "Logs", icon: ScrollText },
-  { page: "simulator", label: "Simulator", icon: FlaskConical },
   { page: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -138,7 +132,6 @@ export function AppLayout(
           ))}
         </nav>
         <div className={styles.status}>
-          <ConnectionBadge />
           {authMode && authMode !== "none" && onLogout && (
             <span className={styles.statusLogout}>
               <Tooltip content="Log out">
