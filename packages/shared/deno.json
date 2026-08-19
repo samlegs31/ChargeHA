@@ -15,6 +15,7 @@
     "./solarAttribution": "./solarAttribution.ts",
     "./geocode": "./geocode.ts",
     "./notifications": "./notificationProviders.ts",
-    "./forecast": "./forecast.ts"
+    "./forecast": "./forecast.ts",
+    "./vehicleControl": "./vehicleControl.ts"
   }
 }
