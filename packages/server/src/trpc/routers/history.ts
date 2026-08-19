@@ -163,6 +163,7 @@ export const historyRouter = router({
       email: email ?? "",
       pvSystemId: pvSystemId ?? "",
       hasPassword: passwordRow !== null,
+      canSavePassword: ctx.encryptionKey !== null,
     };
   }),
 
