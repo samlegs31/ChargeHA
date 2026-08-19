@@ -99,7 +99,7 @@ export function makeVehicle(overrides: Record<string, unknown> = {}) {
     priority: 1,
     config: "{}",
     state: makeVehicleState(),
-    lastLocation: null,
+    lastLocation: { latitude: 43.6, longitude: 1.5 },
     ...overrides,
   };
 }
@@ -237,6 +237,13 @@ export function setupDashboard(): DashboardHarness {
     isLoading: false,
     error: null,
   });
+  vi.mocked(trpc.config.home.get.useQuery).mockReturnValue(
+    {
+      data: { homeLatitude: 43.6, homeLongitude: 1.5 },
+      isLoading: false,
+      error: null,
+    } as unknown as ReturnType<typeof trpc.config.home.get.useQuery>,
+  );
   dashboardMocks.dismissMutate.mockImplementation(() => {
     dashboardMocks.capturedDismiss.onSuccess?.();
   });
