@@ -555,8 +555,9 @@ function useHistoryImportModel() {
   const vehicles = vehicleOptions(rawVehicles);
   const rangeReady = vehicleId !== "" && from !== "" && to !== "" && from <= to;
   const vehicleImport = useVehicleArchiveImport({ vehicleId, from, to, ready: rangeReady });
-  const wattpilotReady = rangeReady && credentials.email !== "" && credentials.pvSystemId !== "" &&
-    (credentials.password !== "" || credentials.hasSavedPassword);
+  const credentialsReady = credentials.email !== "" && credentials.pvSystemId !== "";
+  const passwordReady = credentials.password !== "" || credentials.hasSavedPassword;
+  const wattpilotReady = rangeReady && credentialsReady && passwordReady;
   const wattpilotImport = useWattpilotImport({
     vehicleId,
     from,
