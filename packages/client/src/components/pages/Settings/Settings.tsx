@@ -102,7 +102,7 @@ const MENU_ITEMS: readonly MenuItem[] = [
   {
     id: "advanced",
     title: "Advanced",
-    description: "System, forecast and security",
+    description: "Fine tuning and system tools",
     icon: <Settings2 size={21} />,
   },
 ];
@@ -224,12 +224,11 @@ function HomeSettingsPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <PageIntro
         title="Solar & home"
-        description="Tell E.V. Solar where home energy comes from and how to protect the home battery."
+        description="Connect home energy and choose how much battery to keep for the house."
       />
       <InverterSettings />
       <GeneralSettings mode="home" />
-      <SolarTrackingSettings />
-      <BatterySettings />
+      <BatterySettings mode="basic" />
     </div>
   );
 }
@@ -279,8 +278,10 @@ function AdvancedSettingsPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <PageIntro
         title="Advanced settings"
-        description="These settings are normally left alone after setup."
+        description="Fine tuning. Most people can leave these settings alone."
       />
+      <SolarTrackingSettings />
+      <BatterySettings mode="advanced" />
       <SolarForecastSettings />
       <GeneralSettings mode="system" />
       <NotificationSettings />
