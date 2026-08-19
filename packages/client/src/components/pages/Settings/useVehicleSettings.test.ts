@@ -5,7 +5,9 @@ import { useVehicleSettings } from "./useVehicleSettings.ts";
 const {
   mockDeleteMutate,
   mockPriorityMutateAsync,
+  mockHomeSourceMutate,
   mockInvalidateVehicleList,
+  mockInvalidateStats,
   mockNavigate,
   mockClearPluginOnboarding,
   c,
@@ -13,7 +15,9 @@ const {
 } = vi.hoisted(() => ({
   mockDeleteMutate: vi.fn(),
   mockPriorityMutateAsync: vi.fn(),
+  mockHomeSourceMutate: vi.fn(),
   mockInvalidateVehicleList: vi.fn(),
+  mockInvalidateStats: vi.fn(),
   mockNavigate: vi.fn(),
   mockClearPluginOnboarding: vi.fn(),
   c: {
@@ -23,6 +27,7 @@ const {
       ) => Promise<void>;
       onSuccess?: () => void;
     },
+    homeSourceOnSuccess: undefined as (() => void) | undefined,
   },
   m: {
     vehiclesData: undefined as unknown,
@@ -32,6 +37,7 @@ const {
     pluginsData: undefined as unknown[] | undefined,
     deleteError: null as { message: string } | null,
     priorityError: null as { message: string } | null,
+    homeSourceError: null as { message: string } | null,
   },
 }));
 
@@ -62,6 +68,7 @@ vi.mock("../../../trpc.ts", () => ({
       vehicle: {
         list: { invalidate: mockInvalidateVehicleList },
       },
+      stats: { invalidate: mockInvalidateStats },
     }),
     vehicle: {
       list: {
@@ -93,6 +100,18 @@ vi.mock("../../../trpc.ts", () => ({
         useQuery: vi.fn(() => ({
           data: m.pluginsData,
         })),
+      },
+    },
+    history: {
+      setHomeChargingSource: {
+        useMutation: vi.fn((opts?: { onSuccess?: () => void }) => {
+          c.homeSourceOnSuccess = opts?.onSuccess;
+          return {
+            mutate: mockHomeSourceMutate,
+            isPending: false,
+            error: m.homeSourceError,
+          };
+        }),
       },
     },
   },
@@ -128,10 +147,14 @@ describe("useVehicleSettings", () => {
     m.pluginsData = undefined;
     m.deleteError = null;
     m.priorityError = null;
+    m.homeSourceError = null;
     c.priorityMutationOpts = {};
+    c.homeSourceOnSuccess = undefined;
     mockDeleteMutate.mockClear();
     mockPriorityMutateAsync.mockClear();
+    mockHomeSourceMutate.mockClear();
     mockInvalidateVehicleList.mockClear();
+    mockInvalidateStats.mockClear();
     mockNavigate.mockClear();
     mockClearPluginOnboarding.mockClear();
   });
@@ -166,6 +189,22 @@ describe("useVehicleSettings", () => {
     const { result } = renderHook(() => useVehicleSettings());
     result.current.handleDelete("VIN1");
     expect(mockDeleteMutate).toHaveBeenCalledWith({ vehicleId: "VIN1" });
+  });
+
+  it("handleHomeChargingSource stores the selected source", () => {
+    const { result } = renderHook(() => useVehicleSettings());
+    result.current.handleHomeChargingSource("VIN1", "solarweb");
+    expect(mockHomeSourceMutate).toHaveBeenCalledWith({
+      vehicleId: "VIN1",
+      source: "solarweb",
+    });
+  });
+
+  it("invalidates vehicle metadata and stats after changing home source", () => {
+    renderHook(() => useVehicleSettings());
+    c.homeSourceOnSuccess?.();
+    expect(mockInvalidateVehicleList).toHaveBeenCalled();
+    expect(mockInvalidateStats).toHaveBeenCalled();
   });
 
   it("handleMovePriority swaps vehicles up via priority mutationFn", () => {
