@@ -28,6 +28,21 @@ describe("vehicle-attributed charging history", () => {
     };
   }
 
+  function addVehicle(
+    id: string,
+    name: string,
+    source: "chargehq" | "solarweb" | null,
+  ) {
+    const sourceSql = source === null ? "NULL" : `'${source}'`;
+    db.getDriver().exec(`
+      INSERT INTO vehicles (
+        id, name, adapter_type, priority, config, mode, home_charging_source
+      ) VALUES (
+        '${id}', '${name}', 'tesla', 1, '{}', 'auto', ${sourceSql}
+      )
+    `);
+  }
+
   let db: AppDatabase;
   let repository: HistoryRepository;
 
@@ -155,5 +170,118 @@ describe("vehicle-attributed charging history", () => {
     expect(stats.reduce((sum, row) => sum + row.awayWh, 0)).toBe(1400);
     expect(stats.reduce((sum, row) => sum + row.solarWh, 0)).toBe(500);
     expect(stats.reduce((sum, row) => sum + row.gridWh, 0)).toBe(300);
+  });
+
+  it("uses ChargeHQ as Friday's selected home source and reconciles Tesla overlaps", async () => {
+    addVehicle("VIN_FRIDAY", "Friday", "chargehq");
+    const chargeHqHome = historyRow("chargehq", "friday-home", {
+      chargedWh: 1200,
+      solarWh: 300,
+      batteryWh: 0,
+      gridWh: 900,
+      atHomeWh: 1200,
+    });
+    const unselectedWattpilot = historyRow("solarweb", "wrong-home-source", {
+      chargedWh: 800,
+      solarWh: 700,
+      batteryWh: 0,
+      gridWh: 100,
+      atHomeWh: 800,
+    });
+    const teslaOverlap = historyRow("vehicle-history", "tesla-home-duplicate", {
+      startTimeUtc: "2025-06-01 08:04:00",
+      startTimeLocal: "2025-06-01 10:04:00",
+      chargedWh: 1000,
+      solarWh: 0,
+      batteryWh: 0,
+      gridWh: 0,
+      awayWh: 1000,
+      atHomeWh: 0,
+    });
+    const teslaExternal = historyRow("vehicle-history", "tesla-external", {
+      startTimeUtc: "2025-06-01 12:00:00",
+      startTimeLocal: "2025-06-01 14:00:00",
+      chargedWh: 1600,
+      solarWh: 0,
+      batteryWh: 0,
+      gridWh: 0,
+      awayWh: 1600,
+      atHomeWh: 0,
+    });
+
+    await repository.importRows("VIN_FRIDAY", [
+      chargeHqHome,
+      unselectedWattpilot,
+      teslaOverlap,
+      teslaExternal,
+    ]);
+    const stats = await repository.getChargeHqStatsDay(
+      "2025-06-01",
+      "VIN_FRIDAY",
+    );
+
+    expect(stats.reduce((sum, row) => sum + row.totalWh, 0)).toBe(2800);
+    expect(stats.reduce((sum, row) => sum + row.solarWh, 0)).toBe(300);
+    expect(stats.reduce((sum, row) => sum + row.gridWh, 0)).toBe(900);
+    expect(stats.reduce((sum, row) => sum + row.awayWh, 0)).toBe(1600);
+  });
+
+  it("uses Solar.web as Edith's selected home source without affecting Friday", async () => {
+    addVehicle("VIN_EDITH", "Edith", "solarweb");
+    addVehicle("VIN_FRIDAY", "Friday", "chargehq");
+    const edithChargeHq = historyRow("chargehq", "edith-chargehq", {
+      chargedWh: 1200,
+      solarWh: 100,
+      batteryWh: 0,
+      gridWh: 1100,
+      atHomeWh: 1200,
+    });
+    const edithWattpilot = historyRow("solarweb", "edith-wattpilot", {
+      chargedWh: 900,
+      solarWh: 600,
+      batteryWh: 100,
+      gridWh: 200,
+      atHomeWh: 900,
+    });
+    const edithTeslaOverlap = historyRow("vehicle-history", "edith-tesla-home", {
+      startTimeUtc: "2025-06-01 08:04:00",
+      startTimeLocal: "2025-06-01 10:04:00",
+      chargedWh: 1000,
+      solarWh: 0,
+      batteryWh: 0,
+      gridWh: 0,
+      awayWh: 1000,
+      atHomeWh: 0,
+    });
+    const fridayHome = historyRow("chargehq", "friday-home", {
+      chargedWh: 700,
+      solarWh: 200,
+      batteryWh: 0,
+      gridWh: 500,
+      atHomeWh: 700,
+    });
+
+    await repository.importRows("VIN_EDITH", [
+      edithChargeHq,
+      edithWattpilot,
+      edithTeslaOverlap,
+    ]);
+    await repository.importRows("VIN_FRIDAY", [fridayHome]);
+
+    const edith = await repository.getChargeHqStatsDay(
+      "2025-06-01",
+      "VIN_EDITH",
+    );
+    const friday = await repository.getChargeHqStatsDay(
+      "2025-06-01",
+      "VIN_FRIDAY",
+    );
+
+    expect(edith.reduce((sum, row) => sum + row.totalWh, 0)).toBe(900);
+    expect(edith.reduce((sum, row) => sum + row.solarWh, 0)).toBe(600);
+    expect(edith.reduce((sum, row) => sum + row.gridWh, 0)).toBe(200);
+    expect(edith.reduce((sum, row) => sum + row.awayWh, 0)).toBe(0);
+    expect(friday.reduce((sum, row) => sum + row.totalWh, 0)).toBe(700);
+    expect(friday.reduce((sum, row) => sum + row.gridWh, 0)).toBe(500);
   });
 });
