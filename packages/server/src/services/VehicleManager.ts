@@ -16,6 +16,7 @@ import type {
 } from "@chargeha/plugins/types";
 import { parseDecisionInputs } from "../db/Serialization.ts";
 import { isHome, parseHomeCoords } from "@chargeha/shared/geo";
+import { isExternallyControlledVehicle } from "@chargeha/shared/vehicleControl";
 
 const RECENT_LOG_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_COMMAND_BACKOFF_SEC = 900; // 15 minutes
@@ -279,6 +280,11 @@ export class VehicleManager {
 
   // ── Commands ──────────────────────────────────────────────────────────
 
+  private async isChargeControlExternal(vehicleId: string): Promise<boolean> {
+    const vehicle = await this.db.getVehicle(vehicleId);
+    return !!vehicle && isExternallyControlledVehicle(vehicle.config);
+  }
+
   /** Start or adjust charging. Handles: clamp amps → set amps → start →
    *  error/backoff tracking. The middleware handles wake internally.
    *  Idempotent: only sends commands when state differs from target. */
@@ -291,6 +297,13 @@ export class VehicleManager {
   ): Promise<CommandResult> {
     const entry = this.vehicles.get(vehicleId);
     if (!entry) return { success: false, error: "Vehicle not registered" };
+
+    if (await this.isChargeControlExternal(vehicleId)) {
+      this.logger.debug(
+        `${vehicleId}: charge command skipped — managed by external controller`,
+      );
+      return { success: true, state };
+    }
 
     const { backedOff, remainingMs } = this.isBackedOff(vehicleId);
     if (backedOff && !force) {
@@ -358,6 +371,13 @@ export class VehicleManager {
   ): Promise<CommandResult> {
     const entry = this.vehicles.get(vehicleId);
     if (!entry) return { success: false, error: "Vehicle not registered" };
+
+    if (await this.isChargeControlExternal(vehicleId)) {
+      this.logger.debug(
+        `${vehicleId}: stop command skipped — managed by external controller`,
+      );
+      return { success: true, state };
+    }
 
     if (!state.isCharging) {
       return { success: true, state };
