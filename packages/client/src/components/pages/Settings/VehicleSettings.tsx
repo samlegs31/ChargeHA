@@ -13,82 +13,156 @@ import {
   useChargingConfigMutation,
 } from "../../../hooks/useSectionConfig.ts";
 import { SettingsRow, SettingsSection } from "./SettingsLayout.tsx";
-import { useVehicleSettings } from "./useVehicleSettings.ts";
+import {
+  type HomeChargingSource,
+  useVehicleSettings,
+} from "./useVehicleSettings.ts";
 
 type Vehicle = ReturnType<typeof useVehicleSettings>["vehicles"][number];
 type VehiclePlugin = ReturnType<
   typeof useVehicleSettings
 >["vehiclePlugins"][number];
 
+function sourceLabel(source: HomeChargingSource | null): string {
+  if (source === "chargehq") return "ChargeHQ";
+  if (source === "solarweb") return "Solar.web / Wattpilot";
+  return "Not configured";
+}
+
 function VehicleRow(
   {
     v,
     idx,
     vehiclesLength,
+    sourcePending,
     handleMovePriority,
     handleDelete,
+    handleHomeChargingSource,
   }: {
     v: Vehicle;
     idx: number;
     vehiclesLength: number;
+    sourcePending: boolean;
     handleMovePriority: (vin: string, direction: "up" | "down") => void;
     handleDelete: (vin: string) => void;
+    handleHomeChargingSource: (
+      vin: string,
+      source: HomeChargingSource | null,
+    ) => void;
   },
 ) {
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "8px 10px",
-        borderBottom: "1px solid var(--gray-a3)",
-        borderRadius: 6,
+        padding: "12px",
+        border: "1px solid var(--gray-a4)",
+        borderRadius: 8,
+        background: "var(--gray-a2)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Car size={16} style={{ color: "var(--color-vehicle)" }} />
-        <div>
-          <Text size="2" weight="bold">{v.name}</Text>
-          <Text size="1" color="gray" style={{ display: "block" }}>
-            {v.id}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <Car size={17} style={{ color: "var(--color-vehicle)" }} />
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <Text size="2" weight="bold">{v.name}</Text>
+              <Badge variant="outline" size="1">{v.adapterType}</Badge>
+            </div>
+            <Text size="1" color="gray" style={{ display: "block" }}>
+              {v.id}
+            </Text>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {vehiclesLength > 1 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <Text size="1" color="gray">Priority {v.priority}</Text>
+              <Button
+                variant="soft"
+                size="1"
+                disabled={idx === 0}
+                onClick={() => handleMovePriority(v.id, "up")}
+                aria-label={`Move ${v.name} up`}
+              >
+                <ArrowUpIcon />
+              </Button>
+              <Button
+                variant="soft"
+                size="1"
+                disabled={idx === vehiclesLength - 1}
+                onClick={() => handleMovePriority(v.id, "down")}
+                aria-label={`Move ${v.name} down`}
+              >
+                <ArrowDownIcon />
+              </Button>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            color="red"
+            size="1"
+            onClick={() => handleDelete(v.id)}
+            aria-label={`Delete ${v.name}`}
+          >
+            <Trash2 size={14} />
+          </Button>
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 16,
+          flexWrap: "wrap",
+          marginTop: 12,
+          paddingTop: 10,
+          borderTop: "1px solid var(--gray-a4)",
+        }}
+      >
+        <div style={{ minWidth: 190, flex: "1 1 260px" }}>
+          <Text size="2" weight="medium">Home charging data</Text>
+          <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
+            Cross-checks this vehicle's charging history to identify home sessions.
+            Current: {sourceLabel(v.homeChargingSource)}.
           </Text>
         </div>
-        <Badge variant="outline" size="1">{v.adapterType}</Badge>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-        {vehiclesLength > 1 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <Text size="1" color="gray">Priority {v.priority}</Text>
-            <Button
-              variant="soft"
-              size="1"
-              disabled={idx === 0}
-              onClick={() => handleMovePriority(v.id, "up")}
-              aria-label={`Move ${v.name} up`}
-            >
-              <ArrowUpIcon />
-            </Button>
-            <Button
-              variant="soft"
-              size="1"
-              disabled={idx === vehiclesLength - 1}
-              onClick={() => handleMovePriority(v.id, "down")}
-              aria-label={`Move ${v.name} down`}
-            >
-              <ArrowDownIcon />
-            </Button>
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          color="red"
-          size="1"
-          onClick={() => handleDelete(v.id)}
-          aria-label={`Delete ${v.name}`}
+        <select
+          aria-label={`${v.name} home charging data`}
+          value={v.homeChargingSource ?? ""}
+          disabled={sourcePending}
+          onChange={(event) => {
+            const value = event.currentTarget.value;
+            handleHomeChargingSource(
+              v.id,
+              value === "" ? null : value as HomeChargingSource,
+            );
+          }}
+          style={{
+            width: 220,
+            maxWidth: "100%",
+            height: 34,
+            borderRadius: 6,
+            border: "1px solid var(--gray-a7)",
+            background: "var(--color-panel-solid)",
+            color: "var(--gray-12)",
+            padding: "0 9px",
+          }}
         >
-          <Trash2 size={14} />
-        </Button>
+          <option value="">Choose source...</option>
+          <option value="chargehq">ChargeHQ</option>
+          <option value="solarweb">Solar.web / Wattpilot</option>
+        </select>
       </div>
     </div>
   );
@@ -190,11 +264,23 @@ function PriorityChargingHeader(
 }
 
 function VehicleListBlock(
-  { vehicles, loadFailed, handleMovePriority, handleDelete }: {
+  {
+    vehicles,
+    loadFailed,
+    sourcePending,
+    handleMovePriority,
+    handleDelete,
+    handleHomeChargingSource,
+  }: {
     vehicles: Vehicle[];
     loadFailed: boolean;
+    sourcePending: boolean;
     handleMovePriority: (vin: string, direction: "up" | "down") => void;
     handleDelete: (vin: string) => void;
+    handleHomeChargingSource: (
+      vin: string,
+      source: HomeChargingSource | null,
+    ) => void;
   },
 ) {
   return (
@@ -208,16 +294,20 @@ function VehicleListBlock(
           again.
         </Text>
       )}
-      {[...vehicles].sort((a, b) => a.priority - b.priority).map((v, idx) => (
-        <VehicleRow
-          key={v.id}
-          v={v}
-          idx={idx}
-          vehiclesLength={vehicles.length}
-          handleMovePriority={handleMovePriority}
-          handleDelete={handleDelete}
-        />
-      ))}
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {[...vehicles].sort((a, b) => a.priority - b.priority).map((v, idx) => (
+          <VehicleRow
+            key={v.id}
+            v={v}
+            idx={idx}
+            vehiclesLength={vehicles.length}
+            sourcePending={sourcePending}
+            handleMovePriority={handleMovePriority}
+            handleDelete={handleDelete}
+            handleHomeChargingSource={handleHomeChargingSource}
+          />
+        ))}
+      </div>
     </>
   );
 }
@@ -230,6 +320,8 @@ export function VehicleSettings() {
     error,
     handleDelete,
     handleMovePriority,
+    handleHomeChargingSource,
+    homeSourcePending,
     vehiclePlugins,
     handleStartOnboarding,
   } = useVehicleSettings();
@@ -281,7 +373,7 @@ export function VehicleSettings() {
       <SettingsSection
         icon={<Car size={18} />}
         title="Vehicles"
-        description="Manage your electric vehicles and charging integrations."
+        description="Manage each vehicle, its priority, and the home charging history source used by E.V. Solar."
       >
         {vehicles.length > 1 && (
           <PriorityChargingHeader
@@ -293,8 +385,10 @@ export function VehicleSettings() {
         <VehicleListBlock
           vehicles={vehicles}
           loadFailed={loadFailed}
+          sourcePending={homeSourcePending}
           handleMovePriority={handleMovePriority}
           handleDelete={handleDelete}
+          handleHomeChargingSource={handleHomeChargingSource}
         />
 
         {unconfiguredPlugins.map((plugin) => (
