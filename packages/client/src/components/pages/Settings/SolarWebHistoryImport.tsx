@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { Badge, Button, Card, Text, TextField } from "@radix-ui/themes";
 import { Car, CloudDownload } from "lucide-react";
 import { trpc } from "../../../trpc.ts";
@@ -166,7 +167,10 @@ function DateRangeFields(props: {
 }) {
   return (
     <>
-      <SettingsRow label="Start date" help="Start with a few older days for the first test.">
+      <SettingsRow
+        label="Start date"
+        help="Start with a few older days for the first test."
+      >
         <TextField.Root
           size="2"
           type="date"
@@ -243,7 +247,7 @@ function SolarWebFields(props: {
   );
 }
 
-function TechnicalDetails({ children }: { children: React.ReactNode }) {
+function TechnicalDetails({ children }: { children: ReactNode }) {
   return (
     <details style={{ marginTop: 8 }}>
       <summary style={{ cursor: "pointer" }}>Technical details</summary>
@@ -257,7 +261,11 @@ function TechnicalDetails({ children }: { children: React.ReactNode }) {
 function VehicleArchiveResult(props: VehicleArchiveSummary) {
   const empty = props.sessionsMatched === 0 || props.intervalsBuilt === 0;
   return (
-    <Card style={{ borderLeft: `3px solid var(--${empty ? "orange" : "blue"}-9)` }}>
+    <Card
+      style={{
+        borderLeft: `3px solid var(--${empty ? "orange" : "blue"}-9)`,
+      }}
+    >
       <Text size="2" weight="bold" color={empty ? "orange" : undefined}>
         {empty ? "No charging sessions imported" : "Car history imported"}
       </Text>
@@ -267,8 +275,12 @@ function VehicleArchiveResult(props: VehicleArchiveSummary) {
           : `${formatKwh(props.chargedWh)} found for this car.`}
       </Text>
       {props.truncated && (
-        <Text size="1" color="orange" style={{ display: "block", marginTop: 5 }}>
-          Tesla returned only part of the archive. Try a smaller date range.
+        <Text
+          size="1"
+          color="orange"
+          style={{ display: "block", marginTop: 5 }}
+        >
+          The vehicle service returned only part of the archive. Try a smaller date range.
         </Text>
       )}
       <TechnicalDetails>
@@ -303,7 +315,9 @@ function WattpilotResult(props: WattpilotSummary) {
         <Text size="2" style={{ display: "block", marginTop: 4 }}>
           Check the dates and make sure this is the correct Solar.web system.
         </Text>
-        <TechnicalDetails>{props.samplesRead} Solar.web samples read.</TechnicalDetails>
+        <TechnicalDetails>
+          {props.samplesRead} Solar.web samples read.
+        </TechnicalDetails>
       </Card>
     );
   }
@@ -323,7 +337,9 @@ function WattpilotResult(props: WattpilotSummary) {
   );
 }
 
-function StepHeader({ number, title, help }: { number: number; title: string; help: string }) {
+function StepHeader(
+  { number, title, help }: { number: number; title: string; help: string },
+) {
   return (
     <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
       <Badge size="2" variant="solid" radius="full">{number}</Badge>
@@ -390,7 +406,11 @@ function WattpilotCard(props: {
         title="Find the charges that happened at home"
         help="E.V. Solar reads Wattpilot energy from Solar.web and links it to this car."
       />
-      <Text size="1" color="gray" style={{ display: "block", margin: "10px 0" }}>
+      <Text
+        size="1"
+        color="gray"
+        style={{ display: "block", margin: "10px 0" }}
+      >
         Your Solar.web login is used only for this import and is not saved here.
       </Text>
       <SolarWebFields
@@ -495,14 +515,16 @@ function HistoryImportContent(props: HistoryImportContentProps) {
       {props.error !== "" && (
         <Card style={{ borderLeft: "3px solid var(--red-9)" }}>
           <Text size="2" color="red" weight="bold">Import failed</Text>
-          <Text size="2" style={{ display: "block", marginTop: 4 }}>{props.error}</Text>
+          <Text size="2" style={{ display: "block", marginTop: 4 }}>
+            {props.error}
+          </Text>
         </Card>
       )}
     </div>
   );
 }
 
-export function SolarWebHistoryImport() {
+function useHistoryImportModel(): HistoryImportContentProps {
   const [vehicleId, setVehicleId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -510,8 +532,10 @@ export function SolarWebHistoryImport() {
   const [from, setFrom] = useState(sevenDaysAgoIsoDate);
   const [to, setTo] = useState(todayIsoDate);
   const [progress, setProgress] = useState("");
-  const [wattpilotResult, setWattpilotResult] = useState<WattpilotSummary | null>(null);
-  const [vehicleResult, setVehicleResult] = useState<VehicleArchiveSummary | null>(null);
+  const [wattpilotResult, setWattpilotResult] =
+    useState<WattpilotSummary | null>(null);
+  const [vehicleResult, setVehicleResult] =
+    useState<VehicleArchiveSummary | null>(null);
   const [error, setError] = useState("");
   const utils = trpc.useUtils();
   const vehiclesQuery = trpc.vehicle.list.useQuery();
@@ -587,38 +611,43 @@ export function SolarWebHistoryImport() {
     }
   };
 
+  return {
+    vehicles,
+    vehicleId,
+    from,
+    to,
+    busy,
+    rangeReady,
+    wattpilotReady,
+    vehiclePending: vehicleMutation.isPending,
+    wattpilotPending: wattpilotMutation.isPending,
+    vehicleResult,
+    wattpilotResult,
+    progress,
+    error,
+    email,
+    password,
+    pvSystemId,
+    setVehicleId,
+    setFrom,
+    setTo,
+    setEmail,
+    setPassword,
+    setPvSystemId,
+    importVehicleHistory,
+    importWattpilotHistory,
+  };
+}
+
+export function SolarWebHistoryImport() {
+  const model = useHistoryImportModel();
   return (
     <SettingsSection
       icon={<CloudDownload size={18} />}
       title="Import Wattpilot history"
-      description="Use this for a car that charges at home with a Fronius Wattpilot."
+      description="Use this for a car that charges at home with a Wattpilot."
     >
-      <HistoryImportContent
-        vehicles={vehicles}
-        vehicleId={vehicleId}
-        from={from}
-        to={to}
-        busy={busy}
-        rangeReady={rangeReady}
-        wattpilotReady={wattpilotReady}
-        vehiclePending={vehicleMutation.isPending}
-        wattpilotPending={wattpilotMutation.isPending}
-        vehicleResult={vehicleResult}
-        wattpilotResult={wattpilotResult}
-        progress={progress}
-        error={error}
-        email={email}
-        password={password}
-        pvSystemId={pvSystemId}
-        setVehicleId={setVehicleId}
-        setFrom={setFrom}
-        setTo={setTo}
-        setEmail={setEmail}
-        setPassword={setPassword}
-        setPvSystemId={setPvSystemId}
-        importVehicleHistory={importVehicleHistory}
-        importWattpilotHistory={importWattpilotHistory}
-      />
+      <HistoryImportContent {...model} />
     </SettingsSection>
   );
 }
