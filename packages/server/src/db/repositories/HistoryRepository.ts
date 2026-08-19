@@ -404,9 +404,15 @@ export class HistoryRepository {
             AND h.at_home_wh > 0
             AND EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
             AND (
-              (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
-              OR h.source = (
-                SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+              (
+                (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NOT NULL
+                AND h.source = (
+                  SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+                )
+              )
+              OR (
+                (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
+                AND h.source = 'solarweb'
               )
             )
             AND h.start_time_utc < datetime(
