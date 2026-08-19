@@ -8,6 +8,7 @@ import {
   vehicles as vehiclesTable,
 } from "../Schema.ts";
 import type {
+  HomeChargingSource,
   UpsertVehicleInput,
   VehicleChargeReadingInput,
   VehicleRow,
@@ -48,6 +49,16 @@ export class VehicleRepository {
     await this.db
       .update(vehiclesTable)
       .set({ priority, updatedAt: sql`datetime('now')` })
+      .where(eq(vehiclesTable.id, id));
+  }
+
+  async updateVehicleHomeChargingSource(
+    id: string,
+    source: HomeChargingSource | null,
+  ): Promise<void> {
+    await this.db
+      .update(vehiclesTable)
+      .set({ homeChargingSource: source, updatedAt: sql`datetime('now')` })
       .where(eq(vehiclesTable.id, id));
   }
 
