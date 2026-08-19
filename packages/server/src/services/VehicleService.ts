@@ -4,6 +4,11 @@ import {
   type VehicleAdapterType,
   type VehicleMode,
 } from "@chargeha/shared";
+import {
+  getVehicleChargeController,
+  setVehicleChargeController as setVehicleChargeControllerConfig,
+  type VehicleChargeController,
+} from "@chargeha/shared/vehicleControl";
 import type { AppDatabase } from "../db/AppDatabase.ts";
 import type { VehicleRow } from "../db/types.ts";
 import type { VehicleManager } from "./VehicleManager.ts";
@@ -89,6 +94,9 @@ export class VehicleService {
     vehicleId: string,
   ): Promise<{ commandsDisabled: boolean; reason: string | null }> {
     const vehicle = await this.db.getVehicle(vehicleId);
+    if (vehicle && getVehicleChargeController(vehicle.config) === "wattpilot") {
+      return { commandsDisabled: false, reason: null };
+    }
     const plugin = vehicle && this.vehiclePlugins.get(vehicle.adapterType);
     if (!plugin) {
       return { commandsDisabled: false, reason: null };
@@ -164,8 +172,48 @@ export class VehicleService {
     return { success: true };
   }
 
+  /** Select whether E.V. Solar or an external Wattpilot controls charging. */
+  async setChargeController(
+    vehicleId: string,
+    chargeController: VehicleChargeController,
+  ) {
+    const vehicle = await this.getVehicleOrThrow(vehicleId);
+    const config = setVehicleChargeControllerConfig(
+      vehicle.config,
+      chargeController,
+    );
+    await this.db.upsertVehicle({
+      id: vehicle.id,
+      name: vehicle.name,
+      adapterType: vehicle.adapterType,
+      priority: vehicle.priority,
+      config,
+      mode: vehicle.mode,
+    });
+
+    // A Tesla key-pairing command error is irrelevant once Wattpilot owns
+    // charging. Clear stale command errors immediately; future fetch errors
+    // are still reported normally.
+    if (chargeController === "wattpilot") {
+      this.vehicleManager.clearVehicleError(vehicleId);
+    }
+    this.eventEmitter.emit("vehicles_changed", {});
+    return { success: true, chargeController };
+  }
+
+  private async assertDirectChargeControl(vehicleId: string): Promise<void> {
+    const vehicle = await this.getVehicleOrThrow(vehicleId);
+    if (getVehicleChargeController(vehicle.config) === "wattpilot") {
+      throw new ServiceError(
+        "Charging is controlled by Wattpilot",
+        "CONFLICT",
+      );
+    }
+  }
+
   /** Set vehicle mode (auto/charge_now/stop). */
   async setMode(vehicleId: string, mode: VehicleMode) {
+    await this.assertDirectChargeControl(vehicleId);
     const vehicle = await this.getVehicleOrThrow(vehicleId);
     await this.db.updateVehicleMode(vehicleId, mode);
 
@@ -212,6 +260,9 @@ export class VehicleService {
   /** Execute a vehicle command (start/stop/wake). */
   async executeCommand(vehicleId: string, command: "start" | "stop" | "wake") {
     await this.getVehicleOrThrow(vehicleId);
+    if (command !== "wake") {
+      await this.assertDirectChargeControl(vehicleId);
+    }
 
     try {
       switch (command) {
@@ -263,6 +314,7 @@ export class VehicleService {
         }
       }
     } catch (error) {
+      if (error instanceof ServiceError) throw error;
       throw new ServiceError(
         error instanceof Error ? error.message : "Command failed",
         "INTERNAL_SERVER_ERROR",
@@ -273,7 +325,7 @@ export class VehicleService {
 
   /** Set charging amps. */
   async setAmps(vehicleId: string, amps: number) {
-    await this.getVehicleOrThrow(vehicleId);
+    await this.assertDirectChargeControl(vehicleId);
 
     try {
       const state = await this.vehicleManager.getState(vehicleId);
@@ -289,6 +341,7 @@ export class VehicleService {
       );
       return { success: result.success, state: result.state ?? null };
     } catch (error) {
+      if (error instanceof ServiceError) throw error;
       throw new ServiceError(
         error instanceof Error ? error.message : "Command failed",
         "INTERNAL_SERVER_ERROR",

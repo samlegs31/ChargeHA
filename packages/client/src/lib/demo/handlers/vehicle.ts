@@ -18,6 +18,9 @@ const toListItem = (v: DemoVehicle, now: string) => {
       batteryCapacityKwh: v.batteryCapacityKwh,
       chargeLimitPercent: v.chargeLimitPercent,
       vehicleName: v.name,
+      ...(v.chargeController === "wattpilot"
+        ? { chargeController: "wattpilot" }
+        : {}),
     }),
     mode: v.mode,
     createdAt: CREATED_AT,

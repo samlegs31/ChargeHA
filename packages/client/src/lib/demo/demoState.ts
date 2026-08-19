@@ -4,6 +4,7 @@
 // series is held alongside but is regenerated each session, never persisted.
 
 import type { DayOfWeek } from "@chargeha/shared";
+import type { VehicleChargeController } from "@chargeha/shared/vehicleControl";
 import type { DemoSeries } from "./series.ts";
 import { loadDemoSeries } from "./demoSeriesLoader.ts";
 import { OFFPEAK_RATE, PEAK_RATE } from "./demoTariff.ts";
@@ -17,6 +18,7 @@ export interface DemoVehicle {
   adapterType: string;
   priority: number;
   mode: DemoVehicleMode;
+  chargeController?: VehicleChargeController;
   batteryCapacityKwh: number;
   chargeLimitPercent: number;
   socPercent: number;

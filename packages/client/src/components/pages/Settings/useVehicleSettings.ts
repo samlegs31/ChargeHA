@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import type { VehicleWithState } from "@chargeha/shared";
+import type { VehicleChargeController } from "@chargeha/shared/vehicleControl";
 import { trpc } from "../../../trpc.ts";
 import { useRouter } from "../../../hooks/useRouter.ts";
 import { clearPluginOnboarding } from "../../../hooks/usePluginOnboardingState.ts";
@@ -51,9 +52,14 @@ export function useVehicleSettings() {
 
   const vehicles = vehiclesQuery.data ?? [];
 
-  // No onSuccess cache work: RealtimeSync handles vehicles_changed invalidation.
+  // No onSuccess cache work for deletes: RealtimeSync handles vehicles_changed.
   const deleteMutation = trpc.vehicle.delete.useMutation();
   const priorityMutation = usePriorityMutation(utils);
+  const chargeControllerMutation = trpc.vehicle.setChargeController.useMutation({
+    onSuccess: () => {
+      utils.vehicle.list.invalidate();
+    },
+  });
 
   const handleDelete = (vin: string) =>
     deleteMutation.mutate({ vehicleId: vin });
@@ -64,6 +70,13 @@ export function useVehicleSettings() {
     priorityMutation.mutate(updates);
   };
 
+  const handleChargeControllerChange = (
+    vin: string,
+    chargeController: VehicleChargeController,
+  ) => {
+    chargeControllerMutation.mutate({ vehicleId: vin, chargeController });
+  };
+
   const vehiclePluginsQuery = trpc.vehicle.getPlugins.useQuery();
   const vehiclePlugins = vehiclePluginsQuery.data ?? [];
 
@@ -72,7 +85,7 @@ export function useVehicleSettings() {
     navigate({ type: "pluginSetup", pluginId });
   }, [navigate]);
 
-  const mutations = [deleteMutation, priorityMutation];
+  const mutations = [deleteMutation, priorityMutation, chargeControllerMutation];
   const displayError = vehiclesQuery.error?.message ??
     mutations.find((m) => m.error)?.error?.message ?? null;
 
@@ -83,6 +96,7 @@ export function useVehicleSettings() {
     error: displayError,
     handleDelete,
     handleMovePriority,
+    handleChargeControllerChange,
     vehiclePlugins,
     handleStartOnboarding,
   };
