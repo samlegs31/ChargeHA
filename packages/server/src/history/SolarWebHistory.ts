@@ -43,6 +43,13 @@ interface PageResult {
   rows: VehicleChargeHistoryRowInput[];
 }
 
+interface WattpilotEnergySplit {
+  chargedWh: number;
+  solarWh: number;
+  batteryWh: number;
+  gridWh: number;
+}
+
 export interface SolarWebHistoryImportInput {
   email: string;
   password: string;
@@ -256,6 +263,42 @@ function channelValue(
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
+function splitWattpilotEnergy(
+  totalRawWh: number,
+  batteryRawWh: number,
+  gridRawWh: number,
+): WattpilotEnergySplit {
+  const knownSourceWh = batteryRawWh + gridRawWh;
+  // Solar.web's internal channel names are not publicly documented in detail.
+  // Treat EnergyEVCCharge conservatively as the interval total and the Battery /
+  // Grid channels as components. If the total channel is absent, known source
+  // components still provide a safe lower-bound total with no invented solar.
+  const chargedWh = totalRawWh > 0 ? totalRawWh : knownSourceWh;
+  if (chargedWh <= 0) {
+    return { chargedWh: 0, solarWh: 0, batteryWh: 0, gridWh: 0 };
+  }
+
+  if (knownSourceWh <= chargedWh) {
+    return {
+      chargedWh,
+      solarWh: chargedWh - knownSourceWh,
+      batteryWh: batteryRawWh,
+      gridWh: gridRawWh,
+    };
+  }
+
+  // Telemetry rounding or inconsistent samples must never create more source
+  // energy than the measured charge. Preserve Battery/Grid proportions while
+  // scaling them back to the authoritative interval total.
+  const batteryWh = chargedWh * (batteryRawWh / knownSourceWh);
+  return {
+    chargedWh,
+    solarWh: 0,
+    batteryWh,
+    gridWh: chargedWh - batteryWh,
+  };
+}
+
 function sqliteUtc(logDateTime: string): string {
   const date = new Date(logDateTime);
   if (!Number.isFinite(date.getTime())) {
@@ -280,10 +323,14 @@ function sampleToRow(
 ): VehicleChargeHistoryRowInput | null {
   if (!sample.logDateTime) return null;
   const channels = sample.channels ?? [];
-  const solarWh = channelValue(channels, "EnergyEVCCharge");
-  const batteryWh = channelValue(channels, "EnergyEVCChargeBatt");
-  const gridWh = channelValue(channels, "EnergyEVCChargeGrid");
-  const chargedWh = solarWh + batteryWh + gridWh;
+  const totalRawWh = channelValue(channels, "EnergyEVCCharge");
+  const batteryRawWh = channelValue(channels, "EnergyEVCChargeBatt");
+  const gridRawWh = channelValue(channels, "EnergyEVCChargeGrid");
+  const { chargedWh, solarWh, batteryWh, gridWh } = splitWattpilotEnergy(
+    totalRawWh,
+    batteryRawWh,
+    gridRawWh,
+  );
   if (chargedWh <= 0) return null;
   return {
     source: "solarweb",
