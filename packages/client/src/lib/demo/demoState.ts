@@ -10,6 +10,7 @@ import { OFFPEAK_RATE, PEAK_RATE } from "./demoTariff.ts";
 import { loadPersisted, savePersisted } from "./demoPersistence.ts";
 
 export type DemoVehicleMode = "auto" | "charge_now" | "vacation" | "stop";
+export type DemoHomeChargingSource = "chargehq" | "solarweb" | null;
 
 export interface DemoVehicle {
   id: string;
@@ -23,6 +24,7 @@ export interface DemoVehicle {
   isCharging: boolean;
   isPluggedIn: boolean;
   chargeAmps: number;
+  homeChargingSource?: DemoHomeChargingSource;
 }
 
 export interface DemoSchedule {
