@@ -20,6 +20,7 @@ const toListItem = (v: DemoVehicle, now: string) => {
       vehicleName: v.name,
     }),
     mode: v.mode,
+    homeChargingSource: v.homeChargingSource ?? null,
     createdAt: CREATED_AT,
     updatedAt: now,
     state,
