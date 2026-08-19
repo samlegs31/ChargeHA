@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Card, Text } from "@radix-ui/themes";
-import { DatabaseBackup, FileCheck2, Upload } from "lucide-react";
+import { DatabaseBackup, Upload } from "lucide-react";
 import { trpc } from "../../../trpc.ts";
 import { useToast } from "../../../hooks/useToast.tsx";
 import { SettingsSection } from "./SettingsLayout.tsx";
@@ -74,8 +74,7 @@ interface HistoryMigrationModel {
   isImporting: boolean;
   readyToImport: boolean;
   setVehicleId: (vehicleId: string) => void;
-  selectFiles: (files: FileList | null) => void;
-  analyze: () => Promise<void>;
+  selectFiles: (files: FileList | null) => Promise<void>;
   importHistory: () => Promise<void>;
 }
 
@@ -199,6 +198,7 @@ function useHistoryMigrationModel(): HistoryMigrationModel {
   const [lastImport, setLastImport] = useState<ImportTotals | null>(null);
   const previewMutation = trpc.history.previewChargeHq.useMutation();
   const importMutation = trpc.history.importChargeHq.useMutation();
+  const homeSourceMutation = trpc.history.setHomeChargingSource.useMutation();
   const coverageQuery = trpc.history.getChargeHqCoverage.useQuery(
     { vehicleId },
     { enabled: vehicleId !== "" },
@@ -218,21 +218,19 @@ function useHistoryMigrationModel(): HistoryMigrationModel {
     setVehicleIdState(value);
     setLastImport(null);
   };
-  const selectFiles = (fileList: FileList | null) => {
-    setFiles(Array.from(fileList ?? []));
+  const selectFiles = async (fileList: FileList | null) => {
+    const selected = Array.from(fileList ?? []);
+    setFiles(selected);
     resetImportState();
-  };
-  const analyze = async () => {
-    if (files.length === 0) return;
+    if (selected.length === 0) return;
     setIsAnalyzing(true);
-    resetImportState();
     try {
       const result = await analyzeChargeHqFiles(
-        files,
+        selected,
         previewMutation.mutateAsync,
       );
       setPreviews(result);
-      addToast(`${result.length} ChargeHQ CSV file(s) validated`, "success");
+      addToast(`${result.length} ChargeHQ file(s) ready to import`, "success");
     } catch (error) {
       addToast(errorMessage(error), "error");
     } finally {
@@ -250,11 +248,9 @@ function useHistoryMigrationModel(): HistoryMigrationModel {
         importMutation.mutateAsync,
       );
       setLastImport(result);
+      await homeSourceMutation.mutateAsync({ vehicleId, source: "chargehq" });
       await coverageQuery.refetch();
-      addToast(
-        `${result.insertedRows} ChargeHQ history rows imported`,
-        "success",
-      );
+      addToast("ChargeHQ history imported and linked to this car", "success");
     } catch (error) {
       await coverageQuery.refetch();
       addToast(`${errorMessage(error)}. Safe to retry.`, "error");
@@ -277,7 +273,6 @@ function useHistoryMigrationModel(): HistoryMigrationModel {
     readyToImport: files.length > 0 && previews.length === files.length,
     setVehicleId,
     selectFiles,
-    analyze,
     importHistory,
   };
 }
@@ -292,11 +287,7 @@ function DestinationVehicle(
 ) {
   return (
     <div>
-      <Text size="2" weight="medium">Destination vehicle</Text>
-      <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
-        ChargeHQ history is attached to this vehicle. Native E.V Solar readings
-        always take priority where histories overlap.
-      </Text>
+      <Text size="2" weight="medium">Which car is this file for?</Text>
       <select
         value={vehicleId}
         disabled={busy || vehicles.length === 0}
@@ -313,7 +304,7 @@ function DestinationVehicle(
           padding: "0 10px",
         }}
       >
-        {vehicles.length === 0 && <option value="">No vehicle configured</option>}
+        {vehicles.length === 0 && <option value="">No car connected</option>}
         {vehicles.map((vehicle) => (
           <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>
         ))}
@@ -323,20 +314,18 @@ function DestinationVehicle(
 }
 
 function ChargeHqFilePicker(
-  { files, busy, isAnalyzing, onSelect, onAnalyze }: {
+  { files, busy, isAnalyzing, onSelect }: {
     files: File[];
     busy: boolean;
     isAnalyzing: boolean;
-    onSelect: (files: FileList | null) => void;
-    onAnalyze: () => Promise<void>;
+    onSelect: (files: FileList | null) => Promise<void>;
   },
 ) {
   return (
     <div>
-      <Text size="2" weight="medium">ChargeHQ Interval Data CSV files</Text>
+      <Text size="2" weight="medium">Choose your ChargeHQ CSV file</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
-        Select one or several exports. Overlapping files and repeated imports
-        are safe because imported rows are deduplicated.
+        Choose the Interval Data export from ChargeHQ. E.V. Solar checks it automatically.
       </Text>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
         <input
@@ -344,17 +333,12 @@ function ChargeHqFilePicker(
           accept=".csv,text/csv"
           multiple
           disabled={busy}
-          onChange={(event) => onSelect(event.currentTarget.files)}
+          onChange={(event) => void onSelect(event.currentTarget.files)}
         />
-        <Button
-          size="2"
-          variant="soft"
-          disabled={busy || files.length === 0}
-          onClick={onAnalyze}
-        >
-          <FileCheck2 size={15} />
-          {isAnalyzing ? "Analyzing..." : "Analyze"}
-        </Button>
+        {isAnalyzing && <Text size="2" color="gray">Checking file...</Text>}
+        {!isAnalyzing && files.length > 0 && (
+          <Badge color="green" variant="soft">File checked</Badge>
+        )}
       </div>
     </div>
   );
@@ -385,13 +369,12 @@ function ChargeHqFileList(
                   <Text size="1" color="gray" style={{ display: "block" }}>
                     {preview.summary.firstStartTimeLocal ?? "?"} →{" "}
                     {preview.summary.lastStartTimeLocal ?? "?"} ·{" "}
-                    {preview.summary.intervalCount} intervals ·{" "}
                     {formatKwh(preview.summary.chargedKwh)} kWh
                   </Text>
                 )}
               </div>
               <Badge color={preview ? "green" : "gray"} variant="soft">
-                {preview ? "Validated" : "Pending"}
+                {preview ? "Ready" : "Checking"}
               </Badge>
             </div>
           );
@@ -403,18 +386,14 @@ function ChargeHqFileList(
 
 function ChargeHqPreview({ summary }: { summary: ChargeHqSummary }) {
   return (
-    <Card>
-      <Text size="2" weight="bold">Import preview</Text>
+    <Card style={{ borderLeft: "3px solid var(--blue-9)" }}>
+      <Text size="2" weight="bold">Ready to import</Text>
       <Text size="2" style={{ display: "block", marginTop: 6 }}>
-        {summary.intervalCount} intervals · {formatKwh(summary.chargedKwh)} kWh total
+        {formatKwh(summary.chargedKwh)} kWh total · {formatKwh(summary.atHomeKwh)} kWh at home ·{" "}
+        {formatKwh(summary.awayKwh)} kWh away
       </Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
         {summary.firstStartTimeLocal ?? "?"} → {summary.lastStartTimeLocal ?? "?"}
-      </Text>
-      <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-        Home solar {formatKwh(summary.solarKwh)} kWh · Home battery{" "}
-        {formatKwh(summary.batteryKwh)} kWh · Grid {formatKwh(summary.gridKwh)} kWh · Away{" "}
-        {formatKwh(summary.awayKwh)} kWh
       </Text>
     </Card>
   );
@@ -424,18 +403,17 @@ function ExistingArchive({ coverage }: { coverage: HistoryCoverage | null }) {
   if (!coverage || coverage.rowCount === 0) return null;
   return (
     <Card>
-      <Text size="2" weight="bold">Existing ChargeHQ archive</Text>
+      <Text size="2" weight="bold">Already imported</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
         {coverage.firstStartTimeLocal ?? "?"} → {coverage.lastStartTimeLocal ?? "?"} ·{" "}
-        {coverage.rowCount} rows · {formatKwh(coverage.chargedWh / 1000)} kWh
+        {formatKwh(coverage.chargedWh / 1000)} kWh
       </Text>
     </Card>
   );
 }
 
-function importButtonLabel(isImporting: boolean, fileCount: number): string {
-  if (isImporting) return "Importing...";
-  return `Import ${fileCount || ""} file${fileCount === 1 ? "" : "s"}`;
+function importButtonLabel(isImporting: boolean): string {
+  return isImporting ? "Importing..." : "Import ChargeHQ history";
 }
 
 function ImportControls({ model }: { model: HistoryMigrationModel }) {
@@ -445,10 +423,10 @@ function ImportControls({ model }: { model: HistoryMigrationModel }) {
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
       <Button size="2" disabled={disabled} onClick={model.importHistory}>
         <Upload size={15} />
-        {importButtonLabel(model.isImporting, model.files.length)}
+        {importButtonLabel(model.isImporting)}
       </Button>
       <Text size="1" color="gray">
-        Re-importing the same data does not create duplicates.
+        Safe to import the same file again.
       </Text>
     </div>
   );
@@ -458,12 +436,17 @@ function ImportResultCard({ result }: { result: ImportTotals | null }) {
   if (!result) return null;
   return (
     <Card style={{ borderLeft: "3px solid var(--green-9)" }}>
-      <Text size="2" weight="bold">Migration complete</Text>
-      <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-        {result.files} files · {result.parsedIntervals} intervals · {result.insertedRows}{" "}
-        rows added · {result.duplicateRows} duplicates skipped · {result.overlapRows}{" "}
-        native-overlap rows skipped
+      <Text size="2" weight="bold">Done</Text>
+      <Text size="2" style={{ display: "block", marginTop: 4 }}>
+        ChargeHQ history is now linked to this car.
       </Text>
+      <details style={{ marginTop: 8 }}>
+        <summary style={{ cursor: "pointer" }}>Technical details</summary>
+        <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
+          {result.files} files · {result.parsedIntervals} intervals · {result.insertedRows}{" "}
+          rows added · {result.duplicateRows} duplicates · {result.overlapRows} overlaps skipped
+        </Text>
+      </details>
     </Card>
   );
 }
@@ -472,8 +455,8 @@ function HistoryMigrationView({ model }: { model: HistoryMigrationModel }) {
   return (
     <SettingsSection
       icon={<DatabaseBackup size={18} />}
-      title="ChargeHQ history"
-      description="Import legacy ChargeHQ Interval Data into E.V Solar Stats without changing live charging."
+      title="Import a ChargeHQ file"
+      description="Use this if this car's old charging history comes from ChargeHQ."
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <DestinationVehicle
@@ -487,7 +470,6 @@ function HistoryMigrationView({ model }: { model: HistoryMigrationModel }) {
           busy={model.busy}
           isAnalyzing={model.isAnalyzing}
           onSelect={model.selectFiles}
-          onAnalyze={model.analyze}
         />
         <ChargeHqFileList files={model.files} previews={model.previews} />
         {model.readyToImport && <ChargeHqPreview summary={model.previewTotals} />}
