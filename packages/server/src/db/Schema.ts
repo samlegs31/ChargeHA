@@ -90,6 +90,7 @@ export const vehicles = sqliteTable("vehicles", {
   priority: integer("priority").notNull().default(1),
   config: text("config").notNull(),
   mode: text("mode").notNull().default("auto"),
+  homeChargingSource: text("home_charging_source"),
   createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
