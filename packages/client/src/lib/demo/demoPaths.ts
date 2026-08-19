@@ -62,6 +62,7 @@ export const GATED_MUTATIONS = [
   // History imports need persistent server storage / external access and are not simulated.
   "history.previewChargeHq",
   "history.importChargeHq",
+  "history.importVehicleChargingHistory",
   "history.importSolarWeb",
   // Setup tunnel — Tesla-only setup step, never reached.
   "plugin.vehicle.tesla.startTunnel",
