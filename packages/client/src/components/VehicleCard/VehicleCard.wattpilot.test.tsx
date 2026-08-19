@@ -52,7 +52,7 @@ describe("VehicleCard Wattpilot control", () => {
         onStopCharging={vi.fn()}
         onSetAmps={vi.fn()}
         onChangeMode={vi.fn()}
-        atHome={true}
+        atHome
         {...overrides}
       />,
     );
