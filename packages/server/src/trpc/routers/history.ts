@@ -13,6 +13,10 @@ import { publicProcedure, router } from "../trpc.ts";
 
 const csvTextInput = z.string().min(1).max(15_000_000);
 const vehicleIdInput = z.object({ vehicleId: z.string().min(1) });
+const homeChargingSourceInput = z.object({
+  vehicleId: z.string().min(1),
+  source: z.enum(["chargehq", "solarweb"]).nullable(),
+});
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const archiveRangeInput = z.object({
   vehicleId: z.string().min(1),
@@ -76,6 +80,22 @@ async function requireVehicle(
 }
 
 export const historyRouter = router({
+  setHomeChargingSource: publicProcedure
+    .input(homeChargingSourceInput)
+    .mutation(async ({ ctx, input }) => {
+      const vehicle = await requireVehicle(ctx, input.vehicleId);
+      await ctx.db.vehicles.updateVehicleHomeChargingSource(
+        input.vehicleId,
+        input.source,
+      );
+      return {
+        success: true,
+        vehicleId: input.vehicleId,
+        vehicleName: vehicle.name,
+        source: input.source,
+      };
+    }),
+
   previewChargeHq: publicProcedure
     .input(z.object({ csvText: csvTextInput }))
     .mutation(({ input }) => {
