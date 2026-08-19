@@ -14,6 +14,8 @@ export interface SystemAlert {
   vehicleName: string;
 }
 
+export type HomeChargingSource = "chargehq" | "solarweb";
+
 export interface VehicleRow {
   id: string;
   name: string;
@@ -21,6 +23,7 @@ export interface VehicleRow {
   priority: number;
   config: string;
   mode: VehicleMode;
+  homeChargingSource: HomeChargingSource | null;
   createdAt: string;
   updatedAt: string;
 }
