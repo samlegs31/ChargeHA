@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, it } from "@std/testing/bdd";
+import { expect } from "@std/expect";
 import {
   getVehicleChargeController,
   isExternallyControlledVehicle,
@@ -7,7 +8,7 @@ import {
 
 describe("vehicle charge controller metadata", () => {
   it("defaults legacy and invalid config to direct vehicle control", () => {
-    expect(getVehicleChargeController("{}")) .toBe("vehicle");
+    expect(getVehicleChargeController("{}")).toBe("vehicle");
     expect(getVehicleChargeController("not-json")).toBe("vehicle");
     expect(isExternallyControlledVehicle(undefined)).toBe(false);
   });
@@ -24,7 +25,10 @@ describe("vehicle charge controller metadata", () => {
       '{"foo":"bar"}',
       "wattpilot",
     );
-    expect(JSON.parse(wattpilot)).toEqual({ foo: "bar", chargeController: "wattpilot" });
+    expect(JSON.parse(wattpilot)).toEqual({
+      foo: "bar",
+      chargeController: "wattpilot",
+    });
 
     const vehicle = setVehicleChargeController(wattpilot, "vehicle");
     expect(JSON.parse(vehicle)).toEqual({ foo: "bar" });
