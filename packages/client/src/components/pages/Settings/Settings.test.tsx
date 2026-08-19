@@ -66,6 +66,10 @@ vi.mock("./HistoryMigrationSettings.tsx", () => ({
   HistoryMigrationSettings: () => <div data-testid="history-migration-settings" />,
 }));
 
+vi.mock("./SolarWebHistoryImport.tsx", () => ({
+  SolarWebHistoryImport: () => <div data-testid="solarweb-history-import" />,
+}));
+
 const {
   mockLocationFetch,
   mockSetBulkMutate,
