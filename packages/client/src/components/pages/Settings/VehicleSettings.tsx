@@ -12,6 +12,7 @@ import {
   useChargingConfig,
   useChargingConfigMutation,
 } from "../../../hooks/useSectionConfig.ts";
+import { vehicleColorPalette } from "../../../utils/vehicleColor.ts";
 import { SettingsRow, SettingsSection } from "./SettingsLayout.tsx";
 import {
   type HomeChargingSource,
@@ -110,11 +111,13 @@ function VehicleRow(
     ) => void;
   },
 ) {
+  const palette = vehicleColorPalette(v.state?.exteriorColor);
   return (
     <div
       style={{
         padding: "12px",
         border: "1px solid var(--gray-a4)",
+        borderLeft: `4px solid ${palette.base}`,
         borderRadius: 8,
         background: "var(--gray-a2)",
       }}
@@ -129,11 +132,14 @@ function VehicleRow(
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Car size={17} style={{ color: "var(--color-vehicle)" }} />
+          <Car size={17} style={{ color: palette.base }} />
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <Text size="2" weight="bold">{v.name}</Text>
               <Badge variant="outline" size="1">{v.adapterType}</Badge>
+              {v.state?.exteriorColor && (
+                <Text size="1" color="gray">{palette.label}</Text>
+              )}
             </div>
             <Text size="1" color="gray" style={{ display: "block" }}>
               {v.id}
