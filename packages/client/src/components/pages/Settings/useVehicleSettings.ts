@@ -6,7 +6,11 @@ import { useRouter } from "../../../hooks/useRouter.ts";
 import { clearPluginOnboarding } from "../../../hooks/usePluginOnboardingState.ts";
 
 export type HomeChargingSource = "chargehq" | "solarweb";
-export type VehicleSettingsRow = VehicleWithState & {
+type VehicleStateWithColor = NonNullable<VehicleWithState["state"]> & {
+  exteriorColor?: string | null;
+};
+export type VehicleSettingsRow = Omit<VehicleWithState, "state"> & {
+  state: VehicleStateWithColor | null;
   homeChargingSource: HomeChargingSource | null;
 };
 
