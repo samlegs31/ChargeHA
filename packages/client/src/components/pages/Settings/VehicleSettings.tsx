@@ -1,6 +1,8 @@
 import { Car, Plus, Trash2 } from "lucide-react";
 import { ArrowDownIcon, ArrowUpIcon } from "@radix-ui/react-icons";
 import { Badge, Button, Card, Switch, Text } from "@radix-ui/themes";
+import type { VehicleChargeController } from "@chargeha/shared/vehicleControl";
+import { getVehicleChargeController } from "@chargeha/shared/vehicleControl";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
 import {
   pluginSettingsComponents,
@@ -27,14 +29,20 @@ function VehicleRow(
     vehiclesLength,
     handleMovePriority,
     handleDelete,
+    handleChargeControllerChange,
   }: {
     v: Vehicle;
     idx: number;
     vehiclesLength: number;
     handleMovePriority: (vin: string, direction: "up" | "down") => void;
     handleDelete: (vin: string) => void;
+    handleChargeControllerChange: (
+      vin: string,
+      controller: VehicleChargeController,
+    ) => void;
   },
 ) {
+  const chargeController = getVehicleChargeController(v.config);
   return (
     <div
       style={{
@@ -44,6 +52,8 @@ function VehicleRow(
         padding: "8px 10px",
         borderBottom: "1px solid var(--gray-a3)",
         borderRadius: 6,
+        gap: 12,
+        flexWrap: "wrap",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -56,7 +66,37 @@ function VehicleRow(
         </div>
         <Badge variant="outline" size="1">{v.adapterType}</Badge>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <Text size="1" color="gray">Charge control</Text>
+          <select
+            aria-label={`Charge control for ${v.name}`}
+            value={chargeController}
+            onChange={(event) =>
+              handleChargeControllerChange(
+                v.id,
+                event.currentTarget.value as VehicleChargeController,
+              )}
+            style={{
+              border: "1px solid var(--gray-a6)",
+              borderRadius: 6,
+              padding: "4px 8px",
+              background: "var(--color-panel-solid)",
+              color: "var(--gray-12)",
+              fontSize: 12,
+            }}
+          >
+            <option value="vehicle">E.V. Solar / vehicle</option>
+            <option value="wattpilot">Wattpilot</option>
+          </select>
+        </label>
         {vehiclesLength > 1 && (
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <Text size="1" color="gray">Priority {v.priority}</Text>
@@ -190,11 +230,21 @@ function PriorityChargingHeader(
 }
 
 function VehicleListBlock(
-  { vehicles, loadFailed, handleMovePriority, handleDelete }: {
+  {
+    vehicles,
+    loadFailed,
+    handleMovePriority,
+    handleDelete,
+    handleChargeControllerChange,
+  }: {
     vehicles: Vehicle[];
     loadFailed: boolean;
     handleMovePriority: (vin: string, direction: "up" | "down") => void;
     handleDelete: (vin: string) => void;
+    handleChargeControllerChange: (
+      vin: string,
+      controller: VehicleChargeController,
+    ) => void;
   },
 ) {
   return (
@@ -216,6 +266,7 @@ function VehicleListBlock(
           vehiclesLength={vehicles.length}
           handleMovePriority={handleMovePriority}
           handleDelete={handleDelete}
+          handleChargeControllerChange={handleChargeControllerChange}
         />
       ))}
     </>
@@ -230,6 +281,7 @@ export function VehicleSettings() {
     error,
     handleDelete,
     handleMovePriority,
+    handleChargeControllerChange,
     vehiclePlugins,
     handleStartOnboarding,
   } = useVehicleSettings();
@@ -295,6 +347,7 @@ export function VehicleSettings() {
           loadFailed={loadFailed}
           handleMovePriority={handleMovePriority}
           handleDelete={handleDelete}
+          handleChargeControllerChange={handleChargeControllerChange}
         />
 
         {unconfiguredPlugins.map((plugin) => (
