@@ -105,7 +105,6 @@ export class HistoryRepository {
     const nativeCutoff = cutoffRows[0]?.timestamp ?? null;
     const importableRows = this.beforeNativeCutoff(rows, nativeCutoff);
     const overlapRows = rows.length - importableRows.length;
-
     const insertedRows = this.db.transaction((tx) =>
       importableRows.reduce((inserted, row) => {
         const result = tx.insert(vehicleChargeHistory).values({
@@ -125,11 +124,7 @@ export class HistoryRepository {
     return await this.importRows(vehicleId, rows);
   }
 
-  /**
-   * Import installation-level EV charging history. Solar.web Wattpilot rows
-   * belong here because they describe energy delivered to EVs without knowing
-   * which vehicle received it.
-   */
+  /** Legacy installation-level archive kept for previously imported data. */
   async importAggregateRows(
     rows: readonly VehicleChargeHistoryRowInput[],
   ): Promise<HistoryImportResult> {
@@ -184,15 +179,11 @@ export class HistoryRepository {
     const archive = this.archiveRows(vehicleId, dayRange(date));
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
       WITH archive AS (${archive})
-      SELECT
-        substr(start_time_local, 12, 2) AS bucket,
-        SUM(solar_wh) AS solar_wh,
-        SUM(battery_wh) AS battery_wh,
-        SUM(grid_wh) AS grid_wh,
-        SUM(away_wh) AS away_wh,
+      SELECT substr(start_time_local, 12, 2) AS bucket,
+        SUM(solar_wh) AS solar_wh, SUM(battery_wh) AS battery_wh,
+        SUM(grid_wh) AS grid_wh, SUM(away_wh) AS away_wh,
         SUM(charged_wh) AS total_wh
-      FROM archive
-      GROUP BY bucket ORDER BY bucket
+      FROM archive GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => this.mapStatsRow(row));
   }
@@ -204,16 +195,12 @@ export class HistoryRepository {
     const archive = this.archiveRows(vehicleId, dayRange(date));
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
       WITH archive AS (${archive})
-      SELECT
-        CAST(substr(start_time_local, 12, 2) AS INTEGER) * 4
+      SELECT CAST(substr(start_time_local, 12, 2) AS INTEGER) * 4
           + CAST(substr(start_time_local, 15, 2) AS INTEGER) / 15 AS bucket,
-        SUM(solar_wh) AS solar_wh,
-        SUM(battery_wh) AS battery_wh,
-        SUM(grid_wh) AS grid_wh,
-        SUM(away_wh) AS away_wh,
+        SUM(solar_wh) AS solar_wh, SUM(battery_wh) AS battery_wh,
+        SUM(grid_wh) AS grid_wh, SUM(away_wh) AS away_wh,
         SUM(charged_wh) AS total_wh
-      FROM archive
-      GROUP BY bucket ORDER BY bucket
+      FROM archive GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => ({ ...this.mapStatsRow(row), bucket: Number(row.bucket) }));
   }
@@ -226,15 +213,11 @@ export class HistoryRepository {
     const archive = this.archiveRows(vehicleId, monthRange(year, month));
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
       WITH archive AS (${archive})
-      SELECT
-        substr(start_time_local, 9, 2) AS bucket,
-        SUM(solar_wh) AS solar_wh,
-        SUM(battery_wh) AS battery_wh,
-        SUM(grid_wh) AS grid_wh,
-        SUM(away_wh) AS away_wh,
+      SELECT substr(start_time_local, 9, 2) AS bucket,
+        SUM(solar_wh) AS solar_wh, SUM(battery_wh) AS battery_wh,
+        SUM(grid_wh) AS grid_wh, SUM(away_wh) AS away_wh,
         SUM(charged_wh) AS total_wh
-      FROM archive
-      GROUP BY bucket ORDER BY bucket
+      FROM archive GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => this.mapStatsRow(row));
   }
@@ -246,104 +229,280 @@ export class HistoryRepository {
     const archive = this.archiveRows(vehicleId, yearRange(year));
     const rows = await this.db.all<RawHistoryStatsRow>(sql`
       WITH archive AS (${archive})
-      SELECT
-        substr(start_time_local, 6, 2) AS bucket,
-        SUM(solar_wh) AS solar_wh,
-        SUM(battery_wh) AS battery_wh,
-        SUM(grid_wh) AS grid_wh,
-        SUM(away_wh) AS away_wh,
+      SELECT substr(start_time_local, 6, 2) AS bucket,
+        SUM(solar_wh) AS solar_wh, SUM(battery_wh) AS battery_wh,
+        SUM(grid_wh) AS grid_wh, SUM(away_wh) AS away_wh,
         SUM(charged_wh) AS total_wh
-      FROM archive
-      GROUP BY bucket ORDER BY bucket
+      FROM archive GROUP BY bucket ORDER BY bucket
     `);
     return rows.map((row) => this.mapStatsRow(row));
   }
 
-  /**
-   * Per-vehicle Stats use vehicle-attributed ChargeHQ rows, including away
-   * charging. Global Stats combine Solar.web home history with ChargeHQ history.
-   * ChargeHQ home intervals are suppressed when overlapping Solar.web intervals,
-   * while away energy is kept only for vehicles currently configured in E.V Solar.
-   *
-   * Keep the requested local period inside each UNION branch. This is important:
-   * filtering only after the archive CTE forces SQLite to evaluate overlap rules
-   * for the whole imported archive on every Day/Month/Year request.
-   */
   private archiveRows(vehicleId: string | undefined, range: LocalRange) {
-    if (vehicleId) {
-      return sql`
-        SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
-          h.at_home_wh AS charged_wh, h.solar_wh, h.battery_wh, h.grid_wh,
-          0.0 AS away_wh, h.at_home_wh
-        FROM vehicle_charge_history h
-        WHERE h.source = 'chargehq'
-          AND h.vehicle_id = ${vehicleId}
-          AND h.start_time_local >= ${range.start}
-          AND h.start_time_local < ${range.endExclusive}
-          AND h.at_home_wh > 0
-          ${this.nativeVehiclePriorityFilter()}
-        UNION ALL
-        SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
-          h.away_wh AS charged_wh, 0.0 AS solar_wh, 0.0 AS battery_wh,
-          0.0 AS grid_wh, h.away_wh, 0.0 AS at_home_wh
-        FROM vehicle_charge_history h
-        WHERE h.source = 'chargehq'
-          AND h.vehicle_id = ${vehicleId}
-          AND h.start_time_local >= ${range.start}
-          AND h.start_time_local < ${range.endExclusive}
-          AND h.away_wh > 0
-          ${this.nativeVehiclePriorityFilter()}
-      `;
-    }
+    return vehicleId
+      ? this.vehicleArchiveRows(vehicleId, range)
+      : this.globalArchiveRows(range);
+  }
+
+  private vehicleArchiveRows(vehicleId: string, range: LocalRange) {
+    return sql`
+      ${this.vehicleHomeRows(vehicleId, range)}
+      UNION ALL
+      ${this.vehicleAwayRows(vehicleId, range)}
+    `;
+  }
+
+  private globalArchiveRows(range: LocalRange) {
+    return sql`
+      ${this.globalHomeRows(range)}
+      UNION ALL
+      ${this.globalAwayRows(range)}
+      UNION ALL
+      ${this.legacyAggregateRows(range)}
+    `;
+  }
+
+  /**
+   * Home rows follow the vehicle's explicit source selection. Vehicles created
+   * before this setting existed keep the historical behaviour: Solar.web wins
+   * only where it overlaps ChargeHQ, otherwise ChargeHQ remains a fallback.
+   */
+  private vehicleHomeRows(vehicleId: string, range: LocalRange) {
     return sql`
       SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
         h.at_home_wh AS charged_wh, h.solar_wh, h.battery_wh, h.grid_wh,
         0.0 AS away_wh, h.at_home_wh
       FROM vehicle_charge_history h
-      WHERE h.source = 'chargehq'
+      WHERE h.vehicle_id = ${vehicleId}
+        AND h.source IN ('chargehq', 'solarweb')
         AND h.start_time_local >= ${range.start}
         AND h.start_time_local < ${range.endExclusive}
         AND h.at_home_wh > 0
         ${this.nativeVehiclePriorityFilter()}
-        AND NOT EXISTS (
-          SELECT 1 FROM aggregate_ev_charge_history sw
-          WHERE sw.source = 'solarweb'
-            AND sw.start_time_utc >= datetime(
-              h.start_time_utc,
-              '-' || COALESCE(
-                (SELECT MAX(s.interval_seconds)
-                 FROM aggregate_ev_charge_history s
-                 WHERE s.source = 'solarweb'),
-                0
-              ) || ' seconds'
-            )
-            AND sw.start_time_utc < datetime(
-              h.start_time_utc, '+' || h.interval_seconds || ' seconds'
-            )
-            AND datetime(
-              sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
-            ) > h.start_time_utc
+        AND (
+          (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
+          OR h.source = (
+            SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+          )
         )
-      UNION ALL
+        AND (
+          (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NOT NULL
+          OR h.source = 'solarweb'
+          OR NOT EXISTS (
+            SELECT 1 FROM vehicle_charge_history sw
+            WHERE sw.source = 'solarweb' AND sw.vehicle_id = h.vehicle_id
+              ${this.vehicleOverlapFilter()}
+          )
+        )
+    `;
+  }
+
+  private vehicleAwayRows(vehicleId: string, range: LocalRange) {
+    return sql`
       SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
         h.away_wh AS charged_wh, 0.0 AS solar_wh, 0.0 AS battery_wh,
         0.0 AS grid_wh, h.away_wh, 0.0 AS at_home_wh
       FROM vehicle_charge_history h
-      WHERE h.source = 'chargehq'
+      WHERE h.vehicle_id = ${vehicleId}
+        AND h.source IN ('chargehq', 'vehicle-history')
+        AND h.start_time_local >= ${range.start}
+        AND h.start_time_local < ${range.endExclusive}
+        AND h.away_wh > 0
+        ${this.nativeVehiclePriorityFilter()}
+        ${this.selectedHomeOverlapExclusion()}
+        AND (h.source = 'vehicle-history' OR NOT EXISTS (
+          SELECT 1 FROM vehicle_charge_history vh
+          WHERE vh.source = 'vehicle-history' AND vh.vehicle_id = h.vehicle_id
+            AND vh.start_time_utc < datetime(
+              h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+            )
+            AND datetime(
+              vh.start_time_utc, '+' || vh.interval_seconds || ' seconds'
+            ) > h.start_time_utc
+            ${this.nativeHistorySelectedHomeExclusion()}
+        ))
+    `;
+  }
+
+  private globalHomeRows(range: LocalRange) {
+    return sql`
+      SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
+        h.at_home_wh AS charged_wh, h.solar_wh, h.battery_wh, h.grid_wh,
+        0.0 AS away_wh, h.at_home_wh
+      FROM vehicle_charge_history h
+      WHERE h.source IN ('chargehq', 'solarweb')
+        AND EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
+        AND h.start_time_local >= ${range.start}
+        AND h.start_time_local < ${range.endExclusive}
+        AND h.at_home_wh > 0
+        ${this.nativeVehiclePriorityFilter()}
+        AND (
+          (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
+          OR h.source = (
+            SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+          )
+        )
+        AND (
+          (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NOT NULL
+          OR h.source = 'solarweb'
+          OR (
+            NOT EXISTS (
+              SELECT 1 FROM vehicle_charge_history sw
+              WHERE sw.source = 'solarweb' AND sw.vehicle_id = h.vehicle_id
+                ${this.vehicleOverlapFilter()}
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM aggregate_ev_charge_history sw
+              WHERE sw.source = 'solarweb'
+                ${this.aggregateOverlapWithVehicleFilter()}
+            )
+          )
+        )
+    `;
+  }
+
+  private globalAwayRows(range: LocalRange) {
+    return sql`
+      SELECT h.start_time_utc, h.start_time_local, h.interval_seconds,
+        h.away_wh AS charged_wh, 0.0 AS solar_wh, 0.0 AS battery_wh,
+        0.0 AS grid_wh, h.away_wh, 0.0 AS at_home_wh
+      FROM vehicle_charge_history h
+      WHERE h.source IN ('chargehq', 'vehicle-history')
         AND h.start_time_local >= ${range.start}
         AND h.start_time_local < ${range.endExclusive}
         AND h.away_wh > 0
         ${this.nativeVehiclePriorityFilter()}
         AND EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
-      UNION ALL
+        ${this.selectedHomeOverlapExclusion()}
+        AND (h.source = 'vehicle-history' OR NOT EXISTS (
+          SELECT 1 FROM vehicle_charge_history vh
+          WHERE vh.source = 'vehicle-history' AND vh.vehicle_id = h.vehicle_id
+            AND vh.start_time_utc < datetime(
+              h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+            )
+            AND datetime(
+              vh.start_time_utc, '+' || vh.interval_seconds || ' seconds'
+            ) > h.start_time_utc
+            ${this.nativeHistorySelectedHomeExclusion()}
+        ))
+    `;
+  }
+
+  private legacyAggregateRows(range: LocalRange) {
+    return sql`
       SELECT a.start_time_utc, a.start_time_local, a.interval_seconds,
-        a.charged_wh, a.solar_wh, a.battery_wh, a.grid_wh, 0.0 AS away_wh,
-        a.at_home_wh
+        a.charged_wh, a.solar_wh, a.battery_wh, a.grid_wh,
+        0.0 AS away_wh, a.at_home_wh
       FROM aggregate_ev_charge_history a
       WHERE a.source = 'solarweb'
         AND a.start_time_local >= ${range.start}
         AND a.start_time_local < ${range.endExclusive}
         ${this.nativeAggregatePriorityFilter()}
+        AND NOT EXISTS (
+          SELECT 1 FROM vehicle_charge_history h
+          WHERE h.source IN ('chargehq', 'solarweb')
+            AND h.at_home_wh > 0
+            AND EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
+            AND (
+              (
+                (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NOT NULL
+                AND h.source = (
+                  SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+                )
+              )
+              OR (
+                (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
+                AND h.source = 'solarweb'
+              )
+            )
+            AND h.start_time_utc < datetime(
+              a.start_time_utc, '+' || a.interval_seconds || ' seconds'
+            )
+            AND datetime(
+              h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+            ) > a.start_time_utc
+        )
+    `;
+  }
+
+  private vehicleOverlapFilter() {
+    return sql`
+      AND sw.start_time_utc < datetime(
+        h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+      )
+      AND datetime(
+        sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
+      ) > h.start_time_utc
+    `;
+  }
+
+  private aggregateOverlapWithVehicleFilter() {
+    return sql`
+      AND sw.start_time_utc < datetime(
+        h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+      )
+      AND datetime(
+        sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
+      ) > h.start_time_utc
+    `;
+  }
+
+  /**
+   * Tesla/vehicle archive rows are External only when they do not overlap the
+   * selected home source for that same VIN. Before a source is configured,
+   * either recognised home source may suppress an external duplicate.
+   */
+  private selectedHomeOverlapExclusion() {
+    return sql`
+      AND (
+        h.source <> 'vehicle-history'
+        OR NOT EXISTS (
+          SELECT 1 FROM vehicle_charge_history home
+          WHERE home.vehicle_id = h.vehicle_id
+            AND home.source IN ('chargehq', 'solarweb')
+            AND home.at_home_wh > 0
+            AND (
+              (SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id) IS NULL
+              OR home.source = (
+                SELECT v.home_charging_source FROM vehicles v WHERE v.id = h.vehicle_id
+              )
+            )
+            AND home.start_time_utc < datetime(
+              h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+            )
+            AND datetime(
+              home.start_time_utc, '+' || home.interval_seconds || ' seconds'
+            ) > h.start_time_utc
+        )
+      )
+    `;
+  }
+
+  /**
+   * A native Tesla row only suppresses ChargeHQ Away when that Tesla row would
+   * itself remain visible after applying the selected Home source. This avoids
+   * dropping both rows when a Home session replaces the Tesla duplicate.
+   */
+  private nativeHistorySelectedHomeExclusion() {
+    return sql`
+      AND NOT EXISTS (
+        SELECT 1 FROM vehicle_charge_history home
+        WHERE home.vehicle_id = vh.vehicle_id
+          AND home.source IN ('chargehq', 'solarweb')
+          AND home.at_home_wh > 0
+          AND (
+            (SELECT v.home_charging_source FROM vehicles v WHERE v.id = vh.vehicle_id) IS NULL
+            OR home.source = (
+              SELECT v.home_charging_source FROM vehicles v WHERE v.id = vh.vehicle_id
+            )
+          )
+          AND home.start_time_utc < datetime(
+            vh.start_time_utc, '+' || vh.interval_seconds || ' seconds'
+          )
+          AND datetime(
+            home.start_time_utc, '+' || home.interval_seconds || ' seconds'
+          ) > vh.start_time_utc
+      )
     `;
   }
 

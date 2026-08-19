@@ -20,6 +20,7 @@ import { TeslaTokenManager } from "./TeslaTokenManager.ts";
 import { TESLA_SECRET_KEYS, teslaConfigDef } from "./config.ts";
 import { createTeslaHttpRoutes } from "./routes.ts";
 import { createTeslaRouter } from "./router.ts";
+import { fetchChargingHistory } from "./ChargingHistory.ts";
 
 const DEFAULT_PROXY_URL = "https://localhost:4443";
 
@@ -118,6 +119,36 @@ export class TeslaVehiclePlugin implements VehiclePlugin {
       this.deps.dbLog,
     );
     return new TeslaVehicleMiddleware(adapter, this.deps.log);
+  }
+
+  async importChargingHistory(vehicleId: string, from: string, to: string) {
+    await this.startupPromise;
+    if (await this.deps.getVehicleRow(vehicleId) === null) {
+      throw new Error(`Tesla vehicle ${vehicleId} is not configured`);
+    }
+    const archive = await fetchChargingHistory(this.teslaTokenManager, {
+      vin: vehicleId,
+      from,
+      to,
+    });
+    const imported = await this.deps.importVehicleChargeHistoryRows(
+      vehicleId,
+      archive.rows,
+    );
+    const coverage = await this.deps.getVehicleChargeHistoryCoverage(
+      "vehicle-history",
+      vehicleId,
+    );
+    return {
+      ...imported,
+      sessionsRead: archive.sessionsRead,
+      sessionsMatched: archive.sessionsMatched,
+      sessionsSkipped: archive.sessionsSkipped,
+      intervalsBuilt: archive.rows.length,
+      chargedWh: archive.chargedWh,
+      truncated: archive.truncated,
+      coverage,
+    };
   }
 
   async shutdown(): Promise<void> {

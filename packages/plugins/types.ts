@@ -56,6 +56,30 @@ export interface BasePlugin {
 // ── Vehicle Plugin ──────────────────────────────────────────────────────────
 
 /**
+ * Result returned when a vehicle integration can import archived charging
+ * sessions. The host only needs generic diagnostics; source-specific parsing
+ * and authentication stay inside the owning plugin.
+ */
+export interface VehicleChargingHistoryImportResult {
+  insertedRows: number;
+  skippedRows: number;
+  duplicateRows: number;
+  overlapRows: number;
+  sessionsRead: number;
+  sessionsMatched: number;
+  sessionsSkipped: number;
+  intervalsBuilt: number;
+  chargedWh: number;
+  truncated: boolean;
+  coverage: {
+    rowCount: number;
+    firstStartTimeLocal: string | null;
+    lastStartTimeLocal: string | null;
+    chargedWh: number;
+  };
+}
+
+/**
  * A vehicle plugin (e.g. Tesla, Simulated). Takes `PluginDependencies` in
  * its constructor and kicks off async startup internally — no separate
  * `initialize(deps)` call, no separate instance wrapper.
@@ -73,6 +97,13 @@ export interface VehiclePlugin extends BasePlugin {
   /** Whether this plugin's vehicles can accept commands right now, with a
    *  user-facing reason when they can't. */
   getCommandStatus(): Promise<CommandStatus>;
+  /** Optional archive import. Vehicle identity is the host vehicle id; a
+   *  plugin may map that id to its own stable identifier such as a VIN. */
+  importChargingHistory?(
+    vehicleId: string,
+    from: string,
+    to: string,
+  ): Promise<VehicleChargingHistoryImportResult>;
 }
 
 // ── Vehicle Middleware ──────────────────────────────────────────────────────

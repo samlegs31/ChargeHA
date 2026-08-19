@@ -13,8 +13,21 @@ import { publicProcedure, router } from "../trpc.ts";
 
 const csvTextInput = z.string().min(1).max(15_000_000);
 const vehicleIdInput = z.object({ vehicleId: z.string().min(1) });
+const homeChargingSourceInput = z.object({
+  vehicleId: z.string().min(1),
+  source: z.enum(["chargehq", "solarweb"]).nullable(),
+});
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const archiveRangeInput = z.object({
+  vehicleId: z.string().min(1),
+  from: isoDate,
+  to: isoDate,
+}).refine((input) => input.from <= input.to, {
+  message: "Start date must be before or equal to end date",
+  path: ["from"],
+});
 const solarWebImportInput = z.object({
+  vehicleId: z.string().min(1),
   email: z.string().email(),
   password: z.string().min(1),
   pvSystemId: z.string().min(1),
@@ -47,7 +60,42 @@ async function readSolarWebHistory(input: z.infer<typeof solarWebImportInput>) {
   }
 }
 
+async function requireVehicle(
+  ctx: {
+    db: {
+      getVehicle(id: string): Promise<{
+        id: string;
+        name: string;
+        adapterType: string;
+      } | null>;
+    };
+  },
+  vehicleId: string,
+) {
+  const vehicle = await ctx.db.getVehicle(vehicleId);
+  if (vehicle === null) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "Vehicle not found" });
+  }
+  return vehicle;
+}
+
 export const historyRouter = router({
+  setHomeChargingSource: publicProcedure
+    .input(homeChargingSourceInput)
+    .mutation(async ({ ctx, input }) => {
+      const vehicle = await requireVehicle(ctx, input.vehicleId);
+      await ctx.db.vehicles.updateVehicleHomeChargingSource(
+        input.vehicleId,
+        input.source,
+      );
+      return {
+        success: true,
+        vehicleId: input.vehicleId,
+        vehicleName: vehicle.name,
+        source: input.source,
+      };
+    }),
+
   previewChargeHq: publicProcedure
     .input(z.object({ csvText: csvTextInput }))
     .mutation(({ input }) => {
@@ -71,14 +119,7 @@ export const historyRouter = router({
       vehicleId: z.string().min(1),
     }))
     .mutation(async ({ ctx, input }) => {
-      const vehicle = await ctx.db.getVehicle(input.vehicleId);
-      if (vehicle === null) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Vehicle not found",
-        });
-      }
-
+      await requireVehicle(ctx, input.vehicleId);
       const parsed = parseChargeHqCsv(input.csvText);
       const repository = new HistoryRepository(ctx.db.db);
       const importResult = await repository.importChargeHqRows(
@@ -89,7 +130,6 @@ export const historyRouter = router({
         "chargehq",
         input.vehicleId,
       );
-
       return {
         ...importResult,
         parsedIntervals: parsed.summary.intervalCount,
@@ -99,13 +139,42 @@ export const historyRouter = router({
       };
     }),
 
+  importVehicleChargingHistory: publicProcedure
+    .input(archiveRangeInput)
+    .mutation(async ({ ctx, input }) => {
+      const vehicle = await requireVehicle(ctx, input.vehicleId);
+      const plugin = ctx.vehiclePlugins.get(vehicle.adapterType);
+      if (plugin?.importChargingHistory === undefined) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Charging history import is not available for this vehicle integration",
+        });
+      }
+      try {
+        return await plugin.importChargingHistory(
+          input.vehicleId,
+          input.from,
+          input.to,
+        );
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_GATEWAY",
+          message: error instanceof Error
+            ? error.message
+            : "Vehicle charging history import failed",
+          cause: error,
+        });
+      }
+    }),
+
   importSolarWeb: publicProcedure
     .input(solarWebImportInput)
     .mutation(async ({ ctx, input }) => {
+      const vehicle = await requireVehicle(ctx, input.vehicleId);
       const history = await readSolarWebHistory(input);
       const repository = new HistoryRepository(ctx.db.db);
-      const importResult = await repository.importAggregateRows(history.rows);
-      const coverage = await repository.getAggregateCoverage("solarweb");
+      const importResult = await repository.importRows(input.vehicleId, history.rows);
+      const coverage = await repository.getCoverage("solarweb", input.vehicleId);
       return {
         ...importResult,
         samplesRead: history.samplesRead,
@@ -114,6 +183,8 @@ export const historyRouter = router({
         solarWh: history.solarWh,
         batteryWh: history.batteryWh,
         gridWh: history.gridWh,
+        vehicleId: input.vehicleId,
+        vehicleName: vehicle.name,
         coverage,
       };
     }),

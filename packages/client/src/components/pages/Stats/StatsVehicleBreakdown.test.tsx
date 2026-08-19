@@ -74,6 +74,8 @@ describe("StatsVehicleBreakdown", () => {
       activeVehicleBreakdowns: [{
         vehicleId: "VIN-1",
         vehicleName: "Model Y",
+        exteriorColor: "RedMulticoat",
+        homeChargingSource: "chargehq",
         totalChargedWh: 2000,
         totalSolarWh: 1400,
         totalBatteryWh: 0,
@@ -85,12 +87,13 @@ describe("StatsVehicleBreakdown", () => {
     });
     renderComponent();
     expect(screen.getByText("Model Y")).toBeInTheDocument();
+    expect(screen.getByText("Red")).toBeInTheDocument();
+    expect(screen.getByText("Home · ChargeHQ")).toBeInTheDocument();
     expect(screen.getByText("Total Charged")).toBeInTheDocument();
-    expect(screen.getByText("From Solar")).toBeInTheDocument();
-    expect(screen.getByText("From Battery")).toBeInTheDocument();
-    expect(screen.getByText("From Grid")).toBeInTheDocument();
-    expect(screen.getByText("Away")).toBeInTheDocument();
-    expect(screen.queryByText("Home Battery")).not.toBeInTheDocument();
+    expect(screen.getByText("Home Solar")).toBeInTheDocument();
+    expect(screen.getByText("Home Battery")).toBeInTheDocument();
+    expect(screen.getByText("Home Grid")).toBeInTheDocument();
+    expect(screen.getByText("External")).toBeInTheDocument();
     expect(screen.queryByText("Energy Sources")).not.toBeInTheDocument();
   });
 
@@ -106,7 +109,7 @@ describe("StatsVehicleBreakdown", () => {
     expect(screen.getByText("Vehicle Charging")).toBeInTheDocument();
   });
 
-  it("renders away charging in the generic fallback when available", () => {
+  it("renders external charging in the generic fallback when available", () => {
     setBreakdowns({ hasConfiguredVehicles: false });
     renderComponent({
       ...baseData,
@@ -114,6 +117,6 @@ describe("StatsVehicleBreakdown", () => {
       totalChargedWh: 2200,
     });
     expect(screen.getByText("Vehicle Charging")).toBeInTheDocument();
-    expect(screen.getByText("Away")).toBeInTheDocument();
+    expect(screen.getByText("External")).toBeInTheDocument();
   });
 });

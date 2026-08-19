@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Battery, DollarSign, MapPin, Sun, Zap } from "lucide-react";
-import { Card, Text } from "@radix-ui/themes";
+import { Badge, Card, Text } from "@radix-ui/themes";
 import type {
   DayResolution,
   StatsViewPeriod,
@@ -9,8 +9,10 @@ import type {
 import {
   useVehicleBreakdowns,
   type VehicleBreakdown,
+  type VehicleHomeChargingSource,
 } from "../../../hooks/useVehicleBreakdowns.ts";
 import { formatCost, kwhValue } from "../../../utils/Format.ts";
+import { vehicleColorPalette } from "../../../utils/vehicleColor.ts";
 import styles from "./Stats.module.css";
 
 interface StatsVehicleBreakdownProps {
@@ -35,6 +37,12 @@ function sourcePercentages(
     grid: Math.round((gridWh / totalWh) * 100),
     away: Math.round((awayWh / totalWh) * 100),
   };
+}
+
+function homeSourceLabel(source: VehicleHomeChargingSource): string {
+  if (source === "chargehq") return "Home · ChargeHQ";
+  if (source === "solarweb") return "Home · Wattpilot";
+  return "Home source not set";
 }
 
 function EnergyBreakdownRow({
@@ -106,8 +114,53 @@ function ChargingCostRows({
   );
 }
 
+function VehicleCardHeader({
+  title,
+  exteriorColor,
+  homeChargingSource,
+}: {
+  title: string;
+  exteriorColor: string | null;
+  homeChargingSource: VehicleHomeChargingSource;
+}) {
+  const palette = vehicleColorPalette(exteriorColor);
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+        flexWrap: "wrap",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          aria-hidden="true"
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            backgroundColor: palette.base,
+            boxShadow: `0 0 0 2px ${palette.light}`,
+          }}
+        />
+        <Text size="2" weight="bold">{title}</Text>
+        {exteriorColor && (
+          <Text size="1" color="gray">{palette.label}</Text>
+        )}
+      </div>
+      <Badge variant="soft" size="1">
+        {homeSourceLabel(homeChargingSource)}
+      </Badge>
+    </div>
+  );
+}
+
 function VehicleChargingCard({
   title,
+  exteriorColor,
+  homeChargingSource,
   solarWh,
   batteryWh,
   gridWh,
@@ -117,6 +170,8 @@ function VehicleChargingCard({
   currencySymbol,
 }: {
   title: string;
+  exteriorColor: string | null;
+  homeChargingSource: VehicleHomeChargingSource;
   solarWh: number;
   batteryWh: number;
   gridWh: number;
@@ -127,9 +182,17 @@ function VehicleChargingCard({
 }) {
   const totalWh = solarWh + batteryWh + gridWh + awayWh;
   const pct = sourcePercentages(solarWh, batteryWh, gridWh, awayWh);
+  const palette = vehicleColorPalette(exteriorColor);
   return (
-    <Card className={styles.breakdownCard}>
-      <Text size="2" weight="bold">{title}</Text>
+    <Card
+      className={styles.breakdownCard}
+      style={{ borderLeft: `4px solid ${palette.base}` }}
+    >
+      <VehicleCardHeader
+        title={title}
+        exteriorColor={exteriorColor}
+        homeChargingSource={homeChargingSource}
+      />
       <div className={styles.breakdownRow}>
         <Text size="2" color="gray" className={styles.breakdownLabel}>
           Total Charged
@@ -140,32 +203,32 @@ function VehicleChargingCard({
         <Text size="2" className={styles.breakdownPct} />
       </div>
       <EnergyBreakdownRow
-        label="From Solar"
+        label="Home Solar"
         valueWh={solarWh}
         pct={pct.solar}
-        color="var(--color-solar-car)"
-        icon={<Sun size={16} style={{ color: "var(--color-solar-car)" }} />}
+        color={palette.light}
+        icon={<Sun size={16} style={{ color: palette.dark }} />}
       />
       <EnergyBreakdownRow
-        label="From Battery"
+        label="Home Battery"
         valueWh={batteryWh}
         pct={pct.battery}
-        color="var(--color-battery-car)"
-        icon={<Battery size={16} style={{ color: "var(--color-battery-car)" }} />}
+        color={palette.base}
+        icon={<Battery size={16} style={{ color: palette.base }} />}
       />
       <EnergyBreakdownRow
-        label="From Grid"
+        label="Home Grid"
         valueWh={gridWh}
         pct={pct.grid}
-        color="var(--color-grid-car)"
-        icon={<Zap size={16} style={{ color: "var(--color-grid-car)" }} />}
+        color={palette.dark}
+        icon={<Zap size={16} style={{ color: palette.dark }} />}
       />
       <EnergyBreakdownRow
-        label="Away"
+        label="External"
         valueWh={awayWh}
         pct={pct.away}
-        color="var(--color-away)"
-        icon={<MapPin size={16} style={{ color: "var(--color-away)" }} />}
+        color={palette.strong}
+        icon={<MapPin size={16} style={{ color: palette.strong }} />}
       />
       <ChargingCostRows
         costCents={costCents}
@@ -197,6 +260,8 @@ function VehicleCards({
           <VehicleChargingCard
             key={vehicle.vehicleId}
             title={vehicle.vehicleName}
+            exteriorColor={vehicle.exteriorColor}
+            homeChargingSource={vehicle.homeChargingSource}
             solarWh={vehicle.totalSolarWh}
             batteryWh={vehicle.totalBatteryWh}
             gridWh={vehicle.totalGridWh}
@@ -213,6 +278,8 @@ function VehicleCards({
   return (
     <VehicleChargingCard
       title="Vehicle Charging"
+      exteriorColor={null}
+      homeChargingSource={null}
       solarWh={data.totalSolarWh}
       batteryWh={data.totalBatteryWh}
       gridWh={data.totalGridWh}

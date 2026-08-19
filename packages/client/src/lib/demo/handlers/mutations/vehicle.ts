@@ -16,6 +16,7 @@ type VehicleMutations = Pick<
   | "vehicle.command"
   | "vehicle.setAmps"
   | "vehicle.refreshState"
+  | "history.setHomeChargingSource"
   | "plugin.vehicle.simulated.updateState"
 >;
 
@@ -88,6 +89,7 @@ export const vehicleMutations: VehicleMutations = {
         isCharging: false,
         isPluggedIn: true,
         chargeAmps: 16,
+        homeChargingSource: null,
       }],
     }));
     return {
@@ -146,6 +148,20 @@ export const vehicleMutations: VehicleMutations = {
   "vehicle.refreshState": (input) => ({
     state: stateOf(getDemoState(), input.vehicleId),
   }),
+
+  "history.setHomeChargingSource": (input) => {
+    const current = getDemoState().vehicles.find((v) => v.id === input.vehicleId);
+    patchVehicle(input.vehicleId, (v) => ({
+      ...v,
+      homeChargingSource: input.source,
+    }));
+    return {
+      success: true,
+      vehicleId: input.vehicleId,
+      vehicleName: current?.name ?? input.vehicleId,
+      source: input.source,
+    };
+  },
 
   "plugin.vehicle.simulated.updateState": (input) => {
     const next = patchVehicle(input.vehicleId, (v) => ({

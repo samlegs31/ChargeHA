@@ -181,7 +181,32 @@ export class PluginDependencies<K extends string = string> {
     await this.vehicleManager.deleteVehicle(id);
   }
 
-  // ── Archived charging history (energy plugins) ──────────────────────
+  // ── Archived charging history ────────────────────────────────────────
+
+  /** Import archived charging intervals for one of this plugin's vehicles. */
+  async importVehicleChargeHistoryRows(
+    vehicleId: string,
+    rows: readonly VehicleChargeHistoryRowInput[],
+  ) {
+    if (await this.getVehicleRow(vehicleId) === null) {
+      throw new Error(
+        `Vehicle ${vehicleId} does not belong to plugin ${this.pluginId}`,
+      );
+    }
+    const repository = new HistoryRepository(this.db.db);
+    return await repository.importRows(vehicleId, rows);
+  }
+
+  /** Read archive coverage for one of this plugin's vehicles. */
+  async getVehicleChargeHistoryCoverage(source: string, vehicleId: string) {
+    if (await this.getVehicleRow(vehicleId) === null) {
+      throw new Error(
+        `Vehicle ${vehicleId} does not belong to plugin ${this.pluginId}`,
+      );
+    }
+    const repository = new HistoryRepository(this.db.db);
+    return await repository.getCoverage(source, vehicleId);
+  }
 
   /**
    * Import installation-level EV charging intervals. This is intentionally

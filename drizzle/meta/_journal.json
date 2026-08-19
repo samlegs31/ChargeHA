@@ -78,6 +78,13 @@
       "when": 1787005800000,
       "tag": "0010_stats_history_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1787145000000,
+      "tag": "0011_vehicle_home_charging_source",
+      "breakpoints": true
     }
   ]
 }
