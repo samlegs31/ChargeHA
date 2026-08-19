@@ -6,6 +6,7 @@ import type {
 } from "@chargeha/shared";
 import { isHome } from "@chargeha/shared/geo";
 import { calculateSolarAttribution } from "@chargeha/shared/solarAttribution";
+import { useHomeConfig } from "../../../hooks/useSectionConfig.ts";
 import type { ChargingVehicleFlow } from "../../EnergyFlowDiagram/EnergyFlowDiagram.tsx";
 
 type HomeLocation = { lat: number; lng: number } | null;
@@ -18,6 +19,19 @@ export function formatTimeUntil(isoString: string): string {
   const hours = Math.floor(diffMin / 60);
   const mins = diffMin % 60;
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+}
+
+function useConfiguredHomeLocation(): HomeLocation {
+  const { data: homeConfig } = useHomeConfig();
+  const homeLat = homeConfig?.homeLatitude;
+  const homeLng = homeConfig?.homeLongitude;
+  return useMemo(
+    () =>
+      homeLat != null && homeLng != null
+        ? { lat: homeLat, lng: homeLng }
+        : null,
+    [homeLat, homeLng],
+  );
 }
 
 /**
@@ -39,8 +53,9 @@ export function isChargingVehicleAtHome(
 export function useVehicleSolarGrid(
   realtime: EnergyData | null,
   vehicles: VehicleWithState[],
-  home: HomeLocation,
 ): Record<string, { solarW: number; batteryW: number; gridW: number }> {
+  const home = useConfiguredHomeLocation();
+
   return useMemo(() => {
     if (!realtime) return {};
 
@@ -75,9 +90,9 @@ export function useVehicleSolarGrid(
 export function useChargingVehicleFlows(
   realtime: EnergyData | null,
   vehicles: VehicleWithState[],
-  home: HomeLocation,
 ): ChargingVehicleFlow[] {
-  const vehicleSolarGrid = useVehicleSolarGrid(realtime, vehicles, home);
+  const home = useConfiguredHomeLocation();
+  const vehicleSolarGrid = useVehicleSolarGrid(realtime, vehicles);
 
   // Build charging-at-home vehicles list for the energy flow diagram
   return useMemo(() => {
