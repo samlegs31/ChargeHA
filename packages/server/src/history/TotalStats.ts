@@ -49,7 +49,7 @@ async function availableYears(
       UNION
       SELECT substr(h.start_time_local, 1, 4) AS year
       FROM vehicle_charge_history h
-      WHERE h.source = 'chargehq'
+      WHERE h.source IN ('chargehq', 'solarweb', 'vehicle-history')
         AND (h.at_home_wh > 0 OR h.away_wh > 0)
         ${archiveVehicle}
       ${aggregateYearsQuery(vehicleId)}
