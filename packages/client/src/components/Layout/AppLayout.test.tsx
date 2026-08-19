@@ -4,10 +4,6 @@ import { cleanup, screen } from "@testing-library/react";
 import { userEvent } from "@testing-library/user-event";
 import { renderWithProviders } from "../../test-utils.tsx";
 
-vi.mock("../ConnectionBadge/ConnectionBadge.tsx", () => ({
-  ConnectionBadge: () => <div data-testid="connection-badge" />,
-}));
-
 import { AppLayout } from "./AppLayout.tsx";
 
 describe("AppLayout", () => {
@@ -52,14 +48,16 @@ describe("AppLayout", () => {
     expect(screen.queryByText("Simulator")).not.toBeInTheDocument();
   });
 
-  it("renders the connection badge", () => {
+  it("does not render realtime connection status labels", () => {
     renderWithProviders(
       <AppLayout {...defaultProps}>
         <div />
       </AppLayout>,
     );
 
-    expect(screen.getByTestId("connection-badge")).toBeInTheDocument();
+    expect(screen.queryByText("LIVE")).not.toBeInTheDocument();
+    expect(screen.queryByText("CONNECTING")).not.toBeInTheDocument();
+    expect(screen.queryByText("OFFLINE")).not.toBeInTheDocument();
   });
 
   it("does not render a manual theme switch", () => {
