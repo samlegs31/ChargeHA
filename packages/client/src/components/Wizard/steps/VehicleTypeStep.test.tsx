@@ -65,8 +65,6 @@ vi.mock("../../../lib/featureFlags.ts", async (orig) => {
   };
 });
 
-// ---- Tests ----
-
 describe("VehicleTypeStep", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -82,34 +80,18 @@ describe("VehicleTypeStep", () => {
     cleanup();
   });
 
-  // ---- Initial render ----
-
-  it("renders the vehicle-type chooser with both options and descriptions", () => {
+  it("renders Tesla as the only production vehicle option", () => {
     renderWithProviders(
       <StepNextHarness def={vehicleTypeStep} onAdvance={mockAdvance} />,
     );
 
     expect(screen.getByRole("button", { name: /Tesla/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Simulated/ }))
-      .toBeInTheDocument();
     expect(screen.getByText(/Tesla Fleet API/)).toBeInTheDocument();
-    expect(screen.getByText(/virtual vehicle for testing/))
+    expect(screen.queryByRole("button", { name: /Simulated/ })).not
+      .toBeInTheDocument();
+    expect(screen.queryByText(/virtual vehicle for testing/)).not
       .toBeInTheDocument();
   });
-
-  it("disables Tesla but not Simulated in demo mode", () => {
-    mockIsDemoMode.mockReturnValue(true);
-    renderWithProviders(
-      <StepNextHarness def={vehicleTypeStep} onAdvance={mockAdvance} />,
-    );
-
-    expect(screen.getByRole("button", { name: /Tesla/ }))
-      .toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("button", { name: /Simulated/ }))
-      .toHaveAttribute("aria-disabled", "false");
-  });
-
-  // ---- User interactions ----
 
   it("selecting Tesla commits the selection without naming a next step", () => {
     renderWithProviders(
@@ -118,35 +100,10 @@ describe("VehicleTypeStep", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Tesla/ }));
 
-    // The step reports what was chosen; the flow decides where that leads.
     expect(mockAdvance).toHaveBeenCalledWith({ vehicleType: "tesla" });
   });
 
-  it("selecting Simulated creates the demo vehicle before advancing", () => {
-    renderWithProviders(
-      <StepNextHarness def={vehicleTypeStep} onAdvance={mockAdvance} />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /Simulated/ }));
-
-    expect(mockDemoMutate).toHaveBeenCalledWith({ adapterType: "simulated" });
-    expect(mockAdvance).toHaveBeenCalledWith({ vehicleType: "simulated" });
-  });
-
-  it("does not advance when demo vehicle creation has not succeeded", () => {
-    mockDemoMutate.mockImplementation(() => {});
-    renderWithProviders(
-      <StepNextHarness def={vehicleTypeStep} onAdvance={mockAdvance} />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /Simulated/ }));
-
-    expect(mockDemoMutate).toHaveBeenCalled();
-    expect(mockAdvance).not.toHaveBeenCalled();
-  });
-
   it("Next commits the existing vehicle type when the wizard state has none", async () => {
-    // Re-opened wizard: the card shows selected off the existing vehicle while state.vehicleType is "", so Next must write it.
     mockVehicleList.mockReturnValue({
       data: { vehicles: [{ adapterType: "tesla" }] },
     });
@@ -156,23 +113,8 @@ describe("VehicleTypeStep", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^Next/ }));
 
-    // The selection comes back from an async Next handler, so the move lands a microtask later.
     await waitFor(() => {
       expect(mockAdvance).toHaveBeenCalledWith({ vehicleType: "tesla" });
     });
-  });
-
-  it("reselecting the already-configured vehicle type proceeds without recreating it", () => {
-    mockVehicleList.mockReturnValue({
-      data: { vehicles: [{ adapterType: "simulated" }] },
-    });
-    renderWithProviders(
-      <StepNextHarness def={vehicleTypeStep} onAdvance={mockAdvance} />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: /Simulated/ }));
-
-    expect(mockDemoMutate).not.toHaveBeenCalled();
-    expect(mockAdvance).toHaveBeenCalledWith({ vehicleType: "simulated" });
   });
 });
