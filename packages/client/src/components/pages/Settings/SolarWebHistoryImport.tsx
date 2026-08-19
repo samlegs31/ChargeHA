@@ -68,6 +68,12 @@ interface VehicleArchiveSummary {
   truncated: boolean;
 }
 
+interface HistoryVehicle {
+  id: string;
+  name: string;
+  homeChargingSource?: string | null;
+}
+
 function emptyWattpilotSummary(): WattpilotSummary {
   return {
     insertedRows: 0,
@@ -119,6 +125,25 @@ async function importBatchSequence(
     importBatch,
     reportProgress,
   );
+}
+
+function vehicleOptions(vehicles: readonly HistoryVehicle[]) {
+  return vehicles.map(({ id, name }) => ({ id, name }));
+}
+
+function usePreferredHistoryVehicle(
+  vehicles: readonly HistoryVehicle[],
+  vehicleId: string,
+  setVehicleId: (value: string) => void,
+) {
+  useEffect(() => {
+    if (vehicleId !== "") return;
+    const preferred = vehicles.find((vehicle) =>
+      vehicle.homeChargingSource === "solarweb"
+    );
+    if (preferred) setVehicleId(preferred.id);
+    else if (vehicles.length === 1) setVehicleId(vehicles[0].id);
+  }, [vehicles, vehicleId, setVehicleId]);
 }
 
 function VehicleSelector(props: {
@@ -542,25 +567,15 @@ function useHistoryImportModel(): HistoryImportContentProps {
   const vehicleMutation = trpc.history.importVehicleChargingHistory.useMutation();
   const wattpilotMutation = trpc.history.importSolarWeb.useMutation();
   const homeSourceMutation = trpc.history.setHomeChargingSource.useMutation();
-  const rawVehicles = vehiclesQuery.data?.vehicles ?? [];
-  const vehicles = rawVehicles.map((vehicle) => ({
-    id: vehicle.id,
-    name: vehicle.name,
-  }));
+  const rawVehicles = (vehiclesQuery.data?.vehicles ?? []) as HistoryVehicle[];
+  const vehicles = vehicleOptions(rawVehicles);
   const busy = vehicleMutation.isPending || wattpilotMutation.isPending ||
     homeSourceMutation.isPending;
   const rangeReady = vehicleId !== "" && from !== "" && to !== "" && from <= to;
   const wattpilotReady = rangeReady && email !== "" && password !== "" &&
     pvSystemId !== "";
 
-  useEffect(() => {
-    if (vehicleId !== "") return;
-    const preferred = rawVehicles.find((vehicle) =>
-      vehicle.homeChargingSource === "solarweb"
-    );
-    if (preferred) setVehicleId(preferred.id);
-    else if (rawVehicles.length === 1) setVehicleId(rawVehicles[0].id);
-  }, [rawVehicles, vehicleId]);
+  usePreferredHistoryVehicle(rawVehicles, vehicleId, setVehicleId);
 
   const importVehicleHistory = async () => {
     if (!rangeReady || busy) return;
