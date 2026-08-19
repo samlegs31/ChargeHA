@@ -29,6 +29,65 @@ function sourceLabel(source: HomeChargingSource | null): string {
   return "Not configured";
 }
 
+function HomeChargingData({
+  vehicle,
+  pending,
+  onChange,
+}: {
+  vehicle: Vehicle;
+  pending: boolean;
+  onChange: (vin: string, source: HomeChargingSource | null) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 16,
+        flexWrap: "wrap",
+        marginTop: 12,
+        paddingTop: 10,
+        borderTop: "1px solid var(--gray-a4)",
+      }}
+    >
+      <div style={{ minWidth: 190, flex: "1 1 260px" }}>
+        <Text size="2" weight="medium">Home charging data</Text>
+        <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
+          Cross-checks this vehicle's charging history to identify home sessions.
+          Current: {sourceLabel(vehicle.homeChargingSource)}.
+        </Text>
+      </div>
+      <select
+        aria-label={`${vehicle.name} home charging data`}
+        value={vehicle.homeChargingSource ?? ""}
+        disabled={pending}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          onChange(
+            vehicle.id,
+            value === "" ? null : value as HomeChargingSource,
+          );
+        }}
+        style={{
+          width: 220,
+          maxWidth: "100%",
+          height: 34,
+          borderRadius: 6,
+          border: "1px solid var(--gray-a7)",
+          background: "var(--color-panel-solid)",
+          color: "var(--gray-12)",
+          padding: "0 9px",
+        }}
+      >
+        <option value="">Choose source...</option>
+        <option value="chargehq">ChargeHQ</option>
+        <option value="solarweb">Solar.web / Wattpilot</option>
+      </select>
+    </div>
+  );
+}
+
 function VehicleRow(
   {
     v,
@@ -118,52 +177,11 @@ function VehicleRow(
         </div>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 16,
-          flexWrap: "wrap",
-          marginTop: 12,
-          paddingTop: 10,
-          borderTop: "1px solid var(--gray-a4)",
-        }}
-      >
-        <div style={{ minWidth: 190, flex: "1 1 260px" }}>
-          <Text size="2" weight="medium">Home charging data</Text>
-          <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
-            Cross-checks this vehicle's charging history to identify home sessions.
-            Current: {sourceLabel(v.homeChargingSource)}.
-          </Text>
-        </div>
-        <select
-          aria-label={`${v.name} home charging data`}
-          value={v.homeChargingSource ?? ""}
-          disabled={sourcePending}
-          onChange={(event) => {
-            const value = event.currentTarget.value;
-            handleHomeChargingSource(
-              v.id,
-              value === "" ? null : value as HomeChargingSource,
-            );
-          }}
-          style={{
-            width: 220,
-            maxWidth: "100%",
-            height: 34,
-            borderRadius: 6,
-            border: "1px solid var(--gray-a7)",
-            background: "var(--color-panel-solid)",
-            color: "var(--gray-12)",
-            padding: "0 9px",
-          }}
-        >
-          <option value="">Choose source...</option>
-          <option value="chargehq">ChargeHQ</option>
-          <option value="solarweb">Solar.web / Wattpilot</option>
-        </select>
-      </div>
+      <HomeChargingData
+        vehicle={v}
+        pending={sourcePending}
+        onChange={handleHomeChargingSource}
+      />
     </div>
   );
 }
