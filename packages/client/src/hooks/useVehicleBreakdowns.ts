@@ -7,9 +7,22 @@ import type {
 } from "./useStats.ts";
 import { trpc } from "../trpc.ts";
 
+export type VehicleHomeChargingSource = "chargehq" | "solarweb" | null;
+
+type VehicleStateWithColor = NonNullable<VehicleWithState["state"]> & {
+  exteriorColor?: string | null;
+};
+
+type StatsVehicle = Omit<VehicleWithState, "state"> & {
+  state: VehicleStateWithColor | null;
+  homeChargingSource?: VehicleHomeChargingSource;
+};
+
 export interface VehicleBreakdown {
   vehicleId: string;
   vehicleName: string;
+  exteriorColor: string | null;
+  homeChargingSource: VehicleHomeChargingSource;
   totalChargedWh: number;
   totalSolarWh: number;
   totalBatteryWh: number;
@@ -54,7 +67,7 @@ export function useVehicleBreakdowns({
   const vehicles = useMemo(() => {
     const queryData = vehiclesQuery.data;
     if (!queryData) return [];
-    return queryData.vehicles as VehicleWithState[];
+    return queryData.vehicles as StatsVehicle[];
   }, [vehiclesQuery.data]);
   const hasConfiguredVehicles = vehicles.length > 0;
 
@@ -106,6 +119,8 @@ export function useVehicleBreakdowns({
         return {
           vehicleId: vehicle.id,
           vehicleName: vehicle.name,
+          exteriorColor: vehicle.state?.exteriorColor ?? null,
+          homeChargingSource: vehicle.homeChargingSource ?? null,
           totalChargedWh: response.totalChargedWh,
           totalSolarWh: response.totalSolarWh,
           totalBatteryWh: response.totalBatteryWh,
