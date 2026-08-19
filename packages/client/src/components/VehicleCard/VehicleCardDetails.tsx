@@ -107,6 +107,7 @@ interface VehicleCardDetailsProps {
   allocationStatus: string | null;
   controllerReason: string | null;
   controllerDetail: string | null;
+  externalControllerLabel?: string | null;
 }
 
 function formatMinutes(minutes: number): string {
@@ -275,6 +276,7 @@ export function VehicleCardDetails({
   allocationStatus,
   controllerReason,
   controllerDetail,
+  externalControllerLabel,
 }: VehicleCardDetailsProps) {
   const targetAmps = state.chargeAmps;
   const liveAmps = actualAmps(state);
@@ -291,13 +293,21 @@ export function VehicleCardDetails({
             {state.isCharging ? currentLabel : "Not Charging"}
           </Text>
         </div>
+        {externalControllerLabel && (
+          <div className={styles.detailRow}>
+            <Plug size={14} />
+            <Text size="1" color="blue">
+              Charge control managed by {externalControllerLabel}
+            </Text>
+          </div>
+        )}
         {allocationStatus && (
           <div className={styles.detailRow}>
             <ArrowUpDown size={14} />
             <Text size="1" color="yellow">{allocationStatus}</Text>
           </div>
         )}
-        {controllerReason && controllerDetail &&
+        {!externalControllerLabel && controllerReason && controllerDetail &&
           VISIBLE_REASONS.has(controllerReason) && (
           <ControllerReasonRow
             reason={controllerReason}
@@ -332,23 +342,25 @@ export function VehicleCardDetails({
         )}
       </div>
 
-      <div className={styles.controls}>
-        <div className={styles.buttonRow}>
-          <ChargeButton
-            isCharging={state.isCharging}
+      {!externalControllerLabel && (
+        <div className={styles.controls}>
+          <div className={styles.buttonRow}>
+            <ChargeButton
+              isCharging={state.isCharging}
+              disabled={disabled}
+              commandPending={commandPending}
+              onStart={onStartCharging}
+              onStop={onStopCharging}
+            />
+          </div>
+          <AmpsControl
+            state={state}
             disabled={disabled}
             commandPending={commandPending}
-            onStart={onStartCharging}
-            onStop={onStopCharging}
+            onSetAmps={onSetAmps}
           />
         </div>
-        <AmpsControl
-          state={state}
-          disabled={disabled}
-          commandPending={commandPending}
-          onSetAmps={onSetAmps}
-        />
-      </div>
+      )}
     </>
   );
 }
