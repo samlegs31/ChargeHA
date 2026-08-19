@@ -23,7 +23,8 @@ export interface VehicleRow {
   priority: number;
   config: string;
   mode: VehicleMode;
-  homeChargingSource: HomeChargingSource | null;
+  /** Optional for compatibility with legacy/plugin fixtures; DB rows expose null when unset. */
+  homeChargingSource?: HomeChargingSource | null;
   createdAt: string;
   updatedAt: string;
 }
