@@ -61,6 +61,9 @@ function getStatusText(
   const label = MODE_LABELS[mode];
   const homeSuffix = atHome ? " - Home" : "";
   if (state.isCharging) {
+    if (atHome === false) {
+      return `Charging away from home at ${state.chargePowerKw.toFixed(1)} kW`;
+    }
     return `${label} - Charging at ${
       state.chargePowerKw.toFixed(1)
     } kW${homeSuffix}`;
