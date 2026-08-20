@@ -62,9 +62,9 @@ describe("VehicleCard", () => {
     expect(screen.getByText("Ready — E.V. Solar will choose the best time"))
       .toBeInTheDocument();
 
-    for (const label of ["Solar", "Smart", "Now", "Pause"]) {
+    ["Solar", "Smart", "Now", "Pause"].forEach((label) => {
       expect(screen.getByText(label)).toBeInTheDocument();
-    }
+    });
 
     expect(screen.getByText("Show details")).toBeInTheDocument();
     expect(screen.queryByText("Start Charging")).not.toBeInTheDocument();
@@ -226,7 +226,7 @@ describe("VehicleCard", () => {
     expect(onSetAmps).toHaveBeenNthCalledWith(2, 17);
   });
 
-  it("keeps refresh inside technical details", async () => {
+  it("keeps refresh inside technical details", () => {
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     renderVC({ onRefresh });
 
