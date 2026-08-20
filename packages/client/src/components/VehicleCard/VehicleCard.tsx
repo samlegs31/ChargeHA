@@ -377,6 +377,14 @@ function TechnicalPanel(props: TechnicalPanelProps) {
   );
 }
 
+function VehicleCardSkeleton() {
+  return (
+    <Card className={styles.card}>
+      <Skeleton width="100%" height="180px" />
+    </Card>
+  );
+}
+
 export function VehicleCard({
   name,
   state,
@@ -413,13 +421,7 @@ export function VehicleCard({
     return () => clearInterval(id);
   }, []);
 
-  if (loading) {
-    return (
-      <Card className={styles.card}>
-        <Skeleton width="100%" height="180px" />
-      </Card>
-    );
-  }
+  if (loading) return <VehicleCardSkeleton />;
 
   const batteryPercent = Math.round(state.batteryLevel);
   const chargeLimitPercent = Math.round(state.chargeLimit);
