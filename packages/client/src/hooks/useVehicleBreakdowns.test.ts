@@ -117,6 +117,7 @@ describe("useVehicleBreakdowns", () => {
     expect(result.current.vehicleBreakdownsLoading).toBe(false);
     expect(result.current.currencySymbol).toBe("$");
     expect(result.current.activeVehicleBreakdowns).toEqual([]);
+    expect(result.current.unassignedBreakdown).toBeNull();
   });
 
   it.each([
@@ -147,6 +148,7 @@ describe("useVehicleBreakdowns", () => {
     const { result } = runHook({ data: baseStatsData });
 
     expect(result.current.hasConfiguredVehicles).toBe(true);
+    expect(result.current.unassignedBreakdown).toBeNull();
   });
 
   it("supports the Total period for per-vehicle queries", () => {
@@ -168,6 +170,7 @@ describe("useVehicleBreakdowns", () => {
 
     expect(result.current.activeVehicleBreakdowns[0]?.vehicleId).toBe("VIN1");
     expect(result.current.activeVehicleBreakdowns[0]?.totalAwayWh).toBe(500);
+    expect(result.current.unassignedBreakdown).toBeNull();
   });
 
   it("vehicleBreakdownsLoading is true when vehiclesQuery is pending", () => {
@@ -185,6 +188,7 @@ describe("useVehicleBreakdowns", () => {
     const { result } = runHook();
 
     expect(result.current.vehicleBreakdownsLoading).toBe(true);
+    expect(result.current.unassignedBreakdown).toBeNull();
   });
 
   it("maps vehicle query results and visual metadata to EV breakdowns", () => {
@@ -261,6 +265,88 @@ describe("useVehicleBreakdowns", () => {
         evSolarSavingsCents: 0,
       },
     ]);
+    expect(result.current.unassignedBreakdown).toBeNull();
+  });
+
+  it("exposes legacy or unattributed global energy after vehicle reconciliation", () => {
+    hoisted.state.listData = {
+      vehicles: [
+        { id: "FRIDAY", name: "F.R.I.D.A.Y." },
+        { id: "EDITH", name: "E.D.I.T.H." },
+      ],
+    };
+    hoisted.state.queriesResults = [
+      {
+        data: {
+          totalChargedWh: 242300,
+          totalSolarWh: 154600,
+          totalBatteryWh: 4200,
+          totalGridWh: 58700,
+          totalAwayWh: 24800,
+          totalCostCents: 0,
+          evSolarSavingsCents: 0,
+        },
+        isPending: false,
+      },
+      {
+        data: {
+          totalChargedWh: 335100,
+          totalSolarWh: 334600,
+          totalBatteryWh: 100,
+          totalGridWh: 400,
+          totalAwayWh: 0,
+          totalCostCents: 0,
+          evSolarSavingsCents: 0,
+        },
+        isPending: false,
+      },
+    ];
+    const julyStats = {
+      ...baseStatsData,
+      totalChargedWh: 874200,
+      totalSolarWh: 781200,
+      totalBatteryWh: 5000,
+      totalGridWh: 63200,
+      totalAwayWh: 24800,
+    };
+
+    const { result } = runHook({ data: julyStats });
+
+    expect(result.current.unassignedBreakdown).toEqual({
+      totalChargedWh: 296800,
+      totalSolarWh: 292000,
+      totalBatteryWh: 700,
+      totalGridWh: 4100,
+      totalAwayWh: 0,
+    });
+  });
+
+  it("does not invent unassigned history until every vehicle query has data", () => {
+    hoisted.state.listData = {
+      vehicles: [
+        { id: "VIN1", name: "Model 3" },
+        { id: "VIN2", name: "Model Y" },
+      ],
+    };
+    hoisted.state.queriesResults = [
+      {
+        data: {
+          totalChargedWh: 3000,
+          totalSolarWh: 2000,
+          totalBatteryWh: 0,
+          totalGridWh: 1000,
+          totalAwayWh: 0,
+          totalCostCents: 0,
+          evSolarSavingsCents: 0,
+        },
+        isPending: false,
+      },
+      { data: undefined, isPending: false },
+    ];
+
+    const { result } = runHook({ data: baseStatsData });
+
+    expect(result.current.unassignedBreakdown).toBeNull();
   });
 
   it("filters out vehicles with zero charge data", () => {
@@ -303,6 +389,13 @@ describe("useVehicleBreakdowns", () => {
     expect(result.current.activeVehicleBreakdowns[0].vehicleId).toBe("VIN1");
     expect(result.current.activeVehicleBreakdowns[0].exteriorColor).toBeNull();
     expect(result.current.activeVehicleBreakdowns[0].homeChargingSource).toBeNull();
+    expect(result.current.unassignedBreakdown).toEqual({
+      totalChargedWh: 2500,
+      totalSolarWh: 1000,
+      totalBatteryWh: 0,
+      totalGridWh: 1000,
+      totalAwayWh: 500,
+    });
   });
 
   it("filters out vehicles with no query data", () => {
@@ -312,5 +405,6 @@ describe("useVehicleBreakdowns", () => {
     const { result } = runHook({ data: baseStatsData });
 
     expect(result.current.activeVehicleBreakdowns).toEqual([]);
+    expect(result.current.unassignedBreakdown).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Battery, DollarSign, MapPin, Sun, Zap } from "lucide-react";
+import { Battery, DollarSign, History, MapPin, Sun, Zap } from "lucide-react";
 import { Badge, Card, Text } from "@radix-ui/themes";
 import type {
   DayResolution,
@@ -7,6 +7,7 @@ import type {
   StatsViewResponse,
 } from "../../../hooks/useStats.ts";
 import {
+  type UnassignedBreakdown,
   useVehicleBreakdowns,
   type VehicleBreakdown,
   type VehicleHomeChargingSource,
@@ -22,6 +23,13 @@ interface StatsVehicleBreakdownProps {
   cursor: Date;
   resolution: DayResolution;
 }
+
+const SOURCE_COLORS = {
+  solar: "var(--color-solar-car)",
+  battery: "var(--color-battery-car)",
+  grid: "var(--color-grid-car)",
+  away: "var(--color-away)",
+} as const;
 
 function sourcePercentages(
   solarWh: number,
@@ -100,7 +108,7 @@ function ChargingCostRows({
       )}
       {solarSavingsCents > 0 && (
         <div className={styles.breakdownRow}>
-          <Sun size={16} style={{ color: "var(--color-solar-car)" }} />
+          <Sun size={16} style={{ color: SOURCE_COLORS.solar }} />
           <Text size="2" className={styles.breakdownLabel}>
             Solar Savings
           </Text>
@@ -157,6 +165,52 @@ function VehicleCardHeader({
   );
 }
 
+function SourceRows({
+  solarWh,
+  batteryWh,
+  gridWh,
+  awayWh,
+}: {
+  solarWh: number;
+  batteryWh: number;
+  gridWh: number;
+  awayWh: number;
+}) {
+  const pct = sourcePercentages(solarWh, batteryWh, gridWh, awayWh);
+  return (
+    <>
+      <EnergyBreakdownRow
+        label="Home Solar"
+        valueWh={solarWh}
+        pct={pct.solar}
+        color={SOURCE_COLORS.solar}
+        icon={<Sun size={16} style={{ color: SOURCE_COLORS.solar }} />}
+      />
+      <EnergyBreakdownRow
+        label="Home Battery"
+        valueWh={batteryWh}
+        pct={pct.battery}
+        color={SOURCE_COLORS.battery}
+        icon={<Battery size={16} style={{ color: SOURCE_COLORS.battery }} />}
+      />
+      <EnergyBreakdownRow
+        label="Home Grid"
+        valueWh={gridWh}
+        pct={pct.grid}
+        color={SOURCE_COLORS.grid}
+        icon={<Zap size={16} style={{ color: SOURCE_COLORS.grid }} />}
+      />
+      <EnergyBreakdownRow
+        label="External"
+        valueWh={awayWh}
+        pct={pct.away}
+        color={SOURCE_COLORS.away}
+        icon={<MapPin size={16} style={{ color: SOURCE_COLORS.away }} />}
+      />
+    </>
+  );
+}
+
 function VehicleChargingCard({
   title,
   exteriorColor,
@@ -181,7 +235,6 @@ function VehicleChargingCard({
   currencySymbol: string;
 }) {
   const totalWh = solarWh + batteryWh + gridWh + awayWh;
-  const pct = sourcePercentages(solarWh, batteryWh, gridWh, awayWh);
   const palette = vehicleColorPalette(exteriorColor);
   return (
     <Card
@@ -202,33 +255,11 @@ function VehicleChargingCard({
         </Text>
         <Text size="2" className={styles.breakdownPct} />
       </div>
-      <EnergyBreakdownRow
-        label="Home Solar"
-        valueWh={solarWh}
-        pct={pct.solar}
-        color={palette.light}
-        icon={<Sun size={16} style={{ color: palette.dark }} />}
-      />
-      <EnergyBreakdownRow
-        label="Home Battery"
-        valueWh={batteryWh}
-        pct={pct.battery}
-        color={palette.base}
-        icon={<Battery size={16} style={{ color: palette.base }} />}
-      />
-      <EnergyBreakdownRow
-        label="Home Grid"
-        valueWh={gridWh}
-        pct={pct.grid}
-        color={palette.dark}
-        icon={<Zap size={16} style={{ color: palette.dark }} />}
-      />
-      <EnergyBreakdownRow
-        label="External"
-        valueWh={awayWh}
-        pct={pct.away}
-        color={palette.strong}
-        icon={<MapPin size={16} style={{ color: palette.strong }} />}
+      <SourceRows
+        solarWh={solarWh}
+        batteryWh={batteryWh}
+        gridWh={gridWh}
+        awayWh={awayWh}
       />
       <ChargingCostRows
         costCents={costCents}
@@ -239,21 +270,66 @@ function VehicleChargingCard({
   );
 }
 
+function UnassignedHistoryCard({ data }: { data: UnassignedBreakdown }) {
+  return (
+    <Card
+      className={styles.breakdownCard}
+      style={{ borderLeft: "4px solid var(--gray-8)" }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <History size={16} style={{ color: "var(--gray-11)" }} />
+          <Text size="2" weight="bold">Unassigned history</Text>
+        </div>
+        <Badge variant="soft" color="gray" size="1">Legacy / unattributed</Badge>
+      </div>
+      <Text size="1" color="gray">
+        Included in the global totals but not linked to a configured vehicle.
+      </Text>
+      <div className={styles.breakdownRow}>
+        <Text size="2" color="gray" className={styles.breakdownLabel}>
+          Total Charged
+        </Text>
+        <Text size="2" className={styles.breakdownValue}>
+          {kwhValue(data.totalChargedWh)}
+        </Text>
+        <Text size="2" className={styles.breakdownPct} />
+      </div>
+      <SourceRows
+        solarWh={data.totalSolarWh}
+        batteryWh={data.totalBatteryWh}
+        gridWh={data.totalGridWh}
+        awayWh={data.totalAwayWh}
+      />
+    </Card>
+  );
+}
+
 function VehicleCards({
   data,
   breakdowns,
+  unassignedBreakdown,
   hasConfiguredVehicles,
   loading,
   currencySymbol,
 }: {
   data: StatsViewResponse | null;
   breakdowns: VehicleBreakdown[];
+  unassignedBreakdown: UnassignedBreakdown | null;
   hasConfiguredVehicles: boolean;
   loading: boolean;
   currencySymbol: string;
 }) {
   if (loading) return null;
-  if (breakdowns.length > 0) {
+  if (breakdowns.length > 0 || unassignedBreakdown) {
     return (
       <>
         {breakdowns.map((vehicle) => (
@@ -271,6 +347,9 @@ function VehicleCards({
             currencySymbol={currencySymbol}
           />
         ))}
+        {unassignedBreakdown && (
+          <UnassignedHistoryCard data={unassignedBreakdown} />
+        )}
       </>
     );
   }
@@ -305,6 +384,7 @@ export function StatsVehicleBreakdown(
     <VehicleCards
       data={data}
       breakdowns={breakdown.activeVehicleBreakdowns}
+      unassignedBreakdown={breakdown.unassignedBreakdown}
       hasConfiguredVehicles={breakdown.hasConfiguredVehicles}
       loading={breakdown.vehicleBreakdownsLoading}
       currencySymbol={breakdown.currencySymbol}
