@@ -1,9 +1,11 @@
 import { publicProcedure, router } from "../trpc.ts";
+import { createTraceId } from "@chargeha/shared";
 import {
   vehicleCommandInput,
   vehicleCreateInput,
   vehicleIdInput,
   vehicleSetAmpsInput,
+  vehicleSetChargeLimitInput,
   vehicleSetModeInput,
   vehicleSetPriorityInput,
 } from "@chargeha/shared/schemas";
@@ -73,6 +75,18 @@ export const vehiclesRouter = router({
     .input(vehicleSetAmpsInput)
     .mutation(async ({ ctx, input }) => {
       return await ctx.vehicleService.setAmps(input.vehicleId, input.amps);
+    }),
+
+  // Set charge limit only for an already plugged-in vehicle. VehicleManager
+  // checks cached plug state before the middleware can perform any wake.
+  setChargeLimit: publicProcedure
+    .input(vehicleSetChargeLimitInput)
+    .mutation(async ({ ctx, input }) => {
+      return await ctx.vehicleManager.setChargeLimit(
+        input.vehicleId,
+        input.percent,
+        { origin: "user:set-charge-limit", traceId: createTraceId() },
+      );
     }),
 
   // Force-poll vehicle for fresh state

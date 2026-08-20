@@ -37,16 +37,18 @@ function renderSolarForecast(
   );
 }
 
-/** Wraps VehicleCard with a per-vehicle commandStatus query. */
+/** Wraps VehicleCard with per-vehicle command status and charge-limit control. */
 function ConnectedVehicleCard(
   { vehicleId, ...props }:
     & { vehicleId: string }
     & Omit<VehicleCardProps, "commandsDisabled" | "commandsDisabledReason">,
 ) {
+  const utils = trpc.useUtils();
   const { data: cmdStatus } = trpc.vehicle.commandStatus.useQuery(
     { vehicleId },
     { refetchInterval: 30_000 },
   );
+  const setChargeLimitMutation = trpc.vehicle.setChargeLimit.useMutation();
   const forecastEligible = props.state.isPluggedIn && props.atHome !== false &&
     (props.mode === "vacation" || props.mode === "auto");
   const forecast = trpc.forecast.today.useQuery(
@@ -66,12 +68,35 @@ function ConnectedVehicleCard(
     forecast.isError,
   );
 
+  const setChargeLimit = async (percent: number) => {
+    const result = await setChargeLimitMutation.mutateAsync({
+      vehicleId,
+      percent,
+    });
+    if (!result.success) {
+      throw new Error(result.error ?? "Unable to change charge limit");
+    }
+    if (result.state) {
+      utils.vehicle.list.setData(undefined, (old) => {
+        if (!old) return old;
+        return {
+          vehicles: old.vehicles.map((vehicle) =>
+            vehicle.id === vehicleId
+              ? { ...vehicle, state: result.state ?? vehicle.state }
+              : vehicle
+          ),
+        };
+      });
+    }
+  };
+
   return (
     <VehicleCard
       {...props}
       commandsDisabled={cmdStatus?.commandsDisabled ?? false}
       commandsDisabledReason={cmdStatus?.reason ?? undefined}
       forecastContent={forecastContent}
+      onSetChargeLimit={setChargeLimit}
     />
   );
 }
