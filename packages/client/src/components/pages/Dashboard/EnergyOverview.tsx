@@ -63,6 +63,17 @@ function energySummary(
   return "Home energy is balanced.";
 }
 
+function currentEnergySummary(
+  hasRealtime: boolean,
+  solarW: number,
+  batteryW: number,
+  gridW: number,
+  solarToCarsW: number,
+): string | null {
+  if (!hasRealtime) return null;
+  return energySummary(solarW, batteryW, gridW, solarToCarsW);
+}
+
 /**
  * Home intentionally stays focused on live control. Historical / cumulative
  * energy metrics live on the Stats page so the mobile dashboard stays compact.
@@ -76,10 +87,11 @@ export function EnergyOverview({ pluginWarnings }: EnergyOverviewProps) {
     (total, vehicle) => total + Math.max(0, vehicle.solarW),
     0,
   );
-  const summary = realtime && energySummary(
-    realtime.solarProductionW ?? 0,
-    realtime.batteryPowerW ?? 0,
-    realtime.gridPowerW ?? 0,
+  const summary = currentEnergySummary(
+    realtime !== null,
+    realtime?.solarProductionW ?? 0,
+    realtime?.batteryPowerW ?? 0,
+    realtime?.gridPowerW ?? 0,
     solarToCarsW,
   );
 
