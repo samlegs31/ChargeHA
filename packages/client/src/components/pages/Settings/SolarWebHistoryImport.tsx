@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { Badge, Button, Card, Text, TextField } from "@radix-ui/themes";
-import { Car, CloudDownload } from "lucide-react";
+import { CloudDownload } from "lucide-react";
 import { trpc } from "../../../trpc.ts";
 import { SettingsRow, SettingsSection } from "./SettingsLayout.tsx";
 
-const BATCH_DAYS = 7;
+const BATCH_DAYS = 31;
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -43,19 +43,6 @@ interface WattpilotSummary {
   solarWh: number;
   batteryWh: number;
   gridWh: number;
-}
-
-interface VehicleArchiveSummary {
-  insertedRows: number;
-  duplicateRows: number;
-  overlapRows: number;
-  skippedRows: number;
-  sessionsRead: number;
-  sessionsMatched: number;
-  sessionsSkipped: number;
-  intervalsBuilt: number;
-  chargedWh: number;
-  truncated: boolean;
 }
 
 interface HistoryVehicle {
@@ -116,7 +103,7 @@ async function importBatchSequence(
 ): Promise<WattpilotSummary> {
   const batch = batches[index];
   if (batch === undefined) return summary;
-  reportProgress(`Reading Wattpilot ${index + 1} of ${batches.length}...`);
+  reportProgress(`Reading Wattpilot period ${index + 1} of ${batches.length}...`);
   const result = await importBatch(batch);
   return await importBatchSequence(
     batches,
@@ -190,7 +177,10 @@ function DateRangeFields(props: {
 }) {
   return (
     <>
-      <SettingsRow label="Start date" help="Start with a few older days for the first test.">
+      <SettingsRow
+        label="Start date"
+        help="Solar.web Wattpilot history is imported as daily energy totals."
+      >
         <TextField.Root
           size="2"
           type="date"
@@ -260,7 +250,10 @@ function SolarWebFields(props: {
           )}
         </div>
       </SettingsRow>
-      <SettingsRow label="PV System ID" help="The long ID at the end of your Solar.web system URL.">
+      <SettingsRow
+        label="PV System ID"
+        help="The long ID at the end of your Solar.web system URL."
+      >
         <TextField.Root
           size="2"
           placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
@@ -285,37 +278,15 @@ function TechnicalDetails({ children }: { children: ReactNode }) {
   );
 }
 
-function VehicleArchiveResult(props: VehicleArchiveSummary) {
-  const empty = props.sessionsMatched === 0 || props.intervalsBuilt === 0;
-  return (
-    <Card style={{ borderLeft: `3px solid var(--${empty ? "orange" : "blue"}-9)` }}>
-      <Text size="2" weight="bold" color={empty ? "orange" : undefined}>
-        {empty ? "No charging sessions imported" : "Car history imported"}
-      </Text>
-      <Text size="2" style={{ display: "block", marginTop: 4 }}>
-        {empty
-          ? "E.V. Solar could not find usable charging sessions for this car and date range."
-          : `${formatKwh(props.chargedWh)} found for this car.`}
-      </Text>
-      {props.truncated && (
-        <Text size="1" color="orange" style={{ display: "block", marginTop: 5 }}>
-          The vehicle service returned only part of the archive. Try a smaller date range.
-        </Text>
-      )}
-      <TechnicalDetails>
-        {props.sessionsRead} sessions read · {props.sessionsMatched} matched · {props.intervalsBuilt} intervals · {props.duplicateRows} duplicates · {props.overlapRows} overlaps
-      </TechnicalDetails>
-    </Card>
-  );
-}
-
 function WattpilotResult(props: WattpilotSummary) {
   if (props.samplesRead === 0) {
     return (
       <Card style={{ borderLeft: "3px solid var(--orange-9)" }}>
-        <Text size="2" weight="bold" color="orange">No Solar.web data found for these dates</Text>
+        <Text size="2" weight="bold" color="orange">
+          No Solar.web aggregate data found for these dates
+        </Text>
         <Text size="2" style={{ display: "block", marginTop: 4 }}>
-          Try an older date range. Recent Solar.web history can arrive later.
+          Check the date range and make sure this is the correct Solar.web system.
         </Text>
       </Card>
     );
@@ -327,9 +298,11 @@ function WattpilotResult(props: WattpilotSummary) {
           Solar.web has data, but no Wattpilot charge was found
         </Text>
         <Text size="2" style={{ display: "block", marginTop: 4 }}>
-          Check the dates and make sure this is the correct Solar.web system.
+          The selected period contains no positive Wattpilot energy total.
         </Text>
-        <TechnicalDetails>{props.samplesRead} Solar.web samples read.</TechnicalDetails>
+        <TechnicalDetails>
+          {props.samplesRead} daily Solar.web records read.
+        </TechnicalDetails>
       </Card>
     );
   }
@@ -340,7 +313,7 @@ function WattpilotResult(props: WattpilotSummary) {
         {formatKwh(props.chargedWh)} at home · {formatKwh(props.solarWh)} solar · {formatKwh(props.batteryWh)} battery · {formatKwh(props.gridWh)} grid
       </Text>
       <TechnicalDetails>
-        {props.samplesRead} samples · {props.chargingIntervals} charging intervals · {props.duplicateRows} duplicates · {props.overlapRows} overlaps
+        {props.samplesRead} daily records · {props.chargingIntervals} Wattpilot days · {props.duplicateRows} duplicates · {props.overlapRows} overlaps
       </TechnicalDetails>
     </Card>
   );
@@ -357,29 +330,6 @@ function StepHeader(props: { number: number; title: string; help: string }) {
         </Text>
       </div>
     </div>
-  );
-}
-
-function VehicleArchiveCard(props: {
-  ready: boolean;
-  busy: boolean;
-  pending: boolean;
-  onImport: () => void;
-  result: VehicleArchiveSummary | null;
-}) {
-  return (
-    <Card>
-      <StepHeader
-        number={1}
-        title="Get the car's charging sessions"
-        help="E.V. Solar asks the car service for charging sessions in the dates above."
-      />
-      <Button size="2" disabled={!props.ready || props.busy} onClick={props.onImport} style={{ marginTop: 12 }}>
-        <Car size={15} />
-        {props.pending ? "Reading car history..." : "Import car history"}
-      </Button>
-      {props.result !== null && <div style={{ marginTop: 10 }}><VehicleArchiveResult {...props.result} /></div>}
-    </Card>
   );
 }
 
@@ -405,9 +355,9 @@ function WattpilotCard(props: {
   return (
     <Card>
       <StepHeader
-        number={2}
-        title="Find the charges that happened at home"
-        help="E.V. Solar reads Wattpilot energy from Solar.web and links it to this car."
+        number={1}
+        title="Import Wattpilot home history"
+        help="Solar.web provides daily Wattpilot energy totals. E.V. Solar assigns them directly to the car selected above."
       />
       <Text size="1" color="gray" style={{ display: "block", margin: "10px 0" }}>
         {securityText}
@@ -422,14 +372,23 @@ function WattpilotCard(props: {
         setPassword={props.setPassword}
         setPvSystemId={props.setPvSystemId}
       />
-      <Button size="2" disabled={!props.ready || props.busy} onClick={props.onImport} style={{ marginTop: 8 }}>
+      <Button
+        size="2"
+        disabled={!props.ready || props.busy}
+        onClick={props.onImport}
+        style={{ marginTop: 8 }}
+      >
         <CloudDownload size={15} />
         {props.pending ? "Reading Wattpilot..." : "Import Wattpilot home history"}
       </Button>
       {props.progress !== "" && (
-        <Text size="1" color="gray" style={{ display: "block", marginTop: 8 }}>{props.progress}</Text>
+        <Text size="1" color="gray" style={{ display: "block", marginTop: 8 }}>
+          {props.progress}
+        </Text>
       )}
-      {props.result !== null && <div style={{ marginTop: 10 }}><WattpilotResult {...props.result} /></div>}
+      {props.result !== null && (
+        <div style={{ marginTop: 10 }}><WattpilotResult {...props.result} /></div>
+      )}
     </Card>
   );
 }
@@ -459,32 +418,6 @@ function useSolarWebCredentialForm() {
   };
 }
 
-function useVehicleArchiveImport(props: {
-  vehicleId: string;
-  from: string;
-  to: string;
-  ready: boolean;
-}) {
-  const mutation = trpc.history.importVehicleChargingHistory.useMutation();
-  const [result, setResult] = useState<VehicleArchiveSummary | null>(null);
-  const [error, setError] = useState("");
-  const importHistory = async () => {
-    if (!props.ready || mutation.isPending) return;
-    setError("");
-    setResult(null);
-    try {
-      setResult(await mutation.mutateAsync({
-        vehicleId: props.vehicleId,
-        from: props.from,
-        to: props.to,
-      }));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  };
-  return { result, error, pending: mutation.isPending, importHistory };
-}
-
 function useWattpilotImport(props: {
   vehicleId: string;
   from: string;
@@ -507,6 +440,7 @@ function useWattpilotImport(props: {
     props.clearPassword();
     await utils.history.getSolarWebCredentials.invalidate();
   };
+
   const importHistory = async () => {
     if (!props.ready || busy) return;
     setError("");
@@ -529,12 +463,15 @@ function useWattpilotImport(props: {
       );
       setResult(result);
       await refreshSavedCredentials();
-      if (result.samplesRead > 0 && result.chargingIntervals > 0) {
-        await homeSourceMutation.mutateAsync({ vehicleId: props.vehicleId, source: "solarweb" });
+      if (result.chargingIntervals > 0) {
+        await homeSourceMutation.mutateAsync({
+          vehicleId: props.vehicleId,
+          source: "solarweb",
+        });
         await Promise.all([utils.vehicle.list.invalidate(), utils.stats.invalidate()]);
         setProgress("Done. Wattpilot is now this car's home-history source.");
       } else {
-        setProgress("Import finished, but no home charge was found.");
+        setProgress("Import finished, but no Wattpilot home energy was found.");
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -542,7 +479,15 @@ function useWattpilotImport(props: {
       await utils.history.getSolarWebCredentials.invalidate();
     }
   };
-  return { result, progress, error, pending: mutation.isPending, busy, importHistory };
+
+  return {
+    result,
+    progress,
+    error,
+    pending: mutation.isPending,
+    busy,
+    importHistory,
+  };
 }
 
 function useHistoryImportModel() {
@@ -554,7 +499,6 @@ function useHistoryImportModel() {
   const rawVehicles = (vehiclesQuery.data?.vehicles ?? []) as HistoryVehicle[];
   const vehicles = vehicleOptions(rawVehicles);
   const rangeReady = vehicleId !== "" && from !== "" && to !== "" && from <= to;
-  const vehicleImport = useVehicleArchiveImport({ vehicleId, from, to, ready: rangeReady });
   const credentialsReady = credentials.email !== "" && credentials.pvSystemId !== "";
   const passwordReady = credentials.password !== "" || credentials.hasSavedPassword;
   const wattpilotReady = rangeReady && credentialsReady && passwordReady;
@@ -568,7 +512,6 @@ function useHistoryImportModel() {
     ready: wattpilotReady,
     clearPassword: () => credentials.setPassword(""),
   });
-  const busy = vehicleImport.pending || wattpilotImport.busy;
   usePreferredHistoryVehicle(rawVehicles, vehicleId, setVehicleId);
 
   return {
@@ -576,10 +519,8 @@ function useHistoryImportModel() {
     vehicleId,
     from,
     to,
-    rangeReady,
     wattpilotReady,
-    busy,
-    vehicleImport,
+    busy: wattpilotImport.busy,
     wattpilotImport,
     credentials,
     setVehicleId,
@@ -589,10 +530,11 @@ function useHistoryImportModel() {
 }
 
 function HistoryImportContent({ model }: { model: ReturnType<typeof useHistoryImportModel> }) {
-  const error = model.vehicleImport.error || model.wattpilotImport.error;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <Text size="2">For a car that charges at home with a Wattpilot, do Step 1 and then Step 2.</Text>
+      <Text size="2">
+        Select the car connected to this Wattpilot. Its Solar.web Wattpilot totals are assigned directly to that car; a separate Tesla charging-session import is not required.
+      </Text>
       <VehicleSelector
         vehicles={model.vehicles}
         vehicleId={model.vehicleId}
@@ -605,13 +547,6 @@ function HistoryImportContent({ model }: { model: ReturnType<typeof useHistoryIm
         disabled={model.busy}
         setFrom={model.setFrom}
         setTo={model.setTo}
-      />
-      <VehicleArchiveCard
-        ready={model.rangeReady}
-        busy={model.busy}
-        pending={model.vehicleImport.pending}
-        onImport={() => void model.vehicleImport.importHistory()}
-        result={model.vehicleImport.result}
       />
       <WattpilotCard
         email={model.credentials.email}
@@ -629,10 +564,12 @@ function HistoryImportContent({ model }: { model: ReturnType<typeof useHistoryIm
         setPvSystemId={model.credentials.setPvSystemId}
         onImport={() => void model.wattpilotImport.importHistory()}
       />
-      {error !== "" && (
+      {model.wattpilotImport.error !== "" && (
         <Card style={{ borderLeft: "3px solid var(--red-9)" }}>
           <Text size="2" color="red" weight="bold">Import failed</Text>
-          <Text size="2" style={{ display: "block", marginTop: 4 }}>{error}</Text>
+          <Text size="2" style={{ display: "block", marginTop: 4 }}>
+            {model.wattpilotImport.error}
+          </Text>
         </Card>
       )}
     </div>
