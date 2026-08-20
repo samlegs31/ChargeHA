@@ -24,7 +24,7 @@ describe("SolarForecastInline", () => {
 
   afterEach(cleanup);
 
-  it("renders compact Solar Only forecast", () => {
+  it("describes the expected evening SOC without technical kWh", () => {
     renderWithProviders(
       <SolarForecastInline
         mode="vacation"
@@ -33,11 +33,13 @@ describe("SolarForecastInline", () => {
         isError={false}
       />,
     );
-    expect(screen.getByText(/Solar ends/)).toHaveTextContent("+3.7 kWh to car");
-    expect(screen.getByText(/Solar ends/)).toHaveTextContent("67% tonight");
+
+    expect(screen.getByText("With today's sun: about 67% this evening"))
+      .toBeInTheDocument();
+    expect(screen.queryByText(/kWh/)).not.toBeInTheDocument();
   });
 
-  it("renders next scheduled target in Solar + clock", () => {
+  it("describes the next Smart target in plain language", () => {
     const data: SolarChargeForecastResult = {
       ...baseForecast,
       mode: "auto",
@@ -51,6 +53,7 @@ describe("SolarForecastInline", () => {
         expectedFinishAt: "2026-08-15T02:32:00.000Z",
       },
     };
+
     renderWithProviders(
       <SolarForecastInline
         mode="auto"
@@ -59,10 +62,11 @@ describe("SolarForecastInline", () => {
         isError={false}
       />,
     );
-    expect(screen.getByText(/Target 80% around/)).toBeInTheDocument();
+
+    expect(screen.getByText(/Then 80% expected around/)).toBeInTheDocument();
   });
 
-  it("renders projected SOC when the schedule cannot reach target", () => {
+  it("shows the projected SOC when the schedule cannot reach target", () => {
     const data: SolarChargeForecastResult = {
       ...baseForecast,
       mode: "auto",
@@ -75,6 +79,7 @@ describe("SolarForecastInline", () => {
         expectedFinishAt: null,
       },
     };
+
     renderWithProviders(
       <SolarForecastInline
         mode="auto"
@@ -83,6 +88,19 @@ describe("SolarForecastInline", () => {
         isError={false}
       />,
     );
-    expect(screen.getByText(/71% expected/)).toBeInTheDocument();
+
+    expect(screen.getByText(/about 71% expected/)).toBeInTheDocument();
+  });
+
+  it("uses simple loading copy", () => {
+    renderWithProviders(
+      <SolarForecastInline
+        mode="auto"
+        data={undefined}
+        isLoading
+        isError={false}
+      />,
+    );
+    expect(screen.getByText("Checking today's solar…")).toBeInTheDocument();
   });
 });
