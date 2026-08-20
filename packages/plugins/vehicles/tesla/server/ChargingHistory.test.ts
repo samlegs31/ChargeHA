@@ -36,7 +36,7 @@ describe("ChargingHistory", () => {
             },
           ],
           totalResults: 2,
-          pageSize: 100,
+          pageSize: 25,
         },
       }), { status: 200, headers: { "Content-Type": "application/json" } }));
     }) as typeof globalThis.fetch;
@@ -49,6 +49,7 @@ describe("ChargingHistory", () => {
 
     expect(requestedUrls).toHaveLength(1);
     expect(requestedUrls[0]).toContain("vin=VIN_EDITH");
+    expect(requestedUrls[0]).toContain("pageSize=25");
     expect(archive.pagesRead).toBe(1);
     expect(archive.sessionsRead).toBe(2);
     expect(archive.sessionsMatched).toBe(1);
@@ -79,6 +80,7 @@ describe("ChargingHistory", () => {
             energyAdded: 2,
           }],
           totalResults: 1,
+          pageSize: 25,
         },
       }), { status: 200, headers: { "Content-Type": "application/json" } }));
     }) as typeof globalThis.fetch;
@@ -91,8 +93,48 @@ describe("ChargingHistory", () => {
 
     expect(urls).toHaveLength(2);
     expect(urls[1]).toContain("vin=VIN_EDITH");
+    expect(urls[1]).toContain("pageSize=25");
     expect(archive.sessionsMatched).toBe(1);
     expect(archive.rows).toHaveLength(1);
     expect(Math.round(archive.chargedWh)).toBe(2000);
+  });
+
+  it("keeps VIN attribution when Tesla omits VIN from filtered records", async () => {
+    const requests: Array<{ url: string; contentType: string | null }> = [];
+    const fetchFn = ((input: string | URL | Request, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      requests.push({
+        url: String(input),
+        contentType: headers.get("Content-Type"),
+      });
+      return Promise.resolve(new Response(JSON.stringify({
+        response: {
+          data: [{
+            chargeSessionId: "session-edith",
+            chargeStartDateTime: "2026-08-18T12:00:00+02:00",
+            chargeStopDateTime: "2026-08-18T12:30:00+02:00",
+            energyAdded: 3.5,
+          }],
+          totalResults: 1,
+          pageSize: 25,
+        },
+      }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    }) as typeof globalThis.fetch;
+
+    const archive = await fetchChargingHistory(provider(), {
+      vin: "VIN_EDITH",
+      from: "2026-08-18",
+      to: "2026-08-19",
+    }, fetchFn);
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toContain("vin=VIN_EDITH");
+    expect(requests[0]?.url).toContain("pageSize=25");
+    expect(requests[0]?.contentType).toBe("application/json");
+    expect(archive.sessionsRead).toBe(1);
+    expect(archive.sessionsMatched).toBe(1);
+    expect(archive.rows.length).toBeGreaterThan(0);
+    expect(Math.round(archive.chargedWh)).toBe(3500);
+    expect(archive.truncated).toBe(false);
   });
 });
