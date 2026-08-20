@@ -45,9 +45,9 @@ describe("VehicleCard away charging status", () => {
       />,
     );
 
-    expect(screen.getByText("Charging away from home at 3.1 kW"))
+    expect(screen.getByText("Charging away from home"))
       .toBeInTheDocument();
-    expect(screen.queryByText("Solar Only - Charging at 3.1 kW"))
+    expect(screen.queryByText("Charging with available solar"))
       .not.toBeInTheDocument();
   });
 });
