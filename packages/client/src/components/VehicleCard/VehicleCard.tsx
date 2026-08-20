@@ -203,6 +203,39 @@ function VehicleModeToggle(
   );
 }
 
+function VehicleModeSection(
+  {
+    state,
+    mode,
+    disabled,
+    pending,
+    onChangeMode,
+  }: {
+    state: VehicleChargeState;
+    mode: VehicleMode;
+    disabled: boolean;
+    pending: string;
+    onChangeMode: (mode: VehicleMode) => void;
+  },
+) {
+  if (!state.isPluggedIn) {
+    return (
+      <Text size="1" color="gray" className={styles.nextConnection}>
+        Next connection: {MODE_LABELS[mode]}
+      </Text>
+    );
+  }
+
+  return (
+    <VehicleModeToggle
+      mode={mode}
+      disabled={disabled}
+      pending={pending}
+      onChangeMode={onChangeMode}
+    />
+  );
+}
+
 function VehicleBatterySection(
   { batteryPercent, chargeLimitPercent, isCharging }: {
     batteryPercent: number;
@@ -264,6 +297,81 @@ function TechnicalMeta(
           <RefreshCw size={12} className={refreshing ? styles.spinning : undefined} />
           {refreshing ? "Updating…" : "Refresh"}
         </Button>
+      )}
+    </div>
+  );
+}
+
+interface TechnicalPanelProps {
+  open: boolean;
+  state: VehicleChargeState;
+  priority: number;
+  lastUpdatedText: string | null;
+  refreshing: boolean;
+  onRefresh?: () => Promise<unknown>;
+  pollingSuspended?: boolean;
+  pollingSuspendReason?: string | null;
+  commandsDisabledReason?: string;
+  vehicleError?: string | null;
+  allocationStatus?: string | null;
+  controllerReason?: string | null;
+  controllerDetail?: string | null;
+  disabled: boolean;
+  commandPending: string | false;
+  onStartCharging: () => void;
+  onStopCharging: () => void;
+  onSetAmps: (amps: number) => void;
+  solarPowerW: number;
+  batteryPowerW: number;
+  gridPowerW: number;
+  chargeLimitPercent: number;
+}
+
+function TechnicalPanel(props: TechnicalPanelProps) {
+  if (!props.open) return null;
+
+  return (
+    <div className={styles.technicalPanel}>
+      <TechnicalMeta
+        priority={props.priority}
+        isOnline={props.state.isOnline}
+        lastUpdatedText={props.lastUpdatedText}
+        refreshing={props.refreshing}
+        onRefresh={props.onRefresh}
+      />
+
+      {props.pollingSuspended && (
+        <Text size="1" color="gray">
+          Polling paused — {props.pollingSuspendReason ?? "idle"}
+        </Text>
+      )}
+      {props.commandsDisabledReason && (
+        <Text size="1" color="gray">
+          Control detail: {props.commandsDisabledReason}
+        </Text>
+      )}
+      {props.vehicleError && (
+        <Text size="1" color="gray">
+          Connection detail: {props.vehicleError}
+        </Text>
+      )}
+
+      {props.state.isPluggedIn && (
+        <VehicleCardDetails
+          allocationStatus={props.allocationStatus ?? null}
+          controllerReason={props.controllerReason ?? null}
+          controllerDetail={props.controllerDetail ?? null}
+          state={props.state}
+          disabled={props.disabled}
+          commandPending={props.commandPending}
+          onStartCharging={props.onStartCharging}
+          onStopCharging={props.onStopCharging}
+          onSetAmps={props.onSetAmps}
+          solarPowerW={props.solarPowerW}
+          batteryPowerW={props.batteryPowerW}
+          gridPowerW={props.gridPowerW}
+          chargeLimitPercent={props.chargeLimitPercent}
+        />
       )}
     </div>
   );
@@ -361,20 +469,13 @@ export function VehicleCard({
 
       {forecastContent}
 
-      {state.isPluggedIn
-        ? (
-          <VehicleModeToggle
-            mode={mode}
-            disabled={disabled}
-            pending={pending}
-            onChangeMode={onChangeMode}
-          />
-        )
-        : (
-          <Text size="1" color="gray" className={styles.nextConnection}>
-            Next connection: {MODE_LABELS[mode]}
-          </Text>
-        )}
+      <VehicleModeSection
+        state={state}
+        mode={mode}
+        disabled={disabled}
+        pending={pending}
+        onChangeMode={onChangeMode}
+      />
 
       <Button
         variant="ghost"
@@ -388,51 +489,30 @@ export function VehicleCard({
         {detailsOpen ? "Hide details" : "Show details"}
       </Button>
 
-      {detailsOpen && (
-        <div className={styles.technicalPanel}>
-          <TechnicalMeta
-            priority={priority}
-            isOnline={state.isOnline}
-            lastUpdatedText={lastUpdatedText}
-            refreshing={refreshing}
-            onRefresh={onRefresh ? handleRefresh : undefined}
-          />
-
-          {pollingSuspended && (
-            <Text size="1" color="gray">
-              Polling paused — {pollingSuspendReason ?? "idle"}
-            </Text>
-          )}
-          {commandsDisabledReason && (
-            <Text size="1" color="gray">
-              Control detail: {commandsDisabledReason}
-            </Text>
-          )}
-          {vehicleError && (
-            <Text size="1" color="gray">
-              Connection detail: {vehicleError}
-            </Text>
-          )}
-
-          {state.isPluggedIn && (
-            <VehicleCardDetails
-              allocationStatus={allocationStatus ?? null}
-              controllerReason={controllerReason ?? null}
-              controllerDetail={controllerDetail ?? null}
-              state={state}
-              disabled={disabled}
-              commandPending={commandPending}
-              onStartCharging={onStartCharging}
-              onStopCharging={onStopCharging}
-              onSetAmps={onSetAmps}
-              solarPowerW={solarPowerW}
-              batteryPowerW={batteryPowerW}
-              gridPowerW={gridPowerW}
-              chargeLimitPercent={chargeLimitPercent}
-            />
-          )}
-        </div>
-      )}
+      <TechnicalPanel
+        open={detailsOpen}
+        state={state}
+        priority={priority}
+        lastUpdatedText={lastUpdatedText}
+        refreshing={refreshing}
+        onRefresh={onRefresh ? handleRefresh : undefined}
+        pollingSuspended={pollingSuspended}
+        pollingSuspendReason={pollingSuspendReason}
+        commandsDisabledReason={commandsDisabledReason}
+        vehicleError={vehicleError}
+        allocationStatus={allocationStatus}
+        controllerReason={controllerReason}
+        controllerDetail={controllerDetail}
+        disabled={disabled}
+        commandPending={commandPending}
+        onStartCharging={onStartCharging}
+        onStopCharging={onStopCharging}
+        onSetAmps={onSetAmps}
+        solarPowerW={solarPowerW}
+        batteryPowerW={batteryPowerW}
+        gridPowerW={gridPowerW}
+        chargeLimitPercent={chargeLimitPercent}
+      />
     </Card>
   );
 }
