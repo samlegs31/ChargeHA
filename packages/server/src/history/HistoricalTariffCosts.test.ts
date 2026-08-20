@@ -6,59 +6,59 @@ import { HistoryRepository } from "../db/repositories/HistoryRepository.ts";
 import type { ChargeHqHistoryRow } from "./ChargeHqCsv.ts";
 import { applyHistoricalChargeHqTariffs } from "./HistoricalTariffCosts.ts";
 
-const ALL_DAYS: DayOfWeek[] = [
-  "mon",
-  "tue",
-  "wed",
-  "thu",
-  "fri",
-  "sat",
-  "sun",
-];
-
-function dayResponse(date: string): StatsResponse {
-  return {
-    period: "day",
-    startDate: date,
-    endDate: date,
-    buckets: Array.from({ length: 24 }, (_, hour) => ({
-      label: String(hour),
-      solarWh: 0,
-      batteryWh: 0,
-      gridWh: 0,
-      awayWh: 0,
-      totalWh: 0,
-      costCents: 0,
-    })),
-    totalCostCents: 0,
-    solarSavingsCents: 0,
-    evSolarSavingsCents: 0,
-  } as StatsResponse;
-}
-
-function chargeHqRow(values: {
-  externalId: string;
-  startTimeUtc: string;
-  startTimeLocal: string;
-  gridWh: number;
-  solarWh: number;
-}): ChargeHqHistoryRow {
-  return {
-    source: "chargehq",
-    externalId: values.externalId,
-    startTimeUtc: values.startTimeUtc,
-    startTimeLocal: values.startTimeLocal,
-    intervalSeconds: 15 * 60,
-    chargedWh: values.gridWh + values.solarWh,
-    solarWh: values.solarWh,
-    batteryWh: 0,
-    gridWh: values.gridWh,
-    awayWh: 0,
-    atHomeWh: values.gridWh + values.solarWh,
-  };
-}
-
 describe("applyHistoricalChargeHqTariffs", () => {
+  const ALL_DAYS: DayOfWeek[] = [
+    "mon",
+    "tue",
+    "wed",
+    "thu",
+    "fri",
+    "sat",
+    "sun",
+  ];
+
+  function dayResponse(date: string): StatsResponse {
+    return {
+      period: "day",
+      startDate: date,
+      endDate: date,
+      buckets: Array.from({ length: 24 }, (_, hour) => ({
+        label: String(hour),
+        solarWh: 0,
+        batteryWh: 0,
+        gridWh: 0,
+        awayWh: 0,
+        totalWh: 0,
+        costCents: 0,
+      })),
+      totalCostCents: 0,
+      solarSavingsCents: 0,
+      evSolarSavingsCents: 0,
+    } as StatsResponse;
+  }
+
+  function chargeHqRow(values: {
+    externalId: string;
+    startTimeUtc: string;
+    startTimeLocal: string;
+    gridWh: number;
+    solarWh: number;
+  }): ChargeHqHistoryRow {
+    return {
+      source: "chargehq",
+      externalId: values.externalId,
+      startTimeUtc: values.startTimeUtc,
+      startTimeLocal: values.startTimeLocal,
+      intervalSeconds: 15 * 60,
+      chargedWh: values.gridWh + values.solarWh,
+      solarWh: values.solarWh,
+      batteryWh: 0,
+      gridWh: values.gridWh,
+      awayWh: 0,
+      atHomeWh: values.gridWh + values.solarWh,
+    };
+  }
+
   let db: AppDatabase;
   let history: HistoryRepository;
 
