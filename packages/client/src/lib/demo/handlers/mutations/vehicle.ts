@@ -158,7 +158,10 @@ export const vehicleMutations: VehicleMutations = {
       ...v,
       chargeLimitPercent: input.percent,
     }));
-    return { success: true, state: stateOf(next, input.vehicleId) };
+    return {
+      success: true,
+      state: stateOf(next, input.vehicleId) ?? undefined,
+    };
   },
 
   "vehicle.refreshState": (input) => ({
