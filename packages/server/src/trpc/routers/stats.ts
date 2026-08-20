@@ -6,6 +6,7 @@ import {
   statsYearInput,
 } from "@chargeha/shared/schemas";
 import { HistoryRepository } from "../../db/repositories/HistoryRepository.ts";
+import { applyHistoricalChargeHqTariffs } from "../../history/HistoricalTariffCosts.ts";
 import { buildTotalStats } from "../../history/TotalStats.ts";
 import { mergeChargeHqStats } from "../../history/mergeChargeHqStats.ts";
 import { reconcileLegacySolarWebHistory } from "../../history/reconcileLegacySolarWebHistory.ts";
@@ -34,7 +35,12 @@ export const statsRouter = router({
       const historyRows = detailed
         ? await history.getChargeHqStatsDayDetailed(input.date, input.vehicleId)
         : await history.getChargeHqStatsDay(input.date, input.vehicleId);
-      return mergeChargeHqStats(response, historyRows, "day");
+      const merged = mergeChargeHqStats(response, historyRows, "day");
+      return await applyHistoricalChargeHqTariffs(
+        ctx.db,
+        merged,
+        input.vehicleId,
+      );
     }),
 
   month: publicProcedure
@@ -54,7 +60,12 @@ export const statsRouter = router({
         input.month,
         input.vehicleId,
       );
-      return mergeChargeHqStats(response, historyRows, "month");
+      const merged = mergeChargeHqStats(response, historyRows, "month");
+      return await applyHistoricalChargeHqTariffs(
+        ctx.db,
+        merged,
+        input.vehicleId,
+      );
     }),
 
   year: publicProcedure
@@ -72,7 +83,12 @@ export const statsRouter = router({
         input.year,
         input.vehicleId,
       );
-      return mergeChargeHqStats(response, historyRows, "year");
+      const merged = mergeChargeHqStats(response, historyRows, "year");
+      return await applyHistoricalChargeHqTariffs(
+        ctx.db,
+        merged,
+        input.vehicleId,
+      );
     }),
 
   total: publicProcedure
