@@ -15,6 +15,7 @@ type VehicleMutations = Pick<
   | "vehicle.setPriority"
   | "vehicle.command"
   | "vehicle.setAmps"
+  | "vehicle.setChargeLimit"
   | "vehicle.refreshState"
   | "history.setHomeChargingSource"
   | "plugin.vehicle.simulated.updateState"
@@ -141,6 +142,21 @@ export const vehicleMutations: VehicleMutations = {
       ...v,
       chargeAmps: input.amps,
       isCharging: true,
+    }));
+    return { success: true, state: stateOf(next, input.vehicleId) };
+  },
+
+  "vehicle.setChargeLimit": (input) => {
+    const current = getDemoState().vehicles.find((v) => v.id === input.vehicleId);
+    if (!current?.isPluggedIn) {
+      return {
+        success: false,
+        error: "Vehicle must be plugged in to change the charge limit",
+      };
+    }
+    const next = patchVehicle(input.vehicleId, (v) => ({
+      ...v,
+      chargeLimitPercent: input.percent,
     }));
     return { success: true, state: stateOf(next, input.vehicleId) };
   },
