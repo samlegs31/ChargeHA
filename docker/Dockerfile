@@ -43,7 +43,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # ------------------------------------------------------------
 # Stage 2 — Client build
 # ------------------------------------------------------------
-FROM denoland/deno:2.9.4 AS client-builder
+FROM --platform=$BUILDPLATFORM denoland/deno:2.9.4 AS client-builder
 
 ARG GIT_SHA
 ENV VITE_GIT_SHA=$GIT_SHA

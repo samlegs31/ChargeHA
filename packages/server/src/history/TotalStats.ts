@@ -9,6 +9,7 @@ import type { AppDatabase } from "../db/AppDatabase.ts";
 import { HistoryRepository } from "../db/repositories/HistoryRepository.ts";
 import { sqliteTimezoneOffset } from "../db/repositories/sqliteHelpers.ts";
 import type { StatsService } from "../services/StatsService.ts";
+import { applyHistoricalChargeHqTariffs } from "./HistoricalTariffCosts.ts";
 import { mergeChargeHqStats } from "./mergeChargeHqStats.ts";
 
 function aggregateYearsQuery(vehicleId?: string) {
@@ -74,7 +75,8 @@ async function annualStats(
     statsService.buildYearStats(year, tz, vehicleId),
     history.getChargeHqStatsYear(year, vehicleId),
   ]);
-  return mergeChargeHqStats(native, historyRows, "year");
+  const merged = mergeChargeHqStats(native, historyRows, "year");
+  return await applyHistoricalChargeHqTariffs(db, merged, vehicleId);
 }
 
 function chargingBucket(year: number, stats: StatsResponse): StatsBucket {
