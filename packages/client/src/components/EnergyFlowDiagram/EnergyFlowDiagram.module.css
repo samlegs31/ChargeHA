@@ -1,37 +1,85 @@
 .shell {
+  position: relative;
   width: 100%;
-  padding: 14px 12px 18px;
+  padding: 18px 14px 22px;
   overflow: hidden;
-  border: 1px solid var(--gray-a4);
-  border-radius: 18px;
-  background: var(--gray-a2);
+  border: 1px solid var(--gray-a3);
+  border-radius: 24px;
+  background:
+    radial-gradient(
+      circle at 50% 76%,
+      color-mix(in srgb, var(--color-home) 7%, transparent) 0,
+      transparent 32%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-panel-solid) 98%, transparent),
+      color-mix(in srgb, var(--gray-a2) 72%, transparent)
+    );
+  box-shadow:
+    0 12px 36px rgba(0, 0, 0, 0.045),
+    inset 0 1px 0 color-mix(in srgb, white 52%, transparent);
 }
 
 .vehicleFlows {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  gap: 26px;
+  gap: 28px;
   width: 100%;
 }
 
 .vehicleFlow {
   display: flex;
-  flex: 0 1 210px;
+  flex: 0 1 215px;
   flex-direction: column;
   align-items: center;
   min-width: 0;
 }
 
 .energyBus {
-  width: calc(100% - 30px);
-  height: 7px;
+  position: relative;
+  width: calc(100% - 42px);
+  height: 2px;
   margin: 0 auto;
+  overflow: visible;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bus-color) 28%, var(--gray-a4));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--bus-color) 16%, transparent);
+  transition:
+    background 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.energyBus::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 54px;
+  height: 6px;
   border-radius: 999px;
   background: var(--bus-color);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--bus-color) 32%, transparent);
-  opacity: 0.95;
-  transition: background 0.25s ease;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--bus-color) 38%, transparent);
+  content: "";
+  opacity: 0.24;
+  transform: translate(-50%, -50%) scaleX(0.72);
+  animation: busBreath 3.6s ease-in-out infinite;
+}
+
+.energyBus[data-source="idle"]::after {
+  display: none;
+}
+
+@keyframes busBreath {
+  0%,
+  100% {
+    opacity: 0.14;
+    transform: translate(-50%, -50%) scaleX(0.62);
+  }
+  50% {
+    opacity: 0.34;
+    transform: translate(-50%, -50%) scaleX(1);
+  }
 }
 
 .endpoints {
@@ -42,11 +90,12 @@
 }
 
 .endpointsWithBattery {
-  grid-template-columns: repeat(4, minmax(58px, 1fr));
+  grid-template-columns: repeat(4, minmax(62px, 1fr));
 }
+
 .endpointsWithoutBattery {
-  grid-template-columns: repeat(3, minmax(68px, 1fr));
-  max-width: 520px;
+  grid-template-columns: repeat(3, minmax(76px, 1fr));
+  max-width: 540px;
 }
 
 .endpoint {
@@ -58,8 +107,8 @@
 
 .flowBranch {
   position: relative;
-  width: 38px;
-  height: 48px;
+  width: 36px;
+  height: 46px;
   color: var(--flow-color);
   overflow: hidden;
 }
@@ -69,15 +118,16 @@
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 4px;
+  width: 2px;
   border-radius: 999px;
   background: currentColor;
-  opacity: 0.2;
+  opacity: 0.11;
   transform: translateX(-50%);
 }
 
 .flowActive .flowTrack {
-  opacity: 0.42;
+  opacity: 0.26;
+  box-shadow: 0 0 8px color-mix(in srgb, currentColor 18%, transparent);
 }
 
 .arrowUp,
@@ -85,54 +135,78 @@
   position: absolute;
   left: 50%;
   z-index: 1;
-  font-size: 29px;
-  font-weight: 900;
-  line-height: 1;
+  width: 7px;
+  height: 7px;
+  overflow: visible;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, currentColor 8%, transparent),
+    0 0 12px color-mix(in srgb, currentColor 44%, transparent);
+  font-size: 0;
   color: currentColor;
-  text-shadow: 0 0 5px color-mix(in srgb, currentColor 30%, transparent);
   transform: translateX(-50%);
   animation-duration: var(--flow-duration);
   animation-timing-function: linear;
   animation-iteration-count: infinite;
 }
 
+.arrowUp::after,
+.arrowDown::after {
+  position: absolute;
+  top: 10px;
+  left: 2px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+  opacity: 0.42;
+  box-shadow: 0 0 7px currentColor;
+}
+
 .arrowUp {
   animation-name: flowUp;
 }
+
 .arrowDown {
   animation-name: flowDown;
 }
 
+.arrowDown::after {
+  top: -6px;
+}
+
 @keyframes flowUp {
   0% {
-    top: 30px;
+    top: 35px;
     opacity: 0;
   }
-  18% {
-    opacity: 1;
+  14% {
+    opacity: 0.95;
   }
-  82% {
-    opacity: 1;
+  84% {
+    opacity: 0.95;
   }
   100% {
-    top: -18px;
+    top: -9px;
     opacity: 0;
   }
 }
 
 @keyframes flowDown {
   0% {
-    top: -18px;
+    top: -9px;
     opacity: 0;
   }
-  18% {
-    opacity: 1;
+  14% {
+    opacity: 0.95;
   }
-  82% {
-    opacity: 1;
+  84% {
+    opacity: 0.95;
   }
   100% {
-    top: 30px;
+    top: 35px;
     opacity: 0;
   }
 }
@@ -141,7 +215,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
   text-align: center;
 }
@@ -150,20 +224,44 @@
   display: grid;
   width: 50px;
   height: 50px;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
+  border: 1px solid color-mix(in srgb, currentColor 14%, var(--gray-a3));
+  border-radius: 50%;
   place-items: center;
+  background: color-mix(in srgb, currentColor 7%, var(--color-panel-solid));
   color: currentColor;
+  box-shadow:
+    0 6px 18px color-mix(in srgb, currentColor 7%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 62%, transparent);
+  transition:
+    transform 0.28s ease,
+    background 0.28s ease,
+    box-shadow 0.28s ease;
 }
 
 .active .iconBadge {
-  filter: drop-shadow(0 0 5px var(--node-glow));
+  background: color-mix(in srgb, currentColor 10%, var(--color-panel-solid));
+  box-shadow:
+    0 8px 22px color-mix(in srgb, currentColor 11%, transparent),
+    0 0 18px color-mix(in srgb, var(--node-glow) 26%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 72%, transparent);
+  animation: nodeGlow 4.2s ease-in-out infinite;
+}
+
+@keyframes nodeGlow {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
 }
 
 .nodeLabel {
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
   color: var(--gray-11);
 }
 
@@ -171,7 +269,7 @@
   max-width: 180px;
   overflow: hidden;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
   color: var(--gray-12);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -179,54 +277,94 @@
 
 .nodeValue {
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 760;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.035em;
+  color: currentColor;
   white-space: nowrap;
 }
 
 .pill {
-  margin-top: 1px;
-  padding: 2px 7px;
+  margin-top: 2px;
+  padding: 2px 7px 3px;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
   border-radius: 999px;
-  background: color-mix(in srgb, currentColor 13%, transparent);
+  background: color-mix(in srgb, currentColor 7%, transparent);
   font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 650;
+  letter-spacing: 0;
 }
 
 .socText,
 .batteryStatus {
   font-size: 10px;
-  font-weight: 650;
-  color: var(--gray-11);
+  font-weight: 600;
+  color: var(--gray-10);
 }
 
 .batteryStatus {
-  opacity: 0.78;
+  margin-top: -2px;
+  opacity: 0.82;
 }
 
 .solar {
   color: var(--color-solar);
   --node-glow: var(--color-solar-bg);
 }
+
 .home {
   color: var(--color-home);
   --node-glow: var(--color-home-bg);
 }
+
+.home .iconBadge {
+  width: 58px;
+  height: 58px;
+  margin-top: -4px;
+  border-width: 1px;
+  background: color-mix(in srgb, var(--color-home) 10%, var(--color-panel-solid));
+  box-shadow:
+    0 10px 26px color-mix(in srgb, var(--color-home) 12%, transparent),
+    0 0 24px color-mix(in srgb, var(--color-home) 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 72%, transparent);
+}
+
+.home .nodeLabel {
+  font-size: 12.5px;
+  color: var(--gray-12);
+}
+
+.home .nodeValue {
+  font-size: 20px;
+}
+
 .battery {
   color: var(--color-battery);
   --node-glow: var(--color-battery-bg);
 }
+
 .vehicle {
+  width: 100%;
+  max-width: 190px;
+  padding: 11px 14px 10px;
+  border: 1px solid color-mix(in srgb, var(--color-charging) 10%, var(--gray-a3));
+  border-radius: 19px;
+  background: color-mix(in srgb, var(--color-charging) 4%, var(--color-panel-solid));
   color: var(--color-charging);
+  box-shadow: 0 7px 20px color-mix(in srgb, var(--color-charging) 6%, transparent);
   --node-glow: var(--color-charging-bg);
 }
+
+.vehicle .iconBadge {
+  width: 44px;
+  height: 44px;
+}
+
 .gridImport {
   color: var(--color-grid-import);
   --node-glow: color-mix(in srgb, var(--color-grid-import) 20%, transparent);
 }
+
 .gridExport {
   color: var(--color-grid-export);
   --node-glow: color-mix(in srgb, var(--color-grid-export) 20%, transparent);
@@ -237,25 +375,33 @@
   --node-glow: transparent;
 }
 
+.idle .iconBadge {
+  border-color: var(--gray-a3);
+  background: color-mix(in srgb, var(--gray-a2) 70%, var(--color-panel-solid));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 55%, transparent);
+}
+
 .splitBar {
   display: flex;
   width: 100%;
   max-width: 145px;
-  height: 6px;
+  height: 4px;
   margin-top: 5px;
   overflow: hidden;
   border-radius: 999px;
-  background: var(--gray-5);
+  background: var(--gray-4);
 }
 
 .splitSolar {
   height: 100%;
   background: var(--color-solar-car);
 }
+
 .splitBattery {
   height: 100%;
   background: var(--color-battery);
 }
+
 .splitGrid {
   height: 100%;
   background: var(--color-grid-import);
@@ -266,28 +412,31 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: 2px 9px;
-  margin-top: 3px;
-  font-size: 10px;
-  color: var(--gray-11);
+  margin-top: 4px;
+  font-size: 9.5px;
+  color: var(--gray-10);
 }
 
 .legendSolar::before,
 .legendBattery::before,
 .legendGrid::before {
   display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 3px;
+  width: 5px;
+  height: 5px;
+  margin-right: 4px;
   border-radius: 50%;
   content: "";
+  vertical-align: 1px;
 }
 
 .legendSolar::before {
   background: var(--color-solar-car);
 }
+
 .legendBattery::before {
   background: var(--color-battery);
 }
+
 .legendGrid::before {
   background: var(--color-grid-import);
 }
@@ -295,56 +444,91 @@
 @media (prefers-reduced-motion: reduce) {
   .arrowUp,
   .arrowDown {
-    top: 10px;
-    opacity: 0.8;
+    top: 18px;
+    opacity: 0.82;
+    animation: none;
+  }
+
+  .active .iconBadge,
+  .energyBus::after {
     animation: none;
   }
 }
 
 @media (max-width: 640px) {
   .shell {
-    padding: 12px 5px 15px;
-    border-radius: 16px;
+    padding: 16px 6px 18px;
+    border-radius: 22px;
   }
 
   .vehicleFlows {
     gap: 10px;
   }
+
   .vehicleFlow {
     flex-basis: 165px;
   }
+
+  .vehicle {
+    max-width: 155px;
+    padding: 9px 8px 8px;
+    border-radius: 17px;
+  }
+
   .energyBus {
-    width: calc(100% - 18px);
+    width: calc(100% - 24px);
   }
+
+  .endpointsWithBattery {
+    grid-template-columns: repeat(4, minmax(58px, 1fr));
+  }
+
   .flowBranch {
-    width: 30px;
-    height: 42px;
+    width: 28px;
+    height: 38px;
   }
+
   .iconBadge {
     width: 42px;
     height: 42px;
   }
-  .nodeLabel {
-    font-size: 9px;
-    letter-spacing: 0.09em;
+
+  .home .iconBadge {
+    width: 48px;
+    height: 48px;
+    margin-top: -3px;
   }
+
+  .nodeLabel,
+  .home .nodeLabel {
+    font-size: 10px;
+  }
+
   .nodeValue {
     font-size: 15px;
   }
+
+  .home .nodeValue {
+    font-size: 16px;
+  }
+
   .socText,
   .batteryStatus {
-    font-size: 9px;
+    font-size: 8.5px;
   }
+
   .pill {
     padding-inline: 5px;
     font-size: 8px;
   }
+
   .vehicleName {
-    max-width: 145px;
+    max-width: 138px;
     font-size: 12px;
   }
+
   .splitLegend {
     gap: 1px 6px;
-    font-size: 9px;
+    font-size: 8.5px;
   }
 }
