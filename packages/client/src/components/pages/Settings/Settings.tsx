@@ -1,5 +1,14 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
-import { Key, Zap } from "lucide-react";
+import {
+  Car,
+  CircleDollarSign,
+  History,
+  Key,
+  Settings2,
+  Sun,
+  Zap,
+} from "lucide-react";
 import { Card, Link, Switch, Text } from "@radix-ui/themes";
 import { trpc } from "../../../trpc.ts";
 import { version } from "../../../lib/version.ts";
@@ -42,32 +51,6 @@ function EncryptionWarning() {
   );
 }
 
-function SettingsGroup(
-  { title, description, children }: {
-    title: string;
-    description: string;
-    children: ReactNode;
-  },
-) {
-  return (
-    <section
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <Text size="3" weight="bold">{title}</Text>
-        <Text size="2" color="gray">{description}</Text>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {children}
-      </div>
-    </section>
-  );
-}
-
 function VersionFooter() {
   const label = `version ${version.sha}`;
   if (!version.commitUrl) {
@@ -82,100 +65,255 @@ function VersionFooter() {
   );
 }
 
-// ── Main Settings Component ──
+type SettingsPage = "cars" | "home" | "electricity" | "history" | "advanced";
+
+interface MenuItem {
+  id: SettingsPage;
+  title: string;
+  description: string;
+  icon: ReactNode;
+}
+
+const MENU_ITEMS: readonly MenuItem[] = [
+  {
+    id: "cars",
+    title: "My cars",
+    description: "Cars and automatic charging",
+    icon: <Car size={21} />,
+  },
+  {
+    id: "home",
+    title: "Solar & home",
+    description: "Solar, battery and home energy",
+    icon: <Sun size={21} />,
+  },
+  {
+    id: "electricity",
+    title: "Electricity price",
+    description: "Prices and cheap hours",
+    icon: <CircleDollarSign size={21} />,
+  },
+  {
+    id: "history",
+    title: "Charging history",
+    description: "Bring old charges into Stats",
+    icon: <History size={21} />,
+  },
+  {
+    id: "advanced",
+    title: "Advanced",
+    description: "Fine tuning and system tools",
+    icon: <Settings2 size={21} />,
+  },
+];
+
+function SettingsMenu({
+  page,
+  onChange,
+}: {
+  page: SettingsPage;
+  onChange: (page: SettingsPage) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))",
+        gap: 10,
+      }}
+    >
+      {MENU_ITEMS.map((item) => {
+        const selected = item.id === page;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            aria-pressed={selected}
+            onClick={() => onChange(item.id)}
+            style={{
+              appearance: "none",
+              textAlign: "left",
+              cursor: "pointer",
+              minHeight: 82,
+              padding: "12px 14px",
+              borderRadius: 10,
+              border: selected
+                ? "1px solid var(--accent-9)"
+                : "1px solid var(--gray-a5)",
+              background: selected ? "var(--accent-a3)" : "var(--gray-a2)",
+              color: "var(--gray-12)",
+            }}
+          >
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 5,
+                color: selected ? "var(--accent-11)" : "var(--gray-12)",
+              }}
+            >
+              {item.icon}
+              <Text size="2" weight="bold">{item.title}</Text>
+            </span>
+            <Text size="1" color="gray">{item.description}</Text>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function PageIntro({ title, description }: { title: string; description: string }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+      <Text size="4" weight="bold">{title}</Text>
+      <Text size="2" color="gray">{description}</Text>
+    </div>
+  );
+}
+
+function AutomaticChargingSettings() {
+  const { data: charging, isLoading } = useChargingConfig();
+  const chargingMutation = useChargingConfigMutation();
+  const { fields, setField, isDirty, save, saveStatus } = useDraftConfig(
+    charging,
+    chargingMutation,
+  );
+
+  if (isLoading) return <Text size="2" color="gray">Loading charging...</Text>;
+
+  return (
+    <SettingsSection
+      icon={<Zap size={18} />}
+      title="Automatic charging"
+      description="Turn E.V. Solar automatic charging on or off."
+      saveStatus={saveStatus}
+      isDirty={isDirty}
+      onSave={save}
+    >
+      <SettingsRow
+        label="Automatic charging"
+        help="Off pauses automatic start, stop and current changes. Your other settings are kept."
+      >
+        <Switch
+          size="2"
+          checked={fields?.chargingEnabled ?? true}
+          onCheckedChange={(value) => setField("chargingEnabled", value)}
+        />
+      </SettingsRow>
+    </SettingsSection>
+  );
+}
+
+function CarsSettingsPage() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <PageIntro
+        title="My cars"
+        description="Connect your cars and choose how E.V. Solar charges them."
+      />
+      <AutomaticChargingSettings />
+      <VehicleSettings />
+    </div>
+  );
+}
+
+function HomeSettingsPage() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <PageIntro
+        title="Solar & home"
+        description="Connect home energy and choose how much battery to keep for the house."
+      />
+      <InverterSettings />
+      <GeneralSettings mode="home" />
+      <BatterySettings mode="basic" />
+    </div>
+  );
+}
+
+function ElectricitySettingsPage() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <PageIntro
+        title="Electricity price"
+        description="Set your electricity prices and the hours when grid charging is cheaper."
+      />
+      <TariffSettings />
+    </div>
+  );
+}
+
+function HistoryHelp() {
+  return (
+    <Card style={{ borderLeft: "3px solid var(--blue-9)" }}>
+      <Text size="2" weight="bold" style={{ display: "block" }}>
+        You only need this for old charging data
+      </Text>
+      <Text size="2" color="gray" style={{ display: "block", marginTop: 3 }}>
+        Normal charging works without importing anything here. Choose the car,
+        then use the import that matches where its old charging data comes from.
+      </Text>
+    </Card>
+  );
+}
+
+function HistorySettingsPage() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <PageIntro
+        title="Charging history"
+        description="Optional: add old charging sessions to Stats."
+      />
+      <HistoryHelp />
+      <HistoryMigrationSettings />
+      <SolarWebHistoryImport />
+    </div>
+  );
+}
+
+function AdvancedSettingsPage() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <PageIntro
+        title="Advanced settings"
+        description="Fine tuning. Most people can leave these settings alone."
+      />
+      <SolarTrackingSettings />
+      <BatterySettings mode="advanced" />
+      <SolarForecastSettings />
+      <GeneralSettings mode="system" />
+      <NotificationSettings />
+      <AuthSettings />
+    </div>
+  );
+}
+
+function SettingsPageContent({ page }: { page: SettingsPage }) {
+  if (page === "home") return <HomeSettingsPage />;
+  if (page === "electricity") return <ElectricitySettingsPage />;
+  if (page === "history") return <HistorySettingsPage />;
+  if (page === "advanced") return <AdvancedSettingsPage />;
+  return <CarsSettingsPage />;
+}
 
 export function Settings() {
-  const { data: charging, isLoading: chargingLoading } = useChargingConfig();
-  const chargingMutation = useChargingConfigMutation();
-  const {
-    fields: chargingFields,
-    setField: setChargingField,
-    isDirty: chargingDirty,
-    save: saveCharging,
-    saveStatus: chargingSaveStatus,
-  } = useDraftConfig(charging, chargingMutation);
-
+  const [page, setPage] = useState<SettingsPage>("cars");
   const { data: encryptionHealth } = trpc.health.encryption.useQuery();
   const encryptionMissing = encryptionHealth
     ? !encryptionHealth.configured
     : false;
 
-  if (chargingLoading) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <Text size="5" weight="bold">Settings</Text>
-        <Text size="2" color="gray">Loading settings...</Text>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <Text size="5" weight="bold">Settings</Text>
-        <Text size="2" color="gray">
-          Configure charging, energy monitoring, solar behaviour, and system
-          services. Changes are saved per section.
-        </Text>
+        <Text size="2" color="gray">What do you want to change?</Text>
       </div>
-
       {encryptionMissing && <EncryptionWarning />}
-
-      <SettingsGroup
-        title="Charging & equipment"
-        description="Control charging automation and the hardware connected to E.V Solar."
-      >
-        <SettingsSection
-          icon={<Zap size={18} />}
-          title="Charging Control"
-          description="Master switch for E.V Solar charging automation."
-          saveStatus={chargingSaveStatus}
-          isDirty={chargingDirty}
-          onSave={saveCharging}
-        >
-          <SettingsRow
-            label="Charging enabled"
-            help="Turn this off to pause automatic charging decisions without changing your other settings."
-          >
-            <Switch
-              size="2"
-              checked={chargingFields?.chargingEnabled ?? true}
-              onCheckedChange={(v) => setChargingField("chargingEnabled", v)}
-            />
-          </SettingsRow>
-        </SettingsSection>
-
-        <InverterSettings />
-        <VehicleSettings />
-      </SettingsGroup>
-
-      <SettingsGroup
-        title="Solar & energy"
-        description="Tune solar charging, forecasts, electricity tariffs, and home-battery protection."
-      >
-        <SolarTrackingSettings />
-        <SolarForecastSettings />
-        <TariffSettings />
-        <BatterySettings />
-      </SettingsGroup>
-
-      <SettingsGroup
-        title="History & migration"
-        description="Bring historical charging data into E.V Solar independently from the active realtime energy source."
-      >
-        <HistoryMigrationSettings />
-        <SolarWebHistoryImport />
-      </SettingsGroup>
-
-      <SettingsGroup
-        title="System & access"
-        description="Manage system behaviour, home location, notifications, and authentication."
-      >
-        <GeneralSettings />
-        <NotificationSettings />
-        <AuthSettings />
-      </SettingsGroup>
-
+      <SettingsMenu page={page} onChange={setPage} />
+      <SettingsPageContent page={page} />
       <VersionFooter />
     </div>
   );

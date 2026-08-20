@@ -25,9 +25,9 @@ type VehiclePlugin = ReturnType<
 >["vehiclePlugins"][number];
 
 function sourceLabel(source: HomeChargingSource | null): string {
-  if (source === "chargehq") return "ChargeHQ";
-  if (source === "solarweb") return "Solar.web / Wattpilot";
-  return "Not configured";
+  if (source === "chargehq") return "ChargeHQ file";
+  if (source === "solarweb") return "Wattpilot";
+  return "Not chosen yet";
 }
 
 function HomeChargingData({
@@ -53,14 +53,14 @@ function HomeChargingData({
       }}
     >
       <div style={{ minWidth: 190, flex: "1 1 260px" }}>
-        <Text size="2" weight="medium">Home charging data</Text>
+        <Text size="2" weight="medium">Old home charges</Text>
         <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
-          Cross-checks this vehicle's charging history to identify home sessions.
+          Where should E.V. Solar look to recognise this car's old charges at home?
           Current: {sourceLabel(vehicle.homeChargingSource)}.
         </Text>
       </div>
       <select
-        aria-label={`${vehicle.name} home charging data`}
+        aria-label={`${vehicle.name} old home charges`}
         value={vehicle.homeChargingSource ?? ""}
         disabled={pending}
         onChange={(event) => {
@@ -81,9 +81,9 @@ function HomeChargingData({
           padding: "0 9px",
         }}
       >
-        <option value="">Choose source...</option>
-        <option value="chargehq">ChargeHQ</option>
-        <option value="solarweb">Solar.web / Wattpilot</option>
+        <option value="">Choose later</option>
+        <option value="chargehq">ChargeHQ file</option>
+        <option value="solarweb">Wattpilot (Solar.web)</option>
       </select>
     </div>
   );
@@ -150,7 +150,7 @@ function VehicleRow(
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {vehiclesLength > 1 && (
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Text size="1" color="gray">Priority {v.priority}</Text>
+              <Text size="1" color="gray">Car #{v.priority}</Text>
               <Button
                 variant="soft"
                 size="1"
@@ -216,10 +216,10 @@ function UnconfiguredPluginCard(
       >
         <Car size={14} />
         <Text size="2" weight="medium">{plugin.displayName}</Text>
-        <Badge color="gray" size="1">Not configured</Badge>
+        <Badge color="gray" size="1">Not connected</Badge>
       </div>
       <Text size="1" color="gray" style={{ display: "block", marginBottom: 8 }}>
-        Run the setup wizard to configure {plugin.displayName} vehicles.
+        Follow the setup steps to connect {plugin.displayName}.
       </Text>
       <Button
         size="1"
@@ -227,7 +227,7 @@ function UnconfiguredPluginCard(
         onClick={() => handleStartOnboarding(plugin.id)}
       >
         <Plus size={14} />
-        Set up {plugin.displayName}
+        Connect {plugin.displayName}
       </Button>
     </div>
   );
@@ -266,8 +266,8 @@ function PriorityChargingHeader(
   return (
     <>
       <SettingsRow
-        label="Priority Charging"
-        help="When enabled, the highest-priority vehicle receives all excess solar first. Remaining solar flows to lower-priority vehicles. When disabled, available solar is split equally across all eligible vehicles."
+        label="Charge one car first"
+        help="On: car #1 gets spare solar first. Off: spare solar is shared between eligible cars."
       >
         <Switch
           size="2"
@@ -280,8 +280,7 @@ function PriorityChargingHeader(
         color="gray"
         style={{ display: "block", marginBottom: 4 }}
       >
-        Priority determines which vehicle receives excess solar energy first.
-        Lower priority number = charged first.
+        Use the arrows to choose which car is #1.
       </Text>
     </>
   );
@@ -310,12 +309,11 @@ function VehicleListBlock(
   return (
     <>
       {vehicles.length === 0 && !loadFailed && (
-        <Text size="2" color="gray">No vehicles configured yet.</Text>
+        <Text size="2" color="gray">No cars connected yet.</Text>
       )}
       {vehicles.length === 0 && loadFailed && (
         <Text size="2" color="gray">
-          Could not load vehicles. Check that the server is running and try
-          again.
+          Could not load cars. Check that the server is running and try again.
         </Text>
       )}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -362,10 +360,10 @@ export function VehicleSettings() {
     return (
       <SettingsSection
         icon={<Car size={18} />}
-        title="Vehicles"
-        description="Manage your electric vehicles and charging integrations."
+        title="My cars"
+        description="Cars connected to E.V. Solar."
       >
-        <Text size="2" color="gray">Loading vehicles...</Text>
+        <Text size="2" color="gray">Loading cars...</Text>
       </SettingsSection>
     );
   }
@@ -396,8 +394,8 @@ export function VehicleSettings() {
 
       <SettingsSection
         icon={<Car size={18} />}
-        title="Vehicles"
-        description="Manage each vehicle, its priority, and the home charging history source used by E.V. Solar."
+        title="My cars"
+        description="See your cars, choose which one charges first, and tell Stats where old home charges come from."
       >
         {vehicles.length > 1 && (
           <PriorityChargingHeader

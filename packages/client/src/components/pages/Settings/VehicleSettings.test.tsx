@@ -21,6 +21,8 @@ const { makeHookReturn, hookRef } = vi.hoisted(() => {
     error: null as string | null,
     handleDelete: vi.fn(),
     handleMovePriority: vi.fn(),
+    handleHomeChargingSource: vi.fn(),
+    homeSourcePending: false,
     vehiclePlugins: [] as Array<{
       id: string;
       displayName: string;
@@ -100,19 +102,19 @@ describe("VehicleSettings", () => {
   it("renders loading state", () => {
     hookRef.current = makeHookReturn({ loading: true });
     renderWithProviders(<VehicleSettings />);
-    expect(screen.getByText("Loading vehicles...")).toBeInTheDocument();
+    expect(screen.getByText("Loading cars...")).toBeInTheDocument();
   });
 
   it("renders empty state when no vehicles", () => {
     renderWithProviders(<VehicleSettings />);
-    expect(screen.getByText("No vehicles configured yet.")).toBeInTheDocument();
+    expect(screen.getByText("No cars connected yet.")).toBeInTheDocument();
   });
 
   it("renders load failed message", () => {
     hookRef.current = makeHookReturn({ loadFailed: true });
     renderWithProviders(<VehicleSettings />);
     expect(
-      screen.getByText(/Could not load vehicles/),
+      screen.getByText(/Could not load cars/),
     ).toBeInTheDocument();
   });
 
@@ -132,9 +134,10 @@ describe("VehicleSettings", () => {
     expect(screen.getByText("Model 3")).toBeInTheDocument();
     expect(screen.getByText("VIN1")).toBeInTheDocument();
     expect(screen.getByText("tesla")).toBeInTheDocument();
+    expect(screen.getByText("Old home charges")).toBeInTheDocument();
   });
 
-  it("renders priority controls when multiple vehicles", () => {
+  it("renders car-order controls when multiple vehicles", () => {
     hookRef.current = makeHookReturn({
       vehicles: [
         { id: "VIN1", name: "Model 3", adapterType: "tesla", priority: 1 },
@@ -142,21 +145,21 @@ describe("VehicleSettings", () => {
       ],
     });
     renderWithProviders(<VehicleSettings />);
-    expect(screen.getByText("Priority 1")).toBeInTheDocument();
-    expect(screen.getByText("Priority 2")).toBeInTheDocument();
+    expect(screen.getByText("Car #1")).toBeInTheDocument();
+    expect(screen.getByText("Car #2")).toBeInTheDocument();
     expect(
-      screen.getByText(/Priority determines which vehicle/),
+      screen.getByText(/Use the arrows to choose which car is #1/),
     ).toBeInTheDocument();
   });
 
-  it("does not render priority controls for single vehicle", () => {
+  it("does not render car order for single vehicle", () => {
     hookRef.current = makeHookReturn({
       vehicles: [
         { id: "VIN1", name: "Model 3", adapterType: "tesla", priority: 1 },
       ],
     });
     renderWithProviders(<VehicleSettings />);
-    expect(screen.queryByText("Priority 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Car #1")).not.toBeInTheDocument();
   });
 
   it("calls handleDelete when delete button clicked", () => {
@@ -174,7 +177,7 @@ describe("VehicleSettings", () => {
     expect(handleDelete).toHaveBeenCalledWith("VIN1");
   });
 
-  it("calls handleMovePriority when priority button clicked", () => {
+  it("calls handleMovePriority when order button clicked", () => {
     const handleMovePriority = vi.fn();
     hookRef.current = makeHookReturn({
       vehicles: [
@@ -196,7 +199,7 @@ describe("VehicleSettings", () => {
     expect(screen.queryByText("Add Simulated Vehicle")).not.toBeInTheDocument();
   });
 
-  it("renders unconfigured plugin with setup button", () => {
+  it("renders unconfigured plugin with connect button", () => {
     const handleStartOnboarding = vi.fn();
     (vehiclePluginSteps as Record<string, unknown[]>)["tesla"] = [
       { id: "step1" },
@@ -209,19 +212,19 @@ describe("VehicleSettings", () => {
     });
     renderWithProviders(<VehicleSettings />);
     expect(screen.getByText("Tesla")).toBeInTheDocument();
-    expect(screen.getByText("Not configured")).toBeInTheDocument();
-    fireEvent.click(screen.getByText(/Set up Tesla/));
+    expect(screen.getByText("Not connected")).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Connect Tesla/));
     expect(handleStartOnboarding).toHaveBeenCalledWith("tesla");
   });
 
-  it("does not render setup button for configured plugins", () => {
+  it("does not render connect button for configured plugins", () => {
     hookRef.current = makeHookReturn({
       vehiclePlugins: [
         { id: "tesla", displayName: "Tesla", configured: true },
       ],
     });
     renderWithProviders(<VehicleSettings />);
-    expect(screen.queryByText("Not configured")).not.toBeInTheDocument();
+    expect(screen.queryByText("Not connected")).not.toBeInTheDocument();
   });
 
   it("renders plugin settings component for configured plugin", () => {
