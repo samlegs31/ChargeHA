@@ -40,7 +40,7 @@ export class ChargingHistoryError extends Error {
   }
 }
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 25;
 const MAX_PAGES = 50;
 const INTERVAL_SECONDS = 15 * 60;
 
@@ -290,7 +290,10 @@ function requestPage(
   fetchFn: typeof globalThis.fetch,
 ): Promise<Response> {
   return fetchFn(historyUrl(base, input, page, mode), {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
     signal: AbortSignal.timeout(20_000),
   });
 }
