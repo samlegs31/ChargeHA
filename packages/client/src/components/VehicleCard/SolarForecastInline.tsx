@@ -25,15 +25,15 @@ function formatTime(iso: string | null, timezone: string): string {
 const rowStyle: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 6,
+  gap: 7,
   minWidth: 0,
 };
 
 function ForecastStatus({ text }: { text: string }) {
   return (
-    <div data-testid="solar-forecast-inline" style={{ ...rowStyle, marginTop: 6 }}>
-      <SunMedium size={13} style={{ color: "var(--yellow-10)", flexShrink: 0 }} />
-      <Text size="1" color="gray">{text}</Text>
+    <div data-testid="solar-forecast-inline" style={{ ...rowStyle, marginTop: 7 }}>
+      <SunMedium size={14} style={{ color: "var(--yellow-10)", flexShrink: 0 }} />
+      <Text size="2" color="gray">{text}</Text>
     </div>
   );
 }
@@ -41,7 +41,7 @@ function ForecastStatus({ text }: { text: string }) {
 function unavailableStatus(data: SolarChargeForecastResult): string | null {
   if (data.available) return null;
   if (data.reason === "not_configured") {
-    return "Solar forecast: configure in Settings";
+    return "Set up the solar forecast in Settings";
   }
   if (data.reason === "weather_unavailable" || data.reason === "energy_unavailable") {
     return "Solar forecast temporarily unavailable";
@@ -51,11 +51,9 @@ function unavailableStatus(data: SolarChargeForecastResult): string | null {
 
 function solarForecastText(data: SolarChargeForecast): string {
   if (data.solarEndAt) {
-    return `Solar ends ${formatTime(data.solarEndAt, data.timezone)} · +${
-      data.solarChargeRemainingKwh.toFixed(1)
-    } kWh to car · ${Math.round(data.socAtSolarEnd)}% tonight`;
+    return `With today's sun: about ${Math.round(data.socAtSolarEnd)}% this evening`;
   }
-  return `No more solar charging expected today · ${Math.round(data.socAtSolarEnd)}% tonight`;
+  return `No more solar expected today · about ${Math.round(data.socAtSolarEnd)}% this evening`;
 }
 
 function scheduleForecastText(
@@ -67,11 +65,11 @@ function scheduleForecastText(
   const schedule = data.schedule;
   const targetReached = data.finalSoc >= schedule.targetPercent - 0.05;
   if (targetReached) {
-    return `Target ${schedule.targetPercent}% around ${
+    return `Then ${schedule.targetPercent}% expected around ${
       formatTime(schedule.expectedFinishAt ?? schedule.endAt, data.timezone)
     }`;
   }
-  return `Schedule to ${formatTime(schedule.endAt, data.timezone)} · ${
+  return `By ${formatTime(schedule.endAt, data.timezone)}: about ${
     Math.round(data.finalSoc)
   }% expected`;
 }
@@ -88,7 +86,7 @@ export function SolarForecastInline({
   isError: boolean;
 }) {
   if (isLoading) {
-    return <ForecastStatus text="Calculating today's solar forecast…" />;
+    return <ForecastStatus text="Checking today's solar…" />;
   }
   if (isError || !data) return null;
 
@@ -104,24 +102,23 @@ export function SolarForecastInline({
     <div
       data-testid="solar-forecast-inline"
       style={{
-        marginTop: 6,
+        marginTop: 8,
         marginBottom: 2,
-        paddingLeft: 20,
         display: "flex",
         flexDirection: "column",
-        gap: 3,
+        gap: 5,
       }}
     >
       <div style={rowStyle}>
-        <SunMedium size={13} style={{ color: "var(--yellow-10)", flexShrink: 0 }} />
-        <Text size="1" color="gray" style={{ lineHeight: 1.35 }}>
+        <SunMedium size={14} style={{ color: "var(--yellow-10)", flexShrink: 0 }} />
+        <Text size="2" color="gray" style={{ lineHeight: 1.4 }}>
           {solarText}
         </Text>
       </div>
       {scheduleText && (
         <div style={rowStyle}>
-          <MoonStar size={13} style={{ color: "var(--blue-9)", flexShrink: 0 }} />
-          <Text size="1" color="gray" style={{ lineHeight: 1.35 }}>
+          <MoonStar size={14} style={{ color: "var(--blue-9)", flexShrink: 0 }} />
+          <Text size="2" color="gray" style={{ lineHeight: 1.4 }}>
             {scheduleText}
           </Text>
         </div>

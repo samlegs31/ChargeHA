@@ -69,15 +69,27 @@ RUN --mount=type=cache,target=/deno-dir \
 # ------------------------------------------------------------
 FROM denoland/deno:2.9.4
 
+ARG TARGETARCH
+ARG BUILDARCH
+
 ENV DENO_DIR=/deno-dir
 
-RUN --mount=type=cache,target=/var/cache/apt \
-    --mount=type=cache,target=/var/lib/apt/lists \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       openssl \
       ca-certificates \
-      openssh-client
+      openssh-client \
+      libsqlite3-0 && \
+    SQLITE_LIB="$(ldconfig -p | awk '/libsqlite3\.so\.0/{print $NF; exit}')" && \
+    test -n "$SQLITE_LIB" && \
+    ln -sf "$SQLITE_LIB" /usr/local/lib/libsqlite3.so.0
+
+# @db/sqlite supports a custom native SQLite path. Using Debian's architecture-
+# appropriate library avoids downloading and executing Plug's prebuilt library
+# during cross-platform builds and keeps production fully offline.
+ENV DENO_SQLITE_PATH=/usr/local/lib/libsqlite3.so.0
 
 WORKDIR /app
 
@@ -115,11 +127,18 @@ RUN deno cache --frozen \
     packages/server/src/healthcheck.ts
 RUN deno cache --frozen "npm:better-sqlite3@11.10.0"
 
-# @db/sqlite loads its architecture-specific native library through Plug.
-# Resolve it at build time so production starts offline on a read-only root.
-RUN deno eval \
-    --unstable-ffi \
-    'import { Database } from "@db/sqlite"; const db = new Database(":memory:"); db.close();'
+# Opening SQLite through FFI is useful as a native-build smoke test, but doing
+# that inside an emulated arm64 stage can SIGILL under Buildx/QEMU even though
+# the same library works on real arm64 hardware. Validate it only when the target
+# architecture matches the builder; cross-built images use the system library
+# above and will be validated by the normal container healthcheck on deployment.
+RUN if [ "$TARGETARCH" = "$BUILDARCH" ]; then \
+      deno eval \
+        --unstable-ffi \
+        'import { Database } from "@db/sqlite"; const db = new Database(":memory:"); db.close();'; \
+    else \
+      echo "Skipping SQLite FFI smoke test for emulated ${TARGETARCH} build"; \
+    fi
 
 RUN mkdir -p /app/data && chown 1000:1000 /app/data
 

@@ -1,12 +1,13 @@
 # Reusable build called by ci.yml on every push/PR.
 #
-# PR image behaviour vs build-pr.yml:
+# E.V. Solar targets Raspberry Pi (linux/arm64) only. Build on GitHub's native
+# ARM64 runner so Docker does not need QEMU/cross-architecture emulation.
+#
+# PR image behaviour:
 #   - Same-repo PRs: builds the MERGE commit and pushes pr-<n> + sha-<short>,
 #     then comments the image tag on the PR.
 #   - Fork PRs: builds only (fork PR tokens are read-only, so no push and no
-#     comment). Maintainers comment /build on the PR to get an image via
-#     build-pr.yml, which runs with this repo's token and pushes the PR's
-#     HEAD commit under the same pr-<n> tag.
+#     comment).
 name: build
 
 on:
@@ -19,16 +20,13 @@ env:
 jobs:
   build:
     name: build & push docker image
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     permissions:
       contents: read
       packages: write
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -62,9 +60,8 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           # Fork PRs have a read-only GITHUB_TOKEN, so build without pushing.
-          # Maintainers can comment /build on the PR to push (build-pr.yml).
           push: ${{ !github.event.pull_request.head.repo.fork }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
