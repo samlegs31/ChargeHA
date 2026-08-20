@@ -76,14 +76,16 @@ export function EnergyOverview({ pluginWarnings }: EnergyOverviewProps) {
     (total, vehicle) => total + Math.max(0, vehicle.solarW),
     0,
   );
-  const summary = realtime
-    ? energySummary(
+
+  let summary: string | null = null;
+  if (realtime) {
+    summary = energySummary(
       realtime.solarProductionW ?? 0,
       realtime.batteryPowerW ?? 0,
       realtime.gridPowerW ?? 0,
       solarToCarsW,
-    )
-    : null;
+    );
+  }
 
   return (
     <>
