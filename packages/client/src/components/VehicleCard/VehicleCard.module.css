@@ -1,109 +1,147 @@
 .card {
   position: relative;
   overflow: hidden;
-  border: 1px solid var(--gray-a5);
-  border-left: 4px solid var(--accent);
-  border-radius: 18px;
-  padding: 18px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  background: color-mix(in srgb, var(--color-panel-solid) 96%, transparent);
+  border: 1px solid var(--gray-a4);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.06);
+  background: color-mix(in srgb, var(--color-panel-solid) 98%, transparent);
 }
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 18px;
 }
 
 .headerLeft {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   min-width: 0;
 }
 
 .headerLeft > :nth-child(2) {
-  font-size: 1.35rem;
-  letter-spacing: 0.02em;
-}
-
-.modeToggle {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0;
-  margin: 4px 0 18px;
-  padding: 4px;
-  border-radius: 14px;
-  background: var(--gray-a3);
-}
-
-.modeToggle button {
-  min-height: 44px;
-  border-radius: 11px !important;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.025em;
-  white-space: nowrap;
-  padding-inline: 8px;
+  font-size: 1.18rem;
+  letter-spacing: -0.01em;
 }
 
 .batterySection {
-  margin-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.batteryTop {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.batteryPercent {
+  font-size: 2.7rem;
+  line-height: 0.95;
+  font-weight: 650;
+  letter-spacing: -0.05em;
+  color: var(--gray-12);
 }
 
 .batteryBar {
   position: relative;
-  height: 10px;
+  height: 8px;
   background: var(--gray-a4);
   border-radius: 999px;
   overflow: hidden;
-  margin-bottom: 8px;
 }
 
 .batteryFill {
   height: 100%;
   border-radius: 999px;
-  transition: width 0.5s ease;
+  transition: width 0.45s ease, background-color 0.2s ease;
 }
 
 .chargeLimitMarker {
   position: absolute;
   top: -2px;
-  width: 3px;
-  height: 14px;
+  width: 2px;
+  height: 12px;
   border-radius: 2px;
   background: var(--gray-11);
-  opacity: 0.8;
-}
-
-.batteryLabels {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-}
-
-.batteryLabels > :first-child {
-  font-size: 1.35rem;
+  opacity: 0.7;
 }
 
 .status {
   display: flex;
   align-items: center;
   gap: 9px;
-  min-height: 28px;
-  margin-bottom: 10px;
+  min-height: 30px;
+  margin-bottom: 8px;
+}
+
+.modeToggle {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 20px 0 8px;
+}
+
+.modeToggle button {
+  min-height: 46px;
+  border-radius: 999px !important;
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: transform 120ms ease, background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.modeToggle button:active {
+  transform: scale(0.98);
+}
+
+.nextConnection {
+  display: block;
+  margin-top: 14px;
+}
+
+.detailsToggle {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 12px;
+  border-radius: 12px !important;
+  justify-content: center;
+}
+
+.technicalPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--gray-a4);
+}
+
+.technicalMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
 }
 
 .details {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  margin: 10px 0 14px;
+  margin: 4px 0 14px;
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--gray-a2);
 }
 
@@ -129,8 +167,9 @@
 }
 
 .buttonRow button {
-  min-height: 42px;
+  min-height: 44px;
   width: 100%;
+  border-radius: 12px !important;
   font-weight: 650;
 }
 
@@ -140,7 +179,7 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: 42px;
+  min-height: 44px;
   padding: 2px 4px;
   border: 1px solid var(--gray-a5);
   border-radius: 12px;
@@ -153,72 +192,34 @@
   font-size: 1.2rem;
 }
 
-.mapCircle {
-  display: none;
-  position: absolute;
-  bottom: 14px;
-  right: 14px;
-  width: 78px;
-  height: 52px;
-  border: 1px solid var(--gray-a5);
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  overflow: hidden;
-  opacity: 0.78;
-  z-index: 1;
-  cursor: pointer;
-  transition: width 0.35s ease, height 0.35s ease, opacity 0.2s ease;
-}
-
-.mapCircle:hover {
-  width: 240px;
-  height: 150px;
-  opacity: 1;
-  z-index: 10;
-}
-
-.mapInner {
-  position: relative;
-  width: 240px;
-  height: 150px;
-  top: -49px;
-  left: -81px;
-  transition: top 0.35s ease, left 0.35s ease;
-}
-
-.mapCircle:hover .mapInner {
-  top: 0;
-  left: 0;
-}
-
 @media (max-width: 640px) {
   .card {
-    padding: 16px 14px;
-    border-radius: 16px;
+    padding: 20px 16px;
+    border-radius: 22px;
   }
 
   .header {
-    margin-bottom: 14px;
+    margin-bottom: 16px;
   }
 
-  .headerLeft {
-    width: 100%;
+  .batteryPercent {
+    font-size: 2.45rem;
   }
 
   .modeToggle {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
+    gap: 8px;
+    margin-top: 18px;
   }
 
   .modeToggle button {
-    min-height: 48px;
-    font-size: 0.82rem;
+    min-height: 50px;
+    font-size: 0.9rem;
   }
 
   .controls {
     flex-direction: column;
     align-items: stretch;
-    padding-right: 0;
   }
 
   .ampsControl {
@@ -226,7 +227,8 @@
     grid-template-columns: 1fr 1fr 1fr;
   }
 
-  .mapCircle {
-    bottom: 14px;
+  .technicalMeta {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
