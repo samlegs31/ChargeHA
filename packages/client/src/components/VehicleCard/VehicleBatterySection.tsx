@@ -99,33 +99,32 @@ export function VehicleBatterySection({
               : "var(--color-vehicle)",
           }}
         />
-        {interactive
-          ? (
-            <input
-              className={styles.chargeLimitSlider}
-              type="range"
-              min={MIN_CHARGE_LIMIT}
-              max={MAX_CHARGE_LIMIT}
-              step={1}
-              value={draftLimit}
-              disabled={disabled || saving}
-              aria-label="Charge limit"
-              aria-valuetext={`${draftLimit}%`}
-              onChange={(event) => {
-                setDraftLimit(Number(event.currentTarget.value));
-                setDirty(true);
-                setSaveError(false);
-              }}
-              onPointerUp={() => void commitLimit()}
-              onKeyUp={handleKeyUp}
-            />
-          )
-          : (
-            <div
-              className={styles.chargeLimitMarker}
-              style={{ left: `${normalizedLimit}%` }}
-            />
-          )}
+        {interactive && (
+          <input
+            className={styles.chargeLimitSlider}
+            type="range"
+            min={MIN_CHARGE_LIMIT}
+            max={MAX_CHARGE_LIMIT}
+            step={1}
+            value={draftLimit}
+            disabled={disabled || saving}
+            aria-label="Charge limit"
+            aria-valuetext={`${draftLimit}%`}
+            onChange={(event) => {
+              setDraftLimit(Number(event.currentTarget.value));
+              setDirty(true);
+              setSaveError(false);
+            }}
+            onPointerUp={() => void commitLimit()}
+            onKeyUp={handleKeyUp}
+          />
+        )}
+        {!interactive && (
+          <div
+            className={styles.chargeLimitMarker}
+            style={{ left: `${normalizedLimit}%` }}
+          />
+        )}
       </div>
       {saveError && (
         <Text size="1" color="red" className={styles.chargeLimitError}>
