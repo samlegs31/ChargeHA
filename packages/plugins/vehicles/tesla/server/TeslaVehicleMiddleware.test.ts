@@ -344,6 +344,11 @@ describe("TeslaVehicleMiddleware", () => {
         () => middleware.setChargeAmps(16, cc("test:amps")),
         () => adapter.setChargeAmpsCalls,
       ],
+      [
+        "setChargeLimit",
+        () => middleware.setChargeLimit(90, cc("test:limit")),
+        () => adapter.setChargeLimitCalls.length,
+      ],
     ];
     commandCases.forEach(([label, run, getCalls]) => {
       it(`delegates ${label} to adapter when online`, async () => {
@@ -388,6 +393,15 @@ describe("TeslaVehicleMiddleware", () => {
       );
 
       expect(adapter.stopChargingCalls).toBe(0);
+    });
+
+    it("updates its cached charge limit after the adapter accepts it", async () => {
+      await middleware.requestState(ctx());
+
+      await middleware.setChargeLimit(90, cc("user:limit"));
+
+      expect(adapter.setChargeLimitCalls).toEqual([90]);
+      expect(middleware.getCachedState()?.chargeLimit).toBe(90);
     });
   });
 

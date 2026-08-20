@@ -4,10 +4,8 @@ import { Badge, Button, Card, Switch, Text } from "@radix-ui/themes";
 import { ErrorBoundary } from "../../ui/ErrorBoundary.tsx";
 import {
   pluginSettingsComponents,
-  vehiclePluginOptions,
   vehiclePluginSteps,
 } from "@chargeha/plugins/componentRegistry";
-import { demoMode } from "../../../lib/featureFlags.ts";
 import {
   useChargingConfig,
   useChargingConfigMutation,
@@ -55,8 +53,8 @@ function HomeChargingData({
       <div style={{ minWidth: 190, flex: "1 1 260px" }}>
         <Text size="2" weight="medium">Old home charges</Text>
         <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
-          Where should E.V. Solar look to recognise this car's old charges at home?
-          Current: {sourceLabel(vehicle.homeChargingSource)}.
+          Where should E.V. Solar look to recognise this car's old charges at
+          home? Current: {sourceLabel(vehicle.homeChargingSource)}.
         </Text>
       </div>
       <select
@@ -155,7 +153,8 @@ function VehicleRow(
                 variant="soft"
                 size="1"
                 disabled={idx === 0}
-                onClick={() => handleMovePriority(v.id, "up")}
+                onClick={() =>
+                  handleMovePriority(v.id, "up")}
                 aria-label={`Move ${v.name} up`}
               >
                 <ArrowUpIcon />
@@ -368,12 +367,8 @@ export function VehicleSettings() {
     );
   }
 
-  const demoBlockedIds = demoMode.blockedPlugins(vehiclePluginOptions);
-
   const unconfiguredPlugins = vehiclePlugins.filter(
-    (p) =>
-      !p.configured && (vehiclePluginSteps[p.id]?.length ?? 0) > 0 &&
-      !demoBlockedIds.has(p.id),
+    (p) => !p.configured && (vehiclePluginSteps[p.id]?.length ?? 0) > 0,
   );
 
   return (

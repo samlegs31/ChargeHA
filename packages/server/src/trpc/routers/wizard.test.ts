@@ -51,10 +51,6 @@ describe("Wizard tRPC Router", () => {
         start: () => Promise.resolve(""),
         stop: () => Promise.resolve(),
       } as never,
-      {
-        addVehicle: () => Promise.resolve(),
-        removeVehicle: () => Promise.resolve(),
-      } as never,
       authService,
       oidcService,
     );
@@ -93,10 +89,6 @@ describe("Wizard tRPC Router", () => {
       encryptionKey,
       mockLogger as never,
       mockTunnelManager as never,
-      {
-        addVehicle: () => Promise.resolve(),
-        removeVehicle: () => Promise.resolve(),
-      } as never,
       {} as never,
       {} as never,
     );
@@ -171,38 +163,6 @@ describe("Wizard tRPC Router", () => {
 
       const stored = await db.getConfig("wizard_completed");
       expect(stored).toBe("true");
-    });
-  });
-
-  describe("wizard.demoSetup", () => {
-    it("creates a simulated vehicle without touching the energy adapter selection", async () => {
-      const result = await caller.wizard.demoSetup({
-        adapterType: "simulated",
-      });
-      expect(result.success).toBe(true);
-
-      const vehicles = await db.getVehicles();
-      expect(vehicles.length).toBe(1);
-      expect(vehicles[0].id).toBe("DEMO-001");
-      expect(vehicles[0].adapterType).toBe("simulated");
-
-      // The energy source is the user's choice on the inverter-type step.
-      const adapterType = await db.getConfig("energy_adapter_type");
-      expect(adapterType).toBeNull();
-
-      const lat = await db.getConfig("home_latitude");
-      const lng = await db.getConfig("home_longitude");
-      expect(lat).toBe("-33.8688");
-      expect(lng).toBe("151.2093");
-    });
-
-    it("saves timezone when provided", async () => {
-      await caller.wizard.demoSetup({
-        adapterType: "simulated",
-        timezone: "Australia/Sydney",
-      });
-      const timezone = await db.getConfig("timezone");
-      expect(timezone).toBe("Australia/Sydney");
     });
   });
 
@@ -348,10 +308,6 @@ describe("Wizard tRPC Router", () => {
             tunnelUrl: null,
             start: () => Promise.resolve(""),
             stop: () => Promise.resolve(),
-          } as never,
-          {
-            syncVehicles: () => Promise.resolve(),
-            startVehicle: () => {},
           } as never,
           authSvc,
           oidcSvc,

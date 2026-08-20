@@ -1,5 +1,5 @@
 // The running build's git commit SHA, baked in at build time via Vite
-// (VITE_GIT_SHA — set by the Docker build and the demo build). "dev" otherwise.
+// (VITE_GIT_SHA — set by the Docker build). "dev" otherwise.
 const env =
   (import.meta as ImportMeta & { env?: { VITE_GIT_SHA?: string } }).env;
 const fullSha = env?.VITE_GIT_SHA ?? "";

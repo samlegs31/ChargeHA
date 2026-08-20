@@ -12,6 +12,7 @@ export class MockTeslaAdapter {
   startChargingResult = true;
   stopChargingResult = true;
   setChargeAmpsResult = true;
+  setChargeLimitResult = true;
 
   getChargeStateCalls = 0;
   isVehicleOnlineCalls = 0;
@@ -19,6 +20,7 @@ export class MockTeslaAdapter {
   startChargingCalls = 0;
   stopChargingCalls = 0;
   setChargeAmpsCalls = 0;
+  setChargeLimitCalls: number[] = [];
 
   getChargeState(_ctx: unknown): Promise<VehicleChargeState> {
     this.getChargeStateCalls++;
@@ -56,8 +58,9 @@ export class MockTeslaAdapter {
   disconnect(): Promise<void> {
     return Promise.resolve();
   }
-  setChargeLimit(): Promise<boolean> {
-    return Promise.resolve(true);
+  setChargeLimit(percent: number): Promise<boolean> {
+    this.setChargeLimitCalls.push(percent);
+    return Promise.resolve(this.setChargeLimitResult);
   }
   getVehicleInfo() {
     return Promise.resolve({

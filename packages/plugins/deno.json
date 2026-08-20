@@ -49,8 +49,7 @@
     "./energy/enphase-local/client/EnphaseLocalConfig": "./energy/enphase-local/client/EnphaseLocalConfig.tsx",
     "./energy/enphase-local/client/EnphaseLocalForm": "./energy/enphase-local/client/EnphaseLocalForm.tsx",
     "./energy/InverterSetupShared": "./energy/InverterSetupShared.tsx",
-    "./componentRegistry": "./componentRegistry.ts",
-    "./demoPluginSummaries": "./demoPluginSummaries.ts"
+    "./componentRegistry": "./componentRegistry.ts"
   },
   "imports": {
     "hono": "jsr:@hono/hono@^4",

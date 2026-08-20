@@ -1,5 +1,4 @@
 import "@testing-library/jest-dom/vitest";
-import { assertExists } from "@std/assert";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "../../../test-utils.tsx";
@@ -59,22 +58,9 @@ vi.mock("../../../trpc.ts", () => ({
   },
 }));
 
-const { mockIsDemoMode } = vi.hoisted(() => ({
-  mockIsDemoMode: vi.fn(() => false),
-}));
-
-vi.mock("../../../lib/featureFlags.ts", async (orig) => {
-  const actual = await orig() as typeof import("../../../lib/featureFlags.ts");
-  return {
-    ...actual,
-    demoMode: { ...actual.demoMode, isActive: mockIsDemoMode },
-  };
-});
-
 describe("InverterTypeStep", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIsDemoMode.mockReturnValue(false);
     mockEquipmentGet.mockReturnValue({
       data: {},
       isLoading: false,
@@ -89,22 +75,6 @@ describe("InverterTypeStep", () => {
 
   afterEach(() => {
     cleanup();
-  });
-
-  it("disables Fronius options in demo mode", () => {
-    mockIsDemoMode.mockReturnValue(true);
-    renderWithProviders(
-      <StepNextHarness def={inverterTypeStep} onAdvance={mockAdvance} />,
-    );
-
-    const local = screen.getByText("Fronius (Local)").closest(
-      '[role="button"]',
-    );
-    assertExists(local);
-    expect(local).toHaveAttribute("aria-disabled", "true");
-
-    fireEvent.click(local);
-    expect(mockMutate).not.toHaveBeenCalled();
   });
 
   it("renders Fronius Local, Solar.web Account and None/Skip", () => {

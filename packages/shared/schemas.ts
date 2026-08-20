@@ -170,7 +170,7 @@ export const vehicleSetChargeLimitInput: z.ZodType<{
   percent: number;
 }> = z.object({
   vehicleId: z.string(),
-  percent: z.number(),
+  percent: z.number().int().min(50).max(100),
 });
 export type VehicleSetChargeLimitInput = z.infer<
   typeof vehicleSetChargeLimitInput
@@ -337,15 +337,6 @@ export const scheduleDeleteInput: z.ZodType<{
 export type ScheduleDeleteInput = z.infer<typeof scheduleDeleteInput>;
 
 // ---- Wizard inputs ----
-
-export const wizardDemoSetupInput: z.ZodType<{
-  adapterType: string;
-  timezone?: string | undefined;
-}> = z.object({
-  adapterType: z.string().min(1),
-  timezone: z.string().optional(),
-});
-export type WizardDemoSetupInput = z.infer<typeof wizardDemoSetupInput>;
 
 export const wizardSetAuthModeInput: z.ZodType<{
   mode: "none" | "local" | "oidc";

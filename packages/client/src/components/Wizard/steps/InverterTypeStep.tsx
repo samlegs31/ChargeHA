@@ -6,7 +6,6 @@ import {
   useEquipmentConfig,
   useEquipmentConfigMutation,
 } from "../../../hooks/useSectionConfig.ts";
-import { demoMode } from "../../../lib/featureFlags.ts";
 import type { StepDef, WizardNext } from "../flow.ts";
 import { OptionCard } from "./OptionCard.tsx";
 import styles from "./steps.module.css";
@@ -79,8 +78,6 @@ function InverterTypeCards(
     onSelect: (adapterType: string) => void;
   },
 ) {
-  const inDemo = demoMode.isActive();
-
   return (
     <div className={styles.stepContainer}>
       <Text as="p" size="3" color="gray">
@@ -98,7 +95,6 @@ function InverterTypeCards(
               title={option.label}
               description={option.description}
               selected={currentAdapter === option.id}
-              disabled={inDemo && !option.demoAvailable}
               onSelect={() => onSelect(option.id)}
             />
           );

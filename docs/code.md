@@ -27,10 +27,10 @@ Deno workspace with four members: `packages/shared/`, `packages/server/`,
 
 ### Dev server flag
 
-The client `dev` / `dev:demo` tasks pass `--unstable-no-legacy-abort`. Without
-it, Vite's dev server throws uncaught `AbortError`s under Deno's legacy abort
-behavior when the browser cancels in-flight requests (HMR, page reload, proxy) —
-see denoland/deno#28632. Remove once this behavior becomes Deno's default.
+The client `dev` task passes `--unstable-no-legacy-abort`. Without it, Vite's
+dev server throws uncaught `AbortError`s under Deno's legacy abort behavior when
+the browser cancels in-flight requests (HMR, page reload, proxy) — see
+denoland/deno#28632. Remove once this behavior becomes Deno's default.
 
 ## Project Structure
 
@@ -55,7 +55,7 @@ packages/plugins/
     fronius-cloud/              — Fronius Cloud API plugin
   vehicles/
     tesla/                      — Tesla Fleet API plugin (adapter, proxy, tokens, router)
-    simulated/                  — Simulated vehicle for dev/demo
+    simulated/                  — Simulated vehicle for development and tests
 packages/server/src/
   main.ts                    — Entry point, initializes all services + plugins
   healthcheck.ts             — Standalone health probe (used by Docker)
@@ -137,8 +137,6 @@ Step composition order:
 3. **Core middle:** Inverter Type
 4. **Energy plugin steps** (e.g. Fronius: inverter setup/discovery)
 5. **Core after:** Home Location → Done
-
-A demo shortcut creates a simulated vehicle and skips plugin-specific config.
 
 ## Key Patterns
 

@@ -290,8 +290,7 @@ function VehicleCards(
               controllerReason={controllerStatuses[v.id]?.reason ?? null}
               controllerDetail={controllerStatuses[v.id]?.detail ?? null}
               onNavigateSettings={onNavigateSettings}
-              onRefresh={() =>
-                refreshMutation.mutateAsync({ vehicleId: v.id })}
+              onRefresh={() => refreshMutation.mutateAsync({ vehicleId: v.id })}
             />
           );
         }

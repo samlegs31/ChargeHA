@@ -12,7 +12,6 @@ describe("WizardService", () => {
 
   type MockDb = Record<string, unknown>;
   type MockTunnel = Record<string, unknown>;
-  type MockVehicleMgr = Record<string, unknown>;
   type MockAuth = Record<string, unknown>;
   type MockOidc = Record<string, unknown>;
 
@@ -36,10 +35,6 @@ describe("WizardService", () => {
     };
   }
 
-  function defaultVehicleMgr(): MockVehicleMgr {
-    return { syncVehicles: () => Promise.resolve() };
-  }
-
   function defaultAuth(): MockAuth {
     return { changeMode: () => Promise.resolve(null) };
   }
@@ -56,13 +51,11 @@ describe("WizardService", () => {
     encryptionKey?: string | null;
     logger?: Record<string, unknown>;
     tunnelManager?: MockTunnel;
-    vehicleManager?: MockVehicleMgr;
     authService?: MockAuth;
     oidcService?: MockOidc;
   } = {}): WizardService {
     const db = overrides.db ?? defaultDb();
     const tunnelManager = overrides.tunnelManager ?? defaultTunnel();
-    const vehicleManager = overrides.vehicleManager ?? defaultVehicleMgr();
     const authService = overrides.authService ?? defaultAuth();
     const oidcService = overrides.oidcService ?? defaultOidc();
     return new WizardService(
@@ -70,7 +63,6 @@ describe("WizardService", () => {
       overrides.encryptionKey ?? null,
       (overrides.logger ?? mockLogger) as never,
       tunnelManager as never,
-      vehicleManager as never,
       authService as never,
       oidcService as never,
     );
@@ -587,124 +579,6 @@ describe("WizardService", () => {
 
       expect(savedIsEncrypted).toBe(true);
       expect(savedSecret).not.toBe("secret123");
-    });
-  });
-
-  // ── demoSetup ─────────────────────────────────────────────────────────
-
-  describe("demoSetup", () => {
-    it("creates simulated vehicle, sets defaults, and registers it", async () => {
-      let upsertedVehicle: unknown = null;
-      const configSet: Record<string, string> = {};
-      let addedVehicle: unknown = null;
-
-      const service = makeService({
-        db: {
-          upsertVehicle: (v: unknown) => {
-            upsertedVehicle = v;
-            return Promise.resolve();
-          },
-          getVehicle: (id: string) =>
-            Promise.resolve({
-              id,
-              name: "Demo EV",
-              adapterType: "simulated",
-              priority: 1,
-              config: JSON.stringify({ batteryCapacityKwh: 60 }),
-              mode: "auto",
-              createdAt: "2026-01-01",
-              updatedAt: "2026-01-01",
-            }),
-          setConfig: (key: string, value: string) => {
-            configSet[key] = value;
-            return Promise.resolve();
-          },
-        },
-        vehicleManager: {
-          addVehicle: (row: unknown) => {
-            addedVehicle = row;
-            return Promise.resolve();
-          },
-        },
-      });
-
-      const result = await service.demoSetup({
-        adapterType: "simulated",
-        timezone: "Australia/Sydney",
-      });
-
-      expect(result).toEqual({ success: true });
-      expect(upsertedVehicle).toEqual({
-        id: "DEMO-001",
-        name: "Demo EV",
-        adapterType: "simulated",
-        priority: 1,
-        config: JSON.stringify({ batteryCapacityKwh: 60 }),
-        mode: "auto",
-      });
-      // demoSetup must not pick the energy source — that's the user's choice.
-      expect(configSet["energy_adapter_type"]).toBeUndefined();
-      expect(configSet["home_latitude"]).toBe("-33.8688");
-      expect(configSet["home_longitude"]).toBe("151.2093");
-      expect(configSet["timezone"]).toBe("Australia/Sydney");
-      expect((addedVehicle as { id: string }).id).toBe("DEMO-001");
-    });
-
-    it("skips timezone when not provided", async () => {
-      const configSet: Record<string, string> = {};
-
-      const service = makeService({
-        db: {
-          upsertVehicle: () => Promise.resolve(),
-          getVehicle: () => Promise.resolve(null),
-          setConfig: (key: string, value: string) => {
-            configSet[key] = value;
-            return Promise.resolve();
-          },
-        },
-        vehicleManager: { addVehicle: () => Promise.resolve() },
-      });
-
-      await service.demoSetup({ adapterType: "simulated" });
-
-      expect(configSet["timezone"]).toBeUndefined();
-    });
-
-    it("skips timezone when null", async () => {
-      const configSet: Record<string, string> = {};
-
-      const service = makeService({
-        db: {
-          upsertVehicle: () => Promise.resolve(),
-          getVehicle: () => Promise.resolve(null),
-          setConfig: (key: string, value: string) => {
-            configSet[key] = value;
-            return Promise.resolve();
-          },
-        },
-        vehicleManager: { addVehicle: () => Promise.resolve() },
-      });
-
-      await service.demoSetup({ adapterType: "simulated", timezone: null });
-
-      expect(configSet["timezone"]).toBeUndefined();
-    });
-
-    it("wraps errors in ServiceError", async () => {
-      const service = makeService({
-        db: {
-          upsertVehicle: () =>
-            Promise.reject(new Error("db constraint violation")),
-          setConfig: () => Promise.resolve(),
-        },
-      });
-
-      try {
-        await service.demoSetup({ adapterType: "simulated" });
-        expect(true).toBe(false);
-      } catch (err) {
-        expect((err as Error).message).toBe("Demo setup failed");
-      }
     });
   });
 });

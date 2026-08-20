@@ -17,7 +17,6 @@ import {
 import { Shield } from "lucide-react";
 import { trpc } from "../../../trpc.ts";
 import { useRouter } from "../../../hooks/useRouter.ts";
-import { demoMode, Feature } from "../../../lib/featureFlags.ts";
 import { SettingsRow, SettingsSection } from "./SettingsLayout.tsx";
 
 type AuthMode = "none" | "local" | "oidc";
@@ -759,7 +758,7 @@ function AuthModeRow(
           <Select.Item value="none">No Authentication</Select.Item>
           <Select.Item value="local">Username &amp; Password</Select.Item>
           <Select.Item value="oidc" disabled={!oidcEnabled}>
-            OpenID Connect (OIDC){oidcEnabled ? "" : " — n/a in demo"}
+            OpenID Connect (OIDC)
           </Select.Item>
         </Select.Content>
       </Select.Root>
@@ -871,7 +870,7 @@ export function AuthSettings() {
     >
       <AuthModeRow
         value={targetMode ?? currentMode}
-        oidcEnabled={demoMode.allows(Feature.OidcAuth)}
+        oidcEnabled
         onValueChange={handleModeSelect}
       />
 

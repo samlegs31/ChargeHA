@@ -65,9 +65,24 @@ const MODE_BUTTONS: {
   color: "orange" | "blue" | "green" | "gray";
   icon: ReactNode;
 }[] = [
-  { value: "vacation", label: "Solar", color: "orange", icon: <Sun size={15} /> },
-  { value: "auto", label: "Smart", color: "blue", icon: <Sparkles size={15} /> },
-  { value: "charge_now", label: "Now", color: "green", icon: <Zap size={15} /> },
+  {
+    value: "vacation",
+    label: "Solar",
+    color: "orange",
+    icon: <Sun size={15} />,
+  },
+  {
+    value: "auto",
+    label: "Smart",
+    color: "blue",
+    icon: <Sparkles size={15} />,
+  },
+  {
+    value: "charge_now",
+    label: "Now",
+    color: "green",
+    icon: <Zap size={15} />,
+  },
   { value: "stop", label: "Pause", color: "gray", icon: <Pause size={15} /> },
 ];
 
@@ -260,8 +275,17 @@ function TechnicalMeta(
         {lastUpdatedText ? ` · Updated ${lastUpdatedText}` : ""}
       </Text>
       {onRefresh && (
-        <Button variant="ghost" size="1" color="gray" disabled={refreshing} onClick={onRefresh}>
-          <RefreshCw size={12} className={refreshing ? styles.spinning : undefined} />
+        <Button
+          variant="ghost"
+          size="1"
+          color="gray"
+          disabled={refreshing}
+          onClick={onRefresh}
+        >
+          <RefreshCw
+            size={12}
+            className={refreshing ? styles.spinning : undefined}
+          />
           {refreshing ? "Updating…" : "Refresh"}
         </Button>
       )}

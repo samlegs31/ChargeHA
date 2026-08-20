@@ -39,10 +39,6 @@ interface VehicleEntry {
   middleware: VehicleMiddleware;
 }
 
-type ChargeLimitMiddleware = VehicleMiddleware & {
-  setChargeLimit(percent: number, ctx: CallContext): Promise<boolean>;
-};
-
 /** Per-vehicle tracking for plug + home transition detection. */
 interface PlugTracker {
   wasPluggedIn: boolean;
@@ -410,21 +406,29 @@ export class VehicleManager {
     if (!entry) return { success: false, error: "Vehicle not registered" };
 
     if (!Number.isInteger(percent) || percent < 50 || percent > 100) {
-      return { success: false, error: "Charge limit must be between 50 and 100%" };
+      return {
+        success: false,
+        error: "Charge limit must be between 50 and 100%",
+      };
     }
 
     const state = await this.getState(vehicleId);
     if (!state?.isPluggedIn) {
-      return { success: false, error: "Vehicle must be plugged in to change the charge limit" };
+      return {
+        success: false,
+        error: "Vehicle must be plugged in to change the charge limit",
+      };
     }
     if (Math.round(state.chargeLimit) === percent) {
       return { success: true, state };
     }
 
-    const middleware = entry.middleware as VehicleMiddleware &
-      Partial<ChargeLimitMiddleware>;
+    const middleware = entry.middleware;
     if (typeof middleware.setChargeLimit !== "function") {
-      return { success: false, error: "Charge-limit control is not supported by this vehicle" };
+      return {
+        success: false,
+        error: "Charge-limit control is not supported by this vehicle",
+      };
     }
 
     const { backedOff, remainingMs } = this.isBackedOff(vehicleId);
@@ -434,12 +438,17 @@ export class VehicleManager {
           Math.round((remainingMs ?? 0) / 1000)
         }s remaining`,
       );
-      return { success: false, error: "Vehicle control is temporarily unavailable" };
+      return {
+        success: false,
+        error: "Vehicle control is temporarily unavailable",
+      };
     }
 
     try {
       const ok = await middleware.setChargeLimit(percent, ctx);
-      if (!ok) throw new Error(`setChargeLimit(${percent}) rejected by vehicle`);
+      if (!ok) {
+        throw new Error(`setChargeLimit(${percent}) rejected by vehicle`);
+      }
 
       this.resetCommandBackoff(vehicleId);
       this.clearVehicleError(vehicleId);

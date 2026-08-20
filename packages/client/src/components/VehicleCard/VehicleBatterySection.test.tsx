@@ -19,7 +19,10 @@ describe("VehicleBatterySection", () => {
       onSetChargeLimit: vi.fn().mockResolvedValue(undefined),
       ...overrides,
     };
-    return { props, ...renderWithProviders(<VehicleBatterySection {...props} />) };
+    return {
+      props,
+      ...renderWithProviders(<VehicleBatterySection {...props} />),
+    };
   };
 
   it("keeps the existing battery bar read-only when unplugged", () => {

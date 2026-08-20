@@ -540,6 +540,64 @@ describe("VehicleManager", () => {
     });
   });
 
+  describe("setChargeLimit", () => {
+    it("returns an error for an unknown vehicle", async () => {
+      const result = await manager.setChargeLimit("UNKNOWN", 90, CMD_CTX);
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Vehicle not registered");
+    });
+
+    it("rejects values outside the supported range", async () => {
+      await manager.addVehicle(VEHICLE_ROW);
+      await manager.requestState("VIN1", REQUEST_CONTEXT);
+
+      const result = await manager.setChargeLimit("VIN1", 49, CMD_CTX);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Charge limit must be between 50 and 100%");
+    });
+
+    it("does not wake or command an unplugged vehicle", async () => {
+      await manager.addVehicle(VEHICLE_ROW);
+      const mw = middlewares.get("VIN1");
+      assertExists(mw);
+      mw.nextState = { ...MOCK_STATE, isPluggedIn: false };
+      await manager.requestState("VIN1", REQUEST_CONTEXT);
+
+      const result = await manager.setChargeLimit("VIN1", 90, CMD_CTX);
+
+      expect(result.success).toBe(false);
+      expect(mw.setChargeLimitCalls).toHaveLength(0);
+    });
+
+    it("delegates to the middleware and returns the updated cached state", async () => {
+      await manager.addVehicle(VEHICLE_ROW);
+      await manager.requestState("VIN1", REQUEST_CONTEXT);
+      const mw = middlewares.get("VIN1");
+      assertExists(mw);
+
+      const result = await manager.setChargeLimit("VIN1", 90, CMD_CTX);
+
+      expect(result.success).toBe(true);
+      expect(result.state?.chargeLimit).toBe(90);
+      expect(mw.setChargeLimitCalls).toEqual([
+        { percent: 90, origin: "test" },
+      ]);
+    });
+
+    it("is idempotent when the requested limit is already active", async () => {
+      await manager.addVehicle(VEHICLE_ROW);
+      await manager.requestState("VIN1", REQUEST_CONTEXT);
+      const mw = middlewares.get("VIN1");
+      assertExists(mw);
+
+      const result = await manager.setChargeLimit("VIN1", 80, CMD_CTX);
+
+      expect(result.success).toBe(true);
+      expect(mw.setChargeLimitCalls).toHaveLength(0);
+    });
+  });
+
   describe("error tracking", () => {
     it("reportVehicleError stores and emits", () => {
       manager.reportVehicleError("VIN1", "Test", "oops", "fetch");

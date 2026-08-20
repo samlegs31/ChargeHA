@@ -61,7 +61,7 @@ Deno.test("no-plugin-refs", async (t) => {
     [
       "skips seed files",
       `const teslaAdapter = null;`,
-      "packages/server/src/db/seeds/Demo.ts",
+      "packages/server/src/db/seeds/Example.ts",
     ],
   ];
 

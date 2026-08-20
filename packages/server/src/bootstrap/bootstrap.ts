@@ -129,7 +129,6 @@ function buildAuxServices(
     encryptionKey,
     new Logger("WizardService", logLevel),
     tunnelManager,
-    vehicleManager,
     authService,
     oidcService,
   );

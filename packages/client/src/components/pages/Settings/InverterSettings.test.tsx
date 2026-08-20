@@ -74,7 +74,7 @@ vi.mock("./SettingsLayout.tsx", () => ({
 
 vi.mock("@chargeha/plugins/componentRegistry", () => ({
   energyPluginSteps: {} as Record<string, unknown[]>,
-  energyPluginOptions: [] as Array<{ id: string; demoAvailable?: boolean }>,
+  energyPluginOptions: [] as Array<{ id: string }>,
   pluginSettingsComponents: {} as Record<string, React.FC>,
 }));
 

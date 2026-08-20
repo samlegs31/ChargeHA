@@ -103,7 +103,7 @@ while IFS= read -r file; do
   # Check if it's a dynamically imported seed file
   [[ "$rel" == packages/server/src/db/seeds/*.ts ]] && continue
 
-  # wasm-database is exported from shared/deno.json for the browser demo (prd-browser-demo.md)
+  # wasm-database is exported from shared/deno.json for browser consumers.
   # but not currently imported by any source file
   [[ "$rel" == packages/shared/wasm-database.ts ]] && continue
 
