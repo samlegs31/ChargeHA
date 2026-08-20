@@ -32,6 +32,14 @@ export interface VehicleBreakdown {
   evSolarSavingsCents: number;
 }
 
+export interface UnassignedBreakdown {
+  totalChargedWh: number;
+  totalSolarWh: number;
+  totalBatteryWh: number;
+  totalGridWh: number;
+  totalAwayWh: number;
+}
+
 interface UseVehicleBreakdownsArgs {
   data: StatsViewResponse | null;
   loading: boolean;
@@ -46,6 +54,7 @@ interface UseVehicleBreakdownsResult {
   vehicleBreakdownsLoading: boolean;
   currencySymbol: string;
   activeVehicleBreakdowns: VehicleBreakdown[];
+  unassignedBreakdown: UnassignedBreakdown | null;
 }
 
 function cursorToDateStr(cursor: Date): string {
@@ -54,6 +63,50 @@ function cursorToDateStr(cursor: Date): string {
   return `${year}-${String(month).padStart(2, "0")}-${
     String(cursor.getDate()).padStart(2, "0")
   }`;
+}
+
+function nonNegativeDifference(total: number, attributed: number): number {
+  return Math.max(0, total - attributed);
+}
+
+export function computeUnassignedBreakdown(
+  data: StatsViewResponse | null,
+  vehicles: readonly VehicleBreakdown[],
+): UnassignedBreakdown | null {
+  if (!data) return null;
+
+  const attributed = vehicles.reduce(
+    (sum, vehicle) => ({
+      solarWh: sum.solarWh + vehicle.totalSolarWh,
+      batteryWh: sum.batteryWh + vehicle.totalBatteryWh,
+      gridWh: sum.gridWh + vehicle.totalGridWh,
+      awayWh: sum.awayWh + vehicle.totalAwayWh,
+    }),
+    { solarWh: 0, batteryWh: 0, gridWh: 0, awayWh: 0 },
+  );
+
+  const totalSolarWh = nonNegativeDifference(
+    data.totalSolarWh,
+    attributed.solarWh,
+  );
+  const totalBatteryWh = nonNegativeDifference(
+    data.totalBatteryWh,
+    attributed.batteryWh,
+  );
+  const totalGridWh = nonNegativeDifference(data.totalGridWh, attributed.gridWh);
+  const totalAwayWh = nonNegativeDifference(data.totalAwayWh, attributed.awayWh);
+  const totalChargedWh = totalSolarWh + totalBatteryWh + totalGridWh + totalAwayWh;
+
+  // Keep real legacy/unattributed history visible, but ignore sub-Wh float noise.
+  if (totalChargedWh < 1) return null;
+
+  return {
+    totalChargedWh,
+    totalSolarWh,
+    totalBatteryWh,
+    totalGridWh,
+    totalAwayWh,
+  };
 }
 
 export function useVehicleBreakdowns({
@@ -133,13 +186,24 @@ export function useVehicleBreakdowns({
       .filter((value): value is VehicleBreakdown => value !== null);
   }, [vehicles, vehicleQueries]);
 
+  const activeVehicleBreakdowns = useMemo(
+    () => vehicleBreakdowns.filter((vehicle) => vehicle.totalChargedWh > 0),
+    [vehicleBreakdowns],
+  );
+  const hasCompleteVehicleStats = vehicleBreakdowns.length === vehicles.length;
+  const unassignedBreakdown = useMemo(
+    () => hasConfiguredVehicles && hasCompleteVehicleStats
+      ? computeUnassignedBreakdown(data, vehicleBreakdowns)
+      : null,
+    [data, vehicleBreakdowns, hasConfiguredVehicles, hasCompleteVehicleStats],
+  );
+
   return {
     hasChargeData: (data?.totalChargedWh ?? 0) > 0,
     hasConfiguredVehicles,
     vehicleBreakdownsLoading,
     currencySymbol: data?.currencySymbol ?? "$",
-    activeVehicleBreakdowns: vehicleBreakdowns.filter(
-      (vehicle) => vehicle.totalChargedWh > 0,
-    ),
+    activeVehicleBreakdowns,
+    unassignedBreakdown,
   };
 }

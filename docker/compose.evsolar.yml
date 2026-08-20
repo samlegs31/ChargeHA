@@ -1,0 +1,25 @@
+services:
+  evsolar:
+    image: ${EVSOLAR_IMAGE:-ghcr.io/samlegs31/chargeha:latest}
+    container_name: chargeha
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    environment:
+      ENCRYPTION_KEY_FILE: /run/secrets/evsolar_encryption_key
+    volumes:
+      - chargeha-data:/app/data
+      - ${EVSOLAR_KEY_FILE:?EVSOLAR_KEY_FILE must point to the persistent encryption key}:/run/secrets/evsolar_encryption_key:ro
+    ports:
+      - "${EVSOLAR_BIND:-0.0.0.0:8000}:8000"
+
+volumes:
+  chargeha-data:
+    name: ${EVSOLAR_DATA_VOLUME:-chargeha-data}
+    external: true

@@ -26,7 +26,7 @@ function homeChargedWh(data: StatsViewResponse | null): number {
 }
 
 function solarShare(data: StatsViewResponse | null): number {
-  const totalWh = data?.totalChargedWh ?? 0;
+  const totalWh = homeChargedWh(data);
   if (totalWh <= 0) return 0;
   return Math.round(((data?.totalSolarWh ?? 0) / totalWh) * 100);
 }

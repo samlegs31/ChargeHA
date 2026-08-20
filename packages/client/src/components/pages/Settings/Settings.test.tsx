@@ -271,11 +271,10 @@ describe("Settings", () => {
     it("calls charging mutation with toggled value when Save is clicked", async () => {
       renderWithProviders(<Settings />);
       await waitFor(() => {
-        expect(screen.getByText("Charging enabled")).toBeInTheDocument();
+        expect(screen.getByRole("switch")).toBeInTheDocument();
       });
 
-      const switches = screen.getAllByRole("switch");
-      fireEvent.click(switches[0]);
+      fireEvent.click(screen.getByRole("switch"));
 
       await waitFor(() => {
         expect(screen.getByRole("button", { name: /save/i }))
@@ -290,6 +289,18 @@ describe("Settings", () => {
         );
       });
     });
+  });
+
+  it("shows one simple Settings topic at a time", () => {
+    renderWithProviders(<Settings />);
+    expect(screen.getByTestId("vehicle-settings")).toBeInTheDocument();
+    expect(screen.queryByTestId("history-migration-settings")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Charging history/i }));
+
+    expect(screen.getByTestId("history-migration-settings")).toBeInTheDocument();
+    expect(screen.getByTestId("solarweb-history-import")).toBeInTheDocument();
+    expect(screen.queryByTestId("vehicle-settings")).not.toBeInTheDocument();
   });
 
   describe("Encryption warning", () => {

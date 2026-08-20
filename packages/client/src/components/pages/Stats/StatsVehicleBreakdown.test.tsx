@@ -57,6 +57,7 @@ describe("StatsVehicleBreakdown", () => {
       vehicleBreakdownsLoading: false,
       currencySymbol: "$",
       activeVehicleBreakdowns: [],
+      unassignedBreakdown: null,
       ...overrides,
     });
   };
@@ -95,6 +96,37 @@ describe("StatsVehicleBreakdown", () => {
     expect(screen.getByText("Home Grid")).toBeInTheDocument();
     expect(screen.getByText("External")).toBeInTheDocument();
     expect(screen.queryByText("Energy Sources")).not.toBeInTheDocument();
+  });
+
+  it("shows global history that cannot be attributed to a vehicle", () => {
+    setBreakdowns({
+      activeVehicleBreakdowns: [{
+        vehicleId: "VIN-1",
+        vehicleName: "Model Y",
+        exteriorColor: "DeepBlue",
+        homeChargingSource: "chargehq",
+        totalChargedWh: 1000,
+        totalSolarWh: 800,
+        totalBatteryWh: 0,
+        totalGridWh: 200,
+        totalAwayWh: 0,
+        totalCostCents: 0,
+        evSolarSavingsCents: 0,
+      }],
+      unassignedBreakdown: {
+        totalChargedWh: 700,
+        totalSolarWh: 600,
+        totalBatteryWh: 0,
+        totalGridWh: 100,
+        totalAwayWh: 0,
+      },
+    });
+    renderComponent();
+    expect(screen.getByText("Unassigned history")).toBeInTheDocument();
+    expect(screen.getByText("Legacy / unattributed")).toBeInTheDocument();
+    expect(screen.getByText(
+      "Included in the global totals but not linked to a configured vehicle.",
+    )).toBeInTheDocument();
   });
 
   it("does not render generic fallback while vehicle data loads", () => {

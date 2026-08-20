@@ -38,18 +38,15 @@ vi.mock("./SettingsLayout.tsx", () => ({
     {
       children,
       title,
-      badge,
       action,
     }: {
       children: React.ReactNode;
       title: string;
-      badge?: string;
       action?: React.ReactNode;
     },
   ) => (
     <div data-testid="settings-section">
       <h3>{title}</h3>
-      {badge && <span data-testid="badge">{badge}</span>}
       {action && <div data-testid="action">{action}</div>}
       {children}
     </div>
@@ -83,31 +80,21 @@ describe("BatterySettings", () => {
   it("returns null when config not loaded", () => {
     state.batteryConfigData = null;
     renderWithProviders(<BatterySettings />);
-    expect(screen.queryByText("Battery")).not.toBeInTheDocument();
+    expect(screen.queryByText("Home battery")).not.toBeInTheDocument();
   });
 
-  it("renders section title", () => {
+  it("renders the simple home-battery settings by default", () => {
     renderWithProviders(<BatterySettings />);
-    expect(screen.getByText("Battery")).toBeInTheDocument();
-  });
-
-  it("renders Beta badge", () => {
-    renderWithProviders(<BatterySettings />);
-    expect(screen.getByText("Beta")).toBeInTheDocument();
-  });
-
-  it("renders home battery protection switch", () => {
-    renderWithProviders(<BatterySettings />);
-    expect(
-      screen.getByText("Home battery protection"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Home battery")).toBeInTheDocument();
+    expect(screen.getByText("Protect home battery")).toBeInTheDocument();
+    expect(screen.getByText("Keep at least")).toBeInTheDocument();
   });
 
   it.each([
     ["80% when limit is 80", 80, false],
     ["90% when limit is 90", 90, true],
   ])(
-    "renders battery priority limit slider showing %s",
+    "renders battery reserve slider showing %s",
     (_label, limit, enabled) => {
       state.batteryConfigData = {
         batteryPriorityEnabled: enabled,
@@ -116,19 +103,34 @@ describe("BatterySettings", () => {
         batteryDischargeGraceMinutes: 5,
       };
       renderWithProviders(<BatterySettings />);
-      expect(screen.getByText("Minimum home battery SOC")).toBeInTheDocument();
+      expect(screen.getByText("Keep at least")).toBeInTheDocument();
       expect(screen.getByText(`${limit}%`)).toBeInTheDocument();
     },
   );
 
-  it("renders discharge tolerance and grace period", () => {
+  it("renders advanced discharge controls by default", () => {
     renderWithProviders(<BatterySettings />);
-    expect(screen.getByText("Tolerated battery discharge"))
-      .toBeInTheDocument();
+    expect(screen.getByText("Allowed battery discharge")).toBeInTheDocument();
     expect(screen.getByText("300 W")).toBeInTheDocument();
-    expect(screen.getByText("Battery discharge grace period"))
-      .toBeInTheDocument();
+    expect(screen.getByText("Discharge delay")).toBeInTheDocument();
     expect(screen.getByText("5 min")).toBeInTheDocument();
+  });
+
+  it("basic mode hides technical discharge controls", () => {
+    renderWithProviders(<BatterySettings mode="basic" />);
+    expect(screen.getByText("Protect home battery")).toBeInTheDocument();
+    expect(screen.getByText("Keep at least")).toBeInTheDocument();
+    expect(screen.queryByText("Allowed battery discharge")).not.toBeInTheDocument();
+    expect(screen.queryByText("Discharge delay")).not.toBeInTheDocument();
+  });
+
+  it("advanced mode only shows technical discharge controls", () => {
+    renderWithProviders(<BatterySettings mode="advanced" />);
+    expect(screen.getByText("Home battery — advanced")).toBeInTheDocument();
+    expect(screen.getByText("Allowed battery discharge")).toBeInTheDocument();
+    expect(screen.getByText("Discharge delay")).toBeInTheDocument();
+    expect(screen.queryByText("Protect home battery")).not.toBeInTheDocument();
+    expect(screen.queryByText("Keep at least")).not.toBeInTheDocument();
   });
 
   it("shows detected badge with SOC when battery is reporting", () => {
@@ -137,7 +139,6 @@ describe("BatterySettings", () => {
     };
     renderWithProviders(<BatterySettings />);
     expect(screen.queryByText("Not detected")).not.toBeInTheDocument();
-    // Math.round(75.4) = 75
     expect(screen.getByText(/75%/)).toBeInTheDocument();
   });
 

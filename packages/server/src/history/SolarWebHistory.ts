@@ -4,41 +4,34 @@ const BASE_URL = "https://api.solarweb.com/swqapi";
 const ACCESS_KEY_ID = "FKIAB4CDA71C0763413DA942DC756742318B";
 const ACCESS_KEY_VALUE = "67315e19-6805-479e-994d-7193ee5f6125";
 const SOLARWEB_USER_AGENT = "Solar.web/921 CFNetwork/1410.0.3 Darwin/22.6.0";
-const HISTORY_CHANNELS = [
-  "EnergyEVCCharge",
-  "EnergyEVCChargeBatt",
-  "EnergyEVCChargeGrid",
-] as const;
-const PAGE_SIZE = 1000;
-const MAX_PAGES = 1000;
-const MAX_RANGE_MS = 24 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 10_000;
 const MIN_REQUEST_INTERVAL_MS = 6_100;
 const DEFAULT_RETRY_AFTER_MS = 60_000;
 const MAX_RETRY_AFTER_MS = 5 * 60_000;
 const MAX_RATE_LIMIT_RETRIES = 5;
+const DAILY_ANCHOR_TIME = "12:00:00";
 
 type FetchFn = (
   input: string | URL | Request,
   init?: RequestInit,
 ) => Promise<Response>;
 
-interface SolarWebHistoryChannel {
+interface SolarWebChannel {
   channelName?: string;
   value?: number | string | null;
 }
 
-interface SolarWebHistorySample {
+interface SolarWebAggregateSample {
+  logDate?: string;
   logDateTime?: string;
-  logDuration?: number;
-  channels?: SolarWebHistoryChannel[];
+  channels?: SolarWebChannel[];
 }
 
-interface SolarWebHistoryResponse {
-  data?: SolarWebHistorySample[];
+interface SolarWebAggregateResponse {
+  data?: SolarWebAggregateSample[];
 }
 
-interface PageResult {
+interface AggregateResult {
   samplesRead: number;
   rows: VehicleChargeHistoryRowInput[];
 }
@@ -58,7 +51,7 @@ export interface SolarWebHistoryImportInput {
   to: string;
 }
 
-export interface SolarWebHistoryResult extends PageResult {
+export interface SolarWebHistoryResult extends AggregateResult {
   chargedWh: number;
   solarWh: number;
   batteryWh: number;
@@ -92,7 +85,8 @@ function sleep(ms: number): Promise<void> {
 
 async function reserveSolarWebRequestSlot(fetchFn: FetchFn): Promise<void> {
   // Unit tests inject a fake fetch implementation and should not wait in real time.
-  // Production imports use the global fetch and share this limiter across batches.
+  // Production imports share this limiter so Solar.web's 10 requests/minute quota
+  // is respected even if several batches are imported one after another.
   if (fetchFn !== fetch) return;
 
   const reservation = solarWebRateLimitState.tail.then(async () => {
@@ -101,9 +95,7 @@ async function reserveSolarWebRequestSlot(fetchFn: FetchFn): Promise<void> {
       solarWebRateLimitState.lastRequestStartedAt + MIN_REQUEST_INTERVAL_MS -
         Date.now(),
     );
-    if (waitMs > 0) {
-      await sleep(waitMs);
-    }
+    if (waitMs > 0) await sleep(waitMs);
     solarWebRateLimitState.lastRequestStartedAt = Date.now();
   });
   solarWebRateLimitState.tail = reservation.catch(() => undefined);
@@ -161,9 +153,7 @@ async function solarWebRequest(
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
 
-  if (response.status !== 429) {
-    return response;
-  }
+  if (response.status !== 429) return response;
 
   const detail = await responseErrorDetail(response);
   if (retry >= MAX_RATE_LIMIT_RETRIES) {
@@ -181,13 +171,7 @@ async function solarWebRequest(
     }s`,
   );
   await sleep(waitMs);
-  return await solarWebRequest(
-    url,
-    init,
-    fetchFn,
-    operation,
-    retry + 1,
-  );
+  return await solarWebRequest(url, init, fetchFn, operation, retry + 1);
 }
 
 async function login(
@@ -231,7 +215,7 @@ async function fetchJson(
   path: string,
   token: string,
   fetchFn: FetchFn,
-): Promise<SolarWebHistoryResponse> {
+): Promise<SolarWebAggregateResponse> {
   const response = await solarWebRequest(
     `${BASE_URL}${path}`,
     {
@@ -241,21 +225,21 @@ async function fetchJson(
       },
     },
     fetchFn,
-    "history import",
+    "Wattpilot aggregate import",
   );
   if (!response.ok) {
     const detail = await responseErrorDetail(response);
-    const message = `Solar.web history request failed: HTTP ${response.status}${
+    const message = `Solar.web aggregate request failed: HTTP ${response.status}${
       detail ? ` — ${detail}` : ""
     }`;
     console.error(`[solarweb-history] ${message}`);
     throw new SolarWebHistoryError(message);
   }
-  return await response.json() as SolarWebHistoryResponse;
+  return await response.json() as SolarWebAggregateResponse;
 }
 
 function channelValue(
-  channels: readonly SolarWebHistoryChannel[],
+  channels: readonly SolarWebChannel[],
   name: string,
 ): number {
   const raw = channels.find((channel) => channel.channelName === name)?.value;
@@ -269,10 +253,6 @@ function splitWattpilotEnergy(
   gridRawWh: number,
 ): WattpilotEnergySplit {
   const knownSourceWh = batteryRawWh + gridRawWh;
-  // Solar.web's internal channel names are not publicly documented in detail.
-  // Treat EnergyEVCCharge conservatively as the interval total and the Battery /
-  // Grid channels as components. If the total channel is absent, known source
-  // components still provide a safe lower-bound total with no invented solar.
   const chargedWh = totalRawWh > 0 ? totalRawWh : knownSourceWh;
   if (chargedWh <= 0) {
     return { chargedWh: 0, solarWh: 0, batteryWh: 0, gridWh: 0 };
@@ -287,9 +267,8 @@ function splitWattpilotEnergy(
     };
   }
 
-  // Telemetry rounding or inconsistent samples must never create more source
-  // energy than the measured charge. Preserve Battery/Grid proportions while
-  // scaling them back to the authoritative interval total.
+  // Solar.web can contain small rounding inconsistencies. Never attribute more
+  // source energy than the authoritative Wattpilot total.
   const batteryWh = chargedWh * (batteryRawWh / knownSourceWh);
   return {
     chargedWh,
@@ -299,29 +278,20 @@ function splitWattpilotEnergy(
   };
 }
 
-function sqliteUtc(logDateTime: string): string {
-  const date = new Date(logDateTime);
-  if (!Number.isFinite(date.getTime())) {
-    throw new SolarWebHistoryError(`Invalid Solar.web timestamp: ${logDateTime}`);
-  }
-  return date.toISOString().slice(0, 19).replace("T", " ");
+function aggregateDate(sample: SolarWebAggregateSample): string | null {
+  const raw = sample.logDate ?? sample.logDateTime;
+  if (typeof raw !== "string") return null;
+  const match = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? null;
 }
 
-function sqliteLocal(logDateTime: string): string {
-  const local = logDateTime.slice(0, 19);
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(local)) {
-    throw new SolarWebHistoryError(
-      `Invalid Solar.web local timestamp: ${logDateTime}`,
-    );
-  }
-  return local.replace("T", " ");
-}
-
-function sampleToRow(
+function aggregateToRow(
   pvSystemId: string,
-  sample: SolarWebHistorySample,
+  sample: SolarWebAggregateSample,
 ): VehicleChargeHistoryRowInput | null {
-  if (!sample.logDateTime) return null;
+  const date = aggregateDate(sample);
+  if (date === null) return null;
+
   const channels = sample.channels ?? [];
   const totalRawWh = channelValue(channels, "EnergyEVCCharge");
   const batteryRawWh = channelValue(channels, "EnergyEVCChargeBatt");
@@ -332,12 +302,19 @@ function sampleToRow(
     gridRawWh,
   );
   if (chargedWh <= 0) return null;
+
+  // Wattpilot energy is exposed by Solar.web as a daily aggregate, not as a
+  // 5-minute charging-session time series. Anchor each daily total at noon with
+  // a one-second nominal interval so month/year/day totals remain exact without
+  // pretending the car charged for the full day or suppressing unrelated away
+  // sessions through a broad overlap window.
+  const anchor = `${date} ${DAILY_ANCHOR_TIME}`;
   return {
     source: "solarweb",
-    externalId: `${pvSystemId}:${sample.logDateTime}`,
-    startTimeUtc: sqliteUtc(sample.logDateTime),
-    startTimeLocal: sqliteLocal(sample.logDateTime),
-    intervalSeconds: Math.max(1, Math.round(sample.logDuration ?? 300)),
+    externalId: `${pvSystemId}:wattpilot-day:${date}`,
+    startTimeUtc: anchor,
+    startTimeLocal: anchor,
+    intervalSeconds: 1,
     chargedWh,
     solarWh,
     batteryWh,
@@ -347,90 +324,31 @@ function sampleToRow(
   };
 }
 
-function shiftedDayIso(date: string, days: number): string {
-  const value = new Date(`${date}T00:00:00Z`);
-  value.setUTCDate(value.getUTCDate() + days);
-  return value.toISOString().replace(".000Z", "Z");
-}
-
-async function fetchPages(
+async function fetchAggregates(
   token: string,
   pvSystemId: string,
-  fromIso: string,
-  toIso: string,
+  from: string,
+  to: string,
   fetchFn: FetchFn,
-  page = 0,
-): Promise<PageResult> {
-  if (page >= MAX_PAGES) {
-    throw new SolarWebHistoryError(
-      "Solar.web history is too large; import a smaller date range",
-    );
-  }
-  const params = new URLSearchParams({
-    from: fromIso,
-    to: toIso,
-    timezone: "local",
-    channel: HISTORY_CHANNELS.join(","),
-    offset: String(page * PAGE_SIZE),
-    limit: String(PAGE_SIZE),
-  });
+): Promise<AggregateResult> {
+  // The live Solar.web aggregate response already contains the complete daily
+  // channel list. Avoid a channel filter here so the request matches the
+  // production response shape observed on a real Wattpilot installation.
+  const params = new URLSearchParams({ from, to });
   const body = await fetchJson(
-    `/pvsystems/${encodeURIComponent(pvSystemId)}/histdata?${params.toString()}`,
+    `/pvsystems/${encodeURIComponent(pvSystemId)}/aggrdata?${params.toString()}`,
     token,
     fetchFn,
   );
   const samples = Array.isArray(body.data) ? body.data : [];
-  const currentRows = samples
-    .map((sample) => sampleToRow(pvSystemId, sample))
-    .filter((row): row is VehicleChargeHistoryRowInput => row !== null);
-  if (samples.length < PAGE_SIZE) {
-    return { samplesRead: samples.length, rows: currentRows };
-  }
-  const remaining = await fetchPages(
-    token,
-    pvSystemId,
-    fromIso,
-    toIso,
-    fetchFn,
-    page + 1,
-  );
-  return {
-    samplesRead: samples.length + remaining.samplesRead,
-    rows: [...currentRows, ...remaining.rows],
-  };
-}
-
-async function fetchRangeChunks(
-  token: string,
-  pvSystemId: string,
-  cursorMs: number,
-  endMs: number,
-  fetchFn: FetchFn,
-): Promise<PageResult> {
-  if (cursorMs >= endMs) {
-    return { samplesRead: 0, rows: [] };
-  }
-
-  const chunkEndMs = Math.min(cursorMs + MAX_RANGE_MS, endMs);
-  const current = await fetchPages(
-    token,
-    pvSystemId,
-    new Date(cursorMs).toISOString().replace(".000Z", "Z"),
-    new Date(chunkEndMs).toISOString().replace(".000Z", "Z"),
-    fetchFn,
-  );
-  const remaining = await fetchRangeChunks(
-    token,
-    pvSystemId,
-    chunkEndMs,
-    endMs,
-    fetchFn,
-  );
-
-  return {
-    samplesRead: current.samplesRead + remaining.samplesRead,
-    rows: [...current.rows, ...remaining.rows],
-  };
+  const rows = samples
+    .map((sample) => aggregateToRow(pvSystemId, sample))
+    .filter((row): row is VehicleChargeHistoryRowInput => row !== null)
+    .filter((row) => {
+      const date = row.startTimeLocal.slice(0, 10);
+      return date >= from && date <= to;
+    });
+  return { samplesRead: samples.length, rows };
 }
 
 function deduplicateRows(
@@ -453,19 +371,14 @@ export async function fetchSolarWebHomeEvHistory(
   fetchFn: FetchFn = fetch,
 ): Promise<SolarWebHistoryResult> {
   const token = await login(input.email, input.password, fetchFn);
-  const startMs = new Date(shiftedDayIso(input.from, -1)).getTime();
-  const endMs = new Date(shiftedDayIso(input.to, 2)).getTime();
-  const history = await fetchRangeChunks(
+  const history = await fetchAggregates(
     token,
     input.pvSystemId,
-    startMs,
-    endMs,
+    input.from,
+    input.to,
     fetchFn,
   );
-  const rows = deduplicateRows(history.rows).filter((row) => {
-    const date = row.startTimeLocal.slice(0, 10);
-    return date >= input.from && date <= input.to;
-  });
+  const rows = deduplicateRows(history.rows);
   return {
     samplesRead: history.samplesRead,
     rows,

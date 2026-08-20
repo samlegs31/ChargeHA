@@ -89,6 +89,27 @@ describe("mergeChargeHqStats", () => {
     expect(merged.evSolarSavingsCents).toBe(45);
   });
 
+  it("rebuilds totals from source components when archive totals disagree", () => {
+    const response = responseWithBuckets(emptyBuckets(24));
+    const merged = mergeChargeHqStats(response, [{
+      bucket: "12",
+      solarWh: 700,
+      batteryWh: 100,
+      gridWh: 200,
+      awayWh: 50,
+      totalWh: 999999,
+      costCents: 0,
+      solarSavingsCents: 0,
+    }], "day");
+
+    expect(merged.buckets[12].totalWh).toBe(1050);
+    expect(merged.totalChargedWh).toBe(1050);
+    expect(merged.totalChargedWh).toBe(
+      merged.totalSolarWh + merged.totalBatteryWh + merged.totalGridWh +
+        merged.totalAwayWh,
+    );
+  });
+
   it("preserves native away charging", () => {
     const buckets = emptyBuckets(24);
     buckets[8] = {
