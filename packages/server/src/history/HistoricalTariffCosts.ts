@@ -235,7 +235,7 @@ export async function applyHistoricalChargeHqTariffs(
   response: StatsResponse,
   vehicleId?: string,
 ): Promise<StatsResponse> {
-  if (response.period === "total" || !response.startDate || !response.endDate) {
+  if (!response.startDate || !response.endDate) {
     return response;
   }
 
