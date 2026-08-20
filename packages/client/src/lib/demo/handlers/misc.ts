@@ -22,4 +22,13 @@ export const miscHandlers: Record<string, QueryHandler> = {
     lastStartTimeLocal: null,
     chargedWh: 0,
   }),
+
+  // Demo has no Solar.web account configured. Keep the settings UI usable
+  // while matching the real query shape.
+  "history.getSolarWebCredentials": () => ({
+    email: "",
+    pvSystemId: "",
+    hasPassword: false,
+    canSavePassword: false,
+  }),
 };
