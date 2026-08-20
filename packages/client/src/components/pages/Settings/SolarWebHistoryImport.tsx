@@ -533,7 +533,7 @@ function HistoryImportContent({ model }: { model: ReturnType<typeof useHistoryIm
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <Text size="2">
-        Select the car connected to this Wattpilot. Its Solar.web Wattpilot totals are assigned directly to that car; a separate Tesla charging-session import is not required.
+        Select the car connected to this Wattpilot. Its Solar.web Wattpilot totals are assigned directly to that car; a separate vehicle-service charging-session import is not required.
       </Text>
       <VehicleSelector
         vehicles={model.vehicles}
