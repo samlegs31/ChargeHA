@@ -196,10 +196,10 @@ describe("Stats", () => {
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 
-  it("calculates solar share from total charging including Away", () => {
+  it("calculates solar share from home charging only", () => {
     setStats({ isAtPresent: false, data: mockStatsData });
     renderStats();
-    expect(screen.getAllByText("70%").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("82%").length).toBeGreaterThanOrEqual(1);
   });
 
   it("does not render legacy home energy cards", () => {

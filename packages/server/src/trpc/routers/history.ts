@@ -9,6 +9,7 @@ import {
   fetchSolarWebHomeEvHistory,
   SolarWebHistoryError,
 } from "../../history/SolarWebHistory.ts";
+import { reconcileLegacySolarWebHistory } from "../../history/reconcileLegacySolarWebHistory.ts";
 import { publicProcedure, router } from "../trpc.ts";
 import type { TrpcContext } from "../trpc.ts";
 
@@ -230,6 +231,7 @@ export const historyRouter = router({
       await saveSolarWebCredentials(ctx, input);
       const repository = new HistoryRepository(ctx.db.db);
       const importResult = await repository.importRows(input.vehicleId, history.rows);
+      const reconciledLegacyRows = reconcileLegacySolarWebHistory(ctx.db.db);
       const coverage = await repository.getCoverage("solarweb", input.vehicleId);
       return {
         ...importResult,
@@ -241,6 +243,7 @@ export const historyRouter = router({
         gridWh: history.gridWh,
         vehicleId: input.vehicleId,
         vehicleName: vehicle.name,
+        reconciledLegacyRows,
         coverage,
       };
     }),
