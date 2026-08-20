@@ -16,7 +16,7 @@ describe("fetchSolarWebHomeEvHistory", () => {
     return input.url;
   }
 
-  it("authenticates once and reads daily Wattpilot aggregates", async () => {
+  it("matches the live Solar.web Wattpilot aggregate response shape", async () => {
     const calls: string[] = [];
     const fetchFn = (input: string | URL | Request): Promise<Response> => {
       const url = requestUrl(input);
@@ -25,14 +25,49 @@ describe("fetchSolarWebHomeEvHistory", () => {
         return Promise.resolve(jsonResponse({ jwtToken: "token" }));
       }
       return Promise.resolve(jsonResponse({
+        pvSystemId: "pv-system-1",
         data: [{
-          logDate: "2026-08-01",
+          logDateTime: "2026-07-01",
           channels: [
-            { channelName: "EnergyEVCCharge", value: 1000 },
-            { channelName: "EnergyEVCChargeBatt", value: 100 },
-            { channelName: "EnergyEVCChargeGrid", value: 400 },
+            {
+              channelName: "EnergySelfConsumptionTotal",
+              channelType: "Energy",
+              unit: "Wh",
+              value: 49451.1739,
+            },
+            {
+              channelName: "EnergyPurchased",
+              channelType: "Energy",
+              unit: "Wh",
+              value: 1206.9676,
+            },
+            {
+              channelName: "EnergyEVCChargeGrid",
+              channelType: "Energy",
+              unit: "Wh",
+              value: 130,
+            },
+            {
+              channelName: "EnergyEVCChargeBatt",
+              channelType: "Energy",
+              unit: "Wh",
+              value: 62.5903,
+            },
+            {
+              channelName: "EnergyEVCCharge",
+              channelType: "Energy",
+              unit: "Wh",
+              value: 33448.5382,
+            },
+            {
+              channelName: "EnergyConsumptionTotal",
+              channelType: "Energy",
+              unit: "Wh",
+              value: 46523.9901,
+            },
           ],
         }],
+        links: [],
       }));
     };
 
@@ -40,38 +75,37 @@ describe("fetchSolarWebHomeEvHistory", () => {
       email: "user@example.com",
       password: "secret",
       pvSystemId: "pv-system-1",
-      from: "2026-08-01",
-      to: "2026-08-03",
+      from: "2026-07-01",
+      to: "2026-07-01",
     }, fetchFn);
 
     expect(calls).toHaveLength(2);
     const historyUrl = new URL(calls[1]);
     expect(historyUrl.pathname).toContain("/pvsystems/pv-system-1/aggrdata");
-    expect(historyUrl.searchParams.get("from")).toBe("2026-08-01");
-    expect(historyUrl.searchParams.get("to")).toBe("2026-08-03");
-    expect(historyUrl.searchParams.get("channel")).toBe(
-      "EnergyEVCCharge,EnergyEVCChargeBatt,EnergyEVCChargeGrid",
-    );
+    expect(historyUrl.searchParams.get("from")).toBe("2026-07-01");
+    expect(historyUrl.searchParams.get("to")).toBe("2026-07-01");
+    expect(historyUrl.searchParams.has("channel")).toBe(false);
     expect(historyUrl.searchParams.has("timezone")).toBe(false);
 
     expect(result.samplesRead).toBe(1);
-    expect(result.chargedWh).toBe(1000);
-    expect(result.solarWh).toBe(500);
-    expect(result.batteryWh).toBe(100);
-    expect(result.gridWh).toBe(400);
-    expect(result.rows).toEqual([{
+    expect(result.rows).toHaveLength(1);
+    expect(result.chargedWh).toBeCloseTo(33448.5382, 4);
+    expect(result.solarWh).toBeCloseTo(33255.9479, 4);
+    expect(result.batteryWh).toBeCloseTo(62.5903, 4);
+    expect(result.gridWh).toBeCloseTo(130, 4);
+    expect(result.rows[0]).toMatchObject({
       source: "solarweb",
-      externalId: "pv-system-1:wattpilot-day:2026-08-01",
-      startTimeUtc: "2026-08-01 12:00:00",
-      startTimeLocal: "2026-08-01 12:00:00",
+      externalId: "pv-system-1:wattpilot-day:2026-07-01",
+      startTimeUtc: "2026-07-01 12:00:00",
+      startTimeLocal: "2026-07-01 12:00:00",
       intervalSeconds: 1,
-      chargedWh: 1000,
-      solarWh: 500,
-      batteryWh: 100,
-      gridWh: 400,
       awayWh: 0,
-      atHomeWh: 1000,
-    }]);
+    });
+    expect(result.rows[0]?.chargedWh).toBeCloseTo(33448.5382, 4);
+    expect(result.rows[0]?.atHomeWh).toBeCloseTo(33448.5382, 4);
+    expect(result.rows[0]?.solarWh).toBeCloseTo(33255.9479, 4);
+    expect(result.rows[0]?.batteryWh).toBeCloseTo(62.5903, 4);
+    expect(result.rows[0]?.gridWh).toBeCloseTo(130, 4);
   });
 
   it("accepts an ISO logDateTime returned by Solar.web aggregates", async () => {
