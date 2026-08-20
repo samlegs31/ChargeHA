@@ -4,11 +4,6 @@ const BASE_URL = "https://api.solarweb.com/swqapi";
 const ACCESS_KEY_ID = "FKIAB4CDA71C0763413DA942DC756742318B";
 const ACCESS_KEY_VALUE = "67315e19-6805-479e-994d-7193ee5f6125";
 const SOLARWEB_USER_AGENT = "Solar.web/921 CFNetwork/1410.0.3 Darwin/22.6.0";
-const WATTPILOT_CHANNELS = [
-  "EnergyEVCCharge",
-  "EnergyEVCChargeBatt",
-  "EnergyEVCChargeGrid",
-] as const;
 const REQUEST_TIMEOUT_MS = 10_000;
 const MIN_REQUEST_INTERVAL_MS = 6_100;
 const DEFAULT_RETRY_AFTER_MS = 60_000;
@@ -336,11 +331,10 @@ async function fetchAggregates(
   to: string,
   fetchFn: FetchFn,
 ): Promise<AggregateResult> {
-  const params = new URLSearchParams({
-    from,
-    to,
-    channel: WATTPILOT_CHANNELS.join(","),
-  });
+  // The live Solar.web aggregate response already contains the complete daily
+  // channel list. Avoid a channel filter here so the request matches the
+  // production response shape observed on a real Wattpilot installation.
+  const params = new URLSearchParams({ from, to });
   const body = await fetchJson(
     `/pvsystems/${encodeURIComponent(pvSystemId)}/aggrdata?${params.toString()}`,
     token,
