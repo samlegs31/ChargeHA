@@ -10,6 +10,13 @@ interface HistoricalChargeRow {
   solarWh: number;
 }
 
+interface RateSegment {
+  rate: number;
+  seconds: number;
+}
+
+type TariffPeriods = Awaited<ReturnType<AppDatabase["getTariffPeriods"]>>;
+
 const DAY_ABBRS: DayOfWeek[] = [
   "sun",
   "mon",
@@ -43,7 +50,7 @@ function parseLocalTimestamp(value: string): number | null {
 
 function rateAtLocalWallClock(
   timestampMs: number,
-  periods: Awaited<ReturnType<AppDatabase["getTariffPeriods"]>>,
+  periods: TariffPeriods,
   defaultRate: number,
 ): number {
   const date = new Date(timestampMs);
@@ -53,30 +60,29 @@ function rateAtLocalWallClock(
   return period?.ratePerKwh ?? defaultRate;
 }
 
-function weightedRates(
+function rateSegments(
   startTimeLocal: string,
   intervalSeconds: number,
-  periods: Awaited<ReturnType<AppDatabase["getTariffPeriods"]>>,
+  periods: TariffPeriods,
   defaultRate: number,
-): Map<number, number> {
+): RateSegment[] {
   const startMs = parseLocalTimestamp(startTimeLocal);
-  if (startMs === null || intervalSeconds <= 0) return new Map();
+  if (startMs === null || intervalSeconds <= 0) return [];
 
-  const rates = new Map<number, number>();
-  let cursorMs = startMs;
-  let remaining = intervalSeconds;
-
-  while (remaining > 0) {
-    const date = new Date(cursorMs);
-    const secondsIntoMinute = date.getUTCSeconds();
+  const buildSegments = (
+    cursorMs: number,
+    remaining: number,
+  ): RateSegment[] => {
+    if (remaining <= 0) return [];
+    const secondsIntoMinute = new Date(cursorMs).getUTCSeconds();
     const seconds = Math.min(remaining, 60 - secondsIntoMinute);
-    const rate = rateAtLocalWallClock(cursorMs, periods, defaultRate);
-    rates.set(rate, (rates.get(rate) ?? 0) + seconds);
-    cursorMs += seconds * 1000;
-    remaining -= seconds;
-  }
+    return [{
+      rate: rateAtLocalWallClock(cursorMs, periods, defaultRate),
+      seconds,
+    }, ...buildSegments(cursorMs + seconds * 1000, remaining - seconds)];
+  };
 
-  return rates;
+  return buildSegments(startMs, intervalSeconds);
 }
 
 function bucketIndex(
@@ -102,6 +108,27 @@ function bucketIndex(
   return null;
 }
 
+function vehicleFilter(vehicleId?: string) {
+  if (!vehicleId) return sql``;
+  return sql`AND h.vehicle_id = ${vehicleId}`;
+}
+
+function aggregateSolarWebExclusion(vehicleId?: string) {
+  if (vehicleId) return sql``;
+  return sql`
+    AND NOT EXISTS (
+      SELECT 1 FROM aggregate_ev_charge_history sw
+      WHERE sw.source = 'solarweb'
+        AND sw.start_time_utc < datetime(
+          h.start_time_utc, '+' || h.interval_seconds || ' seconds'
+        )
+        AND datetime(
+          sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
+        ) > h.start_time_utc
+    )
+  `;
+}
+
 async function selectedChargeHqRows(
   db: AppDatabase,
   startDate: string,
@@ -110,24 +137,6 @@ async function selectedChargeHqRows(
 ): Promise<HistoricalChargeRow[]> {
   const startLocal = `${startDate} 00:00:00`;
   const endExclusive = `${nextDate(endDate)} 00:00:00`;
-  const vehicleFilter = vehicleId
-    ? sql`AND h.vehicle_id = ${vehicleId}`
-    : sql``;
-  const aggregateSolarWebExclusion = vehicleId
-    ? sql``
-    : sql`
-      AND NOT EXISTS (
-        SELECT 1 FROM aggregate_ev_charge_history sw
-        WHERE sw.source = 'solarweb'
-          AND sw.start_time_utc < datetime(
-            h.start_time_utc, '+' || h.interval_seconds || ' seconds'
-          )
-          AND datetime(
-            sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
-          ) > h.start_time_utc
-      )
-    `;
-
   const rows = await db.db.all<{
     start_time_local: string;
     interval_seconds: number;
@@ -144,7 +153,7 @@ async function selectedChargeHqRows(
       AND h.at_home_wh > 0
       AND h.start_time_local >= ${startLocal}
       AND h.start_time_local < ${endExclusive}
-      ${vehicleFilter}
+      ${vehicleFilter(vehicleId)}
       AND EXISTS (SELECT 1 FROM vehicles v WHERE v.id = h.vehicle_id)
       AND h.start_time_utc < COALESCE(
         (SELECT MIN(r.timestamp) FROM vehicle_charge_readings r
@@ -169,7 +178,7 @@ async function selectedChargeHqRows(
                 sw.start_time_utc, '+' || sw.interval_seconds || ' seconds'
               ) > h.start_time_utc
           )
-          ${aggregateSolarWebExclusion}
+          ${aggregateSolarWebExclusion(vehicleId)}
         )
       )
     ORDER BY h.start_time_local
@@ -181,6 +190,37 @@ async function selectedChargeHqRows(
     gridWh: Number(row.grid_wh ?? 0),
     solarWh: Number(row.solar_wh ?? 0),
   }));
+}
+
+function priceRow(
+  row: HistoricalChargeRow,
+  periods: TariffPeriods,
+  defaultRate: number,
+): { costCents: number; solarSavingsCents: number } {
+  const segments = rateSegments(
+    row.startTimeLocal,
+    row.intervalSeconds,
+    periods,
+    defaultRate,
+  );
+  const secondsTotal = segments.reduce(
+    (sum, segment) => sum + segment.seconds,
+    0,
+  );
+  if (secondsTotal <= 0) return { costCents: 0, solarSavingsCents: 0 };
+
+  return segments.reduce(
+    (totals, segment) => {
+      const share = segment.seconds / secondsTotal;
+      return {
+        costCents: totals.costCents +
+          row.gridWh * share / 1000 * segment.rate * 100,
+        solarSavingsCents: totals.solarSavingsCents +
+          row.solarWh * share / 1000 * segment.rate * 100,
+      };
+    },
+    { costCents: 0, solarSavingsCents: 0 },
+  );
 }
 
 /**
@@ -210,32 +250,14 @@ export async function applyHistoricalChargeHqTariffs(
   }
 
   const buckets = response.buckets.map((bucket) => ({ ...bucket }));
-  let historicalSolarSavingsCents = 0;
-
-  for (const row of rows) {
+  const historicalSolarSavingsCents = rows.reduce((sum, row) => {
     const index = bucketIndex(response, row.startTimeLocal);
-    if (index === null || index < 0 || index >= buckets.length) continue;
-
-    const rates = weightedRates(
-      row.startTimeLocal,
-      row.intervalSeconds,
-      periods,
-      defaultRate,
-    );
-    const secondsTotal = [...rates.values()].reduce((sum, seconds) => sum + seconds, 0);
-    if (secondsTotal <= 0) continue;
-
-    let costCents = 0;
-    let solarSavingsCents = 0;
-    for (const [rate, seconds] of rates) {
-      const share = seconds / secondsTotal;
-      costCents += row.gridWh * share / 1000 * rate * 100;
-      solarSavingsCents += row.solarWh * share / 1000 * rate * 100;
-    }
-
-    buckets[index].costCents = (buckets[index].costCents ?? 0) + costCents;
-    historicalSolarSavingsCents += solarSavingsCents;
-  }
+    if (index === null || index < 0 || index >= buckets.length) return sum;
+    const pricing = priceRow(row, periods, defaultRate);
+    buckets[index].costCents = (buckets[index].costCents ?? 0) +
+      pricing.costCents;
+    return sum + pricing.solarSavingsCents;
+  }, 0);
 
   return {
     ...response,
