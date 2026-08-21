@@ -5,6 +5,7 @@ import { useEnergyData } from "../../../../hooks/useEnergyData.ts";
 import { useToast } from "../../../../hooks/useToast.tsx";
 import { useVehicles } from "../../../../hooks/useVehicles.ts";
 import { trpc } from "../../../../trpc.ts";
+import type { Schedule } from "@chargeha/shared";
 
 // ---- Typed mock-fn instances (consumed by vi.mock factories in the test file) ----
 
@@ -37,6 +38,12 @@ type CommandStatusReturn = {
   error: null;
 };
 
+type ScheduleListReturn = {
+  data: { schedules: Schedule[] };
+  isLoading: boolean;
+  error: null;
+};
+
 export const dashboardMocks = {
   dismissMutate: vi.fn() as Mock,
   invalidateConfig: vi.fn() as Mock,
@@ -57,6 +64,11 @@ export const dashboardMocks = {
   })),
   commandStatusUseQuery: vi.fn<() => CommandStatusReturn>(() => ({
     data: { commandsDisabled: false, reason: null },
+    isLoading: false,
+    error: null,
+  })),
+  scheduleListUseQuery: vi.fn<() => ScheduleListReturn>(() => ({
+    data: { schedules: [] },
     isLoading: false,
     error: null,
   })),
@@ -202,6 +214,7 @@ export interface DashboardHarness {
     warnings: Array<{ title: string; message: string }>,
   ) => void;
   setTariff: (rate: TariffCurrentRateReturn["data"]) => void;
+  setSchedules: (schedules: Schedule[]) => void;
   setWakeMutation: (
     impl: { mutate: Mock; isPending?: boolean; variables?: unknown },
   ) => void;
@@ -214,8 +227,9 @@ export interface DashboardHarness {
   ) => ReturnType<typeof renderWithProviders>;
 }
 
-export function setupDashboard(): DashboardHarness {
-  // Reset to defaults each call
+function resetDashboardHookMocks() {
+  vi.mocked(useEnergyData).mockReturnValue(makeEnergyReturn());
+  vi.mocked(useVehicles).mockReturnValue(makeVehiclesReturn([]));
   dashboardMocks.capturedDismiss.onSuccess = undefined;
   dashboardMocks.tariffCurrentRateUseQuery.mockReturnValue({
     data: null,
@@ -237,6 +251,11 @@ export function setupDashboard(): DashboardHarness {
     isLoading: false,
     error: null,
   });
+  dashboardMocks.scheduleListUseQuery.mockReturnValue({
+    data: { schedules: [] },
+    isLoading: false,
+    error: null,
+  });
   vi.mocked(trpc.config.home.get.useQuery).mockReturnValue(
     {
       data: { homeLatitude: 43.6, homeLongitude: 1.5 },
@@ -247,6 +266,10 @@ export function setupDashboard(): DashboardHarness {
   dashboardMocks.dismissMutate.mockImplementation(() => {
     dashboardMocks.capturedDismiss.onSuccess?.();
   });
+}
+
+export function setupDashboard(): DashboardHarness {
+  resetDashboardHookMocks();
 
   return {
     setEnergy(overrides) {
@@ -284,6 +307,13 @@ export function setupDashboard(): DashboardHarness {
     setTariff(rate) {
       dashboardMocks.tariffCurrentRateUseQuery.mockReturnValue({
         data: rate,
+        isLoading: false,
+        error: null,
+      });
+    },
+    setSchedules(schedules) {
+      dashboardMocks.scheduleListUseQuery.mockReturnValue({
+        data: { schedules },
         isLoading: false,
         error: null,
       });

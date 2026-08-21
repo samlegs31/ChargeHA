@@ -88,6 +88,15 @@ vi.mock("../../../trpc.ts", () => ({
           })),
         },
       },
+      system: {
+        get: {
+          useQuery: vi.fn(() => ({
+            data: { timezone: "Europe/Paris" },
+            isLoading: false,
+            error: null,
+          })),
+        },
+      },
       systemAlert: {
         useQuery: () => dashboardMocks.configGetAllUseQuery(),
       },
@@ -134,6 +143,9 @@ vi.mock("../../../trpc.ts", () => ({
       },
     },
     schedule: {
+      list: {
+        useQuery: () => dashboardMocks.scheduleListUseQuery(),
+      },
       active: {
         useQuery: vi.fn(() => ({ data: [], isLoading: false, error: null })),
       },
@@ -212,12 +224,22 @@ vi.mock("../../MetricCard/MetricCard.tsx", () => ({
 // computed source split per vehicle.
 vi.mock("../../VehicleCard/VehicleCard.tsx", () => ({
   VehicleCard: (
-    { name, onNavigateSettings, solarPowerW, batteryPowerW, gridPowerW }: {
+    {
+      name,
+      onNavigateSettings,
+      solarPowerW,
+      batteryPowerW,
+      gridPowerW,
+      atHome,
+      scheduledCharge,
+    }: {
       name: string;
       onNavigateSettings?: () => void;
       solarPowerW?: number;
       batteryPowerW?: number;
       gridPowerW?: number;
+      atHome?: boolean | null;
+      scheduledCharge?: { title: string; detail: string } | null;
     },
   ) => (
     <div
@@ -226,8 +248,14 @@ vi.mock("../../VehicleCard/VehicleCard.tsx", () => ({
       data-solar-w={solarPowerW ?? ""}
       data-battery-w={batteryPowerW ?? ""}
       data-grid-w={gridPowerW ?? ""}
+      data-at-home={atHome == null ? "unknown" : String(atHome)}
     >
       {name}
+      {scheduledCharge && (
+        <span>
+          {scheduledCharge.title} · {scheduledCharge.detail}
+        </span>
+      )}
       {onNavigateSettings && (
         <button
           type="button"
@@ -270,6 +298,48 @@ describe("Dashboard", () => {
     expect(screen.getByTestId("energy-flow")).toBeInTheDocument();
   });
 
+  it("shows a local and explainable Solar Intelligence recommendation", () => {
+    h.setVehicles([makeVehicle({ mode: "auto" })]);
+    h.setEnergy({
+      realtime: {
+        solarProductionW: 6000,
+        homeConsumptionW: 3000,
+        gridPowerW: -3000,
+      },
+    });
+
+    h.render();
+
+    expect(screen.getByText("Solar Intelligence")).toBeInTheDocument();
+    expect(screen.getByText("Solar surplus is ready for your car"))
+      .toBeInTheDocument();
+    expect(screen.getByText("Why:")).toBeInTheDocument();
+    expect(screen.getByText(/3\.0 kW is being exported/))
+      .toBeInTheDocument();
+    expect(screen.getByText(/Calculated locally/)).toBeInTheDocument();
+  });
+
+  it("does not describe grid-supported charging as solar charging", () => {
+    h.setVehicles([makeVehicle({
+      mode: "auto",
+      state: makeVehicleState({ isCharging: true, chargePowerKw: 4.2 }),
+    })]);
+    h.setEnergy({
+      realtime: {
+        solarProductionW: 1000,
+        homeConsumptionW: 5200,
+        gridPowerW: 4200,
+      },
+    });
+
+    h.render();
+
+    expect(screen.getByText("The grid is supporting this charge"))
+      .toBeInTheDocument();
+    expect(screen.queryByText("Smart Charge is using your solar"))
+      .not.toBeInTheDocument();
+  });
+
   it("renders no vehicles state when vehicles array is empty", () => {
     h.render();
 
@@ -284,6 +354,41 @@ describe("Dashboard", () => {
     expect(screen.getByTestId("vehicle-card")).toBeInTheDocument();
     expect(screen.queryByText("No vehicles configured")).not
       .toBeInTheDocument();
+  });
+
+  it("shows a saved programmed charge on the home vehicle card", () => {
+    h.setVehicles();
+    h.setSchedules([{
+      id: "night-charge",
+      vehicleId: "VIN1",
+      scheduleType: "charge",
+      startTime: "00:00",
+      endTime: "06:00",
+      days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+      chargeAmps: 16,
+      chargeLimitPct: 80,
+      enabled: true,
+    }]);
+
+    h.render();
+
+    expect(screen.getByText(/Programmed charge|Charge programmed/))
+      .toBeInTheDocument();
+    expect(screen.getByText(/00:00–06:00 · Target 80%/))
+      .toBeInTheDocument();
+  });
+
+  it("keeps home detection without rendering a GPS map", () => {
+    h.setVehicles();
+
+    const { container } = h.render();
+
+    expect(screen.getByTestId("vehicle-card")).toHaveAttribute(
+      "data-at-home",
+      "true",
+    );
+    expect(container.querySelector('img[src*="tile.openstreetmap.org"]'))
+      .toBeNull();
   });
 
   // ---- Loading state ----

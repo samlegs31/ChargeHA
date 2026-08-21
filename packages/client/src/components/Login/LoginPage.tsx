@@ -29,11 +29,11 @@ export function LoginPage({ authMode, onSuccess, errorCode }: LoginPageProps) {
         <div className={styles.brand}>
           <picture className={styles.brandLogo}>
             <source
-              srcSet="/ev-solar-logo-dark-exact.webp"
+              srcSet="/ev-solar-logo-dark.svg"
               media="(prefers-color-scheme: dark)"
             />
             <img
-              src="/ev-solar-logo-exact.webp"
+              src="/ev-solar-logo.svg"
               alt="E.V. Solar"
               className={styles.logo}
             />
