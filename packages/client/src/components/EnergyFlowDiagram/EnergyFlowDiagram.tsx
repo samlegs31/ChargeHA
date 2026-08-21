@@ -1,8 +1,9 @@
-import { Battery, Car, Home, Sun, Zap } from "lucide-react";
+import { Home, Sun, Zap } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
 import type { EnergyData } from "@chargeha/shared";
 import { kwValue } from "../../utils/Format.ts";
 import styles from "./EnergyFlowDiagram.module.css";
+import { VehicleSilhouetteIcon } from "../icons/VehicleSilhouetteIcon.tsx";
 
 export interface ChargingVehicleFlow {
   id: string;
@@ -19,8 +20,14 @@ interface EnergyFlowDiagramProps {
   chargingVehicles?: ChargingVehicleFlow[];
 }
 
-type FlowSource = "solar" | "battery" | "grid" | "idle";
+type FlowSource = "solar" | "battery" | "grid" | "export" | "idle";
+type ActiveFlowSource = Exclude<FlowSource, "idle">;
 type FlowDirection = "up" | "down";
+
+interface FlowStream {
+  source: ActiveFlowSource;
+  powerW: number;
+}
 
 const ACTIVE_FLOW_W = 25;
 
@@ -29,54 +36,159 @@ function flowDurationS(powerW: number): number {
   return Math.min(2.8, Math.max(1.05, 2.9 - kw * 0.18));
 }
 
-function dominantSource(
-  solarW: number,
-  batteryW: number,
-  gridW: number,
-): FlowSource {
-  const sources: Array<[FlowSource, number]> = [
-    ["solar", Math.max(0, solarW)],
-    ["battery", Math.max(0, batteryW)],
-    ["grid", Math.max(0, gridW)],
-  ];
-  const [source, powerW] = sources.reduce((largest, current) =>
-    current[1] > largest[1] ? current : largest
-  );
-  return powerW >= ACTIVE_FLOW_W ? source : "idle";
-}
-
 function sourceColor(source: FlowSource): string {
   switch (source) {
     case "solar":
-      return "var(--color-solar-car)";
+      return "var(--color-solar)";
     case "battery":
       return "var(--color-battery)";
     case "grid":
       return "var(--color-grid-import)";
+    case "export":
+      return "var(--color-grid-export)";
     default:
       return "var(--gray-7)";
   }
 }
 
+const FLOW_SOURCE_ORDER: ActiveFlowSource[] = [
+  "solar",
+  "battery",
+  "grid",
+  "export",
+];
+
+function flowStreams(
+  values: Partial<Record<ActiveFlowSource, number>>,
+): FlowStream[] {
+  return FLOW_SOURCE_ORDER
+    .map((source) => ({ source, powerW: Math.max(0, values[source] ?? 0) }))
+    .filter((stream) => stream.powerW >= ACTIVE_FLOW_W);
+}
+
+function dominantStream(streams: FlowStream[]): FlowSource {
+  return streams.reduce<FlowStream | null>(
+    (largest, stream) =>
+      !largest || stream.powerW > largest.powerW ? stream : largest,
+    null,
+  )?.source ?? "idle";
+}
+
+function busStreamStyle(stream: FlowStream): CSSProperties {
+  const durationS = Math.max(1.7, flowDurationS(stream.powerW) * 1.35);
+  return {
+    "--energy-dot-color": sourceColor(stream.source),
+    "--bus-duration": `${durationS}s`,
+  } as CSSProperties;
+}
+
+function busBeadStyle(
+  stream: FlowStream,
+  beadIndex: number,
+): CSSProperties {
+  const durationS = Math.max(1.7, flowDurationS(stream.powerW) * 1.35);
+  const delayS = -beadIndex * durationS / 2;
+  return { "--bead-delay": `${delayS}s` } as CSSProperties;
+}
+
+function EnergyBus({ streams }: { streams: FlowStream[] }) {
+  const source = dominantStream(streams);
+  const dominant = streams.find((stream) => stream.source === source) ?? null;
+  return (
+    <div
+      className={styles.energyBus}
+      data-testid="energy-bus"
+      data-source={source}
+      data-available-sources={streams.map((stream) => stream.source).join(" ")}
+      data-stream-count={dominant ? 1 : 0}
+      style={{ "--energy-bar-color": sourceColor(source) } as CSSProperties}
+      aria-hidden="true"
+    >
+      <span className={styles.energyBusBase} data-testid="energy-bus-track" />
+      {dominant && (
+        <span
+          className={styles.energyBusStream}
+          data-testid={`energy-bus-${dominant.source}`}
+          data-source={dominant.source}
+          data-motion={dominant.source === "grid" ? "reverse" : "forward"}
+          data-bead-count="2"
+          style={busStreamStyle(dominant)}
+        >
+          {[0, 1].map((beadIndex) => (
+            <span
+              key={beadIndex}
+              className={styles.energyBead}
+              data-testid={`energy-bead-${dominant.source}-${beadIndex}`}
+              style={busBeadStyle(dominant, beadIndex)}
+            />
+          ))}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function allocateHomeStreams(
+  homeW: number,
+  solarAvailableW: number,
+  batteryAvailableW: number,
+  gridAvailableW: number,
+): FlowStream[] {
+  const solarW = Math.min(homeW, Math.max(0, solarAvailableW));
+  const afterSolarW = Math.max(0, homeW - solarW);
+  const batteryW = Math.min(afterSolarW, Math.max(0, batteryAvailableW));
+  const afterBatteryW = Math.max(0, afterSolarW - batteryW);
+  const gridW = Math.min(afterBatteryW, Math.max(0, gridAvailableW));
+  return flowStreams({ solar: solarW, battery: batteryW, grid: gridW });
+}
+
+function scaleStreamsToPower(
+  powerW: number,
+  candidates: FlowStream[],
+): FlowStream[] {
+  if (powerW < ACTIVE_FLOW_W) return [];
+  const inputs = candidates.filter((stream) =>
+    stream.source === "solar" || stream.source === "grid"
+  );
+  const availableW = inputs.reduce((total, stream) => total + stream.powerW, 0);
+  if (availableW < ACTIVE_FLOW_W) return flowStreams({ grid: powerW });
+  return inputs.map((stream) => ({
+    ...stream,
+    powerW: powerW * (stream.powerW / availableW),
+  })).filter((stream) => stream.powerW >= ACTIVE_FLOW_W);
+}
+
+function flowSummary(
+  loading: boolean,
+  solarW: number,
+  batteryW: number,
+  gridW: number,
+): string {
+  if (loading) return "Connecting to live energy";
+  if (solarW >= ACTIVE_FLOW_W) return "Solar energy is flowing";
+  if (batteryW > ACTIVE_FLOW_W) return "Home battery is supporting";
+  if (gridW > ACTIVE_FLOW_W) return "Grid is supporting the home";
+  if (gridW < -ACTIVE_FLOW_W) return "Surplus energy is returning to the grid";
+  return "Energy is balanced";
+}
+
+function gridFlowSource(gridW: number): FlowSource {
+  if (gridW > ACTIVE_FLOW_W) return "grid";
+  if (gridW < -ACTIVE_FLOW_W) return "export";
+  return "idle";
+}
+
 function FlowBranch({
   testId,
-  active,
   direction,
-  source,
-  powerW,
-  color,
+  streams,
 }: {
   testId: string;
-  active: boolean;
   direction: FlowDirection;
-  source: FlowSource;
-  powerW: number;
-  color?: string;
+  streams: FlowStream[];
 }) {
-  const style = {
-    "--flow-color": color ?? sourceColor(source),
-    "--flow-duration": `${flowDurationS(powerW)}s`,
-  } as CSSProperties;
+  const active = streams.length > 0;
+  const source = dominantStream(streams);
 
   return (
     <div
@@ -86,17 +198,13 @@ function FlowBranch({
       data-testid={testId}
       data-direction={direction}
       data-source={source}
-      style={style}
+      data-sources={streams.map((stream) => stream.source).join(" ")}
+      data-stream-count={streams.length}
+      style={{ "--flow-color": sourceColor(source) } as CSSProperties}
       aria-hidden="true"
     >
       <div className={styles.flowTrack} />
-      {active && (
-        <span
-          className={direction === "up" ? styles.arrowUp : styles.arrowDown}
-        >
-          {direction === "up" ? "↑" : "↓"}
-        </span>
-      )}
+      {active && <span className={styles.flowDirection} />}
     </div>
   );
 }
@@ -122,7 +230,7 @@ function FlowNode({
         active ? styles.active : styles.idle
       }`}
     >
-      <div className={styles.iconBadge}>{icon}</div>
+      <div className={styles.iconBadge} aria-hidden="true">{icon}</div>
       <div className={styles.nodeLabel}>{label}</div>
       <div className={styles.nodeValue}>{value}</div>
       {children}
@@ -146,8 +254,8 @@ function VehicleNode({ v }: { v: ChargingVehicleFlow }) {
         className={`${styles.node} ${styles.vehicle} ${styles.active}`}
         data-testid={`vehicle-node-${v.id}`}
       >
-        <div className={styles.iconBadge}>
-          <Car size={25} />
+        <div className={styles.iconBadge} aria-hidden="true">
+          <VehicleSilhouetteIcon size={36} />
         </div>
         <div className={styles.vehicleName}>{v.name}</div>
         <div className={styles.nodeValue}>{kwValue(v.chargePowerW)}</div>
@@ -174,10 +282,12 @@ function VehicleNode({ v }: { v: ChargingVehicleFlow }) {
       </div>
       <FlowBranch
         testId={`flow-vehicle-${v.id}`}
-        active={v.chargePowerW >= ACTIVE_FLOW_W}
         direction="up"
-        source={dominantSource(v.solarW, batteryW, v.gridW)}
-        powerW={v.chargePowerW}
+        streams={flowStreams({
+          solar: v.solarW,
+          battery: batteryW,
+          grid: v.gridW,
+        })}
       />
     </div>
   );
@@ -189,32 +299,68 @@ function batteryStatus(batteryW: number): string {
   return "Idle";
 }
 
+function batteryFlowStreams(
+  batteryW: number,
+  chargingStreams: FlowStream[],
+): FlowStream[] {
+  if (batteryW > ACTIVE_FLOW_W) return flowStreams({ battery: batteryW });
+  if (batteryW < -ACTIVE_FLOW_W) return chargingStreams;
+  return [];
+}
+
+function batteryLevelName(
+  soc: number | null,
+): "unknown" | "low" | "medium" | "high" {
+  if (soc == null) return "unknown";
+  if (soc < 25) return "low";
+  if (soc < 75) return "medium";
+  return "high";
+}
+
+function HomeBatteryIcon(
+  { soc, charging }: { soc: number | null; charging: boolean },
+) {
+  const fill = soc == null ? 0 : Math.min(100, Math.max(0, Math.round(soc)));
+
+  return (
+    <span
+      className={styles.batteryGlyph}
+      data-testid="home-battery-icon"
+      data-fill={fill}
+      data-level={batteryLevelName(soc)}
+      data-charging={charging}
+      style={{ "--battery-fill": `${fill}%` } as CSSProperties}
+    >
+      <span className={styles.batteryGlyphFill} />
+    </span>
+  );
+}
+
 function BatteryEndpoint({
   batteryW,
   batterySoc,
   loading,
-  busSource,
+  chargingStreams,
 }: {
   batteryW: number;
   batterySoc: number | null;
   loading: boolean;
-  busSource: FlowSource;
+  chargingStreams: FlowStream[];
 }) {
   const charging = batteryW < -ACTIVE_FLOW_W;
   const discharging = batteryW > ACTIVE_FLOW_W;
   const active = charging || discharging;
+  const streams = batteryFlowStreams(batteryW, chargingStreams);
 
   return (
     <div className={styles.endpoint}>
       <FlowBranch
         testId="flow-battery"
-        active={active}
         direction={charging ? "down" : "up"}
-        source={discharging ? "battery" : busSource}
-        powerW={batteryW}
+        streams={streams}
       />
       <FlowNode
-        icon={<Battery size={26} />}
+        icon={<HomeBatteryIcon soc={batterySoc} charging={charging} />}
         label="Battery"
         value={loading ? "---" : kwValue(Math.abs(batteryW))}
         className={styles.battery}
@@ -234,11 +380,9 @@ function BatteryEndpoint({
 function GridEndpoint({
   gridW,
   loading,
-  busSource,
 }: {
   gridW: number;
   loading: boolean;
-  busSource: FlowSource;
 }) {
   const exporting = gridW < -ACTIVE_FLOW_W;
   const importing = gridW > ACTIVE_FLOW_W;
@@ -248,16 +392,14 @@ function GridEndpoint({
     <div className={styles.endpoint}>
       <FlowBranch
         testId="flow-grid"
-        active={active}
         direction={exporting ? "down" : "up"}
-        source={importing ? "grid" : busSource}
-        powerW={gridW}
-        color={exporting
-          ? "var(--color-grid-export)"
-          : "var(--color-grid-import)"}
+        streams={flowStreams({
+          grid: importing ? gridW : 0,
+          export: exporting ? Math.abs(gridW) : 0,
+        })}
       />
       <FlowNode
-        icon={<Zap size={26} />}
+        icon={<Zap size={29} />}
         label="Grid"
         value={loading ? "---" : kwValue(Math.abs(gridW))}
         className={exporting ? styles.gridExport : styles.gridImport}
@@ -279,8 +421,8 @@ function EnergyEndpoints({
   batterySoc,
   homeW,
   gridW,
-  homeSource,
-  busSource,
+  homeStreams,
+  batteryChargingStreams,
 }: {
   loading: boolean;
   hasBattery: boolean;
@@ -289,8 +431,8 @@ function EnergyEndpoints({
   batterySoc: number | null;
   homeW: number;
   gridW: number;
-  homeSource: FlowSource;
-  busSource: FlowSource;
+  homeStreams: FlowStream[];
+  batteryChargingStreams: FlowStream[];
 }) {
   const endpointClass = hasBattery
     ? styles.endpointsWithBattery
@@ -301,13 +443,11 @@ function EnergyEndpoints({
       <div className={styles.endpoint}>
         <FlowBranch
           testId="flow-solar"
-          active={solarW >= ACTIVE_FLOW_W}
           direction="up"
-          source="solar"
-          powerW={solarW}
+          streams={flowStreams({ solar: solarW })}
         />
         <FlowNode
-          icon={<Sun size={26} />}
+          icon={<Sun size={29} />}
           label="Solar"
           value={loading ? "---" : kwValue(solarW)}
           className={styles.solar}
@@ -320,20 +460,18 @@ function EnergyEndpoints({
           batteryW={batteryW}
           batterySoc={batterySoc}
           loading={loading}
-          busSource={busSource}
+          chargingStreams={batteryChargingStreams}
         />
       )}
 
       <div className={styles.endpoint}>
         <FlowBranch
           testId="flow-home"
-          active={homeW >= ACTIVE_FLOW_W}
           direction="down"
-          source={homeSource}
-          powerW={homeW}
+          streams={homeStreams}
         />
         <FlowNode
-          icon={<Home size={26} />}
+          icon={<Home size={29} />}
           label="Home"
           value={loading ? "---" : kwValue(homeW)}
           className={styles.home}
@@ -341,7 +479,7 @@ function EnergyEndpoints({
         />
       </div>
 
-      <GridEndpoint gridW={gridW} loading={loading} busSource={busSource} />
+      <GridEndpoint gridW={gridW} loading={loading} />
     </div>
   );
 }
@@ -358,27 +496,68 @@ export function EnergyFlowDiagram({
     (total, vehicle) => total + vehicle.chargePowerW,
     0,
   );
+  const vehicleSources = chargingVehicles.reduce(
+    (totals, vehicle) => ({
+      solarW: totals.solarW + Math.max(0, vehicle.solarW),
+      batteryW: totals.batteryW + Math.max(0, vehicle.batteryW ?? 0),
+      gridW: totals.gridW + Math.max(0, vehicle.gridW),
+    }),
+    { solarW: 0, batteryW: 0, gridW: 0 },
+  );
   // Fronius reports site consumption, including the EV. Display ordinary home load only.
   const homeW = Math.max(0, (data?.homeConsumptionW ?? 0) - totalVehicleW);
   const hasBattery = data?.batteryPowerW !== null &&
     data?.batteryPowerW !== undefined;
-  const solarToHomeW = Math.min(Math.max(0, solarW), homeW);
-  const remainingHomeW = Math.max(0, homeW - solarToHomeW);
-  const batteryToHomeW = Math.min(Math.max(0, batteryW), remainingHomeW);
-  const gridToHomeW = Math.max(0, remainingHomeW - batteryToHomeW);
-  const homeSource = dominantSource(solarToHomeW, batteryToHomeW, gridToHomeW);
-  const busSource = dominantSource(
-    solarW,
-    Math.max(0, batteryW),
-    Math.max(0, gridW),
+  const busStreams = flowStreams({
+    solar: solarW,
+    battery: Math.max(0, batteryW),
+    grid: Math.max(0, gridW),
+  });
+  const homeStreams = allocateHomeStreams(
+    homeW,
+    solarW - vehicleSources.solarW,
+    Math.max(0, batteryW) - vehicleSources.batteryW,
+    Math.max(0, gridW) - vehicleSources.gridW,
   );
+  const batteryChargingStreams = scaleStreamsToPower(
+    Math.max(0, -batteryW),
+    busStreams,
+  );
+  const busSource = dominantStream(busStreams);
+  const gridSource = gridFlowSource(gridW);
+  const summary = flowSummary(loading, solarW, batteryW, gridW);
 
   return (
     <section
       className={styles.shell}
       data-testid="energy-flow"
+      data-grid-flow={gridSource}
+      style={{
+        "--grid-flow-color": sourceColor(gridSource),
+      } as CSSProperties}
       aria-label="Live energy flow"
     >
+      <header className={styles.flowHeader}>
+        <div>
+          <div className={styles.flowEyebrow}>Live energy</div>
+          <div
+            className={styles.flowSummary}
+            data-testid="flow-summary"
+            aria-live="polite"
+          >
+            {summary}
+          </div>
+        </div>
+        <div
+          className={styles.liveSignal}
+          data-active={busSource !== "idle"}
+          style={{ "--signal-color": sourceColor(busSource) } as CSSProperties}
+        >
+          <span aria-hidden="true" />
+          Live
+        </div>
+      </header>
+
       {chargingVehicles.length > 0 && (
         <div className={styles.vehicleFlows}>
           {chargingVehicles.map((vehicle) => (
@@ -386,13 +565,7 @@ export function EnergyFlowDiagram({
           ))}
         </div>
       )}
-      <div
-        className={styles.energyBus}
-        data-testid="energy-bus"
-        data-source={busSource}
-        style={{ "--bus-color": sourceColor(busSource) } as CSSProperties}
-        aria-hidden="true"
-      />
+      <EnergyBus streams={busStreams} />
       <EnergyEndpoints
         loading={loading}
         hasBattery={hasBattery}
@@ -401,8 +574,8 @@ export function EnergyFlowDiagram({
         batterySoc={data?.batterySoc ?? null}
         homeW={homeW}
         gridW={gridW}
-        homeSource={homeSource}
-        busSource={busSource}
+        homeStreams={homeStreams}
+        batteryChargingStreams={batteryChargingStreams}
       />
     </section>
   );

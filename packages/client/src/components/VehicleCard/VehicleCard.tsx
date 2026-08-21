@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import {
   BatteryCharging,
-  Car,
+  CalendarClock,
   ChevronDown,
   ChevronUp,
   Key,
@@ -20,7 +20,9 @@ import { Spinner } from "../ui/Spinner.tsx";
 import { ErrorBanner } from "../ui/ErrorBanner.tsx";
 import { VehicleBatterySection } from "./VehicleBatterySection.tsx";
 import { VehicleCardDetails } from "./VehicleCardDetails.tsx";
+import { VehicleSilhouetteIcon } from "../icons/VehicleSilhouetteIcon.tsx";
 import styles from "./VehicleCard.module.css";
+import type { ScheduledChargeDisplay } from "../pages/Dashboard/scheduledCharge.ts";
 
 interface VehicleCardProps {
   name: string;
@@ -41,7 +43,6 @@ interface VehicleCardProps {
   commandsDisabled?: boolean;
   commandsDisabledReason?: string;
   vehicleError?: string | null;
-  lastLocation?: { latitude: number; longitude: number } | null;
   atHome?: boolean | null;
   allocationStatus?: string | null;
   onRefresh?: () => Promise<unknown>;
@@ -50,6 +51,7 @@ interface VehicleCardProps {
   controllerReason?: string | null;
   controllerDetail?: string | null;
   forecastContent?: ReactNode;
+  scheduledCharge?: ScheduledChargeDisplay | null;
 }
 
 const MODE_LABELS: Record<VehicleMode, string> = {
@@ -59,7 +61,7 @@ const MODE_LABELS: Record<VehicleMode, string> = {
   stop: "Pause",
 };
 
-const MODE_BUTTONS: {
+const OTHER_MODE_BUTTONS: {
   value: VehicleMode;
   label: string;
   color: "orange" | "blue" | "green" | "gray";
@@ -69,21 +71,20 @@ const MODE_BUTTONS: {
     value: "vacation",
     label: "Solar",
     color: "orange",
-    icon: <Sun size={15} />,
-  },
-  {
-    value: "auto",
-    label: "Smart",
-    color: "blue",
-    icon: <Sparkles size={15} />,
+    icon: <Sun size={18} aria-hidden="true" />,
   },
   {
     value: "charge_now",
     label: "Now",
     color: "green",
-    icon: <Zap size={15} />,
+    icon: <Zap size={18} aria-hidden="true" />,
   },
-  { value: "stop", label: "Pause", color: "gray", icon: <Pause size={15} /> },
+  {
+    value: "stop",
+    label: "Pause",
+    color: "gray",
+    icon: <Pause size={18} aria-hidden="true" />,
+  },
 ];
 
 function getStatusText(
@@ -141,9 +142,65 @@ function getStatusColor(state: VehicleChargeState): string {
 
 function StatusIcon({ state }: { state: VehicleChargeState }) {
   const iconStyle = { color: getStatusColor(state), flexShrink: 0 };
-  if (state.isCharging) return <BatteryCharging size={16} style={iconStyle} />;
-  if (state.isPluggedIn) return <Plug size={16} style={iconStyle} />;
-  return <Unplug size={16} style={iconStyle} />;
+  if (state.isCharging) {
+    return <BatteryCharging size={20} style={iconStyle} aria-hidden="true" />;
+  }
+  if (state.isPluggedIn) {
+    return <Plug size={20} style={iconStyle} aria-hidden="true" />;
+  }
+  return <Unplug size={20} style={iconStyle} aria-hidden="true" />;
+}
+
+function PrimaryStatus(
+  {
+    state,
+    mode,
+    atHome,
+    controllerReason,
+  }: {
+    state: VehicleChargeState;
+    mode: VehicleMode;
+    atHome: boolean | null | undefined;
+    controllerReason: string | null | undefined;
+  },
+) {
+  return (
+    <div className={styles.status} aria-live="polite">
+      <div className={styles.statusIcon}>
+        <StatusIcon state={state} />
+      </div>
+      <div className={styles.statusCopy}>
+        <Text size="1" color="gray" weight="medium">
+          Charging status
+        </Text>
+        <Text size="3" weight="bold">
+          {getStatusText(state, mode, atHome, controllerReason)}
+        </Text>
+      </div>
+    </div>
+  );
+}
+
+function ScheduledChargeNotice(
+  { charge }: { charge: ScheduledChargeDisplay },
+) {
+  const active = charge.status === "active";
+  return (
+    <div
+      className={styles.scheduleNotice}
+      data-active={active}
+      data-testid="scheduled-charge-notice"
+      aria-live="polite"
+    >
+      <div className={styles.scheduleIcon} aria-hidden="true">
+        <CalendarClock size={22} />
+      </div>
+      <div className={styles.scheduleCopy}>
+        <Text size="2" weight="bold">{charge.title}</Text>
+        <Text size="2" color="gray">{charge.detail}</Text>
+      </div>
+    </div>
+  );
 }
 
 function VehicleCardBanners(
@@ -192,34 +249,6 @@ function VehicleCardBanners(
   );
 }
 
-function VehicleModeToggle(
-  { mode, disabled, pending, onChangeMode }: {
-    mode: VehicleMode;
-    disabled: boolean;
-    pending: string;
-    onChangeMode: (mode: VehicleMode) => void;
-  },
-) {
-  return (
-    <div className={styles.modeToggle} aria-label="Charging mode">
-      {MODE_BUTTONS.map((btn) => (
-        <Button
-          key={btn.value}
-          variant={mode === btn.value ? "solid" : "soft"}
-          color={mode === btn.value ? btn.color : "gray"}
-          size="2"
-          disabled={disabled}
-          onClick={() => onChangeMode(btn.value)}
-          aria-pressed={mode === btn.value}
-        >
-          {pending === `mode:${btn.value}` ? <Spinner /> : btn.icon}
-          {btn.label}
-        </Button>
-      ))}
-    </div>
-  );
-}
-
 function VehicleModeSection(
   {
     state,
@@ -235,22 +264,82 @@ function VehicleModeSection(
     onChangeMode: (mode: VehicleMode) => void;
   },
 ) {
-  if (!state.isPluggedIn) {
-    return (
-      <Text size="1" color="gray" className={styles.nextConnection}>
-        Next connection: {MODE_LABELS[mode]}
-      </Text>
-    );
-  }
+  const [otherOptionsOpen, setOtherOptionsOpen] = useState(false);
+  const smartActive = mode === "auto";
+  const smartPending = pending === "mode:auto";
+
+  const selectOtherMode = (nextMode: VehicleMode) => {
+    onChangeMode(nextMode);
+    setOtherOptionsOpen(false);
+  };
+  const hint = smartChargeHint(mode, state.isPluggedIn);
 
   return (
-    <VehicleModeToggle
-      mode={mode}
-      disabled={disabled}
-      pending={pending}
-      onChangeMode={onChangeMode}
-    />
+    <div className={styles.modeSection}>
+      <Button
+        variant="solid"
+        color="blue"
+        size="3"
+        className={`${styles.smartChargeButton} ${
+          smartActive ? styles.smartChargeActive : ""
+        }`}
+        disabled={disabled}
+        onClick={() => {
+          if (!smartActive) onChangeMode("auto");
+        }}
+        aria-pressed={smartActive}
+      >
+        {smartPending ? <Spinner /> : <Sparkles size={21} aria-hidden="true" />}
+        {smartActive ? "Smart Charge is on" : "Use Smart Charge"}
+      </Button>
+
+      <Text size="1" color="gray" className={styles.smartChargeHint}>
+        {hint}
+      </Text>
+
+      <Button
+        variant="ghost"
+        color="gray"
+        size="2"
+        className={styles.otherOptionsToggle}
+        onClick={() => setOtherOptionsOpen((open) => !open)}
+        aria-expanded={otherOptionsOpen}
+      >
+        Other options
+        {otherOptionsOpen
+          ? <ChevronUp size={17} aria-hidden="true" />
+          : <ChevronDown size={17} aria-hidden="true" />}
+      </Button>
+
+      {otherOptionsOpen && (
+        <div
+          className={styles.otherOptions}
+          aria-label="Other charging options"
+        >
+          {OTHER_MODE_BUTTONS.map((btn) => (
+            <Button
+              key={btn.value}
+              variant={mode === btn.value ? "solid" : "soft"}
+              color={mode === btn.value ? btn.color : "gray"}
+              size="2"
+              disabled={disabled}
+              onClick={() => selectOtherMode(btn.value)}
+              aria-pressed={mode === btn.value}
+            >
+              {pending === `mode:${btn.value}` ? <Spinner /> : btn.icon}
+              {btn.label}
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
   );
+}
+
+function smartChargeHint(mode: VehicleMode, isPluggedIn: boolean): string {
+  if (mode !== "auto") return `${MODE_LABELS[mode]} mode is active.`;
+  if (!isPluggedIn) return "Ready for the next connection.";
+  return "E.V. Solar chooses the cleanest, lowest-cost time.";
 }
 
 function TechnicalMeta(
@@ -376,6 +465,21 @@ function VehicleCardSkeleton() {
   );
 }
 
+function useVehicleCardRefresh(onRefresh: VehicleCardProps["onRefresh"]) {
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = async () => {
+    if (!onRefresh) return;
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  return { refreshing, handleRefresh };
+}
+
 export function VehicleCard({
   name,
   state,
@@ -403,10 +507,11 @@ export function VehicleCard({
   controllerReason,
   controllerDetail,
   forecastContent,
+  scheduledCharge,
 }: VehicleCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [, setTick] = useState(0);
+  const { refreshing, handleRefresh } = useVehicleCardRefresh(onRefresh);
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30_000);
@@ -423,21 +528,15 @@ export function VehicleCard({
     ? formatRelativeTime(new Date(state.lastUpdated))
     : null;
 
-  const handleRefresh = async () => {
-    if (!onRefresh) return;
-    setRefreshing(true);
-    try {
-      await onRefresh();
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
   return (
     <Card className={styles.card}>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
-          <Car size={19} style={{ color: "var(--color-vehicle)" }} />
+          <VehicleSilhouetteIcon
+            size={34}
+            style={{ color: "var(--color-vehicle)" }}
+            aria-hidden="true"
+          />
           <Text size="3" weight="bold">{name}</Text>
         </div>
       </div>
@@ -448,6 +547,15 @@ export function VehicleCard({
         vehicleError={vehicleError}
       />
 
+      <PrimaryStatus
+        state={state}
+        mode={mode}
+        atHome={atHome}
+        controllerReason={controllerReason}
+      />
+
+      {scheduledCharge && <ScheduledChargeNotice charge={scheduledCharge} />}
+
       <VehicleBatterySection
         batteryPercent={batteryPercent}
         chargeLimitPercent={chargeLimitPercent}
@@ -456,13 +564,6 @@ export function VehicleCard({
         disabled={disabled}
         onSetChargeLimit={onSetChargeLimit}
       />
-
-      <div className={styles.status}>
-        <StatusIcon state={state} />
-        <Text size="2" weight="medium">
-          {getStatusText(state, mode, atHome, controllerReason)}
-        </Text>
-      </div>
 
       {forecastContent}
 

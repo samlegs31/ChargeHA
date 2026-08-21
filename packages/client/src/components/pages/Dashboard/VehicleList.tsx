@@ -1,21 +1,28 @@
 import { type ComponentProps, type ReactNode, useMemo } from "react";
-import { Car, Settings, Zap } from "lucide-react";
+import { CalendarClock, Settings, Zap } from "lucide-react";
 import { Button, Card, Text } from "@radix-ui/themes";
-import type { VehicleMode } from "@chargeha/shared";
+import type { Schedule, VehicleMode } from "@chargeha/shared";
 import type { SolarChargeForecastResult } from "@chargeha/shared/forecast";
 import { isHome } from "@chargeha/shared/geo";
 import {
   useChargingConfig,
   useHomeConfig,
+  useSystemConfig,
 } from "../../../hooks/useSectionConfig.ts";
 import { useEnergyData } from "../../../hooks/useEnergyData.ts";
 import { useVehicles } from "../../../hooks/useVehicles.ts";
 import { useToast } from "../../../hooks/useToast.tsx";
 import { useControllerStatuses } from "../../../hooks/controllerStatusStore.ts";
 import { VehicleCard } from "../../VehicleCard/VehicleCard.tsx";
+import { VehicleSilhouetteIcon } from "../../icons/VehicleSilhouetteIcon.tsx";
 import { SolarForecastInline } from "../../VehicleCard/SolarForecastInline.tsx";
 import { trpc } from "../../../trpc.ts";
 import { useVehicleSolarGrid } from "./energyHelpers.ts";
+import { SolarIntelligenceBanner } from "./SolarIntelligenceBanner.tsx";
+import {
+  getScheduledChargeDisplay,
+  type ScheduledChargeDisplay,
+} from "./scheduledCharge.ts";
 
 type VehicleCardProps = ComponentProps<typeof VehicleCard>;
 
@@ -123,22 +130,38 @@ function WakingSpinner() {
 }
 
 function AsleepVehicleCard(
-  { v, isWaking, onWake }: {
+  { v, isWaking, onWake, scheduledCharge }: {
     v: { id: string; name: string };
     isWaking: boolean;
     onWake: () => void;
+    scheduledCharge: ScheduledChargeDisplay | null;
   },
 ) {
   const wakeIcon = isWaking ? <WakingSpinner /> : <Zap size={14} />;
   return (
     <Card key={v.id} style={{ borderLeft: "3px solid var(--gray-a6)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <Car size={18} style={{ color: "var(--gray-9)" }} />
+        <VehicleSilhouetteIcon
+          size={30}
+          style={{ color: "var(--gray-9)" }}
+          aria-hidden="true"
+        />
         <div style={{ flex: 1 }}>
           <Text size="2" weight="bold">{v.name}</Text>
           <Text size="1" color="gray" style={{ display: "block" }}>
             Vehicle is asleep or unreachable
           </Text>
+          {scheduledCharge && (
+            <Text
+              size="2"
+              color="blue"
+              weight="medium"
+              style={{ display: "flex", alignItems: "center", gap: 5 }}
+            >
+              <CalendarClock size={15} aria-hidden="true" />
+              {scheduledCharge.title} · {scheduledCharge.detail}
+            </Text>
+          )}
         </div>
         <Button variant="soft" size="1" disabled={isWaking} onClick={onWake}>
           {wakeIcon}
@@ -155,7 +178,11 @@ function VehicleListErrorCard(
   return (
     <Card style={{ borderLeft: "3px solid var(--red-a7)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Car size={24} style={{ color: "var(--red-9)" }} />
+        <VehicleSilhouetteIcon
+          size={34}
+          style={{ color: "var(--red-9)" }}
+          aria-hidden="true"
+        />
         <div style={{ flex: 1 }}>
           <Text size="3" weight="bold" style={{ display: "block" }}>
             Unable to load vehicles
@@ -174,7 +201,11 @@ function NoVehiclesCard(
   return (
     <Card style={{ borderLeft: "3px solid var(--color-vehicle)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Car size={24} style={{ color: "var(--color-vehicle)" }} />
+        <VehicleSilhouetteIcon
+          size={34}
+          style={{ color: "var(--color-vehicle)" }}
+          aria-hidden="true"
+        />
         <div style={{ flex: 1 }}>
           <Text size="3" weight="bold" style={{ display: "block" }}>
             No vehicles configured
@@ -225,6 +256,8 @@ function useAllocationStatus(
 function VehicleCards(
   {
     vehicles,
+    schedules,
+    timezone,
     home,
     vehiclesLoading,
     commandPending,
@@ -241,6 +274,8 @@ function VehicleCards(
     onNavigateSettings,
   }: {
     vehicles: ReturnType<typeof useVehicles>["vehicles"];
+    schedules: Schedule[];
+    timezone: string;
     home: { lat: number; lng: number } | null;
     vehiclesLoading: boolean;
     commandPending: Record<string, string | false>;
@@ -260,9 +295,17 @@ function VehicleCards(
     onNavigateSettings?: () => void;
   },
 ) {
+  const now = new Date();
   return (
     <>
       {vehicles.map((v) => {
+        const scheduledCharge = getScheduledChargeDisplay(
+          schedules,
+          v.id,
+          v.mode as VehicleMode,
+          now,
+          timezone,
+        );
         if (v.state) {
           return (
             <ConnectedVehicleCard
@@ -281,7 +324,6 @@ function VehicleCards(
               batteryPowerW={vehicleSolarGrid[v.id]?.batteryW ?? 0}
               gridPowerW={vehicleSolarGrid[v.id]?.gridW ?? 0}
               loading={vehiclesLoading}
-              lastLocation={v.lastLocation}
               atHome={v.lastLocation ? isHome(home, v.lastLocation) : null}
               vehicleError={vehicleErrors[v.id]}
               allocationStatus={allocationStatus[v.id] ?? null}
@@ -289,6 +331,7 @@ function VehicleCards(
               pollingSuspendReason={v.pollingSuspendReason}
               controllerReason={controllerStatuses[v.id]?.reason ?? null}
               controllerDetail={controllerStatuses[v.id]?.detail ?? null}
+              scheduledCharge={scheduledCharge}
               onNavigateSettings={onNavigateSettings}
               onRefresh={() => refreshMutation.mutateAsync({ vehicleId: v.id })}
             />
@@ -301,6 +344,7 @@ function VehicleCards(
             key={v.id}
             v={v}
             isWaking={isWaking}
+            scheduledCharge={scheduledCharge}
             onWake={() =>
               wakeMutation.mutate({ vehicleId: v.id, command: "wake" })}
           />
@@ -316,11 +360,17 @@ export function VehicleList(
   const { addToast } = useToast();
   const { data: chargingConfig } = useChargingConfig();
   const { data: homeConfig } = useHomeConfig();
+  const { data: systemConfig } = useSystemConfig();
+  const { data: scheduleData } = trpc.schedule.list.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
   const homeLat = homeConfig?.homeLatitude;
   const homeLng = homeConfig?.homeLongitude;
   const home = homeLat != null && homeLng != null
     ? { lat: homeLat, lng: homeLng }
     : null;
+  const timezone = systemConfig?.timezone ||
+    Intl.DateTimeFormat().resolvedOptions().timeZone;
   const { data: energyData } = useEnergyData();
   const realtime = energyData?.realtime ?? null;
   const {
@@ -358,9 +408,11 @@ export function VehicleList(
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <SolarIntelligenceBanner data={realtime} vehicles={vehicles} />
+
       {/* Vehicle section — one card per configured vehicle */}
       <Text
-        size="1"
+        size="2"
         color="gray"
         weight="medium"
         style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}
@@ -369,6 +421,8 @@ export function VehicleList(
       </Text>
       <VehicleCards
         vehicles={vehicles}
+        schedules={scheduleData?.schedules ?? []}
+        timezone={timezone}
         home={home}
         vehiclesLoading={vehiclesLoading}
         commandPending={commandPending}

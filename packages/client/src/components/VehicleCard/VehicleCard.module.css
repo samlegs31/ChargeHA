@@ -29,7 +29,7 @@
 }
 
 .batterySection {
-  margin-bottom: 18px;
+  margin-bottom: 10px;
 }
 
 .batteryTop {
@@ -153,19 +153,170 @@
 .status {
   display: flex;
   align-items: center;
-  gap: 9px;
-  min-height: 30px;
-  margin-bottom: 8px;
+  gap: 12px;
+  min-height: 68px;
+  margin-bottom: 22px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--color-vehicle) 10%,
+    var(--gray-a3));
+  border-radius: 18px;
+  background:
+    radial-gradient(
+    circle at 10% 50%,
+    color-mix(in srgb, var(--color-vehicle) 9%, transparent),
+    transparent 42%
+  ),
+    var(--gray-a2);
 }
 
-.modeToggle {
+.statusIcon {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin: 20px 0 8px;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  place-items: center;
+  background: var(--color-panel-solid);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.07);
 }
 
-.modeToggle button {
+.statusCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.statusCopy > :last-child {
+  line-height: 1.25;
+  letter-spacing: -0.015em;
+}
+
+.scheduleNotice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 68px;
+  margin: -10px 0 22px;
+  padding: 13px 15px;
+  border: 1px solid color-mix(in srgb, var(--blue-9) 22%, var(--gray-a3));
+  border-radius: 18px;
+  background:
+    radial-gradient(
+    circle at 8% 50%,
+    color-mix(in srgb, var(--blue-9) 12%, transparent),
+    transparent 43%
+  ),
+    color-mix(in srgb, var(--blue-a2) 45%, var(--gray-a2));
+}
+
+.scheduleNotice[data-active="true"] {
+  border-color: color-mix(in srgb, var(--green-9) 28%, var(--gray-a3));
+  background:
+    radial-gradient(
+    circle at 8% 50%,
+    color-mix(in srgb, var(--green-9) 14%, transparent),
+    transparent 43%
+  ),
+    color-mix(in srgb, var(--green-a2) 45%, var(--gray-a2));
+}
+
+.scheduleIcon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  place-items: center;
+  background: color-mix(in srgb, var(--blue-9) 10%, var(--color-panel-solid));
+  color: var(--blue-10);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--blue-9) 12%, transparent);
+}
+
+.scheduleNotice[data-active="true"] .scheduleIcon {
+  background: color-mix(in srgb, var(--green-9) 11%, var(--color-panel-solid));
+  color: var(--green-10);
+}
+
+.scheduleCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.scheduleCopy > :first-child {
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.scheduleCopy > :last-child {
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.modeSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 20px 0 6px;
+}
+
+.smartChargeButton {
+  width: 100%;
+  min-height: 56px;
+  border-radius: 999px !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.015em;
+  box-shadow:
+    0 10px 24px color-mix(in srgb, var(--blue-9) 18%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
+  transition: transform 140ms ease, box-shadow 180ms ease;
+}
+
+.smartChargeButton:not(:disabled):active {
+  transform: scale(0.985);
+}
+
+.smartChargeButton:focus-visible,
+.otherOptionsToggle:focus-visible,
+.otherOptions button:focus-visible,
+.detailsToggle:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--blue-9) 50%, transparent);
+  outline-offset: 3px;
+}
+
+.smartChargeActive {
+  background:
+    linear-gradient(110deg, var(--blue-9), var(--indigo-9)) !important;
+}
+
+.smartChargeHint {
+  display: block;
+  margin-top: 9px;
+  text-align: center;
+}
+
+.otherOptionsToggle {
+  min-height: 40px;
+  margin-top: 7px;
+  border-radius: 999px !important;
+}
+
+.otherOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px;
+  border: 1px solid var(--gray-a3);
+  border-radius: 17px;
+  background: var(--gray-a2);
+}
+
+.otherOptions button {
   min-height: 46px;
   border-radius: 999px !important;
   font-size: 0.86rem;
@@ -175,13 +326,8 @@
     border-color 160ms ease;
 }
 
-.modeToggle button:active {
+.otherOptions button:active {
   transform: scale(0.98);
-}
-
-.nextConnection {
-  display: block;
-  margin-top: 14px;
 }
 
 .detailsToggle {
@@ -280,19 +426,80 @@
     margin-bottom: 16px;
   }
 
+  .headerLeft > :nth-child(2) {
+    font-size: 1.25rem;
+  }
+
   .batteryPercent {
-    font-size: 2.45rem;
+    font-size: 3rem;
   }
 
-  .modeToggle {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 18px;
-  }
-
-  .modeToggle button {
-    min-height: 50px;
+  .batteryTop span {
     font-size: 0.9rem;
+  }
+
+  .status {
+    align-items: flex-start;
+    margin-bottom: 18px;
+    padding: 15px;
+  }
+
+  .statusIcon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .statusCopy > :first-child {
+    font-size: 0.8rem;
+  }
+
+  .statusCopy > :last-child {
+    font-size: 1.05rem;
+    line-height: 1.35;
+  }
+
+  .scheduleNotice {
+    padding: 15px;
+  }
+
+  .scheduleIcon {
+    width: 46px;
+    height: 46px;
+  }
+
+  .scheduleCopy > :first-child {
+    font-size: 1.05rem;
+  }
+
+  .scheduleCopy > :last-child {
+    font-size: 0.92rem;
+  }
+
+  .smartChargeButton {
+    min-height: 58px;
+    font-size: 1.05rem !important;
+  }
+
+  .smartChargeHint {
+    max-width: 92%;
+    font-size: 0.84rem;
+    line-height: 1.45;
+  }
+
+  .otherOptionsToggle,
+  .detailsToggle {
+    min-height: 48px;
+    font-size: 0.9rem !important;
+  }
+
+  .otherOptions {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .otherOptions button {
+    min-height: 48px;
+    font-size: 0.94rem;
   }
 
   .controls {

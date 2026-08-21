@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { renderWithProviders } from "../../test-utils.tsx";
 import type { VehicleChargeState } from "@chargeha/shared";
@@ -57,19 +57,64 @@ describe("VehicleCard", () => {
     renderVC();
 
     expect(screen.getByText("Model 3")).toBeInTheDocument();
+    expect(screen.getByTestId("vehicle-silhouette-icon")).toBeInTheDocument();
     expect(screen.getByText("72%")).toBeInTheDocument();
     expect(screen.getByText("Limit 80%")).toBeInTheDocument();
     expect(screen.getByText("Ready — E.V. Solar will choose the best time"))
       .toBeInTheDocument();
 
-    ["Solar", "Smart", "Now", "Pause"].forEach((label) => {
-      expect(screen.getByText(label)).toBeInTheDocument();
-    });
+    expect(screen.getByRole("button", { name: "Smart Charge is on" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Other options" }))
+      .toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Solar" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Now" }))
+      .not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pause" }))
+      .not.toBeInTheDocument();
 
     expect(screen.getByText("Show details")).toBeInTheDocument();
     expect(screen.queryByText("Start Charging")).not.toBeInTheDocument();
     expect(screen.queryByText(/Priority 1/)).not.toBeInTheDocument();
     expect(screen.queryByText("16A")).not.toBeInTheDocument();
+  });
+
+  it("shows an upcoming programmed charge without opening details", () => {
+    renderVC({
+      scheduledCharge: {
+        scheduleId: "night-charge",
+        status: "upcoming",
+        title: "Charge programmed for tonight",
+        detail: "23:10–04:40 · Target 80%",
+      },
+    });
+
+    expect(screen.getByTestId("scheduled-charge-notice")).toBeInTheDocument();
+    expect(screen.getByText("Charge programmed for tonight"))
+      .toBeInTheDocument();
+    expect(screen.getByText("23:10–04:40 · Target 80%"))
+      .toBeInTheDocument();
+    expect(screen.getByText("Show details")).toBeInTheDocument();
+    expect(screen.queryByText(/Online · Priority/)).not.toBeInTheDocument();
+  });
+
+  it("makes an active programmed charge explicit", () => {
+    renderVC({
+      state: makeVehicleState({ isCharging: true, chargePowerKw: 7.4 }),
+      controllerReason: "schedule",
+      scheduledCharge: {
+        scheduleId: "active-charge",
+        status: "active",
+        title: "Programmed charge in progress",
+        detail: "Until 06:00 · Target 80%",
+      },
+    });
+
+    expect(screen.getByText("Charging with lower-cost electricity"))
+      .toBeInTheDocument();
+    expect(screen.getByText("Programmed charge in progress"))
+      .toBeInTheDocument();
   });
 
   it("reveals technical controls only after Show details", () => {
@@ -83,20 +128,36 @@ describe("VehicleCard", () => {
     expect(screen.getByText("16A")).toBeInTheDocument();
   });
 
+  it("makes Smart Charge the single primary action", () => {
+    const onChangeMode = vi.fn();
+    renderVC({ mode: "vacation", onChangeMode });
+
+    fireEvent.click(screen.getByRole("button", { name: "Use Smart Charge" }));
+    expect(onChangeMode).toHaveBeenCalledWith("auto");
+  });
+
   it.each<[string, VCProps["mode"]]>([
     ["Solar", "vacation"],
-    ["Smart", "auto"],
     ["Now", "charge_now"],
     ["Pause", "stop"],
-  ])("clicking %s selects %s mode", (label, mode) => {
+  ])("keeps %s inside Other options", (label, mode) => {
     const onChangeMode = vi.fn();
     renderVC({ onChangeMode });
 
-    fireEvent.click(screen.getByText(label));
+    fireEvent.click(screen.getByRole("button", { name: "Other options" }));
+    fireEvent.click(screen.getByRole("button", { name: label }));
     expect(onChangeMode).toHaveBeenCalledWith(mode);
   });
 
-  it.each<[string, Partial<VehicleChargeState>, VCProps["mode"], string | null, string]>([
+  it.each<
+    [
+      string,
+      Partial<VehicleChargeState>,
+      VCProps["mode"],
+      string | null,
+      string,
+    ]
+  >([
     [
       "solar charging",
       { isCharging: true, chargePowerKw: 4.2 },
@@ -118,14 +179,17 @@ describe("VehicleCard", () => {
       null,
       "Charging now",
     ],
-  ])("uses human status copy for %s", (_label, state, mode, reason, expected) => {
-    renderVC({
-      state: makeVehicleState(state),
-      mode,
-      controllerReason: reason,
-    });
-    expect(screen.getByText(expected)).toBeInTheDocument();
-  });
+  ])(
+    "uses human status copy for %s",
+    (_label, state, mode, reason, expected) => {
+      renderVC({
+        state: makeVehicleState(state),
+        mode,
+        controllerReason: reason,
+      });
+      expect(screen.getByText(expected)).toBeInTheDocument();
+    },
+  );
 
   it("makes away charging explicit", () => {
     renderVC({
@@ -140,7 +204,8 @@ describe("VehicleCard", () => {
 
     expect(screen.getByText("Unplugged — Smart ready for next connection"))
       .toBeInTheDocument();
-    expect(screen.getByText("Next connection: Smart")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Smart Charge is on" }))
+      .toBeInTheDocument();
     expect(screen.queryByText("Solar")).not.toBeInTheDocument();
     expect(screen.queryByText("Now")).not.toBeInTheDocument();
   });
@@ -160,8 +225,10 @@ describe("VehicleCard", () => {
     renderVC({ vehicleError: "Tesla API rate limited" });
 
     expect(screen.getByText("Vehicle connection problem")).toBeInTheDocument();
-    expect(screen.getByText(/It will keep trying automatically/)).toBeInTheDocument();
-    expect(screen.queryByText("Tesla API rate limited")).not.toBeInTheDocument();
+    expect(screen.getByText(/It will keep trying automatically/))
+      .toBeInTheDocument();
+    expect(screen.queryByText("Tesla API rate limited")).not
+      .toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Show details"));
     expect(screen.getByText(/Connection detail: Tesla API rate limited/))
@@ -226,7 +293,7 @@ describe("VehicleCard", () => {
     expect(onSetAmps).toHaveBeenNthCalledWith(2, 17);
   });
 
-  it("keeps refresh inside technical details", () => {
+  it("keeps refresh inside technical details", async () => {
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     renderVC({ onRefresh });
 
@@ -234,14 +301,13 @@ describe("VehicleCard", () => {
     fireEvent.click(screen.getByText("Show details"));
     fireEvent.click(screen.getByText("Refresh"));
 
-    expect(onRefresh).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
   });
 
-  it("does not render the hidden location map anymore", () => {
-    const { container } = renderVC({
-      lastLocation: { latitude: 37.7749, longitude: -122.4194 },
-    });
-    expect(container.querySelector('img[src*="tile.openstreetmap.org"]')).toBeNull();
+  it("does not render a GPS map on the home card", () => {
+    const { container } = renderVC();
+    expect(container.querySelector('img[src*="tile.openstreetmap.org"]'))
+      .toBeNull();
   });
 
   it("shows a skeleton while loading", () => {

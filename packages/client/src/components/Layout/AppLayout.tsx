@@ -110,10 +110,10 @@ export function AppLayout(
         >
           <picture className={styles.brandLogo}>
             <source
-              srcSet="/ev-solar-logo-dark-exact.webp"
+              srcSet="/ev-solar-logo-dark.svg"
               media="(prefers-color-scheme: dark)"
             />
-            <img src="/ev-solar-logo-exact.webp" alt="E.V. Solar" />
+            <img src="/ev-solar-logo.svg" alt="E.V. Solar" />
           </picture>
         </div>
         <nav className={styles.nav}>
@@ -173,7 +173,7 @@ export function AppLayout(
       <main className={styles.main}>{children}</main>
       <footer className={styles.footer}>
         <Text size="1" color="gray">
-          E.V. Solar · {" "}
+          E.V. Solar ·{"  "}
           <a href={SOURCE_URL} target="_blank" rel="noreferrer">Source code</a>
           {" · "}
           <a href={LICENSE_URL} target="_blank" rel="noreferrer">AGPL-3.0</a>
