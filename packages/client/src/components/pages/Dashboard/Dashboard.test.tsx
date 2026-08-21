@@ -319,10 +319,10 @@ describe("Dashboard", () => {
 
     h.render();
 
-    expect(screen.getByText("The grid is supporting this charge"))
-      .toBeInTheDocument();
-    expect(screen.queryByText("Smart Charge is using your solar"))
-      .not.toBeInTheDocument();
+    expect(screen.getByTestId("vehicle-card"))
+      .toHaveAttribute("data-grid-w", "4200");
+    expect(screen.getByTestId("vehicle-card"))
+      .toHaveAttribute("data-solar-w", "0");
   });
 
   it("renders no vehicles state when vehicles array is empty", () => {
