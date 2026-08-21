@@ -548,32 +548,36 @@ function readableList(items: string[]): string {
   return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
+function dominantProducer(transfers: EnergyTransfer[]): Producer {
+  const producers: Producer[] = ["solar", "battery", "grid"];
+  return producers.reduce((largest, source) => {
+    const sourcePowerW = transferPower(
+      transfers,
+      (transfer) => transfer.source === source,
+    );
+    const largestPowerW = transferPower(
+      transfers,
+      (transfer) => transfer.source === largest,
+    );
+    if (sourcePowerW > largestPowerW) return source;
+    return largest;
+  }, "solar");
+}
+
+function destinationLabel(destination: Consumer): string {
+  if (destination.startsWith("vehicle:")) return "car";
+  return destination;
+}
+
 function flowSummary(
   loading: boolean,
   transfers: EnergyTransfer[],
 ): string {
   if (loading) return "Connecting to live energy";
-  const producers: Producer[] = ["solar", "battery", "grid"];
-  const dominant = producers.reduce(
-    (largest, source) =>
-      transferPower(
-          transfers,
-          (transfer) => transfer.source === source,
-        ) > transferPower(
-          transfers,
-          (transfer) => transfer.source === largest,
-        )
-        ? source
-        : largest,
-    "solar",
-  );
+  const dominant = dominantProducer(transfers);
   const destinations = transfers
     .filter((transfer) => transfer.source === dominant)
-    .map((transfer) =>
-      transfer.destination.startsWith("vehicle:")
-        ? "car"
-        : transfer.destination
-    );
+    .map((transfer) => destinationLabel(transfer.destination));
   const uniqueDestinations = [...new Set(destinations)];
   if (uniqueDestinations.length === 0) return "Energy is balanced";
   const sourceLabels: Record<Producer, string> = {
@@ -584,6 +588,278 @@ function flowSummary(
   return `${sourceLabels[dominant]} is flowing to ${
     readableList(uniqueDestinations)
   }`;
+}
+
+function batteryRole(charging: boolean, discharging: boolean): FlowRole {
+  if (charging) return "destination";
+  if (discharging) return "source";
+  return "idle";
+}
+
+function batteryStatus(charging: boolean, discharging: boolean): string {
+  if (charging) return "Charging";
+  if (discharging) return "Discharging";
+  return "Idle";
+}
+
+function gridRole(importing: boolean, exporting: boolean): FlowRole {
+  if (importing) return "source";
+  if (exporting) return "destination";
+  return "idle";
+}
+
+function SolarEndpoint({
+  solarW,
+  loading,
+  transfers,
+}: {
+  solarW: number;
+  loading: boolean;
+  transfers: EnergyTransfer[];
+}) {
+  const streams = transferStreams(
+    transfers,
+    (transfer) => transfer.source === "solar",
+  );
+  const active = solarW >= ACTIVE_FLOW_W;
+  return (
+    <div className={styles.endpoint}>
+      <FlowBranch
+        testId="flow-solar"
+        direction="up"
+        role={active ? "source" : "idle"}
+        limitW={INVERTER_LIMIT_W}
+        streams={streams}
+      />
+      <FlowNode
+        testId="node-solar"
+        icon={<Sun size={28} />}
+        label="Solar"
+        value={loading ? "---" : kwValue(solarW)}
+        tone="solar"
+        role={active ? "source" : "idle"}
+        active={active}
+        powerW={solarW}
+        limitW={INVERTER_LIMIT_W}
+      />
+    </div>
+  );
+}
+
+function BatteryEndpoint({
+  data,
+  batteryW,
+  loading,
+  transfers,
+}: {
+  data: EnergyData | null;
+  batteryW: number;
+  loading: boolean;
+  transfers: EnergyTransfer[];
+}) {
+  const charging = batteryW < -ACTIVE_FLOW_W;
+  const discharging = batteryW > ACTIVE_FLOW_W;
+  const role = batteryRole(charging, discharging);
+  const streams = transferStreams(
+    transfers,
+    (transfer) => {
+      if (charging) return transfer.destination === "battery";
+      return transfer.source === "battery";
+    },
+  );
+  return (
+    <div className={styles.endpoint}>
+      <FlowBranch
+        testId="flow-battery"
+        direction={charging ? "down" : "up"}
+        role={role}
+        limitW={INVERTER_LIMIT_W}
+        streams={streams}
+      />
+      <FlowNode
+        testId="node-battery"
+        icon={
+          <HomeBatteryIcon
+            soc={data?.batterySoc ?? null}
+            charging={charging}
+          />
+        }
+        label="Battery"
+        value={loading ? "---" : kwValue(Math.abs(batteryW))}
+        tone="battery"
+        role={role}
+        active={charging || discharging}
+        powerW={batteryW}
+        limitW={INVERTER_LIMIT_W}
+      >
+        {!loading && data?.batterySoc != null && (
+          <div className={styles.nodeMeta}>
+            {Math.round(data.batterySoc)}% · {batteryStatus(
+              charging,
+              discharging,
+            )}
+          </div>
+        )}
+      </FlowNode>
+    </div>
+  );
+}
+
+function HomeEndpoint({
+  homeW,
+  loading,
+  transfers,
+}: {
+  homeW: number;
+  loading: boolean;
+  transfers: EnergyTransfer[];
+}) {
+  const streams = transferStreams(
+    transfers,
+    (transfer) => transfer.destination === "home",
+  );
+  const active = transferPower(
+    transfers,
+    (transfer) => transfer.destination === "home",
+  ) >= ACTIVE_FLOW_W;
+  return (
+    <div className={styles.endpoint}>
+      <FlowBranch
+        testId="flow-home"
+        direction="down"
+        role={active ? "destination" : "idle"}
+        limitW={GRID_LIMIT_W}
+        streams={streams}
+      />
+      <FlowNode
+        testId="node-home"
+        icon={<Home size={28} />}
+        label="Home"
+        value={loading ? "---" : kwValue(homeW)}
+        tone="home"
+        role={active ? "destination" : "idle"}
+        active={active}
+        powerW={homeW}
+        limitW={GRID_LIMIT_W}
+      />
+    </div>
+  );
+}
+
+function GridEndpoint({
+  gridW,
+  loading,
+  transfers,
+}: {
+  gridW: number;
+  loading: boolean;
+  transfers: EnergyTransfer[];
+}) {
+  const importing = gridW > ACTIVE_FLOW_W;
+  const exporting = gridW < -ACTIVE_FLOW_W;
+  const role = gridRole(importing, exporting);
+  const streams = transferStreams(
+    transfers,
+    (transfer) => {
+      if (importing) return transfer.source === "grid";
+      return transfer.destination === "grid";
+    },
+  );
+  return (
+    <div className={styles.endpoint}>
+      <FlowBranch
+        testId="flow-grid"
+        direction={exporting ? "down" : "up"}
+        role={role}
+        limitW={GRID_LIMIT_W}
+        streams={streams}
+      />
+      <FlowNode
+        testId="node-grid"
+        icon={<Zap size={28} />}
+        label="Grid"
+        value={loading ? "---" : kwValue(Math.abs(gridW))}
+        tone={exporting ? "grid-export" : "grid-import"}
+        role={role}
+        active={importing || exporting}
+        powerW={gridW}
+        limitW={GRID_LIMIT_W}
+      >
+        {!loading && (importing || exporting) && (
+          <div className={styles.nodeMeta}>
+            {exporting ? "Export" : "Import"}
+          </div>
+        )}
+      </FlowNode>
+    </div>
+  );
+}
+
+function EnergyEndpoints({
+  data,
+  solarW,
+  batteryW,
+  homeW,
+  gridW,
+  hasBattery,
+  loading,
+  transfers,
+}: {
+  data: EnergyData | null;
+  solarW: number;
+  batteryW: number;
+  homeW: number;
+  gridW: number;
+  hasBattery: boolean;
+  loading: boolean;
+  transfers: EnergyTransfer[];
+}) {
+  return (
+    <div
+      className={`${styles.endpoints} ${
+        hasBattery ? styles.withBattery : styles.withoutBattery
+      }`}
+    >
+      <SolarEndpoint solarW={solarW} loading={loading} transfers={transfers} />
+      {hasBattery && (
+        <BatteryEndpoint
+          data={data}
+          batteryW={batteryW}
+          loading={loading}
+          transfers={transfers}
+        />
+      )}
+      <HomeEndpoint homeW={homeW} loading={loading} transfers={transfers} />
+      <GridEndpoint gridW={gridW} loading={loading} transfers={transfers} />
+    </div>
+  );
+}
+
+function VehicleFlows({
+  vehicles,
+  loading,
+  transfers,
+}: {
+  vehicles: ChargingVehicleFlow[];
+  loading: boolean;
+  transfers: EnergyTransfer[];
+}) {
+  if (vehicles.length === 0) return null;
+  return (
+    <div className={styles.vehicleFlows}>
+      {vehicles.map((vehicle) => (
+        <VehicleNode
+          key={vehicle.id}
+          vehicle={vehicle}
+          loading={loading}
+          streams={transferStreams(
+            transfers,
+            (transfer) => transfer.destination === `vehicle:${vehicle.id}`,
+          )}
+        />
+      ))}
+    </div>
+  );
 }
 
 export function EnergyFlowDiagram({
@@ -601,10 +877,6 @@ export function EnergyFlowDiagram({
   const homeW = Math.max(0, (data?.homeConsumptionW ?? 0) - totalVehicleW);
   const hasBattery = data?.batteryPowerW !== null &&
     data?.batteryPowerW !== undefined;
-  const batteryCharging = batteryW < -ACTIVE_FLOW_W;
-  const batteryDischarging = batteryW > ACTIVE_FLOW_W;
-  const gridImporting = gridW > ACTIVE_FLOW_W;
-  const gridExporting = gridW < -ACTIVE_FLOW_W;
   const dominant = dominantSupply(solarW, batteryW, gridW);
   const transfers = energyTransfers({
     solarW,
@@ -613,47 +885,6 @@ export function EnergyFlowDiagram({
     homeW,
     vehicles: chargingVehicles,
   });
-  const routes = busRoutes(hasBattery, transfers, chargingVehicles);
-  const solarTransferW = transferPower(
-    transfers,
-    (transfer) => transfer.source === "solar",
-  );
-  const batteryTransferW = transferPower(
-    transfers,
-    (transfer) => transfer.source === "battery" ||
-      transfer.destination === "battery",
-  );
-  const homeTransferW = transferPower(
-    transfers,
-    (transfer) => transfer.destination === "home",
-  );
-  const gridTransferW = transferPower(
-    transfers,
-    (transfer) => transfer.source === "grid" ||
-      transfer.destination === "grid",
-  );
-  const solarStreams = transferStreams(
-    transfers,
-    (transfer) => transfer.source === "solar",
-  );
-  const batteryStreams = transferStreams(
-    transfers,
-    (transfer) => batteryCharging
-      ? transfer.destination === "battery"
-      : transfer.source === "battery",
-  );
-  const homeStreams = transferStreams(
-    transfers,
-    (transfer) => transfer.destination === "home",
-  );
-  const gridStreams = transferStreams(
-    transfers,
-    (transfer) => gridImporting
-      ? transfer.source === "grid"
-      : transfer.destination === "grid",
-  );
-  const summary = flowSummary(loading, transfers);
-
   return (
     <section
       className={styles.shell}
@@ -670,7 +901,7 @@ export function EnergyFlowDiagram({
             data-testid="flow-summary"
             aria-live="polite"
           >
-            {summary}
+            {flowSummary(loading, transfers)}
           </div>
         </div>
         <div className={styles.liveSignal} data-active={dominant.source !== "idle"}>
@@ -678,150 +909,25 @@ export function EnergyFlowDiagram({
           Live
         </div>
       </header>
-
-      {chargingVehicles.length > 0 && (
-        <div className={styles.vehicleFlows}>
-          {chargingVehicles.map((vehicle) => (
-            <VehicleNode
-              key={vehicle.id}
-              vehicle={vehicle}
-              loading={loading}
-              streams={transferStreams(
-                transfers,
-                (transfer) =>
-                  transfer.destination === `vehicle:${vehicle.id}`,
-              )}
-            />
-          ))}
-        </div>
-      )}
-
-      <EnergyBus source={dominant.source} routes={routes} />
-
-      <div
-        className={`${styles.endpoints} ${
-          hasBattery ? styles.withBattery : styles.withoutBattery
-        }`}
-      >
-        <div className={styles.endpoint}>
-          <FlowBranch
-            testId="flow-solar"
-            direction="up"
-            role={solarTransferW >= ACTIVE_FLOW_W ? "source" : "idle"}
-            limitW={INVERTER_LIMIT_W}
-            streams={solarStreams}
-          />
-          <FlowNode
-            testId="node-solar"
-            icon={<Sun size={28} />}
-            label="Solar"
-            value={loading ? "---" : kwValue(solarW)}
-            tone="solar"
-            role={solarW >= ACTIVE_FLOW_W ? "source" : "idle"}
-            active={solarW >= ACTIVE_FLOW_W}
-            powerW={solarW}
-            limitW={INVERTER_LIMIT_W}
-          />
-        </div>
-
-        {hasBattery && (
-          <div className={styles.endpoint}>
-            <FlowBranch
-              testId="flow-battery"
-              direction={batteryCharging ? "down" : "up"}
-              role={
-                batteryCharging
-                  ? "destination"
-                  : batteryDischarging
-                  ? "source"
-                  : "idle"
-              }
-              limitW={INVERTER_LIMIT_W}
-              streams={batteryStreams}
-            />
-            <FlowNode
-              testId="node-battery"
-              icon={
-                <HomeBatteryIcon
-                  soc={data?.batterySoc ?? null}
-                  charging={batteryCharging}
-                />
-              }
-              label="Battery"
-              value={loading ? "---" : kwValue(Math.abs(batteryW))}
-              tone="battery"
-              role={
-                batteryCharging
-                  ? "destination"
-                  : batteryDischarging
-                  ? "source"
-                  : "idle"
-              }
-              active={batteryCharging || batteryDischarging}
-              powerW={batteryW}
-              limitW={INVERTER_LIMIT_W}
-            >
-              {!loading && data?.batterySoc != null && (
-                <div className={styles.nodeMeta}>
-                  {Math.round(data.batterySoc)}% · {batteryCharging
-                    ? "Charging"
-                    : batteryDischarging
-                    ? "Discharging"
-                    : "Idle"}
-                </div>
-              )}
-            </FlowNode>
-          </div>
-        )}
-
-        <div className={styles.endpoint}>
-          <FlowBranch
-            testId="flow-home"
-            direction="down"
-            role={homeTransferW >= ACTIVE_FLOW_W ? "destination" : "idle"}
-            limitW={GRID_LIMIT_W}
-            streams={homeStreams}
-          />
-          <FlowNode
-            testId="node-home"
-            icon={<Home size={28} />}
-            label="Home"
-            value={loading ? "---" : kwValue(homeW)}
-            tone="home"
-            role={homeW >= ACTIVE_FLOW_W ? "destination" : "idle"}
-            active={homeW >= ACTIVE_FLOW_W}
-            powerW={homeW}
-            limitW={GRID_LIMIT_W}
-          />
-        </div>
-
-        <div className={styles.endpoint}>
-          <FlowBranch
-            testId="flow-grid"
-            direction={gridExporting ? "down" : "up"}
-            role={gridImporting ? "source" : gridExporting ? "destination" : "idle"}
-            limitW={GRID_LIMIT_W}
-            streams={gridStreams}
-          />
-          <FlowNode
-            testId="node-grid"
-            icon={<Zap size={28} />}
-            label="Grid"
-            value={loading ? "---" : kwValue(Math.abs(gridW))}
-            tone={gridExporting ? "grid-export" : "grid-import"}
-            role={gridImporting ? "source" : gridExporting ? "destination" : "idle"}
-            active={gridImporting || gridExporting}
-            powerW={gridW}
-            limitW={GRID_LIMIT_W}
-          >
-            {!loading && (gridImporting || gridExporting) && (
-              <div className={styles.nodeMeta}>
-                {gridExporting ? "Export" : "Import"}
-              </div>
-            )}
-          </FlowNode>
-        </div>
-      </div>
+      <VehicleFlows
+        vehicles={chargingVehicles}
+        loading={loading}
+        transfers={transfers}
+      />
+      <EnergyBus
+        source={dominant.source}
+        routes={busRoutes(hasBattery, transfers, chargingVehicles)}
+      />
+      <EnergyEndpoints
+        data={data}
+        solarW={solarW}
+        batteryW={batteryW}
+        homeW={homeW}
+        gridW={gridW}
+        hasBattery={hasBattery}
+        loading={loading}
+        transfers={transfers}
+      />
     </section>
   );
 }
