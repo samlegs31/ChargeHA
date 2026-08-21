@@ -298,25 +298,10 @@ describe("Dashboard", () => {
     expect(screen.getByTestId("energy-flow")).toBeInTheDocument();
   });
 
-  it("shows a local and explainable Solar Intelligence recommendation", () => {
-    h.setVehicles([makeVehicle({ mode: "auto" })]);
-    h.setEnergy({
-      realtime: {
-        solarProductionW: 6000,
-        homeConsumptionW: 3000,
-        gridPowerW: -3000,
-      },
-    });
-
+  it("keeps the Solar Intelligence placeholder off the home screen", () => {
     h.render();
 
-    expect(screen.getByText("Solar Intelligence")).toBeInTheDocument();
-    expect(screen.getByText("Solar surplus is ready for your car"))
-      .toBeInTheDocument();
-    expect(screen.getByText("Why:")).toBeInTheDocument();
-    expect(screen.getByText(/3\.0 kW is being exported/))
-      .toBeInTheDocument();
-    expect(screen.getByText(/Calculated locally/)).toBeInTheDocument();
+    expect(screen.queryByText("Solar Intelligence")).not.toBeInTheDocument();
   });
 
   it("does not describe grid-supported charging as solar charging", () => {
@@ -334,10 +319,10 @@ describe("Dashboard", () => {
 
     h.render();
 
-    expect(screen.getByText("The grid is supporting this charge"))
-      .toBeInTheDocument();
-    expect(screen.queryByText("Smart Charge is using your solar"))
-      .not.toBeInTheDocument();
+    expect(screen.getByTestId("vehicle-card"))
+      .toHaveAttribute("data-grid-w", "4200");
+    expect(screen.getByTestId("vehicle-card"))
+      .toHaveAttribute("data-solar-w", "0");
   });
 
   it("renders no vehicles state when vehicles array is empty", () => {

@@ -23,20 +23,7 @@
 }
 
 .brandLogo {
-  display: block;
-  width: min(250px, 100%);
-}
-
-.logo {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-@media (prefers-color-scheme: dark) {
-  .logo {
-    mix-blend-mode: lighten;
-  }
+  font-size: clamp(36px, 11vw, 46px);
 }
 
 .formWrapper {

@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { BrandLogo } from "../BrandLogo/BrandLogo.tsx";
 import styles from "./AppLayout.module.css";
 
 export type Page =
@@ -108,13 +109,7 @@ export function AppLayout(
           onClick={() => handleNavigate("dashboard")}
           aria-label="E.V. Solar"
         >
-          <picture className={styles.brandLogo}>
-            <source
-              srcSet="/ev-solar-logo-dark.svg"
-              media="(prefers-color-scheme: dark)"
-            />
-            <img src="/ev-solar-logo.svg" alt="E.V. Solar" />
-          </picture>
+          <BrandLogo className={styles.brandLogo} alt="" />
         </div>
         <nav className={styles.nav}>
           {NAV_ITEMS.map(({ page, label }) => (
