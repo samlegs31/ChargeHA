@@ -18,7 +18,6 @@ import { VehicleSilhouetteIcon } from "../../icons/VehicleSilhouetteIcon.tsx";
 import { SolarForecastInline } from "../../VehicleCard/SolarForecastInline.tsx";
 import { trpc } from "../../../trpc.ts";
 import { useVehicleSolarGrid } from "./energyHelpers.ts";
-import { SolarIntelligenceBanner } from "./SolarIntelligenceBanner.tsx";
 import {
   getScheduledChargeDisplay,
   type ScheduledChargeDisplay,
@@ -408,8 +407,6 @@ export function VehicleList(
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <SolarIntelligenceBanner data={realtime} vehicles={vehicles} />
-
       {/* Vehicle section — one card per configured vehicle */}
       <Text
         size="2"

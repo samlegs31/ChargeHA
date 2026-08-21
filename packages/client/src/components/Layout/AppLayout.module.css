@@ -27,21 +27,7 @@
 }
 
 .brandLogo {
-  display: block;
-  width: 164px;
-  line-height: 0;
-}
-
-.brandLogo img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-@media (prefers-color-scheme: dark) {
-  .brandLogo img {
-    mix-blend-mode: lighten;
-  }
+  font-size: 25px;
 }
 
 .nav {
@@ -123,7 +109,7 @@
   }
 
   .brandLogo {
-    width: 142px;
+    font-size: 22px;
   }
 
   .nav {

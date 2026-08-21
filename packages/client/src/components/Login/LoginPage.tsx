@@ -1,4 +1,5 @@
 import { Text } from "@radix-ui/themes";
+import { BrandLogo } from "../BrandLogo/BrandLogo.tsx";
 import { LocalLoginForm } from "./LocalLoginForm.tsx";
 import { OidcLoginButton } from "./OidcLoginButton.tsx";
 import styles from "./LoginPage.module.css";
@@ -27,17 +28,7 @@ export function LoginPage({ authMode, onSuccess, errorCode }: LoginPageProps) {
     <div className={styles.loginWrapper}>
       <div className={styles.loginCard}>
         <div className={styles.brand}>
-          <picture className={styles.brandLogo}>
-            <source
-              srcSet="/ev-solar-logo-dark.svg"
-              media="(prefers-color-scheme: dark)"
-            />
-            <img
-              src="/ev-solar-logo.svg"
-              alt="E.V. Solar"
-              className={styles.logo}
-            />
-          </picture>
+          <BrandLogo className={styles.brandLogo} />
         </div>
 
         {errorMessage && (
