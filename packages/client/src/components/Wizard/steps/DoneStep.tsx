@@ -108,7 +108,7 @@ export const doneStep: StepDef = {
 function DoneSummary({ onSkipTo }: StepProps) {
   const { navigate } = useRouter();
   // Always refetch on mount so the summary reflects the just-finished setup,
-  // not a stale cache from an earlier step or the quick demo setup.
+  // not a stale cache from an earlier step.
   const fresh = { refetchOnMount: "always" } as const;
   const { data: systemConfig, isLoading: systemLoading } = trpc.config.system
     .get.useQuery(undefined, fresh);

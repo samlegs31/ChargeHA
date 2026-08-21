@@ -5,11 +5,9 @@ import { renderWithProviders } from "../../../test-utils.tsx";
 import { vehicleTypeStep } from "./VehicleTypeStep.tsx";
 import { StepNextHarness } from "./test-helpers/StepNextHarness.tsx";
 
-const { mockAdvance, mockDemoMutate, captured, mockVehicleList } = vi
+const { mockAdvance, mockVehicleList } = vi
   .hoisted(() => ({
     mockAdvance: vi.fn(),
-    mockDemoMutate: vi.fn(),
-    captured: { demoOnSuccess: undefined as (() => void) | undefined },
     mockVehicleList: vi.fn(() => ({
       data: { vehicles: [] as { adapterType: string }[] },
     })),
@@ -26,9 +24,6 @@ vi.mock("../../../hooks/useWizardState.ts", () => ({
 vi.mock("../../../trpc.ts", () => ({
   widenTrpc: vi.fn(),
   trpc: {
-    useUtils: vi.fn(() => ({
-      vehicle: { list: { invalidate: vi.fn() } },
-    })),
     tesla: {
       getConfig: {
         useQuery: vi.fn(() => ({ data: {}, isLoading: false, error: null })),
@@ -37,43 +32,13 @@ vi.mock("../../../trpc.ts", () => ({
     vehicle: {
       list: { useQuery: mockVehicleList },
     },
-    wizard: {
-      demoSetup: {
-        useMutation: vi.fn((opts?: { onSuccess?: () => void }) => {
-          captured.demoOnSuccess = opts?.onSuccess;
-          return {
-            mutate: mockDemoMutate,
-            isPending: false,
-            isError: false,
-            error: null,
-          };
-        }),
-      },
-    },
   },
 }));
-
-const { mockIsDemoMode } = vi.hoisted(() => ({
-  mockIsDemoMode: vi.fn(() => false),
-}));
-
-vi.mock("../../../lib/featureFlags.ts", async (orig) => {
-  const actual = await orig() as typeof import("../../../lib/featureFlags.ts");
-  return {
-    ...actual,
-    demoMode: { ...actual.demoMode, isActive: mockIsDemoMode },
-  };
-});
 
 describe("VehicleTypeStep", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIsDemoMode.mockReturnValue(false);
     mockVehicleList.mockReturnValue({ data: { vehicles: [] } });
-    captured.demoOnSuccess = undefined;
-    mockDemoMutate.mockImplementation(() => {
-      captured.demoOnSuccess?.();
-    });
   });
 
   afterEach(() => {

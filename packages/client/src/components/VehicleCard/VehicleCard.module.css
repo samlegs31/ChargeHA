@@ -53,7 +53,7 @@
   height: 8px;
   background: var(--gray-a4);
   border-radius: 999px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .batteryFill {
@@ -70,6 +70,84 @@
   border-radius: 2px;
   background: var(--gray-11);
   opacity: 0.7;
+}
+
+.chargeLimitSlider {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  width: 50%;
+  height: 44px;
+  margin: 0;
+  transform: translateY(-50%);
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.chargeLimitSlider:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.chargeLimitSlider::-webkit-slider-runnable-track {
+  height: 8px;
+  border: 0;
+  background: transparent;
+}
+
+.chargeLimitSlider::-webkit-slider-thumb {
+  width: 22px;
+  height: 22px;
+  margin-top: -7px;
+  border: 3px solid var(--color-vehicle);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2),
+    0 0 0 4px color-mix(in srgb, var(--color-vehicle) 14%, transparent);
+  background: var(--color-panel-solid);
+  appearance: none;
+  -webkit-appearance: none;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+
+.chargeLimitSlider:not(:disabled):active::-webkit-slider-thumb {
+  transform: scale(1.08);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.24),
+    0 0 0 7px color-mix(in srgb, var(--color-vehicle) 18%, transparent);
+}
+
+.chargeLimitSlider::-moz-range-track {
+  height: 8px;
+  border: 0;
+  background: transparent;
+}
+
+.chargeLimitSlider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 3px solid var(--color-vehicle);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2),
+    0 0 0 4px color-mix(in srgb, var(--color-vehicle) 14%, transparent);
+  background: var(--color-panel-solid);
+}
+
+.chargeLimitSlider:focus-visible {
+  outline: none;
+}
+
+.chargeLimitSlider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-vehicle) 25%,
+    transparent);
+}
+
+.chargeLimitError {
+  display: block;
+  margin-top: 8px;
+  text-align: right;
 }
 
 .status {

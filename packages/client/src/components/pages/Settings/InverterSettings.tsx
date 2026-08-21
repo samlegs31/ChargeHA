@@ -17,11 +17,9 @@ import { trpc } from "../../../trpc.ts";
 import { useRouter } from "../../../hooks/useRouter.ts";
 import { clearPluginOnboarding } from "../../../hooks/usePluginOnboardingState.ts";
 import {
-  energyPluginOptions,
   energyPluginSteps,
   pluginSettingsComponents,
 } from "@chargeha/plugins/componentRegistry";
-import { demoMode } from "../../../lib/featureFlags.ts";
 
 function PluginSelect(
   { value, onChange, pluginsByVendor, disabledIds }: {
@@ -143,8 +141,7 @@ export function InverterSettings() {
   // Group plugins by vendor for the dropdown
   const pluginsByVendor = groupPluginsByVendor(plugins ?? []);
 
-  // In demo, disable energy plugins the demo can't serve (Fronius local/cloud).
-  const disabledIds = demoMode.blockedPlugins(energyPluginOptions);
+  const disabledIds = new Set<string>();
 
   // Resolve the settings component for the currently selected adapter
   const selectedPlugin = (plugins ?? []).find(

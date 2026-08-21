@@ -148,6 +148,12 @@ vi.mock("../../../trpc.ts", () => ({
       },
     },
     vehicle: {
+      setChargeLimit: {
+        useMutation: vi.fn(() => ({
+          mutateAsync: vi.fn().mockResolvedValue({ success: true }),
+          isPending: false,
+        })),
+      },
       command: {
         useMutation: vi.fn(() => ({
           mutate: vi.fn(),
@@ -171,6 +177,11 @@ vi.mock("../../../trpc.ts", () => ({
       config: {
         systemAlert: {
           invalidate: dashboardMocks.invalidateConfig,
+        },
+      },
+      vehicle: {
+        list: {
+          setData: vi.fn(),
         },
       },
     })),

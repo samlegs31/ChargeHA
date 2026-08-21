@@ -28,7 +28,7 @@ export interface NotificationProvider {
 }
 
 // ---- Provider Config Field Definitions (for UI) ----
-// Moved to @chargeha/shared so the client (settings UI + demo) can use them
+// Moved to @chargeha/shared so the client settings UI can use them
 // without importing server code. Re-exported here for existing server callers.
 export {
   PROVIDER_CONFIG_FIELDS,

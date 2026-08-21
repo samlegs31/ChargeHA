@@ -395,6 +395,76 @@ export class VehicleManager {
     }
   }
 
+  /** Set the charge limit without polling or waking first. The cached plug
+   *  state is checked before the plugin command path can perform a wake. */
+  async setChargeLimit(
+    vehicleId: string,
+    percent: number,
+    ctx: CallContext,
+  ): Promise<CommandResult> {
+    const entry = this.vehicles.get(vehicleId);
+    if (!entry) return { success: false, error: "Vehicle not registered" };
+
+    if (!Number.isInteger(percent) || percent < 50 || percent > 100) {
+      return {
+        success: false,
+        error: "Charge limit must be between 50 and 100%",
+      };
+    }
+
+    const state = await this.getState(vehicleId);
+    if (!state?.isPluggedIn) {
+      return {
+        success: false,
+        error: "Vehicle must be plugged in to change the charge limit",
+      };
+    }
+    if (Math.round(state.chargeLimit) === percent) {
+      return { success: true, state };
+    }
+
+    const middleware = entry.middleware;
+    if (typeof middleware.setChargeLimit !== "function") {
+      return {
+        success: false,
+        error: "Charge-limit control is not supported by this vehicle",
+      };
+    }
+
+    const { backedOff, remainingMs } = this.isBackedOff(vehicleId);
+    if (backedOff) {
+      this.logger.info(
+        `Command backoff active for ${vehicleId}, ${
+          Math.round((remainingMs ?? 0) / 1000)
+        }s remaining`,
+      );
+      return {
+        success: false,
+        error: "Vehicle control is temporarily unavailable",
+      };
+    }
+
+    try {
+      const ok = await middleware.setChargeLimit(percent, ctx);
+      if (!ok) {
+        throw new Error(`setChargeLimit(${percent}) rejected by vehicle`);
+      }
+
+      this.resetCommandBackoff(vehicleId);
+      this.clearVehicleError(vehicleId);
+      return {
+        success: true,
+        state: (await this.getState(vehicleId)) ?? undefined,
+      };
+    } catch (error) {
+      this.applyCommandBackoff(vehicleId, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   // ── Error tracking ────────────────────────────────────────────────────
 
   reportVehicleError(

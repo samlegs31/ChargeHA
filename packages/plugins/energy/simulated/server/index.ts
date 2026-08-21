@@ -8,7 +8,7 @@ import { createSimulatedEnergyRouter } from "./router.ts";
 
 /**
  * Simulated energy plugin — generates a solar/home/grid curve with no hardware,
- * for testing and demo use.
+ * for development and automated tests.
  */
 export class SimulatedEnergyPlugin implements EnergyPlugin {
   readonly id = "simulated_energy";

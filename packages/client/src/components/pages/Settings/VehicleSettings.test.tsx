@@ -81,7 +81,7 @@ vi.mock("../../../hooks/useSectionConfig.ts", () => ({
 vi.mock("@chargeha/plugins/componentRegistry", () => ({
   pluginSettingsComponents: {} as Record<string, React.FC>,
   vehiclePluginSteps: {} as Record<string, unknown[]>,
-  vehiclePluginOptions: [] as Array<{ id: string; demoAvailable?: boolean }>,
+  vehiclePluginOptions: [] as Array<{ id: string }>,
 }));
 
 describe("VehicleSettings", () => {

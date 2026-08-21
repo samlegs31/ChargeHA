@@ -18,6 +18,7 @@ import type { VehicleChargeState, VehicleMode } from "@chargeha/shared";
 import { formatRelativeTime } from "../../utils/Format.ts";
 import { Spinner } from "../ui/Spinner.tsx";
 import { ErrorBanner } from "../ui/ErrorBanner.tsx";
+import { VehicleBatterySection } from "./VehicleBatterySection.tsx";
 import { VehicleCardDetails } from "./VehicleCardDetails.tsx";
 import styles from "./VehicleCard.module.css";
 
@@ -30,6 +31,7 @@ interface VehicleCardProps {
   onStartCharging: () => void;
   onStopCharging: () => void;
   onSetAmps: (amps: number) => void;
+  onSetChargeLimit?: (percent: number) => Promise<void>;
   onChangeMode: (mode: VehicleMode) => void;
   onNavigateSettings?: () => void;
   solarPowerW?: number;
@@ -63,9 +65,24 @@ const MODE_BUTTONS: {
   color: "orange" | "blue" | "green" | "gray";
   icon: ReactNode;
 }[] = [
-  { value: "vacation", label: "Solar", color: "orange", icon: <Sun size={15} /> },
-  { value: "auto", label: "Smart", color: "blue", icon: <Sparkles size={15} /> },
-  { value: "charge_now", label: "Now", color: "green", icon: <Zap size={15} /> },
+  {
+    value: "vacation",
+    label: "Solar",
+    color: "orange",
+    icon: <Sun size={15} />,
+  },
+  {
+    value: "auto",
+    label: "Smart",
+    color: "blue",
+    icon: <Sparkles size={15} />,
+  },
+  {
+    value: "charge_now",
+    label: "Now",
+    color: "green",
+    icon: <Zap size={15} />,
+  },
   { value: "stop", label: "Pause", color: "gray", icon: <Pause size={15} /> },
 ];
 
@@ -236,41 +253,6 @@ function VehicleModeSection(
   );
 }
 
-function VehicleBatterySection(
-  { batteryPercent, chargeLimitPercent, isCharging }: {
-    batteryPercent: number;
-    chargeLimitPercent: number;
-    isCharging: boolean;
-  },
-) {
-  return (
-    <div className={styles.batterySection}>
-      <div className={styles.batteryTop}>
-        <div>
-          <div className={styles.batteryPercent}>{batteryPercent}%</div>
-          <Text size="1" color="gray">Battery</Text>
-        </div>
-        <Text size="2" color="gray">Limit {chargeLimitPercent}%</Text>
-      </div>
-      <div className={styles.batteryBar}>
-        <div
-          className={styles.batteryFill}
-          style={{
-            width: `${batteryPercent}%`,
-            backgroundColor: isCharging
-              ? "var(--color-charging)"
-              : "var(--color-vehicle)",
-          }}
-        />
-        <div
-          className={styles.chargeLimitMarker}
-          style={{ left: `${chargeLimitPercent}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
 function TechnicalMeta(
   {
     priority,
@@ -293,8 +275,17 @@ function TechnicalMeta(
         {lastUpdatedText ? ` · Updated ${lastUpdatedText}` : ""}
       </Text>
       {onRefresh && (
-        <Button variant="ghost" size="1" color="gray" disabled={refreshing} onClick={onRefresh}>
-          <RefreshCw size={12} className={refreshing ? styles.spinning : undefined} />
+        <Button
+          variant="ghost"
+          size="1"
+          color="gray"
+          disabled={refreshing}
+          onClick={onRefresh}
+        >
+          <RefreshCw
+            size={12}
+            className={refreshing ? styles.spinning : undefined}
+          />
           {refreshing ? "Updating…" : "Refresh"}
         </Button>
       )}
@@ -394,6 +385,7 @@ export function VehicleCard({
   onStartCharging,
   onStopCharging,
   onSetAmps,
+  onSetChargeLimit,
   onChangeMode,
   onNavigateSettings,
   solarPowerW = 0,
@@ -460,6 +452,9 @@ export function VehicleCard({
         batteryPercent={batteryPercent}
         chargeLimitPercent={chargeLimitPercent}
         isCharging={state.isCharging}
+        isPluggedIn={state.isPluggedIn}
+        disabled={disabled}
+        onSetChargeLimit={onSetChargeLimit}
       />
 
       <div className={styles.status}>

@@ -32,7 +32,7 @@ export const simulatedConfigDef = defineSection({});
 
 /**
  * Simulated vehicle plugin — creates SimulatedVehicleAdapter instances for
- * testing and demo use. Pushes aggregated simulated charging load into
+ * development and automated tests. Pushes aggregated simulated charging load into
  * EnergyAdapterManager via `deps.setSimulatedLoad`.
  */
 export class SimulatedVehiclePlugin implements VehiclePlugin {

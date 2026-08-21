@@ -1,6 +1,6 @@
 // Notification provider config-field metadata. Shared so both the server
-// (notifications router / NotificationService) and the client (settings UI,
-// demo handlers) can use it without crossing the server/client boundary.
+// (notifications router / NotificationService) and the client settings UI can
+// use it without crossing the server/client boundary.
 
 export interface ProviderConfigField {
   key: string;

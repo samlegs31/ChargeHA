@@ -1,6 +1,6 @@
 // Browser-safe address geocoding via Photon (OSM). Photon sends
 // `Access-Control-Allow-Origin: *`, so this runs in the server and directly in
-// the browser (demo mode) — one implementation, no duplication.
+// browser clients — one implementation, no duplication.
 
 export class GeocodeError extends Error {
   constructor(

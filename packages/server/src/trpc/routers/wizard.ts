@@ -1,6 +1,5 @@
 import { publicProcedure, router } from "../trpc.ts";
 import {
-  wizardDemoSetupInput,
   wizardPatchStateInput,
   wizardSaveOidcConfigInput,
   wizardSetAuthModeInput,
@@ -18,12 +17,6 @@ export const wizardRouter = router({
   complete: publicProcedure.mutation(async ({ ctx }) => {
     return await ctx.wizardService.complete();
   }),
-
-  demoSetup: publicProcedure
-    .input(wizardDemoSetupInput)
-    .mutation(async ({ ctx, input }) => {
-      return await ctx.wizardService.demoSetup(input);
-    }),
 
   setAuthMode: publicProcedure
     .input(wizardSetAuthModeInput)

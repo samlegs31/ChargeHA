@@ -14,12 +14,14 @@ export class MockMiddleware implements VehicleMiddleware {
   startCalls: string[] = [];
   stopCalls: string[] = [];
   setAmpsCalls: Array<{ amps: number; origin: string }> = [];
+  setChargeLimitCalls: Array<{ percent: number; origin: string }> = [];
   online = true;
   nextState: VehicleChargeState;
   requestStateImpl: (() => Promise<VehicleChargeState | null>) | null = null;
   startResult = true;
   stopResult = true;
   setAmpsResult = true;
+  setChargeLimitResult = true;
   private cached: VehicleChargeState | null = null;
 
   constructor(initialState: VehicleChargeState) {
@@ -64,5 +66,13 @@ export class MockMiddleware implements VehicleMiddleware {
       this.cached = { ...this.cached, chargeAmps: amps };
     }
     return Promise.resolve(this.setAmpsResult);
+  }
+
+  setChargeLimit(percent: number, ctx: { origin: string }): Promise<boolean> {
+    this.setChargeLimitCalls.push({ percent, origin: ctx.origin });
+    if (this.cached && this.setChargeLimitResult) {
+      this.cached = { ...this.cached, chargeLimit: percent };
+    }
+    return Promise.resolve(this.setChargeLimitResult);
   }
 }

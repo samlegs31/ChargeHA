@@ -153,6 +153,9 @@ export interface VehicleMiddleware {
 
   /** Set charging amperage. Wakes the vehicle internally if asleep. */
   setChargeAmps(amps: number, ctx: CallContext): Promise<boolean>;
+
+  /** Set the battery charge limit when supported by the vehicle plugin. */
+  setChargeLimit?(percent: number, ctx: CallContext): Promise<boolean>;
 }
 
 // ── Energy Plugin ───────────────────────────────────────────────────────────

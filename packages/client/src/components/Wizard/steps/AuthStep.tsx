@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Text, TextField } from "@radix-ui/themes";
 import { Globe, KeyRound, ShieldOff } from "lucide-react";
 import { trpc } from "../../../trpc.ts";
-import { demoMode, Feature } from "../../../lib/featureFlags.ts";
 import type { StepDef, WizardNext } from "../flow.ts";
 import styles from "./steps.module.css";
 
@@ -379,8 +378,6 @@ function AuthModes(
     selectMode,
   }: AuthView,
 ) {
-  const oidcEnabled = demoMode.allows(Feature.OidcAuth);
-
   return (
     <div className={styles.stepContainer}>
       <Text as="p" size="3" color="gray">
@@ -411,15 +408,12 @@ function AuthModes(
         <ModeCard
           mode="oidc"
           selected={selectedMode === "oidc"}
-          disabled={!oidcEnabled}
           icon={<Globe size={18} />}
           title="OpenID Connect (OIDC)"
-          description={oidcEnabled
-            ? "Delegate authentication to an external identity provider such as Authentik, Keycloak, or Google."
-            : "Not available in demo mode."}
+          description="Delegate authentication to an external identity provider such as Authentik, Keycloak, or Google."
           onSelect={selectMode}
         />
-        {oidcEnabled && selectedMode === "oidc" && (
+        {selectedMode === "oidc" && (
           <OidcFormFields
             oidcForm={oidcForm}
             setOidcForm={setOidcForm}

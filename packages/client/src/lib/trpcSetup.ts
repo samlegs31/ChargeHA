@@ -8,13 +8,6 @@ import {
 } from "@trpc/client";
 import type { AppRouter } from "../../../server/src/trpc/root.ts";
 import { trpc } from "../trpc.ts";
-import { demoLink } from "./demo/demoLink.ts";
-
-// One of the two deliberate exceptions to going through `demoMode` (see
-// featureFlags.ts): read the literal inline so the bundler statically replaces
-// it and eliminates the demoLink branch — and the whole demo engine — from the
-// real production build. A `demoMode.isActive()` call can't be tree-shaken.
-const isDemoBuild = import.meta.env.VITE_DEMO_MODE === "1";
 
 /** Check whether a tRPC error indicates an UNAUTHORIZED response. */
 export function isUnauthorizedError(error: unknown): boolean {
@@ -71,7 +64,6 @@ queryClient.setQueryDefaults([["vehicle", "list"]], {
 });
 
 const createLinks = (): TRPCLink<AppRouter>[] => {
-  if (isDemoBuild) return [demoLink()];
   return [
     splitLink({
       condition: (op) => op.type === "subscription",

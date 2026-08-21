@@ -31,8 +31,6 @@ describe("WelcomeStep", () => {
       .toBeInTheDocument();
     expect(screen.getByText(/walks you through authentication/))
       .toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Demo Mode/ })).not
-      .toBeInTheDocument();
   });
 
   it("clicking 'Full Setup' calls onAdvance callback", () => {

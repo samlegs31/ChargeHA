@@ -2,7 +2,6 @@ import { ServiceError } from "../lib/ServiceError.ts";
 import type { AppDatabase } from "../db/AppDatabase.ts";
 import type { Logger } from "../lib/Logger.ts";
 import type { TunnelManager } from "./TunnelManager.ts";
-import type { VehicleManager } from "./VehicleManager.ts";
 import type { AuthService, ChangeModeInput } from "./AuthService.ts";
 import { buildSessionCookie } from "./AuthService.ts";
 import { maybeEncrypt } from "../lib/Encryption.ts";
@@ -26,7 +25,6 @@ export class WizardService {
     private encryptionKey: string | null,
     private logger: Logger,
     private tunnelManager: TunnelManager,
-    private vehicleManager: VehicleManager,
     private authService: AuthService,
     private oidcService: OidcService,
   ) {}
@@ -175,41 +173,5 @@ export class WizardService {
     // OidcService.getState() reads the new config on next /auth/oidc/login.
     this.logger.info("Wizard: OIDC config saved (pending verification)");
     return { success: true as const };
-  }
-
-  async demoSetup(input: {
-    adapterType: string;
-    timezone?: string | null;
-  }) {
-    try {
-      await this.db.upsertVehicle({
-        id: "DEMO-001",
-        name: "Demo EV",
-        adapterType: input.adapterType,
-        priority: 1,
-        config: JSON.stringify({ batteryCapacityKwh: 60 }),
-        mode: "auto",
-      });
-
-      await this.db.setConfig("home_latitude", "-33.8688");
-      await this.db.setConfig("home_longitude", "151.2093");
-
-      if (input.timezone) {
-        await this.db.setConfig("timezone", input.timezone);
-      }
-
-      // Fetch the full persisted row (with createdAt/updatedAt) and hand
-      // it to the manager so the vehicle is immediately usable.
-      const row = await this.db.getVehicle("DEMO-001");
-      if (row) await this.vehicleManager.addVehicle(row);
-
-      this.logger.info("Demo setup completed");
-      return { success: true as const };
-    } catch (err) {
-      this.logger.error("Demo setup failed", err);
-      throw new ServiceError("Demo setup failed", "INTERNAL_SERVER_ERROR", {
-        cause: err,
-      });
-    }
   }
 }

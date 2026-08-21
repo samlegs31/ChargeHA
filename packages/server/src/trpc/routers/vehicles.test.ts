@@ -296,4 +296,26 @@ describe("Vehicles tRPC Router", () => {
       ).rejects.toThrow("Vehicle not found");
     });
   });
+
+  describe("vehicle.setChargeLimit", () => {
+    it("sets the charge limit for a plugged-in vehicle", async () => {
+      const data = await caller.vehicle.setChargeLimit({
+        vehicleId: VIN,
+        percent: 90,
+      });
+
+      expect(data.success).toBe(true);
+      expect(data.state?.chargeLimit).toBe(90);
+      expect(createdAdapters[0].commandCalls).toContainEqual({
+        command: "setChargeLimit",
+        args: 90,
+      });
+    });
+
+    it("rejects a charge limit outside 50–100%", async () => {
+      await expect(
+        caller.vehicle.setChargeLimit({ vehicleId: VIN, percent: 49 }),
+      ).rejects.toThrow();
+    });
+  });
 });

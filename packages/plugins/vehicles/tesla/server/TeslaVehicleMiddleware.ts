@@ -206,6 +206,25 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     return ok;
   }
 
+  async setChargeLimit(percent: number, ctx: CallContext): Promise<boolean> {
+    this.logger.debug(`setChargeLimit percent=${percent} origin=${ctx.origin}`);
+    await this.ensureOnline(withSuffix(ctx, "pre"));
+    const ok = await this.adapter.setChargeLimit(percent, ctx);
+    if (ok && this.cachedState) {
+      this.cachedState = {
+        ...this.cachedState,
+        chargeLimit: percent,
+      };
+      this.lastFetchAtMs = 0;
+      this.logger.debug(
+        `setChargeLimit accepted — target=${percent}%, telemetry refresh required`,
+      );
+    } else if (!ok) {
+      await this.refreshCacheAfterRejection(withSuffix(ctx, "post-reject"));
+    }
+    return ok;
+  }
+
   /** Command was rejected by the vehicle (e.g. `is_charging` on charge_start).
    *  Cached state is out of sync with reality — pull fresh vehicle_data so the
    *  next decision loop sees the truth and doesn't retry the same command.

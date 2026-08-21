@@ -48,4 +48,12 @@ export class SimulatedVehicleMiddleware implements VehicleMiddleware {
   setChargeAmps(amps: number, ctx: CallContext): Promise<boolean> {
     return this.adapter.setChargeAmps(amps, ctx);
   }
+
+  async setChargeLimit(percent: number, ctx: CallContext): Promise<boolean> {
+    const ok = await this.adapter.setChargeLimit(percent, ctx);
+    if (ok && this.cachedState) {
+      this.cachedState = { ...this.cachedState, chargeLimit: percent };
+    }
+    return ok;
+  }
 }
