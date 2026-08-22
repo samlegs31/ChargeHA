@@ -411,20 +411,22 @@ describe("TariffSettings", () => {
     expect(mockInvalidateCurrentRate).toHaveBeenCalled();
   });
 
-  it("preset onSuccess invalidates list", () => {
+  it("preset onSuccess invalidates tariff queries", () => {
     renderWithProviders(<TariffSettings />);
     act(() => {
       c.presetOpts.onSuccess?.();
     });
     expect(mockInvalidateList).toHaveBeenCalled();
+    expect(mockInvalidateCurrentRate).toHaveBeenCalled();
   });
 
-  it("add onSuccess invalidates list and resets form", () => {
+  it("add onSuccess invalidates tariff queries and resets form", () => {
     renderWithProviders(<TariffSettings />);
     act(() => {
       c.addOpts.onSuccess?.();
     });
     expect(mockInvalidateList).toHaveBeenCalled();
+    expect(mockInvalidateCurrentRate).toHaveBeenCalled();
   });
 
   it("update onSuccess invalidates list and currentRate", () => {
@@ -436,12 +438,13 @@ describe("TariffSettings", () => {
     expect(mockInvalidateCurrentRate).toHaveBeenCalled();
   });
 
-  it("delete onSuccess invalidates list", () => {
+  it("delete onSuccess invalidates tariff queries", () => {
     renderWithProviders(<TariffSettings />);
     act(() => {
       c.deleteOpts.onSuccess?.();
     });
     expect(mockInvalidateList).toHaveBeenCalled();
+    expect(mockInvalidateCurrentRate).toHaveBeenCalled();
   });
 
   it("displays add mutation error in form", () => {

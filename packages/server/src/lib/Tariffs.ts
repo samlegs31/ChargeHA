@@ -73,6 +73,10 @@ export function getApplicablePeriodForTime(
       const start = parseTimeToMinutes(p.startTime);
       const end = parseTimeToMinutes(p.endTime);
 
+      // Equal boundaries represent a full-day period. This is used by the
+      // built-in flat-rate preset (00:00-00:00).
+      if (start === end) return p.days.includes(dayAbbr);
+
       if (start > end) {
         // An overnight period belongs to the day on which it starts.
         if (minutesSinceMidnight >= start) return p.days.includes(dayAbbr);

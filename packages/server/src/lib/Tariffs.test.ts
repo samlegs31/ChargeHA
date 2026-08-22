@@ -71,6 +71,25 @@ describe("getApplicablePeriodForTime", () => {
     expect(result.ratePerKwh).toBe(15);
   });
 
+  it("treats equal start and end times as a full-day period", () => {
+    const periods = [
+      makePeriod({
+        startTime: "00:00",
+        endTime: "00:00",
+        ratePerKwh: 30,
+        days: ["mon"],
+        label: "Flat Monday",
+      }),
+    ];
+
+    expect(getApplicablePeriodForTime(0, "mon", periods)?.ratePerKwh).toBe(30);
+    expect(getApplicablePeriodForTime(12 * 60, "mon", periods)?.ratePerKwh)
+      .toBe(30);
+    expect(getApplicablePeriodForTime(23 * 60 + 59, "mon", periods)?.ratePerKwh)
+      .toBe(30);
+    expect(getApplicablePeriodForTime(12 * 60, "tue", periods)).toBeNull();
+  });
+
   it("returns the matching period among multiple non-overlapping periods", () => {
     const periods = [
       makePeriod({

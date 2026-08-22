@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { Plus, SunMedium, Trash2 } from "lucide-react";
-import { Button, Switch, Text, TextField } from "@radix-ui/themes";
+import type { ReactNode } from "react";
+import { Battery, Clock3, Gauge, Plus, SunMedium, Trash2 } from "lucide-react";
+import { Button, Select, Switch, Text, TextField } from "@radix-ui/themes";
 import { useMutation } from "@tanstack/react-query";
+import type { SolarForecastConfig } from "@chargeha/shared/configSections";
 import type { SolarArrayConfig } from "@chargeha/shared/forecast";
 import {
   useSolarForecastConfig,
@@ -19,6 +21,38 @@ import {
   SettingsRow,
   SettingsSection,
 } from "./SettingsLayout.tsx";
+
+const HOME_EQUIPMENT_PROFILE = {
+  inverterModel: "Primo GEN24 6.0 Plus",
+  inverterAcMaxKw: 6,
+  batteryModel: "Battery-Box Premium HVS 7.7",
+  batteryCapacityKwh: 7.68,
+  batteryMaxChargeKw: 6,
+  batteryMaxDischargeKw: 6,
+  batteryRoundTripEfficiencyPct: 96,
+} as const;
+
+type EquipmentValues = Pick<
+  SolarForecastConfig,
+  | "solarForecastInverterModel"
+  | "solarForecastInverterAcMaxKw"
+  | "solarForecastBatteryModel"
+  | "solarForecastBatteryCapacityKwh"
+  | "solarForecastBatteryMaxChargeKw"
+  | "solarForecastBatteryMaxDischargeKw"
+  | "solarForecastBatteryRoundTripEfficiencyPct"
+>;
+
+type EquipmentChange = <K extends keyof EquipmentValues>(
+  key: K,
+  value: EquipmentValues[K],
+) => void;
+
+function nullableNumber(raw: string): number | null {
+  if (raw.trim() === "") return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
 
 function parseEditorArrays(raw: string): SolarArrayConfig[] {
   try {
@@ -245,6 +279,326 @@ function ForecastBasics({
   );
 }
 
+function HomeGridSettings({
+  subscribedPowerKva,
+  onSubscribedPowerChange,
+}: {
+  subscribedPowerKva: number | null;
+  onSubscribedPowerChange: (value: number | null) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        border: "1px solid var(--gray-a5)",
+        borderRadius: 12,
+        overflow: "hidden",
+      }}
+    >
+      <SettingsRow
+        label="Subscribed grid power"
+        help="Used to keep predicted grid charging within your electricity contract."
+      >
+        <NumberInput
+          value={String(subscribedPowerKva ?? "")}
+          onChange={(value) => onSubscribedPowerChange(nullableNumber(value))}
+          suffix="kVA"
+          min={1}
+          max={250}
+          step={1}
+        />
+      </SettingsRow>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "32px minmax(0, 1fr)",
+          gap: 8,
+          alignItems: "center",
+          padding: "10px 12px",
+          color: "var(--gray-11)",
+          background: "var(--gray-a2)",
+        }}
+      >
+        <Clock3 size={19} aria-hidden="true" />
+        <Text size="1">
+          Off-peak hours are read automatically from Electricity tariff.
+        </Text>
+      </div>
+    </div>
+  );
+}
+
+function EquipmentSummary({
+  icon,
+  title,
+  model,
+  detail,
+}: {
+  icon: ReactNode;
+  title: string;
+  model: string;
+  detail: string;
+}) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "40px minmax(0, 1fr)",
+        gap: 10,
+        alignItems: "center",
+        padding: 12,
+        border: "1px solid var(--gray-a5)",
+        borderRadius: 12,
+        background: "var(--gray-a2)",
+      }}
+    >
+      <span
+        style={{
+          display: "grid",
+          placeItems: "center",
+          width: 40,
+          height: 40,
+          color: "var(--accent-11)",
+          background: "var(--accent-a3)",
+          borderRadius: 12,
+        }}
+        aria-hidden="true"
+      >
+        {icon}
+      </span>
+      <div style={{ minWidth: 0 }}>
+        <Text size="1" color="gray" weight="bold">{title}</Text>
+        <Text size="2" weight="bold" style={{ display: "block" }}>
+          {model || "Not configured"}
+        </Text>
+        <Text size="1" color="gray">{detail}</Text>
+      </div>
+    </div>
+  );
+}
+
+function selectedEquipmentProfile(values: EquipmentValues): string {
+  const matchesInverter = values.solarForecastInverterModel ===
+    HOME_EQUIPMENT_PROFILE.inverterModel;
+  const matchesBattery = values.solarForecastBatteryModel ===
+    HOME_EQUIPMENT_PROFILE.batteryModel;
+  return matchesInverter && matchesBattery ? "home-profile" : "custom";
+}
+
+function EquipmentSettings({
+  values,
+  onChange,
+}: {
+  values: EquipmentValues;
+  onChange: EquipmentChange;
+}) {
+  const applyProfile = (profile: string) => {
+    if (profile !== "home-profile") return;
+    onChange(
+      "solarForecastInverterModel",
+      HOME_EQUIPMENT_PROFILE.inverterModel,
+    );
+    onChange(
+      "solarForecastInverterAcMaxKw",
+      HOME_EQUIPMENT_PROFILE.inverterAcMaxKw,
+    );
+    onChange("solarForecastBatteryModel", HOME_EQUIPMENT_PROFILE.batteryModel);
+    onChange(
+      "solarForecastBatteryCapacityKwh",
+      HOME_EQUIPMENT_PROFILE.batteryCapacityKwh,
+    );
+    onChange(
+      "solarForecastBatteryMaxChargeKw",
+      HOME_EQUIPMENT_PROFILE.batteryMaxChargeKw,
+    );
+    onChange(
+      "solarForecastBatteryMaxDischargeKw",
+      HOME_EQUIPMENT_PROFILE.batteryMaxDischargeKw,
+    );
+    onChange(
+      "solarForecastBatteryRoundTripEfficiencyPct",
+      HOME_EQUIPMENT_PROFILE.batteryRoundTripEfficiencyPct,
+    );
+  };
+
+  return (
+    <>
+      <SettingsRow
+        label="Energy equipment"
+        help="Choose a known combination to fill in its verified limits automatically."
+      >
+        <Select.Root
+          value={selectedEquipmentProfile(values)}
+          onValueChange={applyProfile}
+        >
+          <Select.Trigger aria-label="Energy equipment profile" />
+          <Select.Content>
+            <Select.Item value="custom">Custom equipment</Select.Item>
+            <Select.Item value="home-profile">
+              GEN24 6.0 + HVS 7.7
+            </Select.Item>
+          </Select.Content>
+        </Select.Root>
+      </SettingsRow>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: 10,
+        }}
+      >
+        <EquipmentSummary
+          icon={<Gauge size={21} />}
+          title="INVERTER"
+          model={values.solarForecastInverterModel}
+          detail={values.solarForecastInverterAcMaxKw == null
+            ? "Maximum power not set"
+            : `${values.solarForecastInverterAcMaxKw} kW AC maximum`}
+        />
+        <EquipmentSummary
+          icon={<Battery size={21} />}
+          title="HOME BATTERY"
+          model={values.solarForecastBatteryModel}
+          detail={values.solarForecastBatteryCapacityKwh == null
+            ? "Usable capacity not set"
+            : `${values.solarForecastBatteryCapacityKwh} kWh usable`}
+        />
+      </div>
+      <EquipmentDetails values={values} onChange={onChange} />
+    </>
+  );
+}
+
+function EquipmentDetails({
+  values,
+  onChange,
+}: {
+  values: EquipmentValues;
+  onChange: EquipmentChange;
+}) {
+  return (
+    <details style={{ marginTop: 2 }}>
+      <summary style={{ cursor: "pointer", color: "var(--gray-11)" }}>
+        Adjust equipment specifications
+      </summary>
+      <div style={{ display: "flex", flexDirection: "column", marginTop: 8 }}>
+        <SettingsRow label="Inverter model">
+          <TextField.Root
+            size="2"
+            value={values.solarForecastInverterModel}
+            onChange={(event) =>
+              onChange("solarForecastInverterModel", event.target.value)}
+          />
+        </SettingsRow>
+        <SettingsRow label="Maximum inverter output">
+          <NumberInput
+            value={String(values.solarForecastInverterAcMaxKw ?? "")}
+            onChange={(value) =>
+              onChange("solarForecastInverterAcMaxKw", nullableNumber(value))}
+            suffix="kW"
+            min={0.1}
+            max={100}
+            step={0.1}
+          />
+        </SettingsRow>
+        <SettingsRow label="Home battery model">
+          <TextField.Root
+            size="2"
+            value={values.solarForecastBatteryModel}
+            onChange={(event) =>
+              onChange("solarForecastBatteryModel", event.target.value)}
+          />
+        </SettingsRow>
+        <EquipmentNumberRows values={values} onChange={onChange} />
+      </div>
+    </details>
+  );
+}
+
+function EquipmentNumberRows({
+  values,
+  onChange,
+}: {
+  values: EquipmentValues;
+  onChange: EquipmentChange;
+}) {
+  return (
+    <>
+      <SettingsRow label="Usable battery capacity">
+        <NumberInput
+          value={String(values.solarForecastBatteryCapacityKwh ?? "")}
+          onChange={(value) =>
+            onChange("solarForecastBatteryCapacityKwh", nullableNumber(value))}
+          suffix="kWh"
+          min={0.1}
+          max={500}
+          step={0.01}
+        />
+      </SettingsRow>
+      <SettingsRow label="Maximum battery charge">
+        <NumberInput
+          value={String(values.solarForecastBatteryMaxChargeKw ?? "")}
+          onChange={(value) =>
+            onChange("solarForecastBatteryMaxChargeKw", nullableNumber(value))}
+          suffix="kW"
+          min={0.1}
+          max={100}
+          step={0.1}
+        />
+      </SettingsRow>
+      <SettingsRow label="Maximum battery discharge">
+        <NumberInput
+          value={String(values.solarForecastBatteryMaxDischargeKw ?? "")}
+          onChange={(value) =>
+            onChange(
+              "solarForecastBatteryMaxDischargeKw",
+              nullableNumber(value),
+            )}
+          suffix="kW"
+          min={0.1}
+          max={100}
+          step={0.1}
+        />
+      </SettingsRow>
+      <SettingsRow label="Battery round-trip efficiency">
+        <NumberInput
+          value={String(
+            values.solarForecastBatteryRoundTripEfficiencyPct ?? "",
+          )}
+          onChange={(value) =>
+            onChange(
+              "solarForecastBatteryRoundTripEfficiencyPct",
+              nullableNumber(value),
+            )}
+          suffix="%"
+          min={50}
+          max={100}
+          step={0.1}
+        />
+      </SettingsRow>
+    </>
+  );
+}
+
+function equipmentValues(
+  fields: Partial<EquipmentValues> | null | undefined,
+): EquipmentValues {
+  return {
+    solarForecastInverterModel: fields?.solarForecastInverterModel ?? "",
+    solarForecastInverterAcMaxKw: fields?.solarForecastInverterAcMaxKw ?? null,
+    solarForecastBatteryModel: fields?.solarForecastBatteryModel ?? "",
+    solarForecastBatteryCapacityKwh: fields?.solarForecastBatteryCapacityKwh ??
+      null,
+    solarForecastBatteryMaxChargeKw: fields?.solarForecastBatteryMaxChargeKw ??
+      null,
+    solarForecastBatteryMaxDischargeKw:
+      fields?.solarForecastBatteryMaxDischargeKw ?? null,
+    solarForecastBatteryRoundTripEfficiencyPct:
+      fields?.solarForecastBatteryRoundTripEfficiencyPct ?? null,
+  };
+}
+
 export function SolarForecastSettings() {
   const { data } = useSolarForecastConfig();
   const mutation = useSolarForecastConfigMutation();
@@ -278,7 +632,8 @@ export function SolarForecastSettings() {
   );
 
   const geocodeMutation = useMutation({
-    mutationFn: (query: string) => utils.client.config.geocode.query({ q: query }),
+    mutationFn: (query: string) =>
+      utils.client.config.geocode.query({ q: query }),
     onSuccess: (result) => {
       applyLocation(result.displayName, result.latitude, result.longitude);
     },
@@ -309,12 +664,14 @@ export function SolarForecastSettings() {
     fields?.solarForecastLatitude,
     fields?.solarForecastLongitude,
   );
+  const equipment = equipmentValues(fields);
+  const setEquipmentField = setField as EquipmentChange;
 
   return (
     <SettingsSection
       icon={<SunMedium size={18} />}
-      title="Solar Forecast"
-      description="Predict today's solar EV charging and, in Solar + clock, the final SOC after the next charge schedule. Forecasting is informational only and never controls charging."
+      title="Solar Prediction"
+      description="Tell E.V. Solar about your installation so it can predict available solar, home-battery energy and vehicle charging more accurately."
       saveStatus={saveStatus}
       isDirty={isDirty}
       onSave={save}
@@ -326,6 +683,12 @@ export function SolarForecastSettings() {
         onInstallationDateChange={(value) =>
           setField("solarForecastInstallationDate", value)}
       />
+      <HomeGridSettings
+        subscribedPowerKva={fields?.solarForecastSubscribedPowerKva ?? null}
+        onSubscribedPowerChange={(value) =>
+          setField("solarForecastSubscribedPowerKva", value)}
+      />
+      <EquipmentSettings values={equipment} onChange={setEquipmentField} />
       <SolarLocationEditor
         ac={ac}
         geocodePending={geocodeMutation.isPending}

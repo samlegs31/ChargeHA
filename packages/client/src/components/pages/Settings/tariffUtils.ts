@@ -133,11 +133,36 @@ function findGaps(covered: TimeRange[]): TimeRange[] {
   return edges.filter((r) => r.start < r.end);
 }
 
-/** Convert a period's times into day-bounded TimeRanges (handling overnight wrap). */
-function periodToRanges(startTime: string, endTime: string): TimeRange[] {
-  const start = timeToMinutes(startTime);
-  const end = timeToMinutes(endTime);
-  return expandOvernight({ start, end });
+/**
+ * Return the portion of a period that applies to a calendar day.
+ * Overnight periods belong to the day on which they start, so their early
+ * morning portion is carried into the following day.
+ */
+function periodRangesForDay(
+  period: { startTime: string; endTime: string; days: string[] },
+  day: string,
+): TimeRange[] {
+  const dayIndex = ALL_DAYS.indexOf(day as DayOfWeek);
+  if (dayIndex < 0) return [];
+
+  const start = timeToMinutes(period.startTime);
+  const end = timeToMinutes(period.endTime);
+  const startsOnDay = period.days.includes(day);
+
+  if (start === end) {
+    return startsOnDay ? [{ start: 0, end: MINUTES_PER_DAY }] : [];
+  }
+  if (start < end) {
+    return startsOnDay ? [{ start, end }] : [];
+  }
+
+  const previousDay = ALL_DAYS[
+    (dayIndex + ALL_DAYS.length - 1) % ALL_DAYS.length
+  ];
+  const ranges: TimeRange[] = [];
+  if (startsOnDay) ranges.push({ start, end: MINUTES_PER_DAY });
+  if (period.days.includes(previousDay)) ranges.push({ start: 0, end });
+  return ranges;
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -165,16 +190,16 @@ export function detectOverlaps(
 ): OverlapError[] {
   return periods.flatMap((a, i) =>
     periods.slice(i + 1).flatMap((b) => {
-      const commonDays = a.days.filter((d) => b.days.includes(d));
+      const commonDays = ALL_DAYS.filter((day) => {
+        const rangesA = periodRangesForDay(a, day);
+        const rangesB = periodRangesForDay(b, day);
+        return rangesA.some((rangeA) =>
+          rangesB.some((rangeB) =>
+            rangeA.start < rangeB.end && rangeB.start < rangeA.end
+          )
+        );
+      });
       if (commonDays.length === 0) return [];
-      if (
-        !timeRangesOverlap(
-          timeToMinutes(a.startTime),
-          timeToMinutes(a.endTime),
-          timeToMinutes(b.startTime),
-          timeToMinutes(b.endTime),
-        )
-      ) return [];
       return [{
         periodA: a.label || "(unnamed)",
         periodB: b.label || "(unnamed)",
@@ -194,9 +219,7 @@ export function findGapsForDay(
   periods: { startTime: string; endTime: string; days: string[] }[],
   day: string,
 ): [number, number][] {
-  const covered = periods
-    .filter((p) => p.days.includes(day))
-    .flatMap((p) => periodToRanges(p.startTime, p.endTime));
+  const covered = periods.flatMap((p) => periodRangesForDay(p, day));
 
   return findGaps(covered).map((r) => [r.start, r.end]);
 }

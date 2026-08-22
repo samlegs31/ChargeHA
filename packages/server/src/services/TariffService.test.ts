@@ -106,6 +106,14 @@ describe("TariffService", () => {
       expect(rate2).toBe(30);
     });
 
+    it("refreshes the controller cache after a tariff setting changes", async () => {
+      await tariffService.updateDefaultRate({ ratePerKwh: 30 });
+      expect(await tariffService.resolveCurrentRate()).toBe(30);
+
+      await tariffService.updateDefaultRate({ ratePerKwh: 50 });
+      expect(await tariffService.resolveCurrentRate()).toBe(50);
+    });
+
     it("uses server local time when no timezone is configured", async () => {
       // No timezone set — exercises the fallback branch in getTimezoneTimeParts
       await db.createTariffPeriod({

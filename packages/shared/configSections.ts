@@ -143,6 +143,46 @@ export const solarForecastConfigDef = defineSection({
     schema: z.string().max(12000),
     default: "[]",
   },
+  solarForecastInverterModel: {
+    key: "solar_forecast_inverter_model",
+    schema: z.string().max(120),
+    default: "",
+  },
+  solarForecastInverterAcMaxKw: {
+    key: "solar_forecast_inverter_ac_max_kw",
+    schema: z.number().min(0.1).max(100).nullable(),
+    default: null,
+  },
+  solarForecastBatteryModel: {
+    key: "solar_forecast_battery_model",
+    schema: z.string().max(120),
+    default: "",
+  },
+  solarForecastBatteryCapacityKwh: {
+    key: "solar_forecast_battery_capacity_kwh",
+    schema: z.number().min(0.1).max(500).nullable(),
+    default: null,
+  },
+  solarForecastBatteryMaxChargeKw: {
+    key: "solar_forecast_battery_max_charge_kw",
+    schema: z.number().min(0.1).max(100).nullable(),
+    default: null,
+  },
+  solarForecastBatteryMaxDischargeKw: {
+    key: "solar_forecast_battery_max_discharge_kw",
+    schema: z.number().min(0.1).max(100).nullable(),
+    default: null,
+  },
+  solarForecastBatteryRoundTripEfficiencyPct: {
+    key: "solar_forecast_battery_round_trip_efficiency_pct",
+    schema: z.number().min(50).max(100).nullable(),
+    default: null,
+  },
+  solarForecastSubscribedPowerKva: {
+    key: "solar_forecast_subscribed_power_kva",
+    schema: z.number().min(1).max(250).nullable(),
+    default: null,
+  },
 });
 export type SolarForecastConfig = SectionType<typeof solarForecastConfigDef>;
 
