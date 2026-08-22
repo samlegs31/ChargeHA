@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { BatteryMedium, Home, MapPin, Sun, Zap } from "lucide-react";
 import { Card, Text } from "@radix-ui/themes";
 import type { StatsViewResponse } from "../../../hooks/useStats.ts";
@@ -10,28 +9,48 @@ interface StatsSummaryCardsProps {
   loading: boolean;
 }
 
-function SummaryCard({
+function SourceMetric({
   label,
   value,
   icon,
   tone,
 }: {
   label: string;
-  value: ReactNode;
-  icon?: ReactNode;
-  tone?: "solar" | "battery" | "grid";
+  value: string;
+  icon: typeof Sun;
+  tone: "solar" | "battery" | "grid";
+}) {
+  const Icon = icon;
+  return (
+    <div className={styles.sourceMetric} data-tone={tone}>
+      <span className={styles.sourceIcon} aria-hidden="true">
+        <Icon size={20} />
+      </span>
+      <span className={styles.sourceCopy}>
+        <Text color="gray" className={styles.sourceLabel}>{label}</Text>
+        <span className={styles.sourceValue}>{value}</span>
+      </span>
+    </div>
+  );
+}
+
+function CompactMetric({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon?: typeof Home;
 }) {
   return (
-    <Card
-      className={styles.summaryCard}
-      data-tone={tone}
-    >
-      <span className={styles.summaryLabel}>
-        {icon}
-        <Text size="3" color="gray">{label}</Text>
+    <div className={styles.compactMetric}>
+      <span className={styles.compactLabel}>
+        {Icon && <Icon size={18} aria-hidden="true" />}
+        <Text color="gray">{label}</Text>
       </span>
-      <span className={styles.summaryValue}>{value}</span>
-    </Card>
+      <span className={styles.compactValue}>{value}</span>
+    </div>
   );
 }
 
@@ -71,75 +90,78 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
 
   return (
     <>
-      <div className={styles.summaryHero}>
-        <Card className={styles.solarShareCard}>
+      <Card className={styles.chargingOverview}>
+        <div className={styles.solarShareOverview}>
           <span className={styles.heroIcon} aria-hidden="true">
-            <Sun size={30} />
+            <Sun size={26} />
           </span>
           <div className={styles.heroCopy}>
-            <Text size="3" weight="bold">Solar-powered charging</Text>
+            <Text weight="bold">Solar-powered charging</Text>
             <span className={styles.heroValue}>
               {loading ? "—" : `${share}%`}
             </span>
-            <Text size="3" color="gray">
+            <Text color="gray" className={styles.heroDescription}>
               {solarShareDescription(data, loading, share)}
             </Text>
           </div>
-        </Card>
-        <SummaryCard
-          label="Total Charged"
-          value={loading ? "—" : kwhValue(data?.totalChargedWh ?? 0)}
-        />
-      </div>
+        </div>
+        <div className={styles.overviewDivider} aria-hidden="true" />
+        <div className={styles.totalOverview}>
+          <Text color="gray" className={styles.totalLabel}>Total Charged</Text>
+          <span className={styles.totalValue}>
+            {loading ? "—" : kwhValue(data?.totalChargedWh ?? 0)}
+          </span>
+        </div>
+      </Card>
 
-      <div
+      <Card
         className={styles.sourceSummary}
         aria-label="Charging energy sources"
       >
-        <SummaryCard
+        <SourceMetric
           label="From Solar"
           value={loading ? "—" : kwhValue(data?.totalSolarWh ?? 0)}
-          icon={<Sun size={22} aria-hidden="true" />}
+          icon={Sun}
           tone="solar"
         />
-        <SummaryCard
+        <SourceMetric
           label="From Battery"
           value={loading ? "—" : kwhValue(data?.totalBatteryWh ?? 0)}
-          icon={<BatteryMedium size={22} aria-hidden="true" />}
+          icon={BatteryMedium}
           tone="battery"
         />
-        <SummaryCard
+        <SourceMetric
           label="From Grid"
           value={loading ? "—" : kwhValue(data?.totalGridWh ?? 0)}
-          icon={<Zap size={22} aria-hidden="true" />}
+          icon={Zap}
           tone="grid"
         />
-      </div>
+      </Card>
 
-      <div className={styles.secondarySummary}>
-        <SummaryCard
+      <Card className={styles.secondarySummary}>
+        <CompactMetric
           label="Charged at Home"
           value={loading ? "—" : kwhValue(homeWh)}
-          icon={<Home size={22} aria-hidden="true" />}
+          icon={Home}
         />
-        <SummaryCard
+        <CompactMetric
           label="Away"
           value={loading ? "—" : kwhValue(data?.totalAwayWh ?? 0)}
-          icon={<MapPin size={22} aria-hidden="true" />}
+          icon={MapPin}
         />
-      </div>
+      </Card>
 
       {hasFinancialData && (
-        <div className={styles.costSummary}>
-          <SummaryCard
+        <Card className={styles.costSummary}>
+          <CompactMetric
             label="Grid Cost"
             value={formatCost(gridCostCents, currencySymbol)}
           />
-          <SummaryCard
+          <CompactMetric
             label="Solar Savings"
             value={formatCost(solarSavingsCents, currencySymbol)}
           />
-        </div>
+        </Card>
       )}
     </>
   );
