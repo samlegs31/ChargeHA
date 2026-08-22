@@ -1,0 +1,73 @@
+.row {
+  display: flex;
+  min-height: 58px;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  padding-block: 4px;
+}
+
+.copy {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.label {
+  color: var(--gray-12);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.help {
+  display: block;
+  max-width: 680px;
+  margin-top: 4px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.control {
+  flex: 0 1 auto;
+  max-width: 100%;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.numberInput {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.numberField {
+  width: 108px;
+  min-height: 44px;
+}
+
+.suffix {
+  min-width: 26px;
+  font-size: 0.95rem;
+}
+
+@media (max-width: 640px) {
+  .row {
+    min-height: 72px;
+    padding-block: 8px;
+  }
+
+  .copy {
+    flex-basis: 100%;
+  }
+
+  .control {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .control > :is(button, input, select),
+  .control :global(.rt-SelectTrigger),
+  .control :global(.rt-TextFieldRoot) {
+    min-height: 46px;
+  }
+}

@@ -1,11 +1,6 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  Children,
-  Fragment,
-  isValidElement,
-  type ReactNode,
-} from "react";
+import { Children, Fragment, isValidElement, type ReactNode } from "react";
 import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { renderWithProviders } from "../../../test-utils.tsx";
 import { StatsChart } from "./StatsChart.tsx";
@@ -13,7 +8,8 @@ import type { StatsResponse } from "@chargeha/shared";
 
 const { chartState, makeStatsData } = vi.hoisted(() => {
   type SR = import("@chargeha/shared").StatsResponse;
-  const chartState: { onClick?: (event: { activeLabel?: string }) => void } = {};
+  const chartState: { onClick?: (event: { activeLabel?: string }) => void } =
+    {};
   const makeStatsData = (overrides?: Partial<SR>): SR => ({
     period: "day",
     startDate: "2026-03-01",
@@ -67,7 +63,13 @@ const { chartState, makeStatsData } = vi.hoisted(() => {
 });
 
 vi.mock("recharts", () => {
-  const allowed = new Set(["Bar", "XAxis", "YAxis", "CartesianGrid", "Tooltip"]);
+  const allowed = new Set([
+    "Bar",
+    "XAxis",
+    "YAxis",
+    "CartesianGrid",
+    "Tooltip",
+  ]);
   const stub = (name: string) => {
     const Stub = () => null;
     Stub.displayName = name;
@@ -88,7 +90,9 @@ vi.mock("recharts", () => {
       }
       const type = child.type as { displayName?: string; name?: string };
       const name = type.displayName ?? type.name ?? "";
-      if (!allowed.has(name)) throw new Error(`Unexpected chart child: ${name}`);
+      if (!allowed.has(name)) {
+        throw new Error(`Unexpected chart child: ${name}`);
+      }
     });
   };
 
@@ -180,9 +184,12 @@ describe("StatsChart", () => {
     renderWithProviders(
       <StatsChart {...defaultProps} data={makeStatsData()} />,
     );
-    expect(screen.getByText("Solar → Car")).toBeInTheDocument();
-    expect(screen.getByText("Battery → Car")).toBeInTheDocument();
-    expect(screen.getByText("Grid → Car")).toBeInTheDocument();
+    expect(screen.getByRole("heading", {
+      name: "Where your charging came from",
+    })).toBeInTheDocument();
+    expect(screen.getByText("Solar")).toBeInTheDocument();
+    expect(screen.getByText("Home battery")).toBeInTheDocument();
+    expect(screen.getByText("Grid")).toBeInTheDocument();
     expect(screen.getByText("Away")).toBeInTheDocument();
     expect(screen.queryByText("Solar → Home")).not.toBeInTheDocument();
   });
