@@ -24,7 +24,7 @@ describe("SolarForecastInline", () => {
 
   afterEach(cleanup);
 
-  it("describes the expected evening SOC without technical kWh", () => {
+  it("explains the local solar estimate and its confidence", () => {
     renderWithProviders(
       <SolarForecastInline
         mode="vacation"
@@ -34,9 +34,13 @@ describe("SolarForecastInline", () => {
       />,
     );
 
-    expect(screen.getByText("With today's sun: about 67% this evening"))
+    expect(screen.getByText("About 67% from today's sun"))
       .toBeInTheDocument();
-    expect(screen.queryByText(/kWh/)).not.toBeInTheDocument();
+    expect(screen.getByText(/3\.7 kWh of solar charging expected by/))
+      .toBeInTheDocument();
+    expect(screen.getByText("High confidence")).toBeInTheDocument();
+    expect(screen.getByText(/Based on your solar production/))
+      .toBeInTheDocument();
   });
 
   it("describes the next Smart target in plain language", () => {

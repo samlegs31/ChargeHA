@@ -674,7 +674,7 @@ describe("Dashboard", () => {
     expect(card.getAttribute("data-grid-w")).toBe("500");
   });
 
-  it("renders multiple charging vehicles and computes individual solar/grid splits", () => {
+  it("keeps one primary vehicle and lets the user select a second car", () => {
     // solar 8000W, home 1000W, two vehicles charging at 3000W each
     // → each gets vehicleShare = 0.5 → solarW = min(3000, 13000*0.5, 8000*0.5)
     //   = 3000, gridW = 0
@@ -712,13 +712,21 @@ describe("Dashboard", () => {
 
     h.render();
 
-    const cards = screen.getAllByTestId("vehicle-card");
-    expect(cards).toHaveLength(2);
-    // Each vehicle gets an equal share of the solar surplus.
-    cards.forEach((card) => {
-      expect(card.getAttribute("data-solar-w")).toBe("3000");
-      expect(card.getAttribute("data-grid-w")).toBe("0");
-    });
+    const primaryCard = screen.getByTestId("vehicle-card");
+    expect(primaryCard).toHaveAttribute("data-name", "Car One");
+    expect(primaryCard).toHaveAttribute("data-solar-w", "3000");
+    expect(screen.getByTestId("secondary-vehicle-card"))
+      .toHaveTextContent("Car Two");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show Car Two as the main vehicle" }),
+    );
+
+    expect(screen.getByTestId("vehicle-card"))
+      .toHaveAttribute("data-name", "Car Two");
+    expect(screen.getByRole("button", {
+      name: "Show Car One as the main vehicle",
+    })).toBeInTheDocument();
   });
 
   // ---- No vehicles CTA ----
