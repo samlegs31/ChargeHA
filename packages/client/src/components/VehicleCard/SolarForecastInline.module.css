@@ -1,0 +1,150 @@
+.panel,
+.statusPanel {
+  margin: 18px 0 4px;
+  border: 1px solid color-mix(in srgb, var(--yellow-9) 24%, var(--gray-a4));
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      circle at 5% 5%,
+      color-mix(in srgb, var(--yellow-8) 13%, transparent),
+      transparent 44%
+    ),
+    var(--gray-a2);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  padding: 16px;
+}
+
+.statusPanel {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 68px;
+  padding: 14px 16px;
+  color: var(--yellow-10);
+}
+
+.statusPanel > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--gray-12);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.header > div > :first-child {
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.confidence {
+  flex: 0 0 auto;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--yellow-9) 25%, var(--gray-a3));
+  border-radius: 999px;
+  color: var(--yellow-11);
+  background: color-mix(in srgb, var(--yellow-7) 11%, var(--color-panel-solid));
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.solarSummary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.solarSummary > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.solarSummary > div > :first-child {
+  font-size: 1.03rem;
+  line-height: 1.3;
+}
+
+.solarSummary > div > :last-child {
+  line-height: 1.4;
+}
+
+.solarIcon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  place-items: center;
+  color: var(--yellow-10);
+  background: color-mix(in srgb, var(--yellow-7) 16%, var(--color-panel-solid));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--yellow-9) 12%, transparent);
+}
+
+.scheduleRow,
+.explanation {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.scheduleRow {
+  padding: 11px 12px;
+  border-radius: 14px;
+  color: var(--blue-10);
+  background: color-mix(in srgb, var(--blue-7) 9%, var(--color-panel-solid));
+}
+
+.scheduleRow > :last-child {
+  color: var(--gray-12);
+  line-height: 1.4;
+}
+
+.explanation {
+  align-items: flex-start;
+  padding-top: 2px;
+  color: var(--gray-9);
+}
+
+.explanation > :last-child {
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .panel {
+    padding: 16px 14px;
+  }
+
+  .confidence {
+    padding: 6px 8px;
+    font-size: 0.7rem;
+  }
+
+  .solarSummary > div > :first-child {
+    font-size: 1.08rem;
+  }
+
+  .solarSummary > div > :last-child,
+  .scheduleRow > :last-child {
+    font-size: 0.92rem;
+  }
+}

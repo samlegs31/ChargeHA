@@ -1,5 +1,5 @@
-import { type ComponentProps, type ReactNode, useMemo } from "react";
-import { CalendarClock, Settings, Zap } from "lucide-react";
+import { type ComponentProps, type ReactNode, useMemo, useState } from "react";
+import { CalendarClock, ChevronRight, Settings, Zap } from "lucide-react";
 import { Button, Card, Text } from "@radix-ui/themes";
 import type { Schedule, VehicleMode } from "@chargeha/shared";
 import type { SolarChargeForecastResult } from "@chargeha/shared/forecast";
@@ -22,6 +22,7 @@ import {
   getScheduledChargeDisplay,
   type ScheduledChargeDisplay,
 } from "./scheduledCharge.ts";
+import styles from "./VehicleList.module.css";
 
 type VehicleCardProps = ComponentProps<typeof VehicleCard>;
 
@@ -171,6 +172,56 @@ function AsleepVehicleCard(
   );
 }
 
+function SecondaryVehicleCard(
+  {
+    vehicle,
+    scheduledCharge,
+    onSelect,
+  }: {
+    vehicle: ReturnType<typeof useVehicles>["vehicles"][number];
+    scheduledCharge: ScheduledChargeDisplay | null;
+    onSelect: () => void;
+  },
+) {
+  const state = vehicle.state;
+  const name = vehicle.name || state?.vehicleName || "Vehicle";
+  const status = getSecondaryVehicleStatus(state);
+
+  return (
+    <button
+      type="button"
+      className={styles.secondaryVehicle}
+      onClick={onSelect}
+      aria-label={`Show ${name} as the main vehicle`}
+      data-testid="secondary-vehicle-card"
+    >
+      <span className={styles.secondaryVehicleIcon} aria-hidden="true">
+        <VehicleSilhouetteIcon size={40} />
+      </span>
+      <span className={styles.secondaryVehicleCopy}>
+        <strong>{name}</strong>
+        <span>{scheduledCharge?.title ?? status}</span>
+      </span>
+      <span className={styles.secondaryVehicleBattery}>
+        <strong>{state ? `${Math.round(state.batteryLevel)}%` : "—"}</strong>
+        <span>{state?.isPluggedIn ? "PLUGGED IN" : "VEHICLE"}</span>
+      </span>
+      <ChevronRight size={22} className={styles.secondaryVehicleChevron} />
+    </button>
+  );
+}
+
+function getSecondaryVehicleStatus(
+  state: ReturnType<typeof useVehicles>["vehicles"][number]["state"],
+): string {
+  if (state === null) return "Asleep or unreachable";
+  if (state.isCharging) {
+    return `Charging · ${state.chargePowerKw.toFixed(1)} kW`;
+  }
+  if (state.isPluggedIn) return "Plugged in · ready";
+  return "Unplugged";
+}
+
 function VehicleListErrorCard(
   { error, onRetry }: { error: string; onRetry: () => void },
 ) {
@@ -271,6 +322,8 @@ function VehicleCards(
     setAmps,
     changeMode,
     onNavigateSettings,
+    selectedVehicleId,
+    onSelectVehicle,
   }: {
     vehicles: ReturnType<typeof useVehicles>["vehicles"];
     schedules: Schedule[];
@@ -292,63 +345,98 @@ function VehicleCards(
     setAmps: (id: string, amps: number) => void;
     changeMode: (id: string, mode: VehicleMode) => void;
     onNavigateSettings?: () => void;
+    selectedVehicleId: string | null;
+    onSelectVehicle: (id: string) => void;
   },
 ) {
   const now = new Date();
+  const primaryId = selectedVehicleId ?? vehicles[0]?.id ?? null;
+  const primaryVehicle = vehicles.find((vehicle) => vehicle.id === primaryId) ??
+    vehicles[0];
+  const secondaryVehicles = vehicles.filter((vehicle) =>
+    vehicle.id !== primaryVehicle?.id
+  );
+
+  if (!primaryVehicle) return null;
+
+  const scheduledCharge = getScheduledChargeDisplay(
+    schedules,
+    primaryVehicle.id,
+    primaryVehicle.mode as VehicleMode,
+    now,
+    timezone,
+  );
+
   return (
     <>
-      {vehicles.map((v) => {
-        const scheduledCharge = getScheduledChargeDisplay(
-          schedules,
-          v.id,
-          v.mode as VehicleMode,
-          now,
-          timezone,
-        );
-        if (v.state) {
-          return (
-            <ConnectedVehicleCard
-              key={v.id}
-              vehicleId={v.id}
-              name={v.name || v.state.vehicleName}
-              state={v.state}
-              priority={v.priority}
-              mode={v.mode as VehicleMode}
-              commandPending={commandPending[v.id] ?? false}
-              onStartCharging={() => startCharging(v.id)}
-              onStopCharging={() => stopCharging(v.id)}
-              onSetAmps={(amps) => setAmps(v.id, amps)}
-              onChangeMode={(mode) => changeMode(v.id, mode)}
-              solarPowerW={vehicleSolarGrid[v.id]?.solarW ?? 0}
-              batteryPowerW={vehicleSolarGrid[v.id]?.batteryW ?? 0}
-              gridPowerW={vehicleSolarGrid[v.id]?.gridW ?? 0}
-              loading={vehiclesLoading}
-              atHome={v.lastLocation ? isHome(home, v.lastLocation) : null}
-              vehicleError={vehicleErrors[v.id]}
-              allocationStatus={allocationStatus[v.id] ?? null}
-              pollingSuspended={v.pollingSuspended}
-              pollingSuspendReason={v.pollingSuspendReason}
-              controllerReason={controllerStatuses[v.id]?.reason ?? null}
-              controllerDetail={controllerStatuses[v.id]?.detail ?? null}
-              scheduledCharge={scheduledCharge}
-              onNavigateSettings={onNavigateSettings}
-              onRefresh={() => refreshMutation.mutateAsync({ vehicleId: v.id })}
+      {primaryVehicle.state && (
+        <ConnectedVehicleCard
+          key={primaryVehicle.id}
+          vehicleId={primaryVehicle.id}
+          name={primaryVehicle.name || primaryVehicle.state.vehicleName}
+          state={primaryVehicle.state}
+          priority={primaryVehicle.priority}
+          mode={primaryVehicle.mode as VehicleMode}
+          commandPending={commandPending[primaryVehicle.id] ?? false}
+          onStartCharging={() => startCharging(primaryVehicle.id)}
+          onStopCharging={() => stopCharging(primaryVehicle.id)}
+          onSetAmps={(amps) => setAmps(primaryVehicle.id, amps)}
+          onChangeMode={(mode) => changeMode(primaryVehicle.id, mode)}
+          solarPowerW={vehicleSolarGrid[primaryVehicle.id]?.solarW ?? 0}
+          batteryPowerW={vehicleSolarGrid[primaryVehicle.id]?.batteryW ?? 0}
+          gridPowerW={vehicleSolarGrid[primaryVehicle.id]?.gridW ?? 0}
+          loading={vehiclesLoading}
+          atHome={primaryVehicle.lastLocation
+            ? isHome(home, primaryVehicle.lastLocation)
+            : null}
+          vehicleError={vehicleErrors[primaryVehicle.id]}
+          allocationStatus={allocationStatus[primaryVehicle.id] ?? null}
+          pollingSuspended={primaryVehicle.pollingSuspended}
+          pollingSuspendReason={primaryVehicle.pollingSuspendReason}
+          controllerReason={controllerStatuses[primaryVehicle.id]?.reason ??
+            null}
+          controllerDetail={controllerStatuses[primaryVehicle.id]?.detail ??
+            null}
+          scheduledCharge={scheduledCharge}
+          onNavigateSettings={onNavigateSettings}
+          onRefresh={() =>
+            refreshMutation.mutateAsync({ vehicleId: primaryVehicle.id })}
+        />
+      )}
+
+      {!primaryVehicle.state && (
+        <AsleepVehicleCard
+          key={primaryVehicle.id}
+          v={primaryVehicle}
+          isWaking={wakeMutation.isPending &&
+            wakeMutation.variables?.vehicleId === primaryVehicle.id}
+          scheduledCharge={scheduledCharge}
+          onWake={() =>
+            wakeMutation.mutate({
+              vehicleId: primaryVehicle.id,
+              command: "wake",
+            })}
+        />
+      )}
+
+      {secondaryVehicles.length > 0 && (
+        <div className={styles.secondaryVehicles}>
+          {secondaryVehicles.map((vehicle) => (
+            <SecondaryVehicleCard
+              key={vehicle.id}
+              vehicle={vehicle}
+              scheduledCharge={getScheduledChargeDisplay(
+                schedules,
+                vehicle.id,
+                vehicle.mode as VehicleMode,
+                now,
+                timezone,
+              )}
+              onSelect={() => onSelectVehicle(vehicle.id)}
             />
-          );
-        }
-        const isWaking = wakeMutation.isPending &&
-          wakeMutation.variables?.vehicleId === v.id;
-        return (
-          <AsleepVehicleCard
-            key={v.id}
-            v={v}
-            isWaking={isWaking}
-            scheduledCharge={scheduledCharge}
-            onWake={() =>
-              wakeMutation.mutate({ vehicleId: v.id, command: "wake" })}
-          />
-        );
-      })}
+          ))}
+        </div>
+      )}
     </>
   );
 }
@@ -356,6 +444,9 @@ function VehicleCards(
 export function VehicleList(
   { onNavigateSettings }: VehicleListProps,
 ) {
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
+    null,
+  );
   const { addToast } = useToast();
   const { data: chargingConfig } = useChargingConfig();
   const { data: homeConfig } = useHomeConfig();
@@ -404,6 +495,14 @@ export function VehicleList(
     vehicles,
     controllerStatuses,
   );
+  const orderedVehicles = useMemo(
+    () => [...vehicles].sort((a, b) => a.priority - b.priority),
+    [vehicles],
+  );
+  const activeVehicleId =
+    orderedVehicles.some((vehicle) => vehicle.id === selectedVehicleId)
+      ? selectedVehicleId
+      : orderedVehicles[0]?.id ?? null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -417,7 +516,7 @@ export function VehicleList(
         Vehicles
       </Text>
       <VehicleCards
-        vehicles={vehicles}
+        vehicles={orderedVehicles}
         schedules={scheduleData?.schedules ?? []}
         timezone={timezone}
         home={home}
@@ -434,6 +533,8 @@ export function VehicleList(
         setAmps={setAmps}
         changeMode={changeMode}
         onNavigateSettings={onNavigateSettings}
+        selectedVehicleId={activeVehicleId}
+        onSelectVehicle={setSelectedVehicleId}
       />
 
       {!vehiclesLoading && vehicles.length === 0 && vehiclesError && (
