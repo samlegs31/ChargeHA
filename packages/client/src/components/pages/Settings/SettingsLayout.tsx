@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Text, TextField } from "@radix-ui/themes";
 import { Section } from "../../ui/Section.tsx";
 import type { SectionProps } from "../../ui/Section.tsx";
+import styles from "./SettingsLayout.module.css";
 
 // Re-export Section as SettingsSection for backwards compatibility
 export { Section as SettingsSection };
@@ -20,41 +21,19 @@ export function SettingsRow({
   children,
 }: SettingsRowProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        flexWrap: "wrap",
-        gap: "8px 16px",
-        minHeight: 36,
-      }}
-    >
-      <div style={{ flex: "1 1 260px", minWidth: 0 }}>
-        <Text size="2" weight="medium">{label}</Text>
+    <div className={styles.row}>
+      <div className={styles.copy}>
+        <Text weight="medium" className={styles.label}>{label}</Text>
         {help && (
           <Text
-            size="1"
             color="gray"
-            style={{
-              display: "block",
-              marginTop: 2,
-              lineHeight: 1.4,
-              maxWidth: 680,
-            }}
+            className={styles.help}
           >
             {help}
           </Text>
         )}
       </div>
-      <div
-        style={{
-          flex: "0 1 auto",
-          flexShrink: 0,
-          marginLeft: "auto",
-          maxWidth: "100%",
-        }}
-      >
+      <div className={styles.control}>
         {children}
       </div>
     </div>
@@ -85,9 +64,9 @@ export function NumberInput({
   const displayValue = editing ? localValue : value;
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div className={styles.numberInput}>
       <TextField.Root
-        size="2"
+        size="3"
         type="number"
         step={step}
         min={min}
@@ -105,9 +84,9 @@ export function NumberInput({
         onBlur={() => {
           setEditing(false);
         }}
-        style={{ width: 88 }}
+        className={styles.numberField}
       />
-      <Text size="2" color="gray">{suffix}</Text>
+      <Text color="gray" className={styles.suffix}>{suffix}</Text>
     </div>
   );
 }

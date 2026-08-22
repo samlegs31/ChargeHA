@@ -29,17 +29,18 @@ import { GeneralSettings } from "./GeneralSettings.tsx";
 import { NotificationSettings } from "./NotificationSettings.tsx";
 import { HistoryMigrationSettings } from "./HistoryMigrationSettings.tsx";
 import { SolarWebHistoryImport } from "./SolarWebHistoryImport.tsx";
+import styles from "./Settings.module.css";
 
 function EncryptionWarning() {
   return (
-    <Card style={{ borderLeft: "3px solid var(--orange-9)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Key size={20} style={{ color: "var(--orange-9)", flexShrink: 0 }} />
+    <Card className={styles.warning}>
+      <div className={styles.warningContent}>
+        <Key size={24} className={styles.warningIcon} />
         <div>
-          <Text size="2" weight="bold" style={{ display: "block" }}>
+          <Text weight="bold" className={styles.warningTitle}>
             Encryption Key Not Configured
           </Text>
-          <Text size="2" color="gray">
+          <Text color="gray" className={styles.warningText}>
             Secrets such as API keys, tokens, and passwords are currently stored
             without encryption. Configure <code>ENCRYPTION_KEY</code> or{" "}
             <code>ENCRYPTION_KEY_FILE</code>{" "}
@@ -54,10 +55,14 @@ function EncryptionWarning() {
 function VersionFooter() {
   const label = `version ${version.sha}`;
   if (!version.commitUrl) {
-    return <Text size="1" color="gray" align="center">{label}</Text>;
+    return (
+      <Text size="1" color="gray" align="center" className={styles.version}>
+        {label}
+      </Text>
+    );
   }
   return (
-    <Text size="1" color="gray" align="center">
+    <Text size="1" color="gray" align="center" className={styles.version}>
       <Link href={version.commitUrl} target="_blank" rel="noreferrer">
         {label}
       </Link>
@@ -79,31 +84,31 @@ const MENU_ITEMS: readonly MenuItem[] = [
     id: "cars",
     title: "My cars",
     description: "Cars and automatic charging",
-    icon: <Car size={21} />,
+    icon: <Car size={26} />,
   },
   {
     id: "home",
     title: "Solar & home",
     description: "Solar, battery and home energy",
-    icon: <Sun size={21} />,
+    icon: <Sun size={26} />,
   },
   {
     id: "electricity",
     title: "Electricity price",
     description: "Prices and cheap hours",
-    icon: <CircleDollarSign size={21} />,
+    icon: <CircleDollarSign size={26} />,
   },
   {
     id: "history",
     title: "Charging history",
     description: "Bring old charges into Stats",
-    icon: <History size={21} />,
+    icon: <History size={26} />,
   },
   {
     id: "advanced",
     title: "Advanced",
     description: "Fine tuning and system tools",
-    icon: <Settings2 size={21} />,
+    icon: <Settings2 size={26} />,
   },
 ];
 
@@ -115,13 +120,7 @@ function SettingsMenu({
   onChange: (page: SettingsPage) => void;
 }) {
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(155px, 1fr))",
-        gap: 10,
-      }}
-    >
+    <nav className={styles.menu} aria-label="Settings categories">
       {MENU_ITEMS.map((item) => {
         const selected = item.id === page;
         return (
@@ -130,45 +129,27 @@ function SettingsMenu({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(item.id)}
-            style={{
-              appearance: "none",
-              textAlign: "left",
-              cursor: "pointer",
-              minHeight: 82,
-              padding: "12px 14px",
-              borderRadius: 10,
-              border: selected
-                ? "1px solid var(--accent-9)"
-                : "1px solid var(--gray-a5)",
-              background: selected ? "var(--accent-a3)" : "var(--gray-a2)",
-              color: "var(--gray-12)",
-            }}
+            className={styles.menuButton}
           >
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 5,
-                color: selected ? "var(--accent-11)" : "var(--gray-12)",
-              }}
-            >
+            <span className={styles.menuIcon} aria-hidden="true">
               {item.icon}
-              <Text size="2" weight="bold">{item.title}</Text>
             </span>
-            <Text size="1" color="gray">{item.description}</Text>
+            <span className={styles.menuTitle}>{item.title}</span>
+            <span className={styles.menuDescription}>{item.description}</span>
           </button>
         );
       })}
-    </div>
+    </nav>
   );
 }
 
-function PageIntro({ title, description }: { title: string; description: string }) {
+function PageIntro(
+  { title, description }: { title: string; description: string },
+) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <Text size="4" weight="bold">{title}</Text>
-      <Text size="2" color="gray">{description}</Text>
+    <div className={styles.pageIntro}>
+      <h2 className={styles.introTitle}>{title}</h2>
+      <p className={styles.introDescription}>{description}</p>
     </div>
   );
 }
@@ -208,7 +189,7 @@ function AutomaticChargingSettings() {
 
 function CarsSettingsPage() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className={styles.settingsPage}>
       <PageIntro
         title="My cars"
         description="Connect your cars and choose how E.V. Solar charges them."
@@ -221,7 +202,7 @@ function CarsSettingsPage() {
 
 function HomeSettingsPage() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className={styles.settingsPage}>
       <PageIntro
         title="Solar & home"
         description="Connect home energy and choose how much battery to keep for the house."
@@ -235,7 +216,7 @@ function HomeSettingsPage() {
 
 function ElectricitySettingsPage() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className={styles.settingsPage}>
       <PageIntro
         title="Electricity price"
         description="Set your electricity prices and the hours when grid charging is cheaper."
@@ -247,11 +228,11 @@ function ElectricitySettingsPage() {
 
 function HistoryHelp() {
   return (
-    <Card style={{ borderLeft: "3px solid var(--blue-9)" }}>
-      <Text size="2" weight="bold" style={{ display: "block" }}>
+    <Card className={styles.historyHelp}>
+      <Text weight="bold" className={styles.historyTitle}>
         You only need this for old charging data
       </Text>
-      <Text size="2" color="gray" style={{ display: "block", marginTop: 3 }}>
+      <Text color="gray" className={styles.historyText}>
         Normal charging works without importing anything here. Choose the car,
         then use the import that matches where its old charging data comes from.
       </Text>
@@ -261,7 +242,7 @@ function HistoryHelp() {
 
 function HistorySettingsPage() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className={styles.settingsPage}>
       <PageIntro
         title="Charging history"
         description="Optional: add old charging sessions to Stats."
@@ -275,7 +256,7 @@ function HistorySettingsPage() {
 
 function AdvancedSettingsPage() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className={styles.settingsPage}>
       <PageIntro
         title="Advanced settings"
         description="Fine tuning. Most people can leave these settings alone."
@@ -306,10 +287,10 @@ export function Settings() {
     : false;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <Text size="5" weight="bold">Settings</Text>
-        <Text size="2" color="gray">What do you want to change?</Text>
+    <div className={styles.settings}>
+      <div className={styles.pageHeader}>
+        <h1 className={styles.pageTitle}>Settings</h1>
+        <p className={styles.pageSubtitle}>Choose a large category below.</p>
       </div>
       {encryptionMissing && <EncryptionWarning />}
       <SettingsMenu page={page} onChange={setPage} />

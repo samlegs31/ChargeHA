@@ -177,13 +177,15 @@ describe("Stats", () => {
 
   it("shows only EV charging summary metrics", () => {
     renderStats();
+    expect(screen.getByRole("heading", { name: "Charging stats" }))
+      .toBeInTheDocument();
     expect(screen.getByText("Total Charged")).toBeInTheDocument();
     expect(screen.getByText("Charged at Home")).toBeInTheDocument();
     expect(screen.getByText("From Solar")).toBeInTheDocument();
     expect(screen.getByText("From Battery")).toBeInTheDocument();
     expect(screen.getByText("From Grid")).toBeInTheDocument();
     expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Solar Share")).toBeInTheDocument();
+    expect(screen.getByText("Solar-powered charging")).toBeInTheDocument();
     expect(screen.queryByText("Solar Produced")).not.toBeInTheDocument();
     expect(screen.queryByText("Total Consumed")).not.toBeInTheDocument();
     expect(screen.queryByText("Self Powered")).not.toBeInTheDocument();
@@ -228,9 +230,12 @@ describe("Stats", () => {
 
   it("renders only EV charging flow legend labels", () => {
     renderStats();
-    expect(screen.getByText("Solar → Car")).toBeInTheDocument();
-    expect(screen.getByText("Battery → Car")).toBeInTheDocument();
-    expect(screen.getByText("Grid → Car")).toBeInTheDocument();
+    expect(screen.getByRole("heading", {
+      name: "Where your charging came from",
+    })).toBeInTheDocument();
+    expect(screen.getByText("Solar")).toBeInTheDocument();
+    expect(screen.getByText("Home battery")).toBeInTheDocument();
+    expect(screen.getByText("Grid")).toBeInTheDocument();
     expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText("Solar → Home")).not.toBeInTheDocument();
     expect(screen.queryByText("Grid → Home")).not.toBeInTheDocument();
@@ -260,7 +265,9 @@ describe("Stats", () => {
     renderStats();
     expect(screen.getAllByText("Grid Cost").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("$12.50").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Solar Savings").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Solar Savings").length).toBeGreaterThanOrEqual(
+      1,
+    );
     expect(screen.getAllByText("$2.50").length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText("$8.30")).not.toBeInTheDocument();
   });

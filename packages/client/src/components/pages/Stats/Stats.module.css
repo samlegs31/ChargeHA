@@ -1,19 +1,46 @@
 .stats {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 18px;
+}
+
+.pageIntro {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pageTitle {
+  margin: 0;
+  color: var(--gray-12);
+  font-size: clamp(1.75rem, 5vw, 2.25rem);
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+
+.pageSubtitle {
+  margin: 0;
+  color: var(--gray-11);
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .periodToggle {
   display: flex;
   justify-content: center;
-  padding: 4px;
-  border-radius: 14px;
+  padding: 5px;
+  border-radius: 16px;
   background: var(--gray-a3);
 }
 
 .periodToggle > * {
   width: 100%;
+}
+
+.periodToggle button {
+  min-height: 46px;
+  font-size: 0.95rem;
+  font-weight: 650;
 }
 
 .dateNav {
@@ -24,8 +51,8 @@
 }
 
 .dateNav button {
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: 12px !important;
 }
 
@@ -34,7 +61,7 @@
   text-align: center;
   cursor: pointer;
   user-select: none;
-  padding: 9px 12px;
+  padding: 12px 14px;
   border-radius: 12px;
   background: var(--gray-a3);
 }
@@ -47,43 +74,144 @@
 .resolutionToggle {
   display: flex;
   justify-content: flex-end;
-  margin-bottom: 8px;
+  margin: 0;
 }
 
-.summary {
+.summaryHero {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: minmax(0, 2fr) minmax(190px, 1fr);
+  gap: 12px;
+}
+
+.solarShareCard {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 150px;
+  padding: 22px;
+  border: 1px solid color-mix(in srgb, var(--color-solar-car) 32%, transparent);
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      circle at 8% 18%,
+      color-mix(in srgb, var(--color-solar-car) 18%, transparent),
+      transparent 42%
+    ),
+    var(--color-panel-solid);
+  box-shadow: none;
+}
+
+.heroIcon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  color: var(--color-solar-car);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--color-solar-car) 16%, transparent);
+}
+
+.heroCopy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.heroValue {
+  color: var(--gray-12);
+  font-size: clamp(2.5rem, 8vw, 4rem);
+  font-weight: 780;
+  line-height: 1;
+  letter-spacing: -0.055em;
+}
+
+.sourceSummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.secondarySummary,
+.costSummary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .summaryCard {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 5px;
-  min-height: 96px;
-  padding: 14px 16px;
-  border-radius: 15px;
+  justify-content: center;
+  gap: 9px;
+  min-height: 112px;
+  padding: 18px;
+  border-radius: 18px;
   box-shadow: none;
 }
 
-.costSummary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+.summaryCard[data-tone="solar"] {
+  border-top: 3px solid var(--color-solar-car);
+}
+
+.summaryCard[data-tone="battery"] {
+  border-top: 3px solid var(--color-battery-car);
+}
+
+.summaryCard[data-tone="grid"] {
+  border-top: 3px solid var(--color-grid-car);
+}
+
+.summaryLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gray-11);
 }
 
 .summaryValue {
-  font-size: 1.75rem;
+  color: var(--gray-12);
+  font-size: 1.9rem;
   font-weight: 750;
   line-height: 1.15;
   letter-spacing: -0.025em;
 }
 
 .chartCard {
-  padding: 14px 10px 10px;
-  border-radius: 16px;
+  padding: 18px 12px 14px;
+  border-radius: 20px;
   box-shadow: none;
+}
+
+.chartHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 8px 12px;
+}
+
+.chartTitleGroup {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chartTitle {
+  margin: 0;
+  color: var(--gray-12);
+  font-size: 1.2rem;
+  line-height: 1.25;
+}
+
+.chartDescription {
+  margin: 0;
+  color: var(--gray-11);
+  font-size: 0.95rem;
+  line-height: 1.45;
 }
 
 .chartWrapper {
@@ -111,7 +239,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.78rem;
+  min-height: 28px;
+  font-size: 0.9rem;
   color: var(--gray-11);
 }
 
@@ -123,7 +252,7 @@
 }
 
 .breakdownCard {
-  padding: 16px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -135,7 +264,27 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 42px;
+  min-height: 48px;
+}
+
+.breakdownHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.breakdownTitle {
+  margin: 0;
+  color: var(--gray-12);
+  font-size: 1.3rem;
+}
+
+.breakdownDescription {
+  margin: 0;
+  color: var(--gray-11);
+  font-size: 0.95rem;
+  line-height: 1.45;
 }
 
 .breakdownIcon {
@@ -222,31 +371,63 @@
 }
 
 @media (max-width: 900px) {
-  .summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .summaryHero {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @media (max-width: 640px) {
   .stats {
-    gap: 12px;
+    gap: 16px;
   }
 
   .periodToggle {
-    padding: 3px;
+    padding: 4px;
   }
 
-  .summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .periodToggle button {
+    min-height: 48px;
+    font-size: 0.92rem;
+  }
+
+  .dateNav {
+    grid-template-columns: 48px minmax(0, 1fr) 48px;
+    gap: 6px;
+  }
+
+  .solarShareCard {
+    align-items: flex-start;
+    min-height: 0;
+    padding: 20px;
+  }
+
+  .heroIcon {
+    width: 54px;
+    height: 54px;
+    flex-basis: 54px;
+    border-radius: 17px;
+  }
+
+  .sourceSummary {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .summaryCard {
-    min-height: 88px;
-    padding: 13px;
+    min-height: 104px;
+    padding: 16px;
   }
 
   .summaryValue {
-    font-size: 1.48rem;
+    font-size: 1.7rem;
+  }
+
+  .chartHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .resolutionToggle {
+    justify-content: flex-start;
   }
 
   .chartWrapper {

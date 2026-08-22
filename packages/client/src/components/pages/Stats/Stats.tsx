@@ -36,6 +36,13 @@ export function Stats() {
 
   return (
     <div className={styles.stats}>
+      <div className={styles.pageIntro}>
+        <h1 className={styles.pageTitle}>Charging stats</h1>
+        <p className={styles.pageSubtitle}>
+          See how much of your driving was powered by the sun.
+        </p>
+      </div>
+
       <StatsPeriodNav
         period={period}
         setPeriod={setPeriod}
@@ -61,6 +68,12 @@ export function Stats() {
             onDrillDown={drillDown}
           />
 
+          <div className={styles.breakdownHeading}>
+            <h2 className={styles.breakdownTitle}>By car</h2>
+            <p className={styles.breakdownDescription}>
+              A simple source breakdown for each vehicle.
+            </p>
+          </div>
           <StatsVehicleBreakdown
             data={data}
             loading={loading}

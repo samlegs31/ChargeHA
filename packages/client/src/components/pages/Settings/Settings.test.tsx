@@ -63,7 +63,9 @@ vi.mock("./SolarForecastSettings.tsx", () => ({
 }));
 
 vi.mock("./HistoryMigrationSettings.tsx", () => ({
-  HistoryMigrationSettings: () => <div data-testid="history-migration-settings" />,
+  HistoryMigrationSettings: () => (
+    <div data-testid="history-migration-settings" />
+  ),
 }));
 
 vi.mock("./SolarWebHistoryImport.tsx", () => ({
@@ -293,12 +295,21 @@ describe("Settings", () => {
 
   it("shows one simple Settings topic at a time", () => {
     renderWithProviders(<Settings />);
+    expect(screen.getByRole("heading", { name: "Settings" }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText("Settings categories")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /My cars/i }))
+      .toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("vehicle-settings")).toBeInTheDocument();
-    expect(screen.queryByTestId("history-migration-settings")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("history-migration-settings")).not
+      .toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Charging history/i }));
 
-    expect(screen.getByTestId("history-migration-settings")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Charging history/i }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("history-migration-settings"))
+      .toBeInTheDocument();
     expect(screen.getByTestId("solarweb-history-import")).toBeInTheDocument();
     expect(screen.queryByTestId("vehicle-settings")).not.toBeInTheDocument();
   });

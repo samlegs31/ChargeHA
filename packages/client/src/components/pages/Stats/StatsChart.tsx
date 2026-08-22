@@ -43,9 +43,9 @@ const FLOW_COLORS: Record<(typeof FLOW_KEYS)[number], string> = {
 };
 
 const FLOW_NAMES: Record<(typeof FLOW_KEYS)[number], string> = {
-  solarToCar: "Solar → Car",
-  batteryToCar: "Battery → Car",
-  gridToCar: "Grid → Car",
+  solarToCar: "Solar",
+  batteryToCar: "Home battery",
+  gridToCar: "Grid",
   away: "Away",
 };
 
@@ -180,7 +180,9 @@ function CustomTooltip(props: CustomTooltipProps) {
             <div key={vehicle.vehicleId} className={styles.tooltipRow}>
               <span className={styles.tooltipSocIcon}>🔋</span>
               <span className={styles.tooltipLabel}>{vehicle.vehicleName}</span>
-              <span className={styles.tooltipValue}>{vehicle.batteryLevel}%</span>
+              <span className={styles.tooltipValue}>
+                {vehicle.batteryLevel}%
+              </span>
             </div>
           ))}
         </>
@@ -305,18 +307,27 @@ export function StatsChart({
 
   return (
     <Card className={styles.chartCard}>
-      {period === "day" && (
-        <div className={styles.resolutionToggle}>
-          <SegmentedControl.Root
-            value={resolution}
-            onValueChange={(value) => setResolution(value as DayResolution)}
-            size="1"
-          >
-            <SegmentedControl.Item value="1h">1h</SegmentedControl.Item>
-            <SegmentedControl.Item value="15m">15m</SegmentedControl.Item>
-          </SegmentedControl.Root>
+      <div className={styles.chartHeader}>
+        <div className={styles.chartTitleGroup}>
+          <h2 className={styles.chartTitle}>Where your charging came from</h2>
+          <p className={styles.chartDescription}>
+            Each color shows the energy source used by your car.
+          </p>
         </div>
-      )}
+        {period === "day" && (
+          <div className={styles.resolutionToggle}>
+            <SegmentedControl.Root
+              value={resolution}
+              onValueChange={(value) => setResolution(value as DayResolution)}
+              size="2"
+              aria-label="Chart detail"
+            >
+              <SegmentedControl.Item value="1h">1h</SegmentedControl.Item>
+              <SegmentedControl.Item value="15m">15m</SegmentedControl.Item>
+            </SegmentedControl.Root>
+          </div>
+        )}
+      </div>
       <div className={styles.chartWrapper}>
         {loading && (
           <div className={styles.chartPlaceholder}>
