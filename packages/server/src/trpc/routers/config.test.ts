@@ -155,6 +155,11 @@ describe("Config tRPC Router", () => {
       expect(data.solarForecastLatitude).toBe(null);
       expect(data.solarForecastLongitude).toBe(null);
       expect(data.solarForecastArraysJson).toBe("[]");
+      expect(data.solarForecastInverterModel).toBe("");
+      expect(data.solarForecastInverterAcMaxKw).toBe(null);
+      expect(data.solarForecastBatteryModel).toBe("");
+      expect(data.solarForecastBatteryCapacityKwh).toBe(null);
+      expect(data.solarForecastSubscribedPowerKva).toBe(null);
     });
 
     it("set persists typed forecast settings", async () => {
@@ -163,12 +168,24 @@ describe("Config tRPC Router", () => {
         solarForecastInstallationDate: "2022-05-30",
         solarForecastLatitude: 43.55,
         solarForecastLongitude: 1.68,
+        solarForecastInverterModel: "Fronius Primo GEN24 6.0 Plus",
+        solarForecastInverterAcMaxKw: 6,
+        solarForecastBatteryModel: "BYD Battery-Box Premium HVS 7.7",
+        solarForecastBatteryCapacityKwh: 7.68,
+        solarForecastBatteryMaxChargeKw: 6,
+        solarForecastBatteryMaxDischargeKw: 6,
+        solarForecastBatteryRoundTripEfficiencyPct: 96,
+        solarForecastSubscribedPowerKva: 12,
       });
       const data = await caller.config.solarForecast.get();
       expect(data.solarForecastEnabled).toBe(true);
       expect(data.solarForecastInstallationDate).toBe("2022-05-30");
       expect(data.solarForecastLatitude).toBe(43.55);
       expect(data.solarForecastLongitude).toBe(1.68);
+      expect(data.solarForecastInverterAcMaxKw).toBe(6);
+      expect(data.solarForecastBatteryCapacityKwh).toBe(7.68);
+      expect(data.solarForecastBatteryRoundTripEfficiencyPct).toBe(96);
+      expect(data.solarForecastSubscribedPowerKva).toBe(12);
     });
   });
 

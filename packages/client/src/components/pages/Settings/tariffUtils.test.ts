@@ -67,6 +67,7 @@ describe("timeRangesOverlap", () => {
     ["overnight A overlapping daytime B", 1320, 360, 300, 480, true],
     ["two overnight ranges overlapping", 1320, 360, 1380, 300, true],
     ["non-overlapping overnight range", 1320, 120, 360, 600, false],
+    ["equal boundaries cover the full day", 0, 0, 360, 600, true],
   ])("%s", (_label, a1, a2, b1, b2, expected) => {
     expect(timeRangesOverlap(a1, a2, b1, b2)).toBe(expected);
   });
@@ -143,6 +144,26 @@ describe("detectOverlaps", () => {
     expect(result[0].periodA).toBe("(unnamed)");
     expect(result[0].periodB).toBe("(unnamed)");
   });
+
+  it("detects an overnight overlap on the following calendar day", () => {
+    const result = detectOverlaps([
+      {
+        label: "Monday night",
+        startTime: "22:00",
+        endTime: "06:00",
+        days: ["mon"],
+      },
+      {
+        label: "Tuesday early",
+        startTime: "05:00",
+        endTime: "08:00",
+        days: ["tue"],
+      },
+    ]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].days).toEqual(["tue"]);
+  });
 });
 
 describe("formatOverlapMessage", () => {
@@ -203,11 +224,29 @@ describe("findGapsForDay", () => {
   it("handles overnight period correctly", () => {
     // 22:00-06:00 covers [22:00,24:00) + [00:00,06:00)
     const gaps = findGapsForDay(
-      [{ startTime: "22:00", endTime: "06:00", days: ["mon"] }],
+      [{ startTime: "22:00", endTime: "06:00", days: [...ALL_DAYS] }],
       "mon",
     );
     // Gap should be 06:00-22:00
     expect(gaps).toEqual([[360, 1320]]);
+  });
+
+  it("carries a Monday overnight period into Tuesday morning", () => {
+    const gaps = findGapsForDay(
+      [{ startTime: "22:00", endTime: "06:00", days: ["mon"] }],
+      "tue",
+    );
+
+    expect(gaps).toEqual([[360, 1440]]);
+  });
+
+  it("treats 00:00-00:00 as a full day", () => {
+    const gaps = findGapsForDay(
+      [{ startTime: "00:00", endTime: "00:00", days: ["mon"] }],
+      "mon",
+    );
+
+    expect(gaps).toEqual([]);
   });
 
   it("merges overlapping ranges on the same day", () => {

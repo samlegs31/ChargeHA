@@ -81,6 +81,90 @@ const ALL_DAYS: DayOfWeek[] = [
   "sun",
 ];
 
+type RateChangeCandidate = {
+  minutesFromNow: number;
+  checkMinutes: number;
+  checkDay: DayOfWeek;
+};
+
+function rateChangeCandidates(
+  enabled: TariffPeriodRow[],
+  currentMinutes: number,
+  currentDayAbbr: DayOfWeek,
+  tomorrowDayAbbr: DayOfWeek,
+): RateChangeCandidate[] {
+  const minutesUntilMidnight = 24 * 60 - currentMinutes;
+  const currentDayIndex = ALL_DAYS.indexOf(currentDayAbbr);
+  const previousDayAbbr = ALL_DAYS[
+    (currentDayIndex + ALL_DAYS.length - 1) % ALL_DAYS.length
+  ];
+  type Rule = (
+    period: TariffPeriodRow,
+    startMin: number,
+    endMin: number,
+  ) => RateChangeCandidate | null;
+  const rules: Rule[] = [
+    (period, startMin) => {
+      if (!period.days.includes(currentDayAbbr) || startMin <= currentMinutes) {
+        return null;
+      }
+      return {
+        minutesFromNow: startMin - currentMinutes,
+        checkMinutes: startMin,
+        checkDay: currentDayAbbr,
+      };
+    },
+    (period, _startMin, endMin) => {
+      if (!period.days.includes(currentDayAbbr) || endMin <= currentMinutes) {
+        return null;
+      }
+      return {
+        minutesFromNow: endMin - currentMinutes,
+        checkMinutes: endMin,
+        checkDay: currentDayAbbr,
+      };
+    },
+    (period, startMin, endMin) => {
+      if (
+        startMin <= endMin || !period.days.includes(previousDayAbbr) ||
+        currentMinutes >= endMin
+      ) return null;
+      return {
+        minutesFromNow: endMin - currentMinutes,
+        checkMinutes: endMin,
+        checkDay: currentDayAbbr,
+      };
+    },
+    (period, startMin, endMin) => {
+      if (
+        !period.days.includes(currentDayAbbr) || startMin <= endMin ||
+        endMin > currentMinutes
+      ) return null;
+      return {
+        minutesFromNow: minutesUntilMidnight + endMin,
+        checkMinutes: endMin,
+        checkDay: tomorrowDayAbbr,
+      };
+    },
+    (period, startMin) => {
+      if (!period.days.includes(tomorrowDayAbbr)) return null;
+      return {
+        minutesFromNow: minutesUntilMidnight + startMin,
+        checkMinutes: startMin,
+        checkDay: tomorrowDayAbbr,
+      };
+    },
+  ];
+  return enabled.flatMap((period) => {
+    const startMin = parseTimeToMinutes(period.startTime);
+    const endMin = parseTimeToMinutes(period.endTime);
+    return rules.flatMap((rule) => {
+      const candidate = rule(period, startMin, endMin);
+      return candidate ? [candidate] : [];
+    });
+  });
+}
+
 // Preset templates
 const PRESETS: Record<string, CreateTariffPeriodInput[]> = {
   flat: [
@@ -221,6 +305,11 @@ export class TariffService {
     await this.refreshPromise;
   }
 
+  /** Make controller-side tariff reads refresh after a settings change. */
+  private invalidateCache(): void {
+    this.tariffLastRefreshed = 0;
+  }
+
   /** Force-refresh the tariff period, default rate, and timezone caches from DB. */
   private async refreshCache(): Promise<void> {
     try {
@@ -330,6 +419,8 @@ export class TariffService {
       );
     }
 
+    this.invalidateCache();
+
     return { period };
   }
 
@@ -360,6 +451,8 @@ export class TariffService {
       );
     }
 
+    this.invalidateCache();
+
     return { period };
   }
 
@@ -371,6 +464,7 @@ export class TariffService {
     }
 
     await this.db.deleteTariffPeriod(id);
+    this.invalidateCache();
     return { success: true };
   }
 
@@ -391,6 +485,8 @@ export class TariffService {
     if (input.currencyCode !== undefined) {
       await this.db.setConfig("currency_code", input.currencyCode);
     }
+
+    this.invalidateCache();
 
     const currencySymbol = (await this.db.getConfig("currency_symbol")) ?? "$";
     const currencyCode = (await this.db.getConfig("currency_code")) ?? "AUD";
@@ -418,6 +514,8 @@ export class TariffService {
     await this.db.deleteAllTariffPeriods();
     await inSequence(preset, (period) => this.db.createTariffPeriod(period));
 
+    this.invalidateCache();
+
     const periods = await this.db.getTariffPeriods();
     return { periods };
   }
@@ -434,71 +532,12 @@ export class TariffService {
   ): { ratePerKwh: number; label: string; startsAt: string } | null {
     const enabled = tariffPeriods.filter((p) => p.enabled);
 
-    // Collect candidate transition points (period starts and ends)
-    type Candidate = {
-      minutesFromNow: number;
-      checkMinutes: number;
-      checkDay: DayOfWeek;
-    };
-    type Rule = (
-      p: (typeof enabled)[number],
-      startMin: number,
-      endMin: number,
-    ) => Candidate | null;
-
-    const minutesUntilMidnight = 24 * 60 - currentMinutes;
-    const candidateRules: Rule[] = [
-      // Today's start after current time
-      (p, startMin) => {
-        if (!p.days.includes(currentDayAbbr)) return null;
-        if (startMin <= currentMinutes) return null;
-        return {
-          minutesFromNow: startMin - currentMinutes,
-          checkMinutes: startMin,
-          checkDay: currentDayAbbr,
-        };
-      },
-      // Today's end after current time
-      (p, _startMin, endMin) => {
-        if (!p.days.includes(currentDayAbbr)) return null;
-        if (endMin <= currentMinutes) return null;
-        return {
-          minutesFromNow: endMin - currentMinutes,
-          checkMinutes: endMin,
-          checkDay: currentDayAbbr,
-        };
-      },
-      // Overnight period end (e.g. 22:00-07:00) wraps to tomorrow
-      (p, startMin, endMin) => {
-        if (!p.days.includes(currentDayAbbr)) return null;
-        if (startMin <= endMin) return null;
-        if (endMin > currentMinutes) return null;
-        return {
-          minutesFromNow: minutesUntilMidnight + endMin,
-          checkMinutes: endMin,
-          checkDay: tomorrowDayAbbr,
-        };
-      },
-      // Tomorrow's start time
-      (p, startMin) => {
-        if (!p.days.includes(tomorrowDayAbbr)) return null;
-        return {
-          minutesFromNow: minutesUntilMidnight + startMin,
-          checkMinutes: startMin,
-          checkDay: tomorrowDayAbbr,
-        };
-      },
-    ];
-
-    const candidates = enabled.reduce<Candidate[]>((acc, p) => {
-      const startMin = parseTimeToMinutes(p.startTime);
-      const endMin = parseTimeToMinutes(p.endTime);
-      return candidateRules.reduce((ruleAcc, rule) => {
-        const candidate = rule(p, startMin, endMin);
-        if (candidate) ruleAcc.push(candidate);
-        return ruleAcc;
-      }, acc);
-    }, []);
+    const candidates = rateChangeCandidates(
+      enabled,
+      currentMinutes,
+      currentDayAbbr,
+      tomorrowDayAbbr,
+    );
 
     // Sort by time, deduplicate
     candidates.sort((a, b) => a.minutesFromNow - b.minutesFromNow);

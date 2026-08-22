@@ -312,6 +312,15 @@ describe("Settings", () => {
       .toBeInTheDocument();
     expect(screen.getByTestId("solarweb-history-import")).toBeInTheDocument();
     expect(screen.queryByTestId("vehicle-settings")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Solar Prediction/i }));
+
+    expect(screen.getByRole("button", { name: /Solar Prediction/i }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("solar-forecast-settings"))
+      .toBeInTheDocument();
+    expect(screen.queryByTestId("history-migration-settings")).not
+      .toBeInTheDocument();
   });
 
   describe("Encryption warning", () => {

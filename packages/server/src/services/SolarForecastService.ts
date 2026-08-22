@@ -1,4 +1,5 @@
 import type { AppDatabase } from "../db/AppDatabase.ts";
+import type { TariffPeriodRow } from "../db/types.ts";
 import type { Logger } from "../lib/Logger.ts";
 import type { ConfigService } from "./ConfigService.ts";
 import type { EnergyPoller } from "./EnergyPoller.ts";
@@ -10,16 +11,17 @@ import type {
   VehicleMode,
 } from "@chargeha/shared";
 import {
-  ControllerEngine,
-  isScheduleActiveNow,
   type ControllerConfig,
+  ControllerEngine,
   type EngineSchedule,
+  isScheduleActiveNow,
 } from "@chargeha/shared/engine";
 import {
   parseSolarArrays,
   type SolarArrayConfig,
   type SolarChargeForecastResult,
 } from "@chargeha/shared/forecast";
+import type { SolarForecastConfig } from "@chargeha/shared/configSections";
 
 const OPEN_METEO_URL = "https://api.open-meteo.com/v1/meteofrance";
 const PANEL_DEGRADATION_PER_YEAR = 0.005;
@@ -41,6 +43,13 @@ interface MeteoFranceResponse {
 interface PvPoint {
   at: Date;
   powerW: number;
+}
+
+export interface HomeBatteryForecastConfig {
+  capacityKwh: number;
+  maxChargeW: number;
+  maxDischargeW: number;
+  roundTripEfficiency: number;
 }
 
 interface ScheduleWindowState {
@@ -66,6 +75,8 @@ interface SimulationInput {
   baseLoadW: number;
   initialBatteryPowerW: number;
   batterySoc: number | null;
+  homeBattery: HomeBatteryForecastConfig | null;
+  subscribedPowerW: number | null;
   vehicleCapacityKwh: number;
 }
 
@@ -79,6 +90,7 @@ interface SimulationRuntime {
   simulatedEvW: number;
   finalAt: string | null;
   stopped: boolean;
+  batterySoc: number | null;
 }
 
 interface SimulationResult {
@@ -108,7 +120,9 @@ export class SolarForecastService {
     private nowFn: () => Date = () => new Date(),
   ) {}
 
-  async getTodayForecast(vehicleId: string): Promise<SolarChargeForecastResult> {
+  async getTodayForecast(
+    vehicleId: string,
+  ): Promise<SolarChargeForecastResult> {
     const now = this.nowFn();
     const [forecastConfig, controllerConfig, vehicle, state, snapshot] =
       await Promise.all([
@@ -119,26 +133,10 @@ export class SolarForecastService {
         Promise.resolve(this.poller.tryGetRealtimeSnapshot()),
       ]);
 
-    if (!vehicle || !state) {
-      return unavailable("vehicle_not_found", "Vehicle state is unavailable.");
-    }
-    if (!state.isPluggedIn) {
-      return unavailable("vehicle_unplugged", "Vehicle is not plugged in.");
-    }
-    if (state.isHome === false) {
-      return unavailable(
-        "vehicle_away",
-        "Solar forecast is only available for charging at home.",
-      );
-    }
-    if (vehicle.mode !== "vacation" && vehicle.mode !== "auto") {
-      return unavailable(
-        "unsupported_mode",
-        "Forecast is only available in Solar Only and Solar + clock.",
-      );
-    }
-    if (!snapshot || snapshot.realtime.pollFailed) {
-      return unavailable("energy_unavailable", "Live energy data is unavailable.");
+    const requestError = forecastRequestUnavailable(vehicle, state, snapshot);
+    if (requestError) return requestError;
+    if (!vehicle || !state || !snapshot) {
+      throw new Error("Invalid forecast state");
     }
 
     const arrays = parseSolarArrays(forecastConfig.solarForecastArraysJson);
@@ -158,6 +156,7 @@ export class SolarForecastService {
       timezone,
       now,
       snapshot.realtime.solarProductionW,
+      forecastConfig.solarForecastInverterAcMaxKw,
     ).catch((error) => {
       this.logger.warn("Solar forecast weather fetch failed", error);
       return null;
@@ -169,15 +168,27 @@ export class SolarForecastService {
       );
     }
 
-    const [capacitySamples, schedulesResult] = await Promise.all([
-      this.db.vehicles.getRecentCapacityCalibrationSamples(vehicleId),
-      this.scheduleService.list(),
-    ]);
+    const [capacitySamples, schedulesResult, tariffPeriods] = await Promise.all(
+      [
+        this.db.vehicles.getRecentCapacityCalibrationSamples(vehicleId),
+        this.scheduleService.list(),
+        this.db.tariffs.getTariffPeriods(),
+      ],
+    );
     const capacity = estimateVehicleCapacityKwh(state, capacitySamples);
     const baseLoadW = await this.estimateBaseHomeLoadW(
       snapshot.realtime,
       controllerConfig,
     );
+    const schedules = forecastSchedules({
+      configured: schedulesResult.schedules as EngineSchedule[],
+      tariffPeriods,
+      vehicleId,
+      state,
+      controllerConfig,
+      subscribedPowerKva: forecastConfig.solarForecastSubscribedPowerKva,
+      baseLoadW,
+    });
     const pvRemainingKwh = integrateRemainingPvKwh(weatherResult.points, now);
     const simulation = this.simulate({
       now,
@@ -187,12 +198,16 @@ export class SolarForecastService {
       priority: vehicle.priority,
       initialState: state,
       controllerConfig,
-      schedules: schedulesResult.schedules as EngineSchedule[],
+      schedules,
       points: weatherResult.points,
       forecastDayEnd: weatherResult.dayEnd,
       baseLoadW,
       initialBatteryPowerW: snapshot.realtime.batteryPowerW ?? 0,
       batterySoc: snapshot.realtime.batterySoc,
+      homeBattery: resolveHomeBatteryForecastConfig(forecastConfig),
+      subscribedPowerW: forecastConfig.solarForecastSubscribedPowerKva === null
+        ? null
+        : forecastConfig.solarForecastSubscribedPowerKva * 1000,
       vehicleCapacityKwh: capacity.kwh,
     });
 
@@ -209,7 +224,10 @@ export class SolarForecastService {
       finalSoc: round1(simulation.finalSoc),
       finalAt: simulation.finalAt,
       schedule: simulation.schedule,
-      confidence: forecastConfidence(capacity.sampleCount, weatherResult.liveCorrection),
+      confidence: forecastConfidence(
+        capacity.sampleCount,
+        weatherResult.liveCorrection,
+      ),
     };
   }
 
@@ -267,6 +285,7 @@ export class SolarForecastService {
     timezone: string,
     now: Date,
     liveSolarW: number,
+    configuredInverterAcMaxKw: number | null,
   ): Promise<{
     points: PvPoint[];
     dayEnd: Date;
@@ -292,9 +311,11 @@ export class SolarForecastService {
       0,
     );
     const observedMaxW = await this.db.energy.getRecentObservedSolarMaxW(90);
-    const inverterCapW = observedMaxW >= nominalW * 0.45
-      ? Math.min(nominalW, observedMaxW * 1.03)
-      : nominalW;
+    const inverterCapW = resolveInverterCapW(
+      nominalW,
+      observedMaxW,
+      configuredInverterAcMaxKw,
+    );
     const clipped = combined.map((point) => ({
       ...point,
       powerW: Math.min(point.powerW, inverterCapW),
@@ -332,7 +353,10 @@ export class SolarForecastService {
       "global_tilted_irradiance,temperature_2m",
     );
     url.searchParams.set("tilt", String(array.tiltDeg));
-    url.searchParams.set("azimuth", String(toOpenMeteoAzimuth(array.azimuthDeg)));
+    url.searchParams.set(
+      "azimuth",
+      String(toOpenMeteoAzimuth(array.azimuthDeg)),
+    );
     url.searchParams.set("timezone", timezone);
     url.searchParams.set("forecast_days", "1");
 
@@ -366,15 +390,23 @@ export class SolarForecastService {
 
   private simulate(input: SimulationInput): SimulationResult {
     const engine = new ControllerEngine();
-    const electrical = resolveElectrical(input.initialState, input.controllerConfig);
+    const electrical = resolveElectrical(
+      input.initialState,
+      input.controllerConfig,
+    );
     const startMs = input.now.getTime();
     const horizonMs = simulationHorizonMs(input, startMs);
     const initialRuntime = createSimulationRuntime(input, electrical);
-    const minuteCount = Math.max(0, Math.floor((horizonMs - startMs) / MINUTE_MS) + 1);
-    const runtime = Array.from({ length: minuteCount }, (_, index) =>
-      startMs + index * MINUTE_MS
+    const minuteCount = Math.max(
+      0,
+      Math.floor((horizonMs - startMs) / MINUTE_MS) + 1,
+    );
+    const runtime = Array.from(
+      { length: minuteCount },
+      (_, index) => startMs + index * MINUTE_MS,
     ).reduce(
-      (current, ts) => this.simulateMinute(input, engine, electrical, current, ts),
+      (current, ts) =>
+        this.simulateMinute(input, engine, electrical, current, ts),
       initialRuntime,
     );
     const finalAt = simulationFinalAt(runtime, input.mode);
@@ -405,10 +437,18 @@ export class SolarForecastService {
       baseLoadW: input.baseLoadW,
       evW: runtime.simulatedEvW,
       initialBatteryPowerW: input.initialBatteryPowerW,
-      batterySoc: input.batterySoc,
+      batterySoc: runtime.batterySoc,
+      homeBattery: input.homeBattery,
       config: input.controllerConfig,
     });
-    const minute = createMinuteSnapshot(input, runtime, electrical, at, pvW, batteryW);
+    const minute = createMinuteSnapshot(
+      input,
+      runtime,
+      electrical,
+      at,
+      pvW,
+      batteryW,
+    );
     const activeSchedule = findActiveChargeSchedule(
       input.schedules,
       input.vehicleId,
@@ -421,21 +461,7 @@ export class SolarForecastService {
       at,
       runtime.soc,
     );
-    const result = engine.decide({
-      config: input.controllerConfig,
-      vehicles: [{
-        id: input.vehicleId,
-        name: input.vehicleName,
-        mode: input.mode,
-        priority: input.priority,
-        state: minute.state,
-      }],
-      schedules: input.schedules,
-      energy: minute.energy,
-      now: at,
-      timestamp: ts,
-    });
-    const decision = result.decisions.get(input.vehicleId);
+    const decision = decideVehicleMinute(input, engine, minute, at, ts);
     if (!decision) {
       return { ...runtime, vehicleState: minute.state, scheduleState };
     }
@@ -446,7 +472,15 @@ export class SolarForecastService {
       decision.targetAmps,
       electrical,
     );
-    const simulatedEvW = chargePowerW(decidedState, electrical);
+    const gridSafeState = applySubscribedPowerLimit(
+      decidedState,
+      electrical,
+      input.subscribedPowerW,
+      input.baseLoadW,
+      pvW,
+      batteryW,
+    );
+    const simulatedEvW = chargePowerW(gridSafeState, electrical);
     const chargedKwh = simulatedEvW / 1000 / 60;
     const soc = nextSoc(
       runtime.soc,
@@ -454,7 +488,7 @@ export class SolarForecastService {
       input.vehicleCapacityKwh,
       minute.state.chargeLimit,
     );
-    const vehicleState = withAddedEnergy(decidedState, chargedKwh);
+    const vehicleState = withAddedEnergy(gridSafeState, chargedKwh);
     const scheduleActive = activeSchedule !== null;
     const solar = updateSolarProgress({
       runtime,
@@ -475,10 +509,19 @@ export class SolarForecastService {
       soc,
       ts,
     );
-    const stopped = autoScheduleFinished(input.mode, finalScheduleState, scheduleActive);
+    const stopped = autoScheduleFinished(
+      input.mode,
+      finalScheduleState,
+      scheduleActive,
+    );
     const finalAt = stopped
       ? finalScheduleState.expectedFinishAt ?? finalScheduleState.endAt
       : runtime.finalAt;
+    const batterySoc = nextHomeBatterySoc(
+      runtime.batterySoc,
+      batteryW,
+      input.homeBattery,
+    );
     return {
       vehicleState,
       scheduleState: finalScheduleState,
@@ -489,8 +532,65 @@ export class SolarForecastService {
       simulatedEvW,
       finalAt,
       stopped,
+      batterySoc,
     };
   }
+}
+
+function decideVehicleMinute(
+  input: SimulationInput,
+  engine: ControllerEngine,
+  minute: ReturnType<typeof createMinuteSnapshot>,
+  at: Date,
+  ts: number,
+) {
+  const result = engine.decide({
+    config: input.controllerConfig,
+    vehicles: [{
+      id: input.vehicleId,
+      name: input.vehicleName,
+      mode: input.mode,
+      priority: input.priority,
+      state: minute.state,
+    }],
+    schedules: input.schedules,
+    energy: minute.energy,
+    now: at,
+    timestamp: ts,
+  });
+  return result.decisions.get(input.vehicleId);
+}
+
+function forecastRequestUnavailable(
+  vehicle: { mode: string } | null | undefined,
+  state: VehicleChargeState | null | undefined,
+  snapshot: { realtime: { pollFailed?: boolean } } | null | undefined,
+): SolarChargeForecastResult | null {
+  if (!vehicle || !state) {
+    return unavailable("vehicle_not_found", "Vehicle state is unavailable.");
+  }
+  if (!state.isPluggedIn) {
+    return unavailable("vehicle_unplugged", "Vehicle is not plugged in.");
+  }
+  if (state.isHome === false) {
+    return unavailable(
+      "vehicle_away",
+      "Solar forecast is only available for charging at home.",
+    );
+  }
+  if (vehicle.mode !== "vacation" && vehicle.mode !== "auto") {
+    return unavailable(
+      "unsupported_mode",
+      "Forecast is only available in Solar Only and Solar + clock.",
+    );
+  }
+  if (!snapshot || snapshot.realtime.pollFailed) {
+    return unavailable(
+      "energy_unavailable",
+      "Live energy data is unavailable.",
+    );
+  }
+  return null;
 }
 
 function unavailable(
@@ -510,11 +610,49 @@ function forecastConfigured(
   arrays: SolarArrayConfig[],
 ): boolean {
   if (!config.solarForecastEnabled) return false;
-  if (config.solarForecastLatitude === null || config.solarForecastLongitude === null) {
+  if (
+    config.solarForecastLatitude === null ||
+    config.solarForecastLongitude === null
+  ) {
     return false;
   }
-  if (!validInstallationDate(config.solarForecastInstallationDate)) return false;
+  if (!validInstallationDate(config.solarForecastInstallationDate)) {
+    return false;
+  }
   return arrays.length > 0;
+}
+
+function resolveHomeBatteryForecastConfig(
+  config: SolarForecastConfig,
+): HomeBatteryForecastConfig | null {
+  const capacityKwh = config.solarForecastBatteryCapacityKwh;
+  const maxChargeKw = config.solarForecastBatteryMaxChargeKw;
+  const maxDischargeKw = config.solarForecastBatteryMaxDischargeKw;
+  const efficiencyPct = config.solarForecastBatteryRoundTripEfficiencyPct;
+  if (
+    capacityKwh === null || maxChargeKw === null ||
+    maxDischargeKw === null || efficiencyPct === null
+  ) return null;
+  return {
+    capacityKwh,
+    maxChargeW: maxChargeKw * 1000,
+    maxDischargeW: maxDischargeKw * 1000,
+    roundTripEfficiency: efficiencyPct / 100,
+  };
+}
+
+export function resolveInverterCapW(
+  nominalArrayW: number,
+  observedMaxW: number,
+  configuredAcMaxKw: number | null,
+): number {
+  if (configuredAcMaxKw !== null) {
+    return Math.min(nominalArrayW, configuredAcMaxKw * 1000);
+  }
+  const learnedCapW = observedMaxW >= nominalArrayW * 0.45
+    ? observedMaxW * 1.03
+    : Number.POSITIVE_INFINITY;
+  return Math.min(nominalArrayW, learnedCapW);
 }
 
 function forecastConfidence(
@@ -577,7 +715,8 @@ function closerPoint(closest: PvPoint, point: PvPoint, at: Date): PvPoint {
 function powerAt(points: PvPoint[], at: Date): number {
   const atMs = at.getTime();
   const point = points.find((candidate) =>
-    candidate.at.getTime() >= atMs && candidate.at.getTime() - atMs <= 15 * MINUTE_MS
+    candidate.at.getTime() >= atMs &&
+    candidate.at.getTime() - atMs <= 15 * MINUTE_MS
   );
   return point?.powerW ?? 0;
 }
@@ -636,7 +775,10 @@ function resolveElectrical(
   return { voltage, phases: resolvePhases(state, config) };
 }
 
-function resolvePhases(state: VehicleChargeState, config: ControllerConfig): number {
+function resolvePhases(
+  state: VehicleChargeState,
+  config: ControllerConfig,
+): number {
   if (state.isCharging && state.chargerPhases === 1) return 1;
   if (config.threePhaseCharger) return 3;
   return Math.max(1, state.chargerPhases || 1);
@@ -677,6 +819,7 @@ function createSimulationRuntime(
     simulatedEvW: chargePowerW(state, electrical),
     finalAt: null,
     stopped: false,
+    batterySoc: input.batterySoc,
   };
 }
 
@@ -708,7 +851,7 @@ function createMinuteSnapshot(
       gridPowerW,
       homeConsumptionW,
       batteryPowerW: batteryW,
-      batterySoc: input.batterySoc,
+      batterySoc: runtime.batterySoc,
       gridVoltageV: electrical.voltage,
       lastUpdated: timestamp,
     },
@@ -818,7 +961,9 @@ function resolveFinalAt(
   return schedule.expectedFinishAt ?? schedule.endAt ?? solarEndAt;
 }
 
-function scheduleResult(state: ScheduleWindowState): SimulationResult["schedule"] {
+function scheduleResult(
+  state: ScheduleWindowState,
+): SimulationResult["schedule"] {
   if (!state.startAt || !state.endAt) return null;
   return {
     startAt: state.startAt,
@@ -837,8 +982,13 @@ function modeledBatteryPowerW(input: {
   evW: number;
   initialBatteryPowerW: number;
   batterySoc: number | null;
+  homeBattery: HomeBatteryForecastConfig | null;
   config: ControllerConfig;
 }): number {
+  if (input.homeBattery && input.batterySoc !== null) {
+    return modeledConfiguredBatteryPowerW(input);
+  }
+
   const minutes = Math.max(0, (input.at.getTime() - input.startMs) / MINUTE_MS);
   const initialChargeW = Math.max(0, -input.initialBatteryPowerW);
   const chargeDecay = Math.max(0, 1 - minutes / 90);
@@ -859,6 +1009,49 @@ function modeledBatteryPowerW(input: {
   return Math.min(deficitW, modeledMaxW);
 }
 
+function modeledConfiguredBatteryPowerW(input: {
+  pvW: number;
+  baseLoadW: number;
+  evW: number;
+  batterySoc: number | null;
+  homeBattery: HomeBatteryForecastConfig | null;
+  config: ControllerConfig;
+}): number {
+  const battery = input.homeBattery;
+  const soc = input.batterySoc;
+  if (!battery || soc === null) return 0;
+
+  const balanceW = input.pvW - input.baseLoadW - input.evW;
+  if (balanceW > 0 && soc < 100) {
+    const roomW = (100 - soc) / 100 * battery.capacityKwh * 60 * 1000;
+    return -Math.min(balanceW, battery.maxChargeW, roomW);
+  }
+
+  const reserveSoc = input.config.batteryPriorityEnabled
+    ? input.config.batteryPriorityLimit
+    : 0;
+  if (balanceW >= 0 || soc <= reserveSoc) return 0;
+  const availableW = (soc - reserveSoc) / 100 * battery.capacityKwh * 60 * 1000;
+  return Math.min(-balanceW, battery.maxDischargeW, availableW);
+}
+
+export function nextHomeBatterySoc(
+  soc: number | null,
+  batteryPowerW: number,
+  battery: HomeBatteryForecastConfig | null,
+): number | null {
+  if (soc === null || !battery || batteryPowerW === 0) return soc;
+  const oneWayEfficiency = Math.sqrt(battery.roundTripEfficiency);
+  const energyDeltaKwh = batteryPowerW < 0
+    ? -batteryPowerW / 1000 / 60 * oneWayEfficiency
+    : -batteryPowerW / 1000 / 60 / oneWayEfficiency;
+  return clamp(
+    soc + energyDeltaKwh / battery.capacityKwh * 100,
+    0,
+    100,
+  );
+}
+
 function findActiveChargeSchedule(
   schedules: EngineSchedule[],
   vehicleId: string,
@@ -870,6 +1063,58 @@ function findActiveChargeSchedule(
     schedule.vehicleId === vehicleId &&
     isScheduleActiveNow(schedule, at, timezone)
   ) ?? null;
+}
+
+export function forecastSchedules(input: {
+  configured: EngineSchedule[];
+  tariffPeriods: TariffPeriodRow[];
+  vehicleId: string;
+  state: VehicleChargeState;
+  controllerConfig: ControllerConfig;
+  subscribedPowerKva: number | null;
+  baseLoadW: number;
+}): EngineSchedule[] {
+  const enabledTariffs = input.tariffPeriods.filter((period) => period.enabled);
+  const lowCostPeriods = findLowCostTariffPeriods(enabledTariffs);
+  if (lowCostPeriods.length === 0) return input.configured;
+
+  const electrical = resolveElectrical(input.state, input.controllerConfig);
+  const availableW = input.subscribedPowerKva === null
+    ? input.state.chargeAmpsMax * electrical.voltage * electrical.phases
+    : Math.max(0, input.subscribedPowerKva * 1000 - input.baseLoadW);
+  const chargeAmps = Math.min(
+    input.state.chargeAmpsMax,
+    Math.floor(availableW / electrical.voltage / electrical.phases),
+  );
+  if (chargeAmps < input.state.chargeAmpsMin) return input.configured;
+
+  const tariffSchedules = lowCostPeriods
+    .map((period): EngineSchedule => ({
+      id: `tariff-${period.id}`,
+      vehicleId: input.vehicleId,
+      scheduleType: "charge",
+      startTime: period.startTime,
+      endTime: period.endTime,
+      days: period.days,
+      chargeAmps,
+      chargeLimitPct: input.state.chargeLimit,
+      enabled: true,
+    }));
+  return [...input.configured, ...tariffSchedules];
+}
+
+function findLowCostTariffPeriods(
+  enabledTariffs: TariffPeriodRow[],
+): TariffPeriodRow[] {
+  const namedOffPeak = enabledTariffs.filter((period) =>
+    /off[-\s]?peak|heures?\s+creuses?|\bhc\b/i.test(period.label)
+  );
+  if (namedOffPeak.length > 0) return namedOffPeak;
+
+  const rates = [...new Set(enabledTariffs.map((period) => period.ratePerKwh))];
+  if (rates.length < 2) return [];
+  const cheapestRate = Math.min(...rates);
+  return enabledTariffs.filter((period) => period.ratePerKwh === cheapestRate);
 }
 
 function finishAtWhenTargetReached(
@@ -931,6 +1176,34 @@ function applyDecision(
     chargerVoltage: electrical.voltage,
     chargerPhases: electrical.phases,
     chargePowerKw: targetAmps * electrical.voltage * electrical.phases / 1000,
+  };
+}
+
+export function applySubscribedPowerLimit(
+  state: VehicleChargeState,
+  electrical: { voltage: number; phases: number },
+  subscribedPowerW: number | null,
+  baseLoadW: number,
+  pvW: number,
+  batteryW: number,
+): VehicleChargeState {
+  if (!state.isCharging || subscribedPowerW === null) return state;
+
+  const nonEvGridW = baseLoadW + Math.max(0, -batteryW) - pvW -
+    Math.max(0, batteryW);
+  const availableForVehicleW = Math.max(0, subscribedPowerW - nonEvGridW);
+  const maxSafeAmps = Math.min(
+    state.chargeAmpsMax,
+    Math.floor(availableForVehicleW / electrical.voltage / electrical.phases),
+  );
+  if (maxSafeAmps < state.chargeAmpsMin) {
+    return { ...state, isCharging: false, chargeAmps: 0, chargePowerKw: 0 };
+  }
+  if (state.chargeAmps <= maxSafeAmps) return state;
+  return {
+    ...state,
+    chargeAmps: maxSafeAmps,
+    chargePowerKw: maxSafeAmps * electrical.voltage * electrical.phases / 1000,
   };
 }
 

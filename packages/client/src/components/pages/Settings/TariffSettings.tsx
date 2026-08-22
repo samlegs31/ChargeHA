@@ -32,6 +32,7 @@ function useTariffMutations(
   const presetMutation = trpc.tariff.loadPreset.useMutation({
     onSuccess: () => {
       utils.tariff.list.invalidate();
+      utils.tariff.currentRate.invalidate();
       setShowAddForm(false);
       setEditingId(null);
     },
@@ -39,6 +40,7 @@ function useTariffMutations(
   const addMutation = trpc.tariff.create.useMutation({
     onSuccess: () => {
       utils.tariff.list.invalidate();
+      utils.tariff.currentRate.invalidate();
       setForm({ ...EMPTY_FORM });
       setShowAddForm(false);
     },
@@ -54,6 +56,7 @@ function useTariffMutations(
   const deleteMutation = trpc.tariff.delete.useMutation({
     onSuccess: () => {
       utils.tariff.list.invalidate();
+      utils.tariff.currentRate.invalidate();
     },
   });
   return {

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import {
   Car,
   CircleDollarSign,
+  CloudSun,
   History,
   Key,
   Settings2,
@@ -70,7 +71,13 @@ function VersionFooter() {
   );
 }
 
-type SettingsPage = "cars" | "home" | "electricity" | "history" | "advanced";
+type SettingsPage =
+  | "cars"
+  | "home"
+  | "prediction"
+  | "electricity"
+  | "history"
+  | "advanced";
 
 interface MenuItem {
   id: SettingsPage;
@@ -91,6 +98,12 @@ const MENU_ITEMS: readonly MenuItem[] = [
     title: "Solar & home",
     description: "Solar, battery and home energy",
     icon: <Sun size={26} />,
+  },
+  {
+    id: "prediction",
+    title: "Solar Prediction",
+    description: "Solar and charging forecast",
+    icon: <CloudSun size={26} />,
   },
   {
     id: "electricity",
@@ -226,6 +239,18 @@ function ElectricitySettingsPage() {
   );
 }
 
+function PredictionSettingsPage() {
+  return (
+    <div className={styles.settingsPage}>
+      <PageIntro
+        title="Solar Prediction"
+        description="Configure the installation used to predict solar energy and vehicle charging."
+      />
+      <SolarForecastSettings />
+    </div>
+  );
+}
+
 function HistoryHelp() {
   return (
     <Card className={styles.historyHelp}>
@@ -263,7 +288,6 @@ function AdvancedSettingsPage() {
       />
       <SolarTrackingSettings />
       <BatterySettings mode="advanced" />
-      <SolarForecastSettings />
       <GeneralSettings mode="system" />
       <NotificationSettings />
       <AuthSettings />
@@ -273,6 +297,7 @@ function AdvancedSettingsPage() {
 
 function SettingsPageContent({ page }: { page: SettingsPage }) {
   if (page === "home") return <HomeSettingsPage />;
+  if (page === "prediction") return <PredictionSettingsPage />;
   if (page === "electricity") return <ElectricitySettingsPage />;
   if (page === "history") return <HistorySettingsPage />;
   if (page === "advanced") return <AdvancedSettingsPage />;
