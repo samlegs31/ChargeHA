@@ -22,7 +22,7 @@ export function ChargeSettings({
   return (
     <>
       <div className={styles.field}>
-        <Text size="2" weight="medium">Charge Amps</Text>
+        <Text size="2" weight="medium">Charging speed</Text>
         <div className={styles.stepperRow}>
           <Button
             type="button"
@@ -66,7 +66,7 @@ export function ChargeSettings({
       </div>
 
       <div className={styles.field}>
-        <Text size="2" weight="medium">Charge Limit</Text>
+        <Text size="2" weight="medium">Target battery</Text>
         <div className={styles.stepperRow}>
           <Button
             type="button"

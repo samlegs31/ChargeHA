@@ -45,8 +45,8 @@ export function ScheduleCard({
   const daysText = formatDays(schedule.days);
 
   const detailText = isCharge
-    ? `Charge at ${schedule.chargeAmps}A to ${schedule.chargeLimitPct}%`
-    : "Stop all charging";
+    ? `Scheduled charge · ${schedule.chargeAmps} A · Target ${schedule.chargeLimitPct}%`
+    : "Charging paused during this period";
 
   return (
     <Card

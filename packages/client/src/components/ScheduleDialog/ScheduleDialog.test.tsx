@@ -137,8 +137,8 @@ describe("ScheduleForm", () => {
   });
 
   it.each<["charge" | "blockout", string]>([
-    ["charge", "Charge Amps"],
-    ["charge", "Charge Limit"],
+    ["charge", "Charging speed"],
+    ["charge", "Target battery"],
   ])("%s type renders %s", (scheduleType, label) => {
     renderWithProviders(
       <ScheduleForm {...defaultProps} scheduleType={scheduleType} />,
@@ -147,8 +147,8 @@ describe("ScheduleForm", () => {
   });
 
   it.each<["charge" | "blockout", string]>([
-    ["blockout", "Charge Amps"],
-    ["blockout", "Charge Limit"],
+    ["blockout", "Charging speed"],
+    ["blockout", "Target battery"],
   ])("%s type does not render %s", (scheduleType, label) => {
     renderWithProviders(
       <ScheduleForm {...defaultProps} scheduleType={scheduleType} />,
@@ -374,7 +374,7 @@ describe("ScheduleForm", () => {
     );
 
     // Blockout schedule should not show charge fields
-    expect(screen.queryByText("Charge Amps")).not.toBeInTheDocument();
+    expect(screen.queryByText("Charging speed")).not.toBeInTheDocument();
     expect(screen.getByTestId("day-picker")).toHaveTextContent(
       "mon,tue,wed,thu,fri",
     );
