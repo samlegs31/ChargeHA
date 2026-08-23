@@ -39,6 +39,12 @@ describe("TeslaApiStrategy", () => {
       expect(strategy.staleness(ctx(), state)).toBe(20 * 60 * 1000);
     });
 
+    it("returns 10 min during daylight even before surplus is sufficient", () => {
+      const state = buildVehicleChargeState();
+      expect(strategy.staleness(ctx({ hasDaylight: true }), state))
+        .toBe(10 * 60 * 1000);
+    });
+
     it("returns 5 min when online and cached unplugged", () => {
       // Tight window so we catch a plug-in before Tesla sleeps (~5-6 min
       // after plug-in if not actively charging).

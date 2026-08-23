@@ -91,7 +91,11 @@ export class TeslaApiStrategy {
     if (cachedState.isOnline && !cachedState.isPluggedIn) {
       return ONLINE_UNPLUGGED_MS;
     }
-    if (context.hasSolar || context.hasSchedule) return CAN_CHARGE_MS;
+    // Keep daytime state reasonably current even before surplus reaches the
+    // charging threshold. The longer idle window is reserved for nighttime.
+    if (context.hasDaylight || context.hasSolar || context.hasSchedule) {
+      return CAN_CHARGE_MS;
+    }
     return CANT_CHARGE_MS;
   }
 }

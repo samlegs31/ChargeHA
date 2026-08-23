@@ -304,7 +304,13 @@ The first matching rule wins:
    plug-in before Tesla puts the car back to sleep. This is checked _before_ the
    solar/schedule case, so it applies even when a schedule is active.
 3. **10 min** — charging is plausible (solar or schedule active).
-4. **20 min** — otherwise.
+4. **10 min** — daytime production is present, even if usable surplus is not yet
+   sufficient.
+5. **20 min** — nighttime idle state only.
+
+The 20-minute nighttime window never postpones a newly viable solar charge:
+skipped wakes do not renew the data timestamp, so a sufficient surplus on a
+later controller tick is evaluated immediately against the already-stale cache.
 
 Waking is more restricted than fetching, because a wake costs 10× a data fetch.
 On top of the cache rules, a scheduled wake is suppressed when:

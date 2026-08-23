@@ -176,6 +176,7 @@ export class ChargeController {
           // signal used to wake a sleeping Tesla hourly even when household
           // load consumed all available solar.
           hasSolar: hasUsefulSolar,
+          hasDaylight: (energy?.solarProductionW ?? 0) > 0,
           hasSchedule: activeChargeSchedule !== undefined,
           hasBlockout: hasApplicableBlockout,
           isHome: cachedState?.isHome ?? null,
