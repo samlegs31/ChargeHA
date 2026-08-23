@@ -296,6 +296,28 @@ describe("TeslaVehicleMiddleware", () => {
       expect(middleware.online).toBe(false);
     });
 
+    it("wakes immediately when useful solar returns after an idle skip", async () => {
+      // An idle request must not make old telemetry look freshly fetched.
+      // Otherwise a solar opportunity arriving just after the 20-minute idle
+      // boundary can be delayed by the 10-minute active-solar cache window.
+      await middleware.requestState(ctx());
+      adapter.isOnline = false;
+      adapter.state = buildVehicleChargeState({
+        isOnline: false,
+        isPluggedIn: true,
+        batteryLevel: 50,
+        chargeLimit: 80,
+      });
+
+      time.tick(21 * 60 * 1000);
+      await middleware.requestState(ctx());
+      expect(adapter.wakeVehicleCalls).toBe(0);
+
+      await middleware.requestState(ctx({ hasSolar: true }));
+      expect(adapter.wakeVehicleCalls).toBe(1);
+      expect(adapter.getChargeStateCalls).toBe(2);
+    });
+
     it("refetches every 5 min while online + unplugged to catch plug-in", async () => {
       // First fetch: car online, cached unplugged. The 5-min staleness rule
       // exists because Tesla sleeps ~5-6 min after plug-in if not charging,

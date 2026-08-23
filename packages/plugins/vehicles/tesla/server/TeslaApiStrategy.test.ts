@@ -39,6 +39,12 @@ describe("TeslaApiStrategy", () => {
       expect(strategy.staleness(ctx(), state)).toBe(20 * 60 * 1000);
     });
 
+    it("returns 10 min during daylight even before surplus is sufficient", () => {
+      const state = buildVehicleChargeState();
+      expect(strategy.staleness(ctx({ hasDaylight: true }), state))
+        .toBe(10 * 60 * 1000);
+    });
+
     it("returns 5 min when online and cached unplugged", () => {
       // Tight window so we catch a plug-in before Tesla sleeps (~5-6 min
       // after plug-in if not actively charging).
@@ -106,6 +112,31 @@ describe("TeslaApiStrategy", () => {
   });
 
   describe("shouldWake", () => {
+    it("returns null when the last known location is away from home", () => {
+      const state = buildVehicleChargeState({
+        isPluggedIn: true,
+        batteryLevel: 50,
+        chargeLimit: 80,
+      });
+      expect(
+        strategy.shouldWake(
+          ctx({ hasSolar: true, isHome: false }),
+          state,
+          0,
+        ),
+      ).toBeNull();
+    });
+
+    it("allows user force refresh away from home", () => {
+      expect(
+        strategy.shouldWake(
+          ctx({ forceRefresh: true, isHome: false }),
+          null,
+          0,
+        ),
+      ).toBe("force_refresh");
+    });
+
     it("returns null during blockout", () => {
       expect(
         strategy.shouldWake(

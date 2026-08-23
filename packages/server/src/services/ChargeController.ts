@@ -9,6 +9,7 @@ import {
   ControllerEngine,
   DecisionChecks,
   isScheduleActiveNow,
+  SolarAllocator,
 } from "@chargeha/shared/engine";
 import type {
   ControllerConfig,
@@ -165,12 +166,20 @@ export class ChargeController {
           (s) => s.scheduleType === "blockout",
         );
         const hasApplicableBlockout = isSolarMode && hasActiveBlockout;
+        const cachedState = await this.vehicleManager.getState(v.id);
+        const hasUsefulSolar = isSolarMode && hasSolar && energy !== null &&
+          this.hasEnoughSolarToCharge(cachedState, energy, config);
         await this.vehicleManager.requestState(v.id, {
           origin: "controller",
           traceId,
-          hasSolar: isSolarMode && hasSolar,
+          // Production alone is not a charging opportunity. Passing the broad
+          // signal used to wake a sleeping Tesla hourly even when household
+          // load consumed all available solar.
+          hasSolar: hasUsefulSolar,
+          hasDaylight: (energy?.solarProductionW ?? 0) > 0,
           hasSchedule: activeChargeSchedule !== undefined,
           hasBlockout: hasApplicableBlockout,
+          isHome: cachedState?.isHome ?? null,
           scheduleChargeLimitPct: activeChargeSchedule?.chargeLimitPct ?? null,
         });
         const state = await this.vehicleManager.getState(v.id);
@@ -228,6 +237,32 @@ export class ChargeController {
     }
 
     return config;
+  }
+
+  /** Conservative pre-fetch check used only to decide whether waking a
+   * sleeping vehicle is worthwhile. The engine still makes the authoritative
+   * charging decision after state refresh. With no cache we allow one fetch to
+   * establish the vehicle's electrical and location state. */
+  private hasEnoughSolarToCharge(
+    state: VehicleChargeState | null,
+    energy: EnergyData,
+    config: ControllerConfig,
+  ): boolean {
+    if (!state) return true;
+    const voltage = SolarAllocator.resolveVoltage(state, energy, config);
+    const phases = SolarAllocator.resolvePhases(state, config);
+    const availableW = SolarAllocator.calculateAvailableSolar(
+      config,
+      energy,
+      state,
+      voltage,
+      phases,
+    );
+    const minimumW = Math.max(
+      state.chargeAmpsMin * voltage * phases,
+      (config.minExcessSolarKw ?? 0) * 1000,
+    );
+    return availableW >= minimumW;
   }
 
   /** Execute a decision by issuing the appropriate adapter command. */

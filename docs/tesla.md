@@ -290,7 +290,7 @@ Tesla's Fleet API charges per call. The default monthly credit is $10 (roughly
 | -------------------------------------------- | -------------------------------------- |
 | Controller tick, cache fresh                 | Nothing — served from cache            |
 | Controller tick, cache stale                 | Data fetch                             |
-| Controller tick, car asleep + need to charge | Wake → data fetch                      |
+| Controller tick, car asleep + enough surplus | Wake → data fetch                      |
 | User refresh from dashboard                  | Wake (if needed) + data fetch          |
 | Start / stop / set amps                      | Pre-command wake (if asleep) + command |
 
@@ -304,13 +304,23 @@ The first matching rule wins:
    plug-in before Tesla puts the car back to sleep. This is checked _before_ the
    solar/schedule case, so it applies even when a schedule is active.
 3. **10 min** — charging is plausible (solar or schedule active).
-4. **20 min** — otherwise.
+4. **10 min** — daytime production is present, even if usable surplus is not yet
+   sufficient.
+5. **20 min** — nighttime idle state only.
+
+The 20-minute nighttime window never postpones a newly viable solar charge:
+skipped wakes do not renew the data timestamp, so a sufficient surplus on a
+later controller tick is evaluated immediately against the already-stale cache.
 
 Waking is more restricted than fetching, because a wake costs 10× a data fetch.
 On top of the cache rules, a scheduled wake is suppressed when:
 
 - A blockout schedule is active (no charging allowed anyway).
 - Neither schedule nor solar applies (no reason to top up).
+- The last known GPS position is away from home.
+- Solar is being produced but the available surplus cannot sustain the vehicle's
+  minimum current (including the configured safety margin and home battery
+  discharge). This avoids hourly wakes that cannot lead to charging.
 - The cached state shows the car is unplugged. Tesla wakes itself on plug-in;
   the free `/vehicles` probe will catch it.
 - The battery is already at the effective charge limit (vehicle limit or

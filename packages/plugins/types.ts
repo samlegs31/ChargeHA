@@ -113,8 +113,13 @@ export interface VehiclePlugin extends BasePlugin {
  *  inherit the caller's origin + traceId. */
 export interface VehicleRequestContext extends CallContext {
   hasSolar: boolean;
+  /** Panels are producing, even if usable surplus is still insufficient. */
+  hasDaylight?: boolean;
   hasSchedule: boolean;
   hasBlockout: boolean;
+  /** Last known home status. Automatic wakes must be suppressed when false;
+   *  null/undefined means location has not been established yet. */
+  isHome?: boolean | null;
   scheduleChargeLimitPct?: number | null;
   /** When true, skip cache and wake if needed. Used for user-initiated
    *  refresh/wake commands from the dashboard. */
