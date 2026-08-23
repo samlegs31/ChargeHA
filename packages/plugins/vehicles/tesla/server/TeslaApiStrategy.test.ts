@@ -106,6 +106,31 @@ describe("TeslaApiStrategy", () => {
   });
 
   describe("shouldWake", () => {
+    it("returns null when the last known location is away from home", () => {
+      const state = buildVehicleChargeState({
+        isPluggedIn: true,
+        batteryLevel: 50,
+        chargeLimit: 80,
+      });
+      expect(
+        strategy.shouldWake(
+          ctx({ hasSolar: true, isHome: false }),
+          state,
+          0,
+        ),
+      ).toBeNull();
+    });
+
+    it("allows user force refresh away from home", () => {
+      expect(
+        strategy.shouldWake(
+          ctx({ forceRefresh: true, isHome: false }),
+          null,
+          0,
+        ),
+      ).toBe("force_refresh");
+    });
+
     it("returns null during blockout", () => {
       expect(
         strategy.shouldWake(
