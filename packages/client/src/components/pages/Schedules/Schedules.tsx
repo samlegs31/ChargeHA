@@ -180,10 +180,10 @@ function PageHeader(
       </div>
       <div>
         <Text size="2" color="gray">
-          Charge schedules run only when the vehicle is in SOLAR + 🕒 mode.
-          During an active window, charging uses the programmed current
-          regardless of solar production or home-battery discharge. Use these
-          windows for guaranteed off-peak charging.
+          Smart Charge follows these schedules. During a scheduled time, E.V.
+          Solar charges at the selected speed up to your target battery level.
+          Outside these times, Smart Charge automatically returns to solar-first
+          charging.
         </Text>
       </div>
       {activeScheduleNotes.map((note) => (
@@ -229,7 +229,7 @@ function BlockoutSection(
   return (
     <>
       <div className={styles.sectionHeader}>
-        <Text size="3" weight="medium">Blockout Schedules</Text>
+        <Text size="3" weight="medium">No-charge periods</Text>
         {!isFormForBlockout && (
           <Button
             variant="soft"
@@ -237,14 +237,14 @@ function BlockoutSection(
             onClick={() => setFormTarget({ action: "create-blockout" })}
           >
             <Plus size={14} />
-            Add Blockout Period
+            Add no-charge period
           </Button>
         )}
       </div>
       {blockoutSchedules.length === 0 && !isFormForBlockout && (
         <EmptyState
           icon={<Ban size={20} />}
-          message="No blockout periods. Create one to prevent charging during peak tariff hours."
+          message="No no-charge periods yet. Add one to pause charging during selected times."
         />
       )}
       <div className={styles.scheduleList}>
@@ -296,11 +296,10 @@ function ScheduleBehaviorNote() {
           style={{ color: "var(--gray-9)", flexShrink: 0, marginTop: 2 }}
         />
         <Text size="1" color="gray">
-          Outside scheduled windows, SOLAR + 🕒 uses the same excess-solar logic
-          as SOLAR ONLY, including solar grace/cooldown and home-battery
-          protection. SOLAR ONLY never uses charge schedules. Blockouts stop
-          both solar modes and take priority over charge schedules. STOP is
-          absolute; CHARGE NOW starts immediately and ignores schedules.
+          Schedules work with Smart Charge only. Solar uses available solar and
+          ignores charge schedules. No-charge periods pause Smart and Solar.
+          Pause stops charging. Now starts charging immediately and ignores
+          schedules.
         </Text>
       </div>
     </Card>

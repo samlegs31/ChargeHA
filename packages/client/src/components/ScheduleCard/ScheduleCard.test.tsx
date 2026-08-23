@@ -50,7 +50,9 @@ describe("ScheduleCard", () => {
       // Days should show "Weekdays"
       expect(screen.getByText("Weekdays")).toBeInTheDocument();
       // Detail text for charge schedule
-      expect(screen.getByText(/Charge at 16A to 80%/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Scheduled charge · 16 A · Target 80%/),
+      ).toBeInTheDocument();
     });
 
     it("renders blockout schedule", () => {
@@ -64,7 +66,9 @@ describe("ScheduleCard", () => {
       // Days should show "Weekends"
       expect(screen.getByText("Weekends")).toBeInTheDocument();
       // Blockout detail text
-      expect(screen.getByText("Stop all charging")).toBeInTheDocument();
+      expect(
+        screen.getByText("Charging paused during this period"),
+      ).toBeInTheDocument();
     });
   });
 

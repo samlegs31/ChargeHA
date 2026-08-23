@@ -154,10 +154,10 @@ describe("Schedules", () => {
 
   // ---- Basic rendering ----
 
-  it("renders Blockout Schedules section", () => {
+  it("renders no-charge periods section", () => {
     renderWithProviders(<Schedules />);
 
-    expect(screen.getByText("Blockout Schedules")).toBeInTheDocument();
+    expect(screen.getByText("No-charge periods")).toBeInTheDocument();
   });
 
   it("renders loading state", () => {
@@ -222,7 +222,7 @@ describe("Schedules", () => {
     renderWithProviders(<Schedules />);
 
     expect(
-      screen.getByText("No charge schedules for this vehicle."),
+      screen.getByText("No scheduled charging yet."),
     ).toBeInTheDocument();
   });
 
@@ -240,7 +240,7 @@ describe("Schedules", () => {
     expect(cards.length).toBeGreaterThanOrEqual(1);
     expect(cards[0]).toHaveAttribute("data-schedule-id", "sched-1");
     expect(
-      screen.queryByText("No charge schedules for this vehicle."),
+      screen.queryByText("No scheduled charging yet."),
     ).not.toBeInTheDocument();
   });
 
@@ -271,22 +271,22 @@ describe("Schedules", () => {
     expect(screen.getByText("Add Schedule")).toBeInTheDocument();
   });
 
-  // ---- Blockout section ----
+  // ---- No-charge periods section ----
 
-  it("renders empty blockout state when no blockout schedules exist", () => {
+  it("renders empty no-charge state when no blockout schedules exist", () => {
     renderWithProviders(<Schedules />);
 
     expect(
       screen.getByText(
-        /No blockout periods. Create one to prevent charging during peak/,
+        /No no-charge periods yet. Add one to pause charging during selected times/,
       ),
     ).toBeInTheDocument();
   });
 
-  it("renders Add Blockout Period button", () => {
+  it("renders Add no-charge period button", () => {
     renderWithProviders(<Schedules />);
 
-    expect(screen.getByText("Add Blockout Period")).toBeInTheDocument();
+    expect(screen.getByText("Add no-charge period")).toBeInTheDocument();
   });
 
   it("renders the blockout schedule card and hides the empty-state copy when a blockout exists", () => {
@@ -304,14 +304,14 @@ describe("Schedules", () => {
       ),
     ).toBeDefined();
     expect(
-      screen.queryByText(/No blockout periods/),
+      screen.queryByText(/No no-charge periods yet/),
     ).not.toBeInTheDocument();
   });
 
-  it("shows blockout form when Add Blockout Period is clicked", () => {
+  it("shows blockout form when Add no-charge period is clicked", () => {
     renderWithProviders(<Schedules />);
 
-    fireEvent.click(screen.getByText("Add Blockout Period"));
+    fireEvent.click(screen.getByText("Add no-charge period"));
 
     expect(screen.getByTestId("schedule-form")).toBeInTheDocument();
     expect(screen.getByTestId("schedule-form")).toHaveAttribute(
@@ -323,14 +323,14 @@ describe("Schedules", () => {
   it("closes the blockout form when cancel is clicked", () => {
     renderWithProviders(<Schedules />);
 
-    fireEvent.click(screen.getByText("Add Blockout Period"));
+    fireEvent.click(screen.getByText("Add no-charge period"));
     expect(screen.getByTestId("schedule-form")).toBeInTheDocument();
-    expect(screen.queryByText("Add Blockout Period")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add no-charge period")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Cancel Form"));
 
     expect(screen.queryByTestId("schedule-form")).not.toBeInTheDocument();
-    expect(screen.getByText("Add Blockout Period")).toBeInTheDocument();
+    expect(screen.getByText("Add no-charge period")).toBeInTheDocument();
   });
 
   // ---- Info card / footer content ----
@@ -340,7 +340,7 @@ describe("Schedules", () => {
 
     expect(
       screen.getByText(
-        /Blockouts stop both solar modes and take priority over charge schedules/,
+        /Schedules work with Smart Charge only/,
       ),
     ).toBeInTheDocument();
     expect(
@@ -348,7 +348,7 @@ describe("Schedules", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Charge schedules run only when the vehicle is in SOLAR \+ 🕒 mode/,
+        /Smart Charge follows these schedules/,
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(/Times shown in/)).toBeInTheDocument();
@@ -369,7 +369,7 @@ describe("Schedules", () => {
     expect(screen.getByText("Model 3")).toBeInTheDocument();
     expect(screen.getByText("Model Y")).toBeInTheDocument();
     expect(
-      screen.getAllByText("No charge schedules for this vehicle."),
+      screen.getAllByText("No scheduled charging yet."),
     ).toHaveLength(2);
   });
 
@@ -468,7 +468,7 @@ describe("Schedules", () => {
     expect(form).toHaveAttribute("data-schedule-type", "blockout");
   });
 
-  it("hides Add Blockout Period button when editing a blockout schedule", () => {
+  it("hides Add no-charge period button when editing a blockout schedule", () => {
     setSchedules({
       schedules: [blockoutSchedule],
       blockoutSchedules: [blockoutSchedule],
@@ -478,7 +478,7 @@ describe("Schedules", () => {
 
     fireEvent.click(screen.getByTestId("edit-sched-blockout-1"));
 
-    expect(screen.queryByText("Add Blockout Period")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add no-charge period")).not.toBeInTheDocument();
   });
 
   // ---- Delete flow ----
@@ -550,7 +550,7 @@ describe("Schedules", () => {
 
     renderWithProviders(<Schedules />);
 
-    fireEvent.click(screen.getByText("Add Blockout Period"));
+    fireEvent.click(screen.getByText("Add no-charge period"));
     fireEvent.click(screen.getByText("Save Form"));
 
     expect(addSchedule).toHaveBeenCalled();
@@ -593,7 +593,7 @@ describe("Schedules", () => {
 
   // ---- Form targeting (editing hides correct Add button per section) ----
 
-  it("does not hide Add Blockout Period when editing a charge schedule", () => {
+  it("does not hide Add no-charge period when editing a charge schedule", () => {
     setSchedules({
       schedules: [chargeSchedule, blockoutSchedule],
       chargeSchedules: [chargeSchedule],
@@ -604,7 +604,7 @@ describe("Schedules", () => {
 
     fireEvent.click(screen.getByTestId("edit-sched-1"));
 
-    expect(screen.getByText("Add Blockout Period")).toBeInTheDocument();
+    expect(screen.getByText("Add no-charge period")).toBeInTheDocument();
   });
 
   it("does not hide Add Schedule when editing a blockout schedule", () => {

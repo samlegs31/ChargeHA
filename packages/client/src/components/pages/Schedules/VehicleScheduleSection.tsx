@@ -66,7 +66,7 @@ export function VehicleScheduleSection({
       {vehicleSchedules.length === 0 && !showingForm && (
         <EmptyState
           icon={<Clock size={20} />}
-          message="No charge schedules for this vehicle."
+          message="No scheduled charging yet."
         />
       )}
 
