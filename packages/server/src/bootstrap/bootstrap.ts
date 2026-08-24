@@ -155,6 +155,7 @@ function buildAuxServices(
     scheduleService,
     new Logger("SolarForecast", logLevel),
   );
+  solarForecastService.startBackgroundLearning(eventEmitter);
 
   return {
     tariffService,

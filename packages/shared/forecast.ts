@@ -34,6 +34,29 @@ export interface ForecastScheduleSummary {
 
 export type ForecastConfidence = "low" | "medium" | "high";
 
+export interface SolarPredictionSummary {
+  version: "2.3";
+  confidenceScore: number;
+  regime: "stable" | "variable" | "uncertain";
+  learningSamples: number;
+  learningCoveragePct: number;
+  empiricalIntervalPct: number;
+  historicalCorrection: number;
+  liveCorrection: number;
+  liveObservationUsed: boolean;
+  providerSpreadPct: number;
+  providerWeights: {
+    meteofrance: number;
+    dwdIcon: number;
+  };
+  pvP10Kwh: number;
+  pvP50Kwh: number;
+  pvP90Kwh: number;
+  solarChargeP10Kwh: number;
+  solarChargeP50Kwh: number;
+  solarChargeP90Kwh: number;
+}
+
 export interface SolarChargeForecast {
   available: true;
   vehicleId: string;
@@ -48,6 +71,8 @@ export interface SolarChargeForecast {
   finalAt: string | null;
   schedule: ForecastScheduleSummary | null;
   confidence: ForecastConfidence;
+  /** V2.3 diagnostics and probabilistic envelope. Optional for API compatibility. */
+  prediction?: SolarPredictionSummary;
 }
 
 export interface SolarChargeForecastUnavailable {
