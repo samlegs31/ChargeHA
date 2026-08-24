@@ -4,6 +4,20 @@ import type { Logger } from "../lib/Logger.ts";
 import type { ConfigService } from "./ConfigService.ts";
 import type { EnergyPoller } from "./EnergyPoller.ts";
 import type { ScheduleService } from "./ScheduleService.ts";
+import type { TypedEventEmitter } from "./TypedEventEmitter.ts";
+import {
+  aggregateLearningStats,
+  buildSolarPredictionConfidence,
+  decayingLiveCorrection,
+  historicalCorrectionAt,
+  learningStateForConfiguration,
+  parseSolarPredictionLearning,
+  predictionPointIntervalPct,
+  solarProviderWeights,
+  type SolarPredictionLearningState,
+  type SolarWeatherProviderId,
+  updateSolarPredictionLearning,
+} from "./SolarPredictionModel.ts";
 import type { VehicleManager } from "./VehicleManager.ts";
 import type {
   EnergyData,
@@ -23,26 +37,104 @@ import {
 } from "@chargeha/shared/forecast";
 import type { SolarForecastConfig } from "@chargeha/shared/configSections";
 
-const OPEN_METEO_URL = "https://api.open-meteo.com/v1/meteofrance";
+const OPEN_METEO_PROVIDERS: ReadonlyArray<{
+  id: SolarWeatherProviderId;
+  url: string;
+}> = [
+  {
+    id: "meteofrance",
+    url: "https://api.open-meteo.com/v1/meteofrance",
+  },
+  {
+    id: "dwd_icon",
+    url: "https://api.open-meteo.com/v1/dwd-icon",
+  },
+];
+const SOLAR_PREDICTION_STATE_KEY = "runtime.solar_prediction_v2";
 const PANEL_DEGRADATION_PER_YEAR = 0.005;
 const BASE_SYSTEM_EFFICIENCY = 0.94;
 const PANEL_TEMP_COEFFICIENT = -0.0035;
+const FAIMAN_U0 = 25;
+const FAIMAN_U1 = 6.84;
 const DEFAULT_VEHICLE_CAPACITY_KWH = 60;
 const FORECAST_HORIZON_HOURS = 36;
 const MINUTE_MS = 60_000;
+const FORECAST_STEP_MS = 15 * MINUTE_MS;
+const LIVE_SOLAR_MAX_AGE_MS = 5 * MINUTE_MS;
+const LIVE_SOLAR_FUTURE_TOLERANCE_MS = MINUTE_MS;
+const MIN_BACKGROUND_LEARNING_POWER_W = 400;
 
-interface MeteoFranceResponse {
+interface OpenMeteoResponse {
   utc_offset_seconds: number;
   minutely_15?: {
-    time: string[];
+    time: Array<number | string>;
     global_tilted_irradiance: Array<number | null>;
+    global_tilted_irradiance_instant?: Array<number | null>;
     temperature_2m: Array<number | null>;
+    wind_speed_10m?: Array<number | null>;
   };
 }
 
 interface PvPoint {
   at: Date;
   powerW: number;
+}
+
+interface ArrayForecast {
+  points: PvPoint[];
+  instantPoints: PvPoint[];
+}
+
+interface ProviderForecast {
+  provider: SolarWeatherProviderId;
+  points: PvPoint[];
+  instantPoints: PvPoint[];
+}
+
+interface WeatherForecastResult {
+  points: PvPoint[];
+  p10Points: PvPoint[];
+  p90Points: PvPoint[];
+  dayEnd: Date;
+  liveCorrection: number;
+  liveObservationUsed: boolean;
+  historicalCorrection: number;
+  providerSpreadPct: number;
+  providerCount: number;
+  providerWeights: Record<SolarWeatherProviderId, number>;
+  learningSamples: number;
+  learningCoverage: number;
+  meanAbsPctError: number;
+  empiricalIntervalPct: number;
+}
+
+interface ForecastBuildInput {
+  now: Date;
+  vehicleId: string;
+  vehicleName: string;
+  mode: Extract<VehicleMode, "vacation" | "auto">;
+  priority: number;
+  state: VehicleChargeState;
+  realtime: EnergyData;
+  forecastConfig: SolarForecastConfig;
+  controllerConfig: ControllerConfig;
+  timezone: string;
+  weatherResult: WeatherForecastResult;
+}
+
+interface ForecastScenarios {
+  p10PvKwh: number;
+  p50PvKwh: number;
+  p90PvKwh: number;
+  p10Simulation: SimulationResult;
+  p50Simulation: SimulationResult;
+  p90Simulation: SimulationResult;
+}
+
+interface ForecastResponseInput {
+  input: ForecastBuildInput;
+  scenarios: ForecastScenarios;
+  capacitySampleCount: number;
 }
 
 export interface HomeBatteryForecastConfig {
@@ -109,6 +201,10 @@ interface SimulationResult {
 }
 
 export class SolarForecastService {
+  private backgroundLearningInFlight = false;
+  private backgroundLearningSlot: string | null = null;
+  private backgroundLearningStarted = false;
+
   constructor(
     private db: AppDatabase,
     private configService: ConfigService,
@@ -119,6 +215,53 @@ export class SolarForecastService {
     private fetchFn: typeof fetch = fetch,
     private nowFn: () => Date = () => new Date(),
   ) {}
+
+  startBackgroundLearning(eventEmitter: TypedEventEmitter): void {
+    if (this.backgroundLearningStarted) return;
+    this.backgroundLearningStarted = true;
+    eventEmitter.subscribe("energy_update", (data) => {
+      this.queueBackgroundLearning(data);
+    });
+  }
+
+  private queueBackgroundLearning(realtime: EnergyData): void {
+    const now = this.nowFn();
+    const liveSolarW = usableLiveSolarPowerW(realtime, now);
+    if (liveSolarW === null || liveSolarW < MIN_BACKGROUND_LEARNING_POWER_W) return;
+    const slot = backgroundLearningSlot(now);
+    if (this.backgroundLearningInFlight || this.backgroundLearningSlot === slot) return;
+    this.backgroundLearningInFlight = true;
+    void this.learnFromBackgroundEnergy(now, liveSolarW)
+      .catch((error) => {
+        this.logger.debug("Background solar prediction learning skipped", error);
+      })
+      .finally(() => {
+        this.backgroundLearningSlot = slot;
+        this.backgroundLearningInFlight = false;
+      });
+  }
+
+  private async learnFromBackgroundEnergy(
+    now: Date,
+    liveSolarW: number,
+  ): Promise<void> {
+    const [forecastConfig, controllerConfig] = await Promise.all([
+      this.configService.getSolarForecast(),
+      this.loadControllerConfig(),
+    ]);
+    const arrays = parseSolarArrays(forecastConfig.solarForecastArraysJson);
+    if (!forecastConfigured(forecastConfig, arrays)) return;
+    await this.fetchPvForecast(
+      forecastConfig.solarForecastLatitude as number,
+      forecastConfig.solarForecastLongitude as number,
+      forecastConfig.solarForecastInstallationDate,
+      arrays,
+      controllerConfig.timezone || "UTC",
+      now,
+      liveSolarW,
+      forecastConfig.solarForecastInverterAcMaxKw,
+    );
+  }
 
   async getTodayForecast(
     vehicleId: string,
@@ -132,7 +275,6 @@ export class SolarForecastService {
         this.vehicleManager.getState(vehicleId),
         Promise.resolve(this.poller.tryGetRealtimeSnapshot()),
       ]);
-
     const requestError = forecastRequestUnavailable(vehicle, state, snapshot);
     if (requestError) return requestError;
     if (!vehicle || !state || !snapshot) {
@@ -146,8 +288,8 @@ export class SolarForecastService {
         "Configure Solar Forecast in Settings first.",
       );
     }
-
     const timezone = controllerConfig.timezone || "UTC";
+    const liveSolarW = usableLiveSolarPowerW(snapshot.realtime, now);
     const weatherResult = await this.fetchPvForecast(
       forecastConfig.solarForecastLatitude as number,
       forecastConfig.solarForecastLongitude as number,
@@ -155,7 +297,7 @@ export class SolarForecastService {
       arrays,
       timezone,
       now,
-      snapshot.realtime.solarProductionW,
+      liveSolarW,
       forecastConfig.solarForecastInverterAcMaxKw,
     ).catch((error) => {
       this.logger.warn("Solar forecast weather fetch failed", error);
@@ -167,67 +309,69 @@ export class SolarForecastService {
         "Solar weather forecast is temporarily unavailable.",
       );
     }
-
-    const [capacitySamples, schedulesResult, tariffPeriods] = await Promise.all(
-      [
-        this.db.vehicles.getRecentCapacityCalibrationSamples(vehicleId),
-        this.scheduleService.list(),
-        this.db.tariffs.getTariffPeriods(),
-      ],
-    );
-    const capacity = estimateVehicleCapacityKwh(state, capacitySamples);
-    const baseLoadW = await this.estimateBaseHomeLoadW(
-      snapshot.realtime,
-      controllerConfig,
-    );
-    const schedules = forecastSchedules({
-      configured: schedulesResult.schedules as EngineSchedule[],
-      tariffPeriods,
-      vehicleId,
-      state,
-      controllerConfig,
-      subscribedPowerKva: forecastConfig.solarForecastSubscribedPowerKva,
-      baseLoadW,
-    });
-    const pvRemainingKwh = integrateRemainingPvKwh(weatherResult.points, now);
-    const simulation = this.simulate({
+    return await this.buildTodayForecast({
       now,
       vehicleId,
       vehicleName: vehicle.name,
       mode: vehicle.mode as Extract<VehicleMode, "vacation" | "auto">,
       priority: vehicle.priority,
-      initialState: state,
+      state,
+      realtime: snapshot.realtime,
+      forecastConfig,
       controllerConfig,
-      schedules,
-      points: weatherResult.points,
-      forecastDayEnd: weatherResult.dayEnd,
-      baseLoadW,
-      initialBatteryPowerW: snapshot.realtime.batteryPowerW ?? 0,
-      batterySoc: snapshot.realtime.batterySoc,
-      homeBattery: resolveHomeBatteryForecastConfig(forecastConfig),
-      subscribedPowerW: forecastConfig.solarForecastSubscribedPowerKva === null
-        ? null
-        : forecastConfig.solarForecastSubscribedPowerKva * 1000,
-      vehicleCapacityKwh: capacity.kwh,
-    });
-
-    return {
-      available: true,
-      vehicleId,
-      mode: vehicle.mode as Extract<VehicleMode, "vacation" | "auto">,
-      generatedAt: now.toISOString(),
       timezone,
-      pvRemainingKwh: round2(pvRemainingKwh),
-      solarChargeRemainingKwh: round2(simulation.solarChargeKwh),
-      solarEndAt: simulation.solarEndAt,
-      socAtSolarEnd: round1(simulation.socAtSolarEnd),
-      finalSoc: round1(simulation.finalSoc),
-      finalAt: simulation.finalAt,
-      schedule: simulation.schedule,
-      confidence: forecastConfidence(
-        capacity.sampleCount,
-        weatherResult.liveCorrection,
-      ),
+      weatherResult,
+    });
+  }
+
+  private async buildTodayForecast(
+    input: ForecastBuildInput,
+  ): Promise<SolarChargeForecastResult> {
+    const [capacitySamples, schedulesResult, tariffPeriods] = await Promise.all([
+      this.db.vehicles.getRecentCapacityCalibrationSamples(input.vehicleId),
+      this.scheduleService.list(),
+      this.db.tariffs.getTariffPeriods(),
+    ]);
+    const capacity = estimateVehicleCapacityKwh(input.state, capacitySamples);
+    const baseLoadW = await this.estimateBaseHomeLoadW(
+      input.realtime,
+      input.controllerConfig,
+    );
+    const schedules = forecastSchedules({
+      configured: schedulesResult.schedules as EngineSchedule[],
+      tariffPeriods,
+      vehicleId: input.vehicleId,
+      state: input.state,
+      controllerConfig: input.controllerConfig,
+      subscribedPowerKva: input.forecastConfig.solarForecastSubscribedPowerKva,
+      baseLoadW,
+    });
+    const baseSimulationInput = createSimulationInput(
+      input,
+      schedules,
+      baseLoadW,
+      capacity.kwh,
+    );
+    const scenarios = this.simulateScenarios(input, baseSimulationInput);
+    return buildForecastResponse({
+      input,
+      scenarios,
+      capacitySampleCount: capacity.sampleCount,
+    });
+  }
+
+  private simulateScenarios(
+    input: ForecastBuildInput,
+    base: Omit<SimulationInput, "points">,
+  ): ForecastScenarios {
+    const weather = input.weatherResult;
+    return {
+      p10PvKwh: integrateRemainingPvKwh(weather.p10Points, input.now),
+      p50PvKwh: integrateRemainingPvKwh(weather.points, input.now),
+      p90PvKwh: integrateRemainingPvKwh(weather.p90Points, input.now),
+      p10Simulation: this.simulate({ ...base, points: weather.p10Points }),
+      p50Simulation: this.simulate({ ...base, points: weather.points }),
+      p90Simulation: this.simulate({ ...base, points: weather.p90Points }),
     };
   }
 
@@ -267,14 +411,13 @@ export class SolarForecastService {
     realtime: EnergyData,
     config: ControllerConfig,
   ): Promise<number> {
-    if (config.consumptionExcludesCharging) {
-      return Math.max(0, realtime.homeConsumptionW);
-    }
+    const homeW = finiteNonNegative(realtime.homeConsumptionW);
+    if (config.consumptionExcludesCharging) return homeW;
     const states = await this.vehicleManager.getAllStates();
     const evW = [...states.values()]
       .filter((state) => state.isHome !== false && state.isCharging)
-      .reduce((sum, state) => sum + state.chargePowerKw * 1000, 0);
-    return Math.max(0, realtime.homeConsumptionW - evW);
+      .reduce((sum, state) => sum + finiteNonNegative(state.chargePowerKw) * 1000, 0);
+    return Math.max(0, homeW - evW);
   }
 
   private async fetchPvForecast(
@@ -284,17 +427,123 @@ export class SolarForecastService {
     arrays: SolarArrayConfig[],
     timezone: string,
     now: Date,
-    liveSolarW: number,
+    liveSolarW: number | null,
     configuredInverterAcMaxKw: number | null,
-  ): Promise<{
-    points: PvPoint[];
-    dayEnd: Date;
-    liveCorrection: number;
-  }> {
+  ): Promise<WeatherForecastResult> {
     const ageFactor = panelAgeFactor(installationDate, now);
-    const responses = await Promise.all(
+    const fingerprint = solarPredictionConfigurationFingerprint({
+      latitude,
+      longitude,
+      installationDate,
+      arrays,
+      timezone,
+      inverterAcMaxKw: configuredInverterAcMaxKw,
+    });
+    const learningState = await this.loadPredictionLearning(fingerprint);
+    const providerForecasts = await this.fetchWeatherProviders(
+      latitude,
+      longitude,
+      timezone,
+      arrays,
+      ageFactor,
+    );
+    if (providerForecasts.length === 0) {
+      throw new Error("Weather forecast is empty");
+    }
+    const nominalW = arrays.reduce(
+      (sum, array) => sum + array.capacityKwp * 1000,
+      0,
+    );
+    const observedMaxW = await this.loadObservedSolarMaxW();
+    const inverterCapW = resolveInverterCapW(
+      nominalW,
+      observedMaxW,
+      configuredInverterAcMaxKw,
+    );
+    const clippedProviders = clipProviderForecasts(
+      providerForecasts,
+      inverterCapW,
+    );
+    const providerIds = clippedProviders.map((forecast) => forecast.provider);
+    const initialWeights = solarProviderWeights(learningState, providerIds);
+    const instantEnsemble = combineProviderForecasts(
+      instantProviderForecasts(clippedProviders),
+      initialWeights,
+    );
+    const providerPredictionsW = providerPredictionAt(clippedProviders, now);
+    const updatedLearningState = learnFromCurrentForecast(
+      learningState,
+      closestPoint(instantEnsemble.points, now),
+      now,
+      timezone,
+      liveSolarW,
+      providerPredictionsW,
+    );
+    if (updatedLearningState !== learningState) {
+      await this.persistPredictionLearning(updatedLearningState);
+    }
+    return correctedWeatherForecast({
+      providerForecasts: clippedProviders,
+      learningState: updatedLearningState,
+      providerIds,
+      inverterCapW,
+      timezone,
+      now,
+      liveSolarW,
+    });
+  }
+
+  private async loadObservedSolarMaxW(): Promise<number> {
+    try {
+      return await this.db.energy.getRecentObservedSolarMaxW(90);
+    } catch (error) {
+      this.logger.warn("Solar forecast observed inverter ceiling unavailable", error);
+      return 0;
+    }
+  }
+
+  private async fetchWeatherProviders(
+    latitude: number,
+    longitude: number,
+    timezone: string,
+    arrays: SolarArrayConfig[],
+    ageFactor: number,
+  ): Promise<ProviderForecast[]> {
+    const settled = await Promise.allSettled(
+      OPEN_METEO_PROVIDERS.map((provider) =>
+        this.fetchProviderForecast(
+          provider,
+          latitude,
+          longitude,
+          timezone,
+          arrays,
+          ageFactor,
+        )
+      ),
+    );
+    settled.forEach((result, index) => {
+      if (result.status === "rejected") {
+        this.logger.debug(
+          `Solar forecast provider ${OPEN_METEO_PROVIDERS[index].id} unavailable`,
+          result.reason,
+        );
+      }
+    });
+    return settled.flatMap(fulfilledProviderForecast);
+  }
+
+  private async fetchProviderForecast(
+    provider: { id: SolarWeatherProviderId; url: string },
+    latitude: number,
+    longitude: number,
+    timezone: string,
+    arrays: SolarArrayConfig[],
+    ageFactor: number,
+  ): Promise<ProviderForecast> {
+    const arrayForecasts = await Promise.all(
       arrays.map((array) =>
         this.fetchArrayForecast(
+          provider,
           latitude,
           longitude,
           timezone,
@@ -303,54 +552,60 @@ export class SolarForecastService {
         )
       ),
     );
-    const combined = combineArrayForecasts(responses);
-    if (combined.length === 0) throw new Error("Weather forecast is empty");
-
-    const nominalW = arrays.reduce(
-      (sum, array) => sum + array.capacityKwp * 1000,
-      0,
-    );
-    const observedMaxW = await this.db.energy.getRecentObservedSolarMaxW(90);
-    const inverterCapW = resolveInverterCapW(
-      nominalW,
-      observedMaxW,
-      configuredInverterAcMaxKw,
-    );
-    const clipped = combined.map((point) => ({
-      ...point,
-      powerW: Math.min(point.powerW, inverterCapW),
-    }));
-
-    const currentPoint = closestPoint(clipped, now);
-    const rawRatio = currentPoint && currentPoint.powerW >= 400
-      ? liveSolarW / currentPoint.powerW
-      : 1;
-    const liveCorrection = clamp(0.65 + 0.35 * rawRatio, 0.7, 1.2);
-    const corrected = clipped.map((point) => ({
-      ...point,
-      powerW: Math.max(0, point.powerW * liveCorrection),
-    }));
-    const last = corrected[corrected.length - 1];
     return {
-      points: corrected,
-      dayEnd: new Date(last.at.getTime() + 15 * MINUTE_MS),
-      liveCorrection,
+      provider: provider.id,
+      points: combineArrayForecasts(arrayForecasts.map((item) => item.points)),
+      instantPoints: combineArrayForecasts(
+        arrayForecasts.map((item) => item.instantPoints),
+      ),
     };
   }
 
+  private async loadPredictionLearning(
+    fingerprint: string,
+  ): Promise<SolarPredictionLearningState> {
+    try {
+      const raw = await this.db.config.getConfig(SOLAR_PREDICTION_STATE_KEY);
+      return learningStateForConfiguration(
+        parseSolarPredictionLearning(raw),
+        fingerprint,
+      );
+    } catch (error) {
+      this.logger.warn("Solar prediction learning state unavailable", error);
+      return learningStateForConfiguration(
+        parseSolarPredictionLearning(null),
+        fingerprint,
+      );
+    }
+  }
+
+  private async persistPredictionLearning(
+    state: SolarPredictionLearningState,
+  ): Promise<void> {
+    try {
+      await this.db.config.setConfig(
+        SOLAR_PREDICTION_STATE_KEY,
+        JSON.stringify(state),
+      );
+    } catch (error) {
+      this.logger.warn("Solar prediction learning state could not be saved", error);
+    }
+  }
+
   private async fetchArrayForecast(
+    provider: { id: SolarWeatherProviderId; url: string },
     latitude: number,
     longitude: number,
     timezone: string,
     array: SolarArrayConfig,
     ageFactor: number,
-  ): Promise<PvPoint[]> {
-    const url = new URL(OPEN_METEO_URL);
+  ): Promise<ArrayForecast> {
+    const url = new URL(provider.url);
     url.searchParams.set("latitude", String(latitude));
     url.searchParams.set("longitude", String(longitude));
     url.searchParams.set(
       "minutely_15",
-      "global_tilted_irradiance,temperature_2m",
+      "global_tilted_irradiance,global_tilted_irradiance_instant,temperature_2m,wind_speed_10m",
     );
     url.searchParams.set("tilt", String(array.tiltDeg));
     url.searchParams.set(
@@ -358,34 +613,20 @@ export class SolarForecastService {
       String(toOpenMeteoAzimuth(array.azimuthDeg)),
     );
     url.searchParams.set("timezone", timezone);
+    url.searchParams.set("timeformat", "unixtime");
+    url.searchParams.set("wind_speed_unit", "ms");
     url.searchParams.set("forecast_days", "1");
 
     const response = await this.fetchFn(url, {
       signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) {
-      throw new Error(`Open-Meteo HTTP ${response.status}`);
+      throw new Error(`Open-Meteo ${provider.id} HTTP ${response.status}`);
     }
-    const data = await response.json() as MeteoFranceResponse;
+    const data = await response.json() as OpenMeteoResponse;
     const block = data.minutely_15;
-    if (!block) return [];
-
-    return block.time.map((time, index) => {
-      const gti = Math.max(0, block.global_tilted_irradiance[index] ?? 0);
-      const ambientC = block.temperature_2m[index] ?? 20;
-      const panelC = ambientC + 20 * (gti / 800);
-      const tempFactor = clamp(
-        1 + PANEL_TEMP_COEFFICIENT * (panelC - 25),
-        0.75,
-        1.08,
-      );
-      const powerW = array.capacityKwp * 1000 * (gti / 1000) * ageFactor *
-        tempFactor * BASE_SYSTEM_EFFICIENCY;
-      return {
-        at: localApiTimeToDate(time, data.utc_offset_seconds),
-        powerW: Math.max(0, powerW),
-      };
-    });
+    if (!block) return { points: [], instantPoints: [] };
+    return buildArrayForecast(block, data.utc_offset_seconds, array, ageFactor);
   }
 
   private simulate(input: SimulationInput): SimulationResult {
@@ -537,6 +778,355 @@ export class SolarForecastService {
   }
 }
 
+function backgroundLearningSlot(at: Date): string {
+  return String(Math.floor(at.getTime() / FORECAST_STEP_MS));
+}
+
+function createSimulationInput(
+  input: ForecastBuildInput,
+  schedules: EngineSchedule[],
+  baseLoadW: number,
+  vehicleCapacityKwh: number,
+): Omit<SimulationInput, "points"> {
+  return {
+    now: input.now,
+    vehicleId: input.vehicleId,
+    vehicleName: input.vehicleName,
+    mode: input.mode,
+    priority: input.priority,
+    initialState: input.state,
+    controllerConfig: input.controllerConfig,
+    schedules,
+    forecastDayEnd: input.weatherResult.dayEnd,
+    baseLoadW,
+    initialBatteryPowerW: finiteNumber(input.realtime.batteryPowerW, 0),
+    batterySoc: validSoc(input.realtime.batterySoc),
+    homeBattery: resolveHomeBatteryForecastConfig(input.forecastConfig),
+    subscribedPowerW: subscribedPowerW(input.forecastConfig),
+    vehicleCapacityKwh,
+  };
+}
+
+function buildForecastResponse(
+  responseInput: ForecastResponseInput,
+): SolarChargeForecastResult {
+  const { input, scenarios, capacitySampleCount } = responseInput;
+  const weather = input.weatherResult;
+  const confidence = buildSolarPredictionConfidence({
+    learningSamples: weather.learningSamples,
+    learningCoverage: weather.learningCoverage,
+    meanAbsPctError: weather.meanAbsPctError,
+    empiricalIntervalPct: weather.empiricalIntervalPct,
+    providerSpreadPct: weather.providerSpreadPct,
+    providerCount: weather.providerCount,
+    liveCorrection: weather.liveCorrection,
+    vehicleCapacitySamples: capacitySampleCount,
+  });
+  const pvBounds = orderedBounds(
+    scenarios.p10PvKwh,
+    scenarios.p50PvKwh,
+    scenarios.p90PvKwh,
+  );
+  const chargeBounds = orderedBounds(
+    scenarios.p10Simulation.solarChargeKwh,
+    scenarios.p50Simulation.solarChargeKwh,
+    scenarios.p90Simulation.solarChargeKwh,
+  );
+  const simulation = scenarios.p50Simulation;
+  return {
+    available: true,
+    vehicleId: input.vehicleId,
+    mode: input.mode,
+    generatedAt: input.now.toISOString(),
+    timezone: input.timezone,
+    pvRemainingKwh: round2(scenarios.p50PvKwh),
+    solarChargeRemainingKwh: round2(simulation.solarChargeKwh),
+    solarEndAt: simulation.solarEndAt,
+    socAtSolarEnd: round1(simulation.socAtSolarEnd),
+    finalSoc: round1(simulation.finalSoc),
+    finalAt: simulation.finalAt,
+    schedule: simulation.schedule,
+    confidence: confidence.label,
+    prediction: {
+      version: "2.3",
+      confidenceScore: confidence.score,
+      regime: confidence.regime,
+      learningSamples: weather.learningSamples,
+      learningCoveragePct: round1(weather.learningCoverage * 100),
+      empiricalIntervalPct: round1(weather.empiricalIntervalPct * 100),
+      historicalCorrection: round2(weather.historicalCorrection),
+      liveCorrection: round2(weather.liveCorrection),
+      liveObservationUsed: weather.liveObservationUsed,
+      providerSpreadPct: round1(weather.providerSpreadPct * 100),
+      providerWeights: {
+        meteofrance: round2(weather.providerWeights.meteofrance),
+        dwdIcon: round2(weather.providerWeights.dwd_icon),
+      },
+      pvP10Kwh: round2(pvBounds.low),
+      pvP50Kwh: round2(scenarios.p50PvKwh),
+      pvP90Kwh: round2(pvBounds.high),
+      solarChargeP10Kwh: round2(chargeBounds.low),
+      solarChargeP50Kwh: round2(simulation.solarChargeKwh),
+      solarChargeP90Kwh: round2(chargeBounds.high),
+    },
+  };
+}
+
+function orderedBounds(
+  lowScenario: number,
+  p50: number,
+  highScenario: number,
+): { low: number; high: number } {
+  return {
+    low: Math.min(lowScenario, p50),
+    high: Math.max(highScenario, p50),
+  };
+}
+
+function subscribedPowerW(config: SolarForecastConfig): number | null {
+  if (config.solarForecastSubscribedPowerKva === null) return null;
+  return config.solarForecastSubscribedPowerKva * 1000;
+}
+
+function fulfilledProviderForecast(
+  result: PromiseSettledResult<ProviderForecast>,
+): ProviderForecast[] {
+  if (result.status !== "fulfilled") return [];
+  return result.value.points.length > 0 ? [result.value] : [];
+}
+
+function clipProviderForecasts(
+  forecasts: ProviderForecast[],
+  inverterCapW: number,
+): ProviderForecast[] {
+  return forecasts.map((forecast) => ({
+    provider: forecast.provider,
+    points: clipPoints(forecast.points, inverterCapW),
+    instantPoints: clipPoints(forecast.instantPoints, inverterCapW),
+  }));
+}
+
+function clipPoints(points: PvPoint[], inverterCapW: number): PvPoint[] {
+  return points.map((point) => ({
+    ...point,
+    powerW: Math.min(point.powerW, inverterCapW),
+  }));
+}
+
+function instantProviderForecasts(
+  forecasts: ProviderForecast[],
+): ProviderForecast[] {
+  return forecasts.map((forecast) => ({
+    provider: forecast.provider,
+    points: forecast.instantPoints,
+    instantPoints: forecast.instantPoints,
+  }));
+}
+
+function remainingProviderForecasts(
+  forecasts: ProviderForecast[],
+  now: Date,
+): ProviderForecast[] {
+  const nowMs = now.getTime();
+  return forecasts.map((forecast) => ({
+    provider: forecast.provider,
+    points: forecast.points.filter((point) => point.at.getTime() > nowMs),
+    instantPoints: forecast.instantPoints.filter((point) =>
+      point.at.getTime() > nowMs
+    ),
+  }));
+}
+
+function learnFromCurrentForecast(
+  state: SolarPredictionLearningState,
+  currentPoint: PvPoint | null,
+  now: Date,
+  timezone: string,
+  liveSolarW: number | null,
+  providerPredictionsW: Partial<Record<SolarWeatherProviderId, number>>,
+): SolarPredictionLearningState {
+  if (!currentPoint || liveSolarW === null) return state;
+  return updateSolarPredictionLearning(state, {
+    at: now,
+    timezone,
+    predictedW: currentPoint.powerW,
+    actualW: liveSolarW,
+    providerPredictionsW,
+  });
+}
+
+function correctedWeatherForecast(input: {
+  providerForecasts: ProviderForecast[];
+  learningState: SolarPredictionLearningState;
+  providerIds: SolarWeatherProviderId[];
+  inverterCapW: number;
+  timezone: string;
+  now: Date;
+  liveSolarW: number | null;
+}): WeatherForecastResult {
+  const providerWeights = solarProviderWeights(
+    input.learningState,
+    input.providerIds,
+  );
+  const ensemble = combineProviderForecasts(
+    input.providerForecasts,
+    providerWeights,
+  );
+  const remainingEnsemble = combineProviderForecasts(
+    remainingProviderForecasts(input.providerForecasts, input.now),
+    providerWeights,
+  );
+  const providerSpreadPct = remainingEnsemble.spreadPct;
+  const instantEnsemble = combineProviderForecasts(
+    instantProviderForecasts(input.providerForecasts),
+    providerWeights,
+  );
+  const historical = applyHistoricalCorrection(
+    ensemble.points,
+    input.learningState,
+    input.timezone,
+    input.inverterCapW,
+  );
+  const historicalInstant = applyHistoricalCorrection(
+    instantEnsemble.points,
+    input.learningState,
+    input.timezone,
+    input.inverterCapW,
+  );
+  const currentInstant = closestPoint(historicalInstant, input.now);
+  const liveCorrection = resolveLiveCorrection(currentInstant, input.liveSolarW);
+  const liveObservationUsed = input.liveSolarW !== null &&
+    currentInstant !== null && currentInstant.powerW >= 400;
+  const corrected = applyLiveNowcast(
+    historical,
+    input.now,
+    liveCorrection,
+    input.inverterCapW,
+  );
+  const stats = aggregateLearningStats(
+    input.learningState,
+    remainingPredictionPoints(corrected, input.now),
+    input.timezone,
+  );
+  const scenarios = buildPredictionScenarioPoints({
+    points: corrected,
+    state: input.learningState,
+    timezone: input.timezone,
+    now: input.now,
+    liveCorrection,
+    providerSpreadPct,
+    providerCount: input.providerForecasts.length,
+    inverterCapW: input.inverterCapW,
+  });
+  const last = corrected[corrected.length - 1];
+  return {
+    points: corrected,
+    p10Points: scenarios.p10,
+    p90Points: scenarios.p90,
+    dayEnd: new Date(last.at.getTime() + FORECAST_STEP_MS),
+    liveCorrection,
+    liveObservationUsed,
+    historicalCorrection: historicalCorrectionAt(
+      input.learningState,
+      input.now,
+      input.timezone,
+    ),
+    providerSpreadPct,
+    providerCount: input.providerForecasts.length,
+    providerWeights,
+    learningSamples: stats.sampleCount,
+    learningCoverage: stats.learningCoverage,
+    meanAbsPctError: stats.meanAbsPctError,
+    empiricalIntervalPct: stats.empiricalIntervalPct,
+  };
+}
+
+function applyHistoricalCorrection(
+  points: PvPoint[],
+  state: SolarPredictionLearningState,
+  timezone: string,
+  inverterCapW: number,
+): PvPoint[] {
+  return points.map((point) => ({
+    ...point,
+    powerW: Math.min(
+      inverterCapW,
+      point.powerW * historicalCorrectionAt(state, point.at, timezone),
+    ),
+  }));
+}
+
+function resolveLiveCorrection(
+  currentPoint: PvPoint | null,
+  liveSolarW: number | null,
+): number {
+  if (!currentPoint || currentPoint.powerW < 400 || liveSolarW === null) return 1;
+  const rawRatio = liveSolarW / currentPoint.powerW;
+  return clamp(0.55 + 0.45 * rawRatio, 0.65, 1.3);
+}
+
+function applyLiveNowcast(
+  points: PvPoint[],
+  now: Date,
+  liveCorrection: number,
+  inverterCapW: number,
+): PvPoint[] {
+  return points.map((point) => {
+    const minutesAhead = (point.at.getTime() - now.getTime()) / MINUTE_MS;
+    const factor = decayingLiveCorrection(liveCorrection, minutesAhead);
+    return {
+      ...point,
+      powerW: Math.min(inverterCapW, Math.max(0, point.powerW * factor)),
+    };
+  });
+}
+
+function buildPredictionScenarioPoints(input: {
+  points: PvPoint[];
+  state: SolarPredictionLearningState;
+  timezone: string;
+  now: Date;
+  liveCorrection: number;
+  providerSpreadPct: number;
+  providerCount: number;
+  inverterCapW: number;
+}): { p10: PvPoint[]; p90: PvPoint[] } {
+  const scenarios = input.points.map((point) =>
+    predictionScenarioPoint(input, point)
+  );
+  return {
+    p10: scenarios.map((item) => item.p10),
+    p90: scenarios.map((item) => item.p90),
+  };
+}
+
+function predictionScenarioPoint(
+  input: Parameters<typeof buildPredictionScenarioPoints>[0],
+  point: PvPoint,
+): { p10: PvPoint; p90: PvPoint } {
+  const minutesAhead = (point.at.getTime() - input.now.getTime()) / MINUTE_MS;
+  const interval = predictionPointIntervalPct({
+    state: input.state,
+    at: point.at,
+    timezone: input.timezone,
+    providerSpreadPct: input.providerSpreadPct,
+    providerCount: input.providerCount,
+    liveCorrection: input.liveCorrection,
+    minutesAhead,
+  });
+  return {
+    p10: { ...point, powerW: Math.max(0, point.powerW * (1 - interval)) },
+    p90: {
+      ...point,
+      powerW: Math.min(input.inverterCapW, point.powerW * (1 + interval)),
+    },
+  };
+}
+
+function remainingPredictionPoints(points: PvPoint[], now: Date): PvPoint[] {
+  return points.filter((point) => point.at.getTime() > now.getTime());
+}
+
 function decideVehicleMinute(
   input: SimulationInput,
   engine: ControllerEngine,
@@ -655,16 +1245,6 @@ export function resolveInverterCapW(
   return Math.min(nominalArrayW, learnedCapW);
 }
 
-function forecastConfidence(
-  sampleCount: number,
-  liveCorrection: number,
-): "high" | "medium" | "low" {
-  const liveMatch = liveCorrection >= 0.8 && liveCorrection <= 1.2;
-  if (sampleCount >= 5 && liveMatch) return "high";
-  if (sampleCount > 0) return "medium";
-  return "low";
-}
-
 function validInstallationDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
     Number.isFinite(new Date(`${value}T00:00:00Z`).getTime());
@@ -684,9 +1264,136 @@ export function toOpenMeteoAzimuth(standardAzimuth: number): number {
   return raw;
 }
 
+export function estimatePanelTemperatureC(
+  ambientC: number,
+  irradianceWm2: number,
+  windSpeedMs: number,
+): number {
+  const irradiance = Math.max(0, irradianceWm2);
+  const wind = Math.max(0, windSpeedMs);
+  return ambientC + irradiance / (FAIMAN_U0 + FAIMAN_U1 * wind);
+}
+
+type LiveSolarData = Pick<EnergyData, "solarProductionW" | "lastUpdated"> &
+  Partial<
+    Pick<
+      EnergyData,
+      "gridPowerW" | "homeConsumptionW" | "batteryPowerW" | "batterySoc"
+    >
+  >;
+
+export function usableLiveSolarPowerW(
+  realtime: LiveSolarData,
+  now: Date,
+): number | null {
+  if (sourceLooksOffline(realtime)) return null;
+  if (!Number.isFinite(realtime.solarProductionW) || realtime.solarProductionW < 0) {
+    return null;
+  }
+  const observedAt = Date.parse(realtime.lastUpdated);
+  if (!Number.isFinite(observedAt)) return null;
+  const ageMs = now.getTime() - observedAt;
+  if (ageMs < -LIVE_SOLAR_FUTURE_TOLERANCE_MS || ageMs > LIVE_SOLAR_MAX_AGE_MS) {
+    return null;
+  }
+  return realtime.solarProductionW;
+}
+
+function sourceLooksOffline(realtime: LiveSolarData): boolean {
+  return realtime.solarProductionW === 0 && realtime.gridPowerW === 0 &&
+    realtime.homeConsumptionW === 0 && realtime.batteryPowerW === null &&
+    realtime.batterySoc === null;
+}
+
+export function openMeteoTimeToDate(
+  value: number | string,
+  utcOffsetSeconds: number,
+): Date {
+  if (typeof value === "number") return new Date(value * 1000);
+  return localApiTimeToDate(value, utcOffsetSeconds);
+}
+
 function localApiTimeToDate(localIso: string, utcOffsetSeconds: number): Date {
   const utcLike = Date.parse(`${localIso}:00Z`);
   return new Date(utcLike - utcOffsetSeconds * 1000);
+}
+
+function buildArrayForecast(
+  block: NonNullable<OpenMeteoResponse["minutely_15"]>,
+  utcOffsetSeconds: number,
+  array: SolarArrayConfig,
+  ageFactor: number,
+): ArrayForecast {
+  const rows = block.time.map((time, index) => {
+    const averageGti = Math.max(0, block.global_tilted_irradiance[index] ?? 0);
+    const instantGti = Math.max(
+      0,
+      block.global_tilted_irradiance_instant?.[index] ?? averageGti,
+    );
+    const ambientC = block.temperature_2m[index] ?? 20;
+    const windMs = Math.max(0, block.wind_speed_10m?.[index] ?? 1);
+    const at = openMeteoTimeToDate(time, utcOffsetSeconds);
+    return {
+      average: {
+        at,
+        powerW: pvPowerFromWeather(array, averageGti, ambientC, windMs, ageFactor),
+      },
+      instant: {
+        at,
+        powerW: pvPowerFromWeather(array, instantGti, ambientC, windMs, ageFactor),
+      },
+    };
+  });
+  return {
+    points: rows.map((row) => row.average),
+    instantPoints: rows.map((row) => row.instant),
+  };
+}
+
+function pvPowerFromWeather(
+  array: SolarArrayConfig,
+  gti: number,
+  ambientC: number,
+  windMs: number,
+  ageFactor: number,
+): number {
+  const panelC = estimatePanelTemperatureC(ambientC, gti, windMs);
+  const tempFactor = clamp(
+    1 + PANEL_TEMP_COEFFICIENT * (panelC - 25),
+    0.75,
+    1.08,
+  );
+  const powerW = array.capacityKwp * 1000 * (gti / 1000) * ageFactor *
+    tempFactor * BASE_SYSTEM_EFFICIENCY;
+  return Math.max(0, powerW);
+}
+
+function solarPredictionConfigurationFingerprint(input: {
+  latitude: number;
+  longitude: number;
+  installationDate: string;
+  arrays: SolarArrayConfig[];
+  timezone: string;
+  inverterAcMaxKw: number | null;
+}): string {
+  const arrays = [...input.arrays]
+    .map((array) => ({
+      capacityKwp: array.capacityKwp,
+      azimuthDeg: array.azimuthDeg,
+      tiltDeg: array.tiltDeg,
+    }))
+    .sort((a, b) =>
+      a.azimuthDeg - b.azimuthDeg || a.tiltDeg - b.tiltDeg ||
+      a.capacityKwp - b.capacityKwp
+    );
+  return JSON.stringify({
+    latitude: input.latitude,
+    longitude: input.longitude,
+    installationDate: input.installationDate,
+    timezone: input.timezone,
+    inverterAcMaxKw: input.inverterAcMaxKw,
+    arrays,
+  });
 }
 
 function combineArrayForecasts(series: PvPoint[][]): PvPoint[] {
@@ -699,6 +1406,105 @@ function combineArrayForecasts(series: PvPoint[][]): PvPoint[] {
   return [...totals.entries()]
     .map(([timestamp, powerW]) => ({ at: new Date(timestamp), powerW }))
     .sort((a, b) => a.at.getTime() - b.at.getTime());
+}
+
+function combineProviderForecasts(
+  forecasts: ProviderForecast[],
+  weights: Record<SolarWeatherProviderId, number>,
+): { points: PvPoint[]; spreadPct: number } {
+  const samples = forecasts.flatMap((forecast) =>
+    forecast.points.map((point) => ({
+      timestamp: point.at.getTime(),
+      powerW: point.powerW,
+      weight: weights[forecast.provider],
+    }))
+  );
+  const byTimestamp = samples.reduce((result, sample) => {
+    const values = result.get(sample.timestamp) ?? [];
+    result.set(sample.timestamp, [
+      ...values,
+      { powerW: sample.powerW, weight: sample.weight },
+    ]);
+    return result;
+  }, new Map<number, Array<{ powerW: number; weight: number }>>());
+  const combined = [...byTimestamp.entries()].reduce(
+    (result, [timestamp, values]) => {
+      const stats = weightedProviderPoint(timestamp, values);
+      return {
+        points: [...result.points, stats.point],
+        spreadWeightedSum: result.spreadWeightedSum + stats.spreadWeighted,
+        spreadPowerSum: result.spreadPowerSum + stats.spreadPower,
+      };
+    },
+    {
+      points: [] as PvPoint[],
+      spreadWeightedSum: 0,
+      spreadPowerSum: 0,
+    },
+  );
+  return {
+    points: combined.points.sort((a, b) => a.at.getTime() - b.at.getTime()),
+    spreadPct: resolveProviderSpread(
+      forecasts.length,
+      combined.spreadWeightedSum,
+      combined.spreadPowerSum,
+    ),
+  };
+}
+
+function weightedProviderPoint(
+  timestamp: number,
+  values: Array<{ powerW: number; weight: number }>,
+): { point: PvPoint; spreadWeighted: number; spreadPower: number } {
+  const totalWeight = values.reduce((sum, value) => sum + value.weight, 0);
+  const normalizer = totalWeight > 0 ? totalWeight : values.length;
+  const powerW = values.reduce(
+    (sum, value) => sum + value.powerW * effectiveWeight(value.weight, totalWeight),
+    0,
+  ) / normalizer;
+  const point = { at: new Date(timestamp), powerW };
+  if (values.length <= 1 || powerW < 200) {
+    return { point, spreadWeighted: 0, spreadPower: 0 };
+  }
+  const deviation = values.reduce(
+    (sum, value) =>
+      sum + Math.abs(value.powerW - powerW) *
+        effectiveWeight(value.weight, totalWeight),
+    0,
+  ) / normalizer;
+  return {
+    point,
+    spreadWeighted: deviation,
+    spreadPower: powerW,
+  };
+}
+
+function effectiveWeight(weight: number, totalWeight: number): number {
+  return totalWeight > 0 ? weight : 1;
+}
+
+function resolveProviderSpread(
+  forecastCount: number,
+  weightedSum: number,
+  powerSum: number,
+): number {
+  if (forecastCount < 2) return 0.25;
+  if (powerSum <= 0) return 0.08;
+  return clamp(weightedSum / powerSum, 0, 0.7);
+}
+
+function providerPredictionAt(
+  forecasts: ProviderForecast[],
+  at: Date,
+): Partial<Record<SolarWeatherProviderId, number>> {
+  return forecasts.reduce<Partial<Record<SolarWeatherProviderId, number>>>(
+    (result, forecast) => {
+      const point = closestPoint(forecast.instantPoints, at);
+      if (point) result[forecast.provider] = point.powerW;
+      return result;
+    },
+    {},
+  );
 }
 
 function closestPoint(points: PvPoint[], at: Date): PvPoint | null {
@@ -716,15 +1522,22 @@ function powerAt(points: PvPoint[], at: Date): number {
   const atMs = at.getTime();
   const point = points.find((candidate) =>
     candidate.at.getTime() >= atMs &&
-    candidate.at.getTime() - atMs <= 15 * MINUTE_MS
+    candidate.at.getTime() - atMs <= FORECAST_STEP_MS
   );
   return point?.powerW ?? 0;
 }
 
-function integrateRemainingPvKwh(points: PvPoint[], now: Date): number {
-  return points
-    .filter((point) => point.at > now)
-    .reduce((sum, point) => sum + point.powerW * 0.25 / 1000, 0);
+export function integrateRemainingPvKwh(points: PvPoint[], now: Date): number {
+  const nowMs = now.getTime();
+  return points.reduce((sum, point) => {
+    const intervalEnd = point.at.getTime();
+    const intervalStart = intervalEnd - FORECAST_STEP_MS;
+    const remainingMs = Math.min(
+      FORECAST_STEP_MS,
+      Math.max(0, intervalEnd - Math.max(nowMs, intervalStart)),
+    );
+    return sum + point.powerW * (remainingMs / 3_600_000) / 1000;
+  }, 0);
 }
 
 function estimateVehicleCapacityKwh(
@@ -1205,6 +2018,19 @@ export function applySubscribedPowerLimit(
     chargeAmps: maxSafeAmps,
     chargePowerKw: maxSafeAmps * electrical.voltage * electrical.phases / 1000,
   };
+}
+
+function finiteNonNegative(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function finiteNumber(value: number | null, fallback: number): number {
+  return value !== null && Number.isFinite(value) ? value : fallback;
+}
+
+function validSoc(value: number | null): number | null {
+  if (value === null || !Number.isFinite(value)) return null;
+  return value >= 0 && value <= 100 ? value : null;
 }
 
 function clamp(value: number, min: number, max: number): number {
