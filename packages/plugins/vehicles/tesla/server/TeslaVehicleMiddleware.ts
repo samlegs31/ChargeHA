@@ -142,9 +142,50 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
 
   // ── Public: commands ──────────────────────────────────────────────────
 
+  private isSolarControllerOrigin(ctx: CallContext): boolean {
+    const solarTracking = ctx.origin.startsWith("controller:solar_tracking");
+    const solarOnly = ctx.origin.startsWith("controller:vacation");
+    return solarTracking || solarOnly;
+  }
+
+  private shouldArmSolarStart(ctx: CallContext): boolean {
+    const state = this.cachedState;
+    if (!state) return false;
+    const stopped = !state.isCharging;
+    const notAtMinimum = state.chargeAmps !== state.chargeAmpsMin;
+    return stopped && notAtMinimum && this.isSolarControllerOrigin(ctx);
+  }
+
   async startCharging(ctx: CallContext): Promise<boolean> {
     this.logger.debug(`startCharging origin=${ctx.origin}`);
     await this.ensureOnline(withSuffix(ctx, "pre"));
+
+    // VehicleManager can legitimately skip setChargeAmps when the cached
+    // requested current already equals the engine target. Solar mode must
+    // still never reuse that remembered current on a fresh start, so enforce
+    // the hardware minimum again immediately before charge_start.
+    if (this.shouldArmSolarStart(ctx) && this.cachedState) {
+      const safeAmps = this.cachedState.chargeAmpsMin;
+      this.logger.info(
+        `Solar start — pre-arming ${safeAmps}A before charge_start`,
+      );
+      const armed = await this.adapter.setChargeAmps(
+        safeAmps,
+        withSuffix(ctx, "safe-start"),
+      );
+      if (!armed) {
+        await this.refreshCacheAfterRejection(
+          withSuffix(ctx, "safe-start-reject"),
+        );
+        return false;
+      }
+      this.cachedState = {
+        ...this.cachedState,
+        chargeAmps: safeAmps,
+      };
+      this.lastFetchAtMs = 0;
+    }
+
     const ok = await this.adapter.startCharging(ctx);
     if (ok && this.cachedState) {
       // Keep the UI responsive, but do not pretend this is fresh telemetry.
@@ -183,10 +224,8 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
   }
 
   private isSolarStartupCommand(ctx: CallContext): boolean {
-    const solarTracking = ctx.origin.startsWith("controller:solar_tracking");
-    const solarOnly = ctx.origin.startsWith("controller:vacation");
-    const solarOrigin = solarTracking || solarOnly;
-    return this.cachedState?.isCharging === false && solarOrigin;
+    const stopped = this.cachedState?.isCharging === false;
+    return stopped && this.isSolarControllerOrigin(ctx);
   }
 
   private shouldPreArmSafeStart(percent: number): boolean {
