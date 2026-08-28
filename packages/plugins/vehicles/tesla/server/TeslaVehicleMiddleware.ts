@@ -182,10 +182,38 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     return ok;
   }
 
+  private isSolarStartupCommand(ctx: CallContext): boolean {
+    const solarTracking = ctx.origin.startsWith("controller:solar_tracking");
+    const solarOnly = ctx.origin.startsWith("controller:vacation");
+    const solarOrigin = solarTracking || solarOnly;
+    return this.cachedState?.isCharging === false && solarOrigin;
+  }
+
+  private shouldPreArmSafeStart(percent: number): boolean {
+    const state = this.cachedState;
+    if (!state) return false;
+    const stopped = !state.isCharging;
+    const increasingLimit = percent > state.chargeLimit;
+    const notAtMinimum = state.chargeAmps !== state.chargeAmpsMin;
+    return stopped && increasingLimit && notAtMinimum;
+  }
+
   async setChargeAmps(amps: number, ctx: CallContext): Promise<boolean> {
-    this.logger.debug(`setChargeAmps amps=${amps} origin=${ctx.origin}`);
+    const isSolarStartup = this.isSolarStartupCommand(ctx);
+    const effectiveAmps = isSolarStartup && this.cachedState
+      ? this.cachedState.chargeAmpsMin
+      : amps;
+
+    if (effectiveAmps !== amps) {
+      this.logger.info(
+        `Solar startup requested ${amps}A — arming safe start at ${effectiveAmps}A first`,
+      );
+    }
+    this.logger.debug(
+      `setChargeAmps amps=${effectiveAmps} origin=${ctx.origin}`,
+    );
     await this.ensureOnline(withSuffix(ctx, "pre"));
-    const ok = await this.adapter.setChargeAmps(amps, ctx);
+    const ok = await this.adapter.setChargeAmps(effectiveAmps, ctx);
     if (ok && this.cachedState) {
       // chargeAmps is intentionally the controller target: the pure solar
       // engine and its debounce logic already use it that way. Do not alter
@@ -193,11 +221,11 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
       // live telemetry and must only change after vehicle_data is fetched.
       this.cachedState = {
         ...this.cachedState,
-        chargeAmps: amps,
+        chargeAmps: effectiveAmps,
       };
       this.lastFetchAtMs = 0;
       this.logger.debug(
-        `setChargeAmps accepted — target=${amps}A, live telemetry unchanged`,
+        `setChargeAmps accepted — target=${effectiveAmps}A, live telemetry unchanged`,
       );
     } else if (!ok) {
       await this.refreshCacheAfterRejection(withSuffix(ctx, "post-reject"));
@@ -208,6 +236,33 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
   async setChargeLimit(percent: number, ctx: CallContext): Promise<boolean> {
     this.logger.debug(`setChargeLimit percent=${percent} origin=${ctx.origin}`);
     await this.ensureOnline(withSuffix(ctx, "pre"));
+
+    // Raising the limit can make a Tesla resume charging immediately using
+    // the last current stored by the car. Pre-arm the hardware minimum first
+    // while stopped so a 90→91% change cannot restart at a stale 20A/32A and
+    // import from the grid before the solar controller gets its next turn.
+    if (this.shouldPreArmSafeStart(percent) && this.cachedState) {
+      const safeAmps = this.cachedState.chargeAmpsMin;
+      this.logger.info(
+        `Charge limit increase while stopped — pre-arming ${safeAmps}A before ${percent}% limit`,
+      );
+      const armed = await this.adapter.setChargeAmps(
+        safeAmps,
+        withSuffix(ctx, "safe-start"),
+      );
+      if (!armed) {
+        await this.refreshCacheAfterRejection(
+          withSuffix(ctx, "safe-start-reject"),
+        );
+        return false;
+      }
+      this.cachedState = {
+        ...this.cachedState,
+        chargeAmps: safeAmps,
+      };
+      this.lastFetchAtMs = 0;
+    }
+
     const ok = await this.adapter.setChargeLimit(percent, ctx);
     if (ok && this.cachedState) {
       this.cachedState = {
