@@ -6,20 +6,22 @@ import { Logger } from "@chargeha/server/lib/Logger";
 import { TeslaVehicleMiddleware } from "./TeslaVehicleMiddleware.ts";
 import { MockTeslaAdapter } from "./test-helpers/MockTeslaAdapter.ts";
 
-const testLogger = new Logger("TeslaSafeStartTest", "error");
-const callContext = (origin: string) => ({ origin, traceId: "test" });
-
-function buildHarness(overrides: Parameters<typeof buildVehicleChargeState>[0]) {
-  const adapter = new MockTeslaAdapter();
-  const middleware = new TeslaVehicleMiddleware(
-    adapter as unknown as VehicleAdapter,
-    testLogger,
-  );
-  middleware.seedState(buildVehicleChargeState(overrides));
-  return { adapter, middleware };
-}
-
 describe("Tesla solar safe start", () => {
+  const testLogger = new Logger("TeslaSafeStartTest", "error");
+  const callContext = (origin: string) => ({ origin, traceId: "test" });
+
+  function buildHarness(
+    overrides: Parameters<typeof buildVehicleChargeState>[0],
+  ) {
+    const adapter = new MockTeslaAdapter();
+    const middleware = new TeslaVehicleMiddleware(
+      adapter as unknown as VehicleAdapter,
+      testLogger,
+    );
+    middleware.seedState(buildVehicleChargeState(overrides));
+    return { adapter, middleware };
+  }
+
   it("pre-arms 5A before an increased charge limit can resume charging", async () => {
     const { adapter, middleware } = buildHarness({
       batteryLevel: 90,
