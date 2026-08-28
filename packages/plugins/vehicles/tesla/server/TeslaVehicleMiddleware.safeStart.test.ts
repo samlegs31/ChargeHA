@@ -95,6 +95,49 @@ describe("Tesla solar safe start", () => {
     expect(ampsSent).toEqual([5]);
   });
 
+  it("pre-arms 5A before charge_start when the amp command was skipped", async () => {
+    const { adapter, middleware } = buildHarness({
+      isCharging: false,
+      isPluggedIn: true,
+      chargeAmps: 12,
+      chargeAmpsMin: 5,
+    });
+    const calls: string[] = [];
+    adapter.setChargeAmps = (amps: number, _ctx: unknown) => {
+      calls.push(`amps:${amps}`);
+      return Promise.resolve(true);
+    };
+    adapter.startCharging = (_ctx: unknown) => {
+      calls.push("start");
+      return Promise.resolve(true);
+    };
+
+    const ok = await middleware.startCharging(
+      callContext("controller:solar_tracking:start"),
+    );
+
+    expect(ok).toBe(true);
+    expect(calls).toEqual(["amps:5", "start"]);
+    expect(middleware.getCachedState()?.chargeAmps).toBe(5);
+  });
+
+  it("does not pre-arm a manual charge_start", async () => {
+    const { adapter, middleware } = buildHarness({
+      isCharging: false,
+      isPluggedIn: true,
+      chargeAmps: 20,
+      chargeAmpsMin: 5,
+    });
+
+    const ok = await middleware.startCharging(
+      callContext("user:command:start"),
+    );
+
+    expect(ok).toBe(true);
+    expect(adapter.setChargeAmpsCalls).toBe(0);
+    expect(adapter.startChargingCalls).toBe(1);
+  });
+
   it("allows normal solar regulation after charging has started", async () => {
     const { adapter, middleware } = buildHarness({
       isCharging: true,
