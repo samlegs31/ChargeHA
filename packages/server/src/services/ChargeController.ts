@@ -342,12 +342,12 @@ export class ChargeController {
     now: Date,
     timezone: string,
   ): void {
-    for (const id of this.batteryBlockedScheduleIds) {
+    this.batteryBlockedScheduleIds.forEach((id) => {
       const schedule = schedules.find((candidate) => candidate.id === id);
       const stillActive = schedule?.scheduleType === "charge" &&
         schedule.enabled && isScheduleActiveNow(schedule, now, timezone);
       if (!stillActive) this.batteryBlockedScheduleIds.delete(id);
-    }
+    });
   }
 
   /** Detect a charge-current change that happened outside the controller.
