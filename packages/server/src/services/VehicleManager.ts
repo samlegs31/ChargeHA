@@ -334,9 +334,10 @@ export class VehicleManager {
 
       this.resetCommandBackoff(vehicleId);
       this.clearVehicleError(vehicleId);
+      const commandState = await this.publishCommandState(vehicleId);
       return {
         success: true,
-        state: (await this.getState(vehicleId)) ?? undefined,
+        state: commandState,
       };
     } catch (error) {
       this.applyCommandBackoff(vehicleId, error);
@@ -382,9 +383,10 @@ export class VehicleManager {
 
       this.resetCommandBackoff(vehicleId);
       this.clearVehicleError(vehicleId);
+      const commandState = await this.publishCommandState(vehicleId);
       return {
         success: true,
-        state: (await this.getState(vehicleId)) ?? undefined,
+        state: commandState,
       };
     } catch (error) {
       this.applyCommandBackoff(vehicleId, error);
@@ -452,9 +454,10 @@ export class VehicleManager {
 
       this.resetCommandBackoff(vehicleId);
       this.clearVehicleError(vehicleId);
+      const commandState = await this.publishCommandState(vehicleId);
       return {
         success: true,
-        state: (await this.getState(vehicleId)) ?? undefined,
+        state: commandState,
       };
     } catch (error) {
       this.applyCommandBackoff(vehicleId, error);
@@ -463,6 +466,21 @@ export class VehicleManager {
         error: error instanceof Error ? error.message : String(error),
       };
     }
+  }
+
+  /**
+   * Publish command-accepted state immediately instead of making the dashboard
+   * wait for the next controller poll. The middleware cache deliberately keeps
+   * the old telemetry timestamp/power until vehicle_data confirms it, while
+   * exposing accepted control fields such as isCharging and chargeAmps.
+   */
+  private async publishCommandState(
+    vehicleId: string,
+  ): Promise<VehicleChargeState | undefined> {
+    const state = await this.getState(vehicleId);
+    if (!state) return undefined;
+    this.eventEmitter.emit("vehicle_update", state);
+    return state;
   }
 
   // ── Error tracking ────────────────────────────────────────────────────

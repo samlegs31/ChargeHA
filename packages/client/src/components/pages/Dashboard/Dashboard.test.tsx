@@ -307,7 +307,12 @@ describe("Dashboard", () => {
   it("does not describe grid-supported charging as solar charging", () => {
     h.setVehicles([makeVehicle({
       mode: "auto",
-      state: makeVehicleState({ isCharging: true, chargePowerKw: 4.2 }),
+      state: makeVehicleState({
+        isCharging: true,
+        chargeAmps: 20,
+        chargerVoltage: 210,
+        chargePowerKw: 4.2,
+      }),
     })]);
     h.setEnergy({
       realtime: {
@@ -637,7 +642,12 @@ describe("Dashboard", () => {
     });
     h.setVehicles([
       makeVehicle({
-        state: makeVehicleState({ isCharging: true, chargePowerKw: 3.0 }),
+        state: makeVehicleState({
+          isCharging: true,
+          chargeAmps: 15,
+          chargerVoltage: 200,
+          chargePowerKw: 3.0,
+        }),
       }),
     ]);
 
@@ -662,7 +672,12 @@ describe("Dashboard", () => {
     });
     h.setVehicles([
       makeVehicle({
-        state: makeVehicleState({ isCharging: true, chargePowerKw: 1.0 }),
+        state: makeVehicleState({
+          isCharging: true,
+          chargeAmps: 5,
+          chargerVoltage: 200,
+          chargePowerKw: 1.0,
+        }),
       }),
     ]);
 
@@ -695,6 +710,8 @@ describe("Dashboard", () => {
           vehicleId: "VIN1",
           vehicleName: "Car One",
           isCharging: true,
+          chargeAmps: 15,
+          chargerVoltage: 200,
           chargePowerKw: 3.0,
         }),
       }),
@@ -705,6 +722,8 @@ describe("Dashboard", () => {
           vehicleId: "VIN2",
           vehicleName: "Car Two",
           isCharging: true,
+          chargeAmps: 15,
+          chargerVoltage: 200,
           chargePowerKw: 3.0,
         }),
       }),
