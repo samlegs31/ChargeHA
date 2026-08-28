@@ -182,10 +182,24 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     return ok;
   }
 
+  private isSolarStartupCommand(ctx: CallContext): boolean {
+    const solarTracking = ctx.origin.startsWith("controller:solar_tracking");
+    const solarOnly = ctx.origin.startsWith("controller:vacation");
+    const solarOrigin = solarTracking || solarOnly;
+    return this.cachedState?.isCharging === false && solarOrigin;
+  }
+
+  private shouldPreArmSafeStart(percent: number): boolean {
+    const state = this.cachedState;
+    if (!state) return false;
+    const stopped = !state.isCharging;
+    const increasingLimit = percent > state.chargeLimit;
+    const notAtMinimum = state.chargeAmps !== state.chargeAmpsMin;
+    return stopped && increasingLimit && notAtMinimum;
+  }
+
   async setChargeAmps(amps: number, ctx: CallContext): Promise<boolean> {
-    const isSolarStartup = this.cachedState?.isCharging === false &&
-      (ctx.origin.startsWith("controller:solar_tracking") ||
-        ctx.origin.startsWith("controller:vacation"));
+    const isSolarStartup = this.isSolarStartupCommand(ctx);
     const effectiveAmps = isSolarStartup && this.cachedState
       ? this.cachedState.chargeAmpsMin
       : amps;
@@ -227,11 +241,7 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     // the last current stored by the car. Pre-arm the hardware minimum first
     // while stopped so a 90→91% change cannot restart at a stale 20A/32A and
     // import from the grid before the solar controller gets its next turn.
-    const shouldPreArmSafeStart = this.cachedState !== null &&
-      !this.cachedState.isCharging &&
-      percent > this.cachedState.chargeLimit &&
-      this.cachedState.chargeAmps !== this.cachedState.chargeAmpsMin;
-    if (shouldPreArmSafeStart && this.cachedState) {
+    if (this.shouldPreArmSafeStart(percent) && this.cachedState) {
       const safeAmps = this.cachedState.chargeAmpsMin;
       this.logger.info(
         `Charge limit increase while stopped — pre-arming ${safeAmps}A before ${percent}% limit`,
