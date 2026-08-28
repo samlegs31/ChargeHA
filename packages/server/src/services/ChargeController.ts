@@ -91,6 +91,7 @@ export class ChargeController {
   private readonly eventEmitter: TypedEventEmitter;
   private readonly logger: Logger;
   private readonly engine = new ControllerEngine();
+  private readonly batteryBlockedScheduleIds = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private loopCount = 0;
 
@@ -250,31 +251,46 @@ export class ChargeController {
     );
     const batteryProtectionTriggered =
       this.isHomeBatteryProtectionTriggered(config, energy);
-    const hasActiveChargeSchedule = schedules.some((schedule) =>
+    const excessiveBatteryDischarge =
+      this.isExcessiveHomeBatteryDischarge(config, energy);
+    const activeChargeSchedules = schedules.filter((schedule) =>
       schedule.scheduleType === "charge" && schedule.enabled &&
       isScheduleActiveNow(schedule, now, config.timezone)
     );
+    const scheduledVehicleCharging = vehicles.some((vehicle) =>
+      vehicle.mode === "auto" && vehicle.state?.isCharging === true
+    );
+
+    this.releaseInactiveBatteryScheduleBlocks(
+      schedules,
+      now,
+      config.timezone,
+    );
+    if (
+      excessiveBatteryDischarge && scheduledVehicleCharging &&
+      activeChargeSchedules.length > 0
+    ) {
+      activeChargeSchedules.forEach((schedule) =>
+        this.batteryBlockedScheduleIds.add(schedule.id)
+      );
+    }
 
     let cycleSchedules = schedules;
     if (batteryProtectionTriggered) {
-      // Off-Peak schedules must not bypass home-battery protection. Falling
-      // back to solar-only logic lets the engine enforce reserve/discharge
-      // protection instead of blindly commanding the scheduled current.
       cycleSchedules = schedules.filter(
         (schedule) => schedule.scheduleType !== "charge",
+      );
+    } else if (this.batteryBlockedScheduleIds.size > 0) {
+      cycleSchedules = schedules.filter(
+        (schedule) => !this.batteryBlockedScheduleIds.has(schedule.id),
       );
     }
 
     let cycleConfig = config;
     if (externalAmpChange || batteryProtectionTriggered) {
-      // Manual changes and battery-protection corrections must not wait for
-      // the small-change amperage debounce.
       cycleConfig = { ...cycleConfig, ampDebounceThreshold: 0 };
     }
-    if (batteryProtectionTriggered && hasActiveChargeSchedule) {
-      // If a scheduled charge is already pulling from the battery, stop it on
-      // this cycle. The configured discharge grace remains untouched during
-      // ordinary solar-only operation.
+    if (batteryProtectionTriggered && activeChargeSchedules.length > 0) {
       cycleConfig = { ...cycleConfig, batteryDischargeGraceMinutes: 0 };
     }
 
@@ -299,6 +315,21 @@ export class ChargeController {
     });
   }
 
+  /** Keep a charge schedule blocked only for the active window in which it
+   *  caused home-battery discharge; a future occurrence starts clean. */
+  private releaseInactiveBatteryScheduleBlocks(
+    schedules: ScheduleRow[],
+    now: Date,
+    timezone: string,
+  ): void {
+    for (const id of this.batteryBlockedScheduleIds) {
+      const schedule = schedules.find((candidate) => candidate.id === id);
+      const stillActive = schedule?.scheduleType === "charge" &&
+        schedule.enabled && isScheduleActiveNow(schedule, now, timezone);
+      if (!stillActive) this.batteryBlockedScheduleIds.delete(id);
+    }
+  }
+
   /** Detect a charge-current change that happened outside the controller.
    *  Controller commands update the cached post-state before prevState is
    *  stored, so a difference here represents a user/app/vehicle-side change. */
@@ -319,11 +350,16 @@ export class ChargeController {
 
     const belowReserve = energy.batterySoc !== null &&
       energy.batterySoc < config.batteryPriorityLimit;
-    const dischargeW = Math.max(0, energy.batteryPowerW ?? 0);
-    const excessiveDischarge =
-      dischargeW > config.batteryDischargeToleranceW;
+    return belowReserve || this.isExcessiveHomeBatteryDischarge(config, energy);
+  }
 
-    return belowReserve || excessiveDischarge;
+  private isExcessiveHomeBatteryDischarge(
+    config: ControllerConfig,
+    energy: EnergyData | null,
+  ): boolean {
+    if (!config.batteryPriorityEnabled || !energy) return false;
+    const dischargeW = Math.max(0, energy.batteryPowerW ?? 0);
+    return dischargeW > config.batteryDischargeToleranceW;
   }
 
   /** Conservative pre-fetch check used only to decide whether waking a
