@@ -28,6 +28,51 @@
   letter-spacing: -0.01em;
 }
 
+.activeMode {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--blue-a5);
+  border-radius: 999px;
+  background: var(--blue-a3);
+  color: var(--blue-11);
+  white-space: nowrap;
+}
+
+.activeMode > span {
+  font-size: 0.67rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.72;
+}
+
+.activeMode > strong {
+  font-size: 0.78rem;
+  letter-spacing: -0.01em;
+}
+
+.activeMode[data-mode="vacation"] {
+  border-color: var(--orange-a5);
+  background: var(--orange-a3);
+  color: var(--orange-11);
+}
+
+.activeMode[data-mode="charge_now"] {
+  border-color: var(--green-a5);
+  background: var(--green-a3);
+  color: var(--green-11);
+}
+
+.activeMode[data-mode="stop"] {
+  border-color: var(--gray-a5);
+  background: var(--gray-a3);
+  color: var(--gray-11);
+}
+
 .batterySection {
   margin-bottom: 10px;
 }
@@ -423,11 +468,21 @@
   }
 
   .header {
+    align-items: flex-start;
     margin-bottom: 16px;
   }
 
   .headerLeft > :nth-child(2) {
     font-size: 1.25rem;
+  }
+
+  .activeMode {
+    min-height: 30px;
+    padding: 5px 9px;
+  }
+
+  .activeMode > span {
+    display: none;
   }
 
   .batteryPercent {

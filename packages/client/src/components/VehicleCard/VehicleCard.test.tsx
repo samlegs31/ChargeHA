@@ -62,6 +62,8 @@ describe("VehicleCard", () => {
     expect(screen.getByText("Limit 80%")).toBeInTheDocument();
     expect(screen.getByText("Ready — E.V. Solar will choose the best time"))
       .toBeInTheDocument();
+    expect(screen.getByLabelText("Active mode: Smart charging"))
+      .toBeInTheDocument();
 
     expect(screen.getByRole("button", { name: "Smart Charge is on" }))
       .toHaveAttribute("aria-pressed", "true");
@@ -149,6 +151,17 @@ describe("VehicleCard", () => {
     expect(onChangeMode).toHaveBeenCalledWith(mode);
   });
 
+  it.each<[VCProps["mode"], string]>([
+    ["auto", "Smart charging"],
+    ["vacation", "Solar"],
+    ["charge_now", "Now"],
+    ["stop", "Pause"],
+  ])("identifies the active %s mode with its mode color", (mode, label) => {
+    renderVC({ mode });
+    expect(screen.getByLabelText(`Active mode: ${label}`))
+      .toHaveAttribute("data-mode", mode);
+  });
+
   it.each<
     [
       string,
@@ -202,7 +215,9 @@ describe("VehicleCard", () => {
   it("keeps unplugged cards calm and compact", () => {
     renderVC({ state: makeVehicleState({ isPluggedIn: false }) });
 
-    expect(screen.getByText("Unplugged — Smart ready for next connection"))
+    expect(screen.getByText(
+      "Unplugged — Smart charging ready for next connection",
+    ))
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Smart Charge is on" }))
       .toBeInTheDocument();

@@ -45,8 +45,25 @@ export function isChargingVehicleAtHome(
   home: HomeLocation,
 ): vehicle is VehicleWithState & { state: VehicleChargeState } {
   return !!vehicle.state?.isCharging &&
-    vehicle.state.chargePowerKw > 0 &&
+    vehicleChargePowerW(vehicle.state) > 0 &&
     isHome(home, vehicle.lastLocation ?? null) === true;
+}
+
+/**
+ * Tesla's reported chargePowerKw can trail an accepted amp adjustment until
+ * the next paid vehicle_data refresh. chargeAmps is the accepted control
+ * target and is pushed to the dashboard immediately, so use the electrical
+ * estimate while charging and retain telemetry as a safe fallback.
+ */
+export function vehicleChargePowerW(state: VehicleChargeState): number {
+  if (!state.isCharging) return 0;
+
+  const targetPowerW = state.chargeAmps > 0 && state.chargerVoltage > 0
+    ? state.chargeAmps * state.chargerVoltage * Math.max(1, state.chargerPhases)
+    : 0;
+  return targetPowerW > 0
+    ? targetPowerW
+    : Math.max(0, state.chargePowerKw * 1000);
 }
 
 /** Per-vehicle source attribution for currently-charging vehicles at home. */
@@ -63,21 +80,24 @@ export function useVehicleSolarGrid(
       isChargingVehicleAtHome(v, home)
     );
     const totalChargePowerW = chargingVehicles.reduce(
-      (sum, v) => sum + (v.state.chargePowerKw * 1000),
+      (sum, v) => sum + vehicleChargePowerW(v.state),
       0,
     );
 
     return Object.fromEntries(
-      chargingVehicles.map((v) => [
-        v.id,
-        calculateSolarAttribution(
-          v.state.chargePowerKw * 1000,
-          totalChargePowerW,
-          realtime.solarProductionW,
-          realtime.homeConsumptionW,
-          realtime.batteryPowerW ?? 0,
-        ),
-      ]),
+      chargingVehicles.map((v) => {
+        const chargePowerW = vehicleChargePowerW(v.state);
+        return [
+          v.id,
+          calculateSolarAttribution(
+            chargePowerW,
+            totalChargePowerW,
+            realtime.solarProductionW,
+            realtime.homeConsumptionW,
+            realtime.batteryPowerW ?? 0,
+          ),
+        ];
+      }),
     );
   }, [realtime, vehicles, home]);
 }
@@ -101,7 +121,7 @@ export function useChargingVehicleFlows(
       .map((v) => ({
         id: v.id,
         name: v.name || v.state.vehicleName,
-        chargePowerW: v.state.chargePowerKw * 1000,
+        chargePowerW: vehicleChargePowerW(v.state),
         solarW: vehicleSolarGrid[v.id]?.solarW ?? 0,
         batteryW: vehicleSolarGrid[v.id]?.batteryW ?? 0,
         gridW: vehicleSolarGrid[v.id]?.gridW ?? 0,

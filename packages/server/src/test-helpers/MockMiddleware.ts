@@ -49,6 +49,9 @@ export class MockMiddleware implements VehicleMiddleware {
 
   startCharging(ctx: { origin: string }): Promise<boolean> {
     this.startCalls.push(ctx.origin);
+    if (this.cached && this.startResult) {
+      this.cached = { ...this.cached, isCharging: true };
+    }
     return Promise.resolve(this.startResult);
   }
 

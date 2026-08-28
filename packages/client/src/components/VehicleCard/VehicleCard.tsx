@@ -55,7 +55,7 @@ interface VehicleCardProps {
 }
 
 const MODE_LABELS: Record<VehicleMode, string> = {
-  auto: "Smart",
+  auto: "Smart charging",
   charge_now: "Now",
   vacation: "Solar",
   stop: "Pause",
@@ -86,6 +86,27 @@ const OTHER_MODE_BUTTONS: {
     icon: <Pause size={18} aria-hidden="true" />,
   },
 ];
+
+function ActiveMode({ mode }: { mode: VehicleMode }) {
+  const icons: Record<VehicleMode, ReactNode> = {
+    auto: <Sparkles size={15} aria-hidden="true" />,
+    vacation: <Sun size={15} aria-hidden="true" />,
+    charge_now: <Zap size={15} aria-hidden="true" />,
+    stop: <Pause size={15} aria-hidden="true" />,
+  };
+
+  return (
+    <div
+      className={styles.activeMode}
+      data-mode={mode}
+      aria-label={`Active mode: ${MODE_LABELS[mode]}`}
+    >
+      {icons[mode]}
+      <span>Mode</span>
+      <strong>{MODE_LABELS[mode]}</strong>
+    </div>
+  );
+}
 
 function getStatusText(
   state: VehicleChargeState,
@@ -539,6 +560,7 @@ export function VehicleCard({
           />
           <Text size="3" weight="bold">{name}</Text>
         </div>
+        <ActiveMode mode={mode} />
       </div>
 
       <VehicleCardBanners

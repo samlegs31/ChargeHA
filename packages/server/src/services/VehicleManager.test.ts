@@ -436,6 +436,32 @@ describe("VehicleManager", () => {
       expect(mw.startCalls).toHaveLength(1);
     });
 
+    it("pushes accepted start and amp changes without waiting for another poll", async () => {
+      await manager.addVehicle(VEHICLE_ROW);
+      await manager.requestState("VIN1", REQUEST_CONTEXT);
+      emitter.events.length = 0;
+
+      const result = await manager.startChargingAt(
+        "VIN1",
+        11,
+        CMD_CTX,
+        { ...MOCK_STATE, isCharging: false },
+      );
+
+      expect(result.success).toBe(true);
+      const update = emitter.events.find((event) =>
+        event.type === "vehicle_update"
+      );
+      assertExists(update);
+      expect(update.data).toMatchObject({
+        vehicleId: "VIN1",
+        isCharging: true,
+        chargeAmps: 11,
+        // Power remains confirmed telemetry until the next vehicle fetch.
+        chargePowerKw: 0,
+      });
+    });
+
     it("skips start when already charging at target amps", async () => {
       await manager.addVehicle(VEHICLE_ROW);
       await manager.requestState("VIN1", REQUEST_CONTEXT);
@@ -537,6 +563,30 @@ describe("VehicleManager", () => {
       );
       expect(result.success).toBe(true);
       expect(mw.stopCalls).toHaveLength(1);
+    });
+
+    it("pushes an accepted stop without waiting for another poll", async () => {
+      await manager.addVehicle(VEHICLE_ROW);
+      const mw = middlewares.get("VIN1");
+      assertExists(mw);
+      mw.nextState = { ...MOCK_STATE, isCharging: true, chargePowerKw: 3.8 };
+      await manager.requestState("VIN1", REQUEST_CONTEXT);
+      emitter.events.length = 0;
+
+      await manager.stopCharging(
+        "VIN1",
+        CMD_CTX,
+        { ...MOCK_STATE, isCharging: true },
+      );
+
+      const update = emitter.events.find((event) =>
+        event.type === "vehicle_update"
+      );
+      assertExists(update);
+      expect(update.data).toMatchObject({
+        vehicleId: "VIN1",
+        isCharging: false,
+      });
     });
   });
 
