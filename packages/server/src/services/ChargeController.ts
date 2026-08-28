@@ -193,65 +193,13 @@ export class ChargeController {
       }),
     );
 
-    // A manual/external amperage change must never become a sticky override.
-    // The controller remembers the state it left behind on the previous cycle;
-    // if the live amps changed between cycles, bypass the normal small-change
-    // debounce once so solar regulation reclaims control immediately.
-    const externalAmpChange = engineVehicles.some((vehicle) =>
-      this.hasExternalAmpChange(vehicle)
-    );
-
-    // Home-battery protection is a safety constraint, including during an
-    // Off-Peak charge schedule. Previously schedules bypassed this protection
-    // completely, allowing the house battery to feed the car. When protection
-    // is triggered, temporarily remove charge schedules from this decision
-    // cycle so the engine falls back to protected solar-only behaviour.
-    const batteryProtectionTriggered =
-      this.isHomeBatteryProtectionTriggered(config, energy);
-    const hasActiveChargeSchedule = schedules.some((schedule) =>
-      schedule.scheduleType === "charge" && schedule.enabled &&
-      isScheduleActiveNow(schedule, now, config.timezone)
-    );
-    const cycleSchedules = batteryProtectionTriggered
-      ? schedules.filter((schedule) => schedule.scheduleType !== "charge")
-      : schedules;
-
-    // Battery protection must reduce current without waiting for the 1–2 A
-    // anti-oscillation debounce. During a scheduled charge, an already-visible
-    // battery discharge is also stopped immediately; the configured discharge
-    // grace remains unchanged for normal solar-only operation.
-    const cycleConfig: ControllerConfig =
-      externalAmpChange || batteryProtectionTriggered
-        ? {
-          ...config,
-          ampDebounceThreshold: 0,
-          batteryDischargeGraceMinutes:
-            batteryProtectionTriggered && hasActiveChargeSchedule
-              ? 0
-              : config.batteryDischargeGraceMinutes,
-        }
-        : config;
-
-    if (externalAmpChange) {
-      this.logger.debug(
-        "External/manual charge-current change detected; bypassing amp debounce for this cycle",
-      );
-    }
-    if (batteryProtectionTriggered) {
-      this.logger.debug(
-        "Home-battery protection active; charge schedules suppressed for this cycle",
-      );
-    }
-
-    // Run the pure decision engine
-    const output = this.engine.decide({
-      config: cycleConfig,
-      vehicles: engineVehicles,
-      schedules: cycleSchedules,
+    const output = this.decideWithRuntimeProtection(
+      config,
+      schedules,
+      engineVehicles,
       energy,
       now,
-      timestamp: Date.now(),
-    });
+    );
 
     // Execute decisions, build log entries, emit events
     const logEntries: ControllerLogInput[] = await vehicles.reduce(
@@ -287,6 +235,68 @@ export class ChargeController {
     }
 
     return config;
+  }
+
+  /** Apply runtime safety overrides without changing persisted settings. */
+  private decideWithRuntimeProtection(
+    config: ControllerConfig,
+    schedules: ScheduleRow[],
+    vehicles: EngineVehicleInput[],
+    energy: EnergyData | null,
+    now: Date,
+  ): EngineOutput {
+    const externalAmpChange = vehicles.some((vehicle) =>
+      this.hasExternalAmpChange(vehicle)
+    );
+    const batteryProtectionTriggered =
+      this.isHomeBatteryProtectionTriggered(config, energy);
+    const hasActiveChargeSchedule = schedules.some((schedule) =>
+      schedule.scheduleType === "charge" && schedule.enabled &&
+      isScheduleActiveNow(schedule, now, config.timezone)
+    );
+
+    let cycleSchedules = schedules;
+    if (batteryProtectionTriggered) {
+      // Off-Peak schedules must not bypass home-battery protection. Falling
+      // back to solar-only logic lets the engine enforce reserve/discharge
+      // protection instead of blindly commanding the scheduled current.
+      cycleSchedules = schedules.filter(
+        (schedule) => schedule.scheduleType !== "charge",
+      );
+    }
+
+    let cycleConfig = config;
+    if (externalAmpChange || batteryProtectionTriggered) {
+      // Manual changes and battery-protection corrections must not wait for
+      // the small-change amperage debounce.
+      cycleConfig = { ...cycleConfig, ampDebounceThreshold: 0 };
+    }
+    if (batteryProtectionTriggered && hasActiveChargeSchedule) {
+      // If a scheduled charge is already pulling from the battery, stop it on
+      // this cycle. The configured discharge grace remains untouched during
+      // ordinary solar-only operation.
+      cycleConfig = { ...cycleConfig, batteryDischargeGraceMinutes: 0 };
+    }
+
+    if (externalAmpChange) {
+      this.logger.debug(
+        "External/manual charge-current change detected; bypassing amp debounce for this cycle",
+      );
+    }
+    if (batteryProtectionTriggered) {
+      this.logger.debug(
+        "Home-battery protection active; charge schedules suppressed for this cycle",
+      );
+    }
+
+    return this.engine.decide({
+      config: cycleConfig,
+      vehicles,
+      schedules: cycleSchedules,
+      energy,
+      now,
+      timestamp: Date.now(),
+    });
   }
 
   /** Detect a charge-current change that happened outside the controller.
