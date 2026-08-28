@@ -91,6 +91,7 @@ export class ChargeController {
   private readonly eventEmitter: TypedEventEmitter;
   private readonly logger: Logger;
   private readonly engine = new ControllerEngine();
+  private readonly batteryBlockedScheduleIds = new Set<string>();
   private timer: ReturnType<typeof setTimeout> | null = null;
   private loopCount = 0;
 
@@ -193,15 +194,13 @@ export class ChargeController {
       }),
     );
 
-    // Run the pure decision engine
-    const output = this.engine.decide({
+    const output = this.decideWithRuntimeProtection(
       config,
-      vehicles: engineVehicles,
       schedules,
+      engineVehicles,
       energy,
       now,
-      timestamp: Date.now(),
-    });
+    );
 
     // Execute decisions, build log entries, emit events
     const logEntries: ControllerLogInput[] = await vehicles.reduce(
@@ -237,6 +236,150 @@ export class ChargeController {
     }
 
     return config;
+  }
+
+  /** Apply runtime safety overrides without changing persisted settings. */
+  private decideWithRuntimeProtection(
+    config: ControllerConfig,
+    schedules: ScheduleRow[],
+    vehicles: EngineVehicleInput[],
+    energy: EnergyData | null,
+    now: Date,
+  ): EngineOutput {
+    const externalAmpChange = vehicles.some((vehicle) =>
+      this.hasExternalAmpChange(vehicle)
+    );
+    const batteryProtectionTriggered =
+      this.isHomeBatteryProtectionTriggered(config, energy);
+    const excessiveBatteryDischarge =
+      this.isExcessiveHomeBatteryDischarge(config, energy);
+    const activeChargeSchedules = schedules.filter((schedule) =>
+      schedule.scheduleType === "charge" && schedule.enabled &&
+      isScheduleActiveNow(schedule, now, config.timezone)
+    );
+    const scheduledVehicleCharging = vehicles.some((vehicle) =>
+      vehicle.mode === "auto" && vehicle.state?.isCharging === true
+    );
+
+    this.releaseInactiveBatteryScheduleBlocks(
+      schedules,
+      now,
+      config.timezone,
+    );
+    if (
+      excessiveBatteryDischarge && scheduledVehicleCharging &&
+      activeChargeSchedules.length > 0
+    ) {
+      activeChargeSchedules.forEach((schedule) =>
+        this.batteryBlockedScheduleIds.add(schedule.id)
+      );
+    }
+
+    const cycleSchedules = this.filterSchedulesForRuntimeProtection(
+      schedules,
+      batteryProtectionTriggered,
+    );
+    const cycleConfig = this.buildRuntimeControllerConfig(
+      config,
+      externalAmpChange || batteryProtectionTriggered,
+      batteryProtectionTriggered && activeChargeSchedules.length > 0,
+    );
+
+    if (externalAmpChange) {
+      this.logger.debug(
+        "External/manual charge-current change detected; bypassing amp debounce for this cycle",
+      );
+    }
+    if (batteryProtectionTriggered) {
+      this.logger.debug(
+        "Home-battery protection active; charge schedules suppressed for this cycle",
+      );
+    }
+
+    return this.engine.decide({
+      config: cycleConfig,
+      vehicles,
+      schedules: cycleSchedules,
+      energy,
+      now,
+      timestamp: Date.now(),
+    });
+  }
+
+  private filterSchedulesForRuntimeProtection(
+    schedules: ScheduleRow[],
+    batteryProtectionTriggered: boolean,
+  ): ScheduleRow[] {
+    if (batteryProtectionTriggered) {
+      return schedules.filter((schedule) => schedule.scheduleType !== "charge");
+    }
+    if (this.batteryBlockedScheduleIds.size === 0) return schedules;
+    return schedules.filter(
+      (schedule) => !this.batteryBlockedScheduleIds.has(schedule.id),
+    );
+  }
+
+  private buildRuntimeControllerConfig(
+    config: ControllerConfig,
+    bypassAmpDebounce: boolean,
+    stopScheduledBatteryDischarge: boolean,
+  ): ControllerConfig {
+    if (stopScheduledBatteryDischarge) {
+      return {
+        ...config,
+        ampDebounceThreshold: 0,
+        batteryDischargeGraceMinutes: 0,
+      };
+    }
+    if (bypassAmpDebounce) return { ...config, ampDebounceThreshold: 0 };
+    return config;
+  }
+
+  /** Keep a charge schedule blocked only for the active window in which it
+   *  caused home-battery discharge; a future occurrence starts clean. */
+  private releaseInactiveBatteryScheduleBlocks(
+    schedules: ScheduleRow[],
+    now: Date,
+    timezone: string,
+  ): void {
+    this.batteryBlockedScheduleIds.forEach((id) => {
+      const schedule = schedules.find((candidate) => candidate.id === id);
+      const stillActive = schedule?.scheduleType === "charge" &&
+        schedule.enabled && isScheduleActiveNow(schedule, now, timezone);
+      if (!stillActive) this.batteryBlockedScheduleIds.delete(id);
+    });
+  }
+
+  /** Detect a charge-current change that happened outside the controller.
+   *  Controller commands update the cached post-state before prevState is
+   *  stored, so a difference here represents a user/app/vehicle-side change. */
+  private hasExternalAmpChange(vehicle: EngineVehicleInput): boolean {
+    const state = vehicle.state;
+    const previous = this.engine.getControlState(vehicle.id).prevState;
+    return state?.isCharging === true && previous?.isCharging === true &&
+      state.chargeAmps !== previous.chargeAmps;
+  }
+
+  /** True when the enabled home-battery protection currently needs to take
+   *  precedence over EV charging. Positive batteryPowerW means discharge. */
+  private isHomeBatteryProtectionTriggered(
+    config: ControllerConfig,
+    energy: EnergyData | null,
+  ): boolean {
+    if (!config.batteryPriorityEnabled || !energy) return false;
+
+    const belowReserve = energy.batterySoc !== null &&
+      energy.batterySoc < config.batteryPriorityLimit;
+    return belowReserve || this.isExcessiveHomeBatteryDischarge(config, energy);
+  }
+
+  private isExcessiveHomeBatteryDischarge(
+    config: ControllerConfig,
+    energy: EnergyData | null,
+  ): boolean {
+    if (!config.batteryPriorityEnabled || !energy) return false;
+    const dischargeW = Math.max(0, energy.batteryPowerW ?? 0);
+    return dischargeW > config.batteryDischargeToleranceW;
   }
 
   /** Conservative pre-fetch check used only to decide whether waking a

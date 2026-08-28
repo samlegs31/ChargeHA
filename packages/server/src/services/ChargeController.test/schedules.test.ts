@@ -77,7 +77,7 @@ describe("ChargeController — schedules", () => {
       expect(log?.targetAmps).toBe(16);
     });
 
-    it("ignores home-battery discharge during an active SOLAR + clock schedule", async () => {
+    it("blocks an active SOLAR + clock schedule when home-battery protection is triggered", async () => {
       const { today, startTime, endTime } = currentScheduleWindow();
       ctx = await setupController(
         {},
@@ -91,7 +91,7 @@ describe("ChargeController — schedules", () => {
         },
       );
       await ctx.db.createSchedule({
-        id: "charge-battery-bypass",
+        id: "charge-battery-protected",
         vehicleId: VIN,
         scheduleType: "charge",
         startTime,
@@ -104,11 +104,45 @@ describe("ChargeController — schedules", () => {
 
       await ctx.runOneLoop();
 
+      expect(ctx.adapter.commands).not.toContainEqual({ cmd: "start" });
       const log = await ctx.getLastLogParsed();
-      expect(log?.action).toBe("start");
-      expect(log?.targetAmps).toBe(16);
+      expect(log?.action).toBe("none");
+      expect(log?.checks.some((check) => check.check === "battery_priority"))
+        .toBe(true);
+    });
+
+    it("stops a scheduled charge immediately when the home battery starts discharging", async () => {
+      const { today, startTime, endTime } = currentScheduleWindow();
+      ctx = await setupController(
+        { isCharging: true, chargeAmps: 16, chargePowerKw: 3.68 },
+        "auto",
+        { ...BASE_ENERGY, batterySoc: 90, batteryPowerW: 1200 },
+        {
+          battery_priority_enabled: "true",
+          battery_priority_limit: "80",
+          battery_discharge_tolerance_w: "0",
+          battery_discharge_grace_minutes: "5",
+        },
+      );
+      await ctx.db.createSchedule({
+        id: "charge-battery-discharge",
+        vehicleId: VIN,
+        scheduleType: "charge",
+        startTime,
+        endTime,
+        days: [today],
+        chargeAmps: 16,
+        chargeLimitPct: null,
+        enabled: true,
+      });
+
+      await ctx.runOneLoop();
+
+      expect(ctx.adapter.commands).toContainEqual({ cmd: "stop" });
+      const log = await ctx.getLastLogParsed();
+      expect(log?.action).toBe("stop");
       expect(log?.checks.some((check) => check.check === "battery_discharge"))
-        .toBe(false);
+        .toBe(true);
     });
 
     it("does not apply a charge schedule in SOLAR ONLY mode", async () => {
