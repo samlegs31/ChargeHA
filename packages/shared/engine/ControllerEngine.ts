@@ -748,7 +748,11 @@ export class ControllerEngine {
     }
     stateUpdates.cooldownUntil = null;
 
-    const debounce = this.debounceAmps(
+    // Tesla Solar starts are deliberately pre-armed at the hardware minimum.
+    // That safety step must not turn a normal 5A→6/7A startup ramp into a
+    // multi-minute wait under the steady-state amp debounce. Cover both a
+    // controller-issued start and Tesla resuming itself after a limit change.
+    const debounce = this.debounceSolarAmps(
       state,
       controlState,
       config,
@@ -757,6 +761,7 @@ export class ControllerEngine {
     );
     stateUpdates.pendingAmps = debounce.pendingAmps;
     stateUpdates.pendingSince = debounce.pendingSince;
+    stateUpdates.solarSafeStartPending = !state.isCharging;
     const debouncedAmps = debounce.amps;
     if (debouncedAmps !== clampedAmps) {
       checks.push(DecisionChecks.ampDebounce(debouncedAmps, clampedAmps));
@@ -1016,6 +1021,30 @@ export class ControllerEngine {
   }
 
   // ---- Amp debouncing ----
+
+  private debounceSolarAmps(
+    state: VehicleChargeState,
+    controlState: Readonly<VehicleControlState>,
+    config: ControllerConfig,
+    targetAmps: number,
+    timestamp: number,
+  ): DebounceResult {
+    const atSafeMinimum = state.isCharging &&
+      state.chargeAmps === state.chargeAmpsMin;
+    const controllerStartPending = controlState.solarSafeStartPending;
+    const resumedBetweenPasses = controlState.prevState?.isCharging === false;
+
+    if (atSafeMinimum && (controllerStartPending || resumedBetweenPasses)) {
+      return { amps: targetAmps, pendingAmps: null, pendingSince: null };
+    }
+    return this.debounceAmps(
+      state,
+      controlState,
+      config,
+      targetAmps,
+      timestamp,
+    );
+  }
 
   private debounceAmps(
     state: VehicleChargeState,

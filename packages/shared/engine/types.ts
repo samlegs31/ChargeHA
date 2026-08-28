@@ -103,6 +103,10 @@ export interface VehicleControlState {
   /** Timestamp (ms) when pendingAmps was first seen. Used by debounceAmps
    *  to determine if the target has been stable long enough to apply. */
   pendingSince: number | null;
+  /** A Solar start was requested while the vehicle was stopped. The first
+   *  confirmed charging pass uses this to ramp away from the safe minimum
+   *  without applying the steady-state amp debounce. */
+  solarSafeStartPending: boolean;
 }
 
 // ---- Engine output types ----
@@ -158,6 +162,7 @@ export type ControlStateUpdates = Partial<
     | "blockoutChargeNotified"
     | "pendingAmps"
     | "pendingSince"
+    | "solarSafeStartPending"
   >
 >;
 
@@ -202,5 +207,6 @@ export function createControlState(): VehicleControlState {
     allocatedAmps: null,
     pendingAmps: null,
     pendingSince: null,
+    solarSafeStartPending: false,
   };
 }
