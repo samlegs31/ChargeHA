@@ -275,24 +275,15 @@ export class ChargeController {
       );
     }
 
-    let cycleSchedules = schedules;
-    if (batteryProtectionTriggered) {
-      cycleSchedules = schedules.filter(
-        (schedule) => schedule.scheduleType !== "charge",
-      );
-    } else if (this.batteryBlockedScheduleIds.size > 0) {
-      cycleSchedules = schedules.filter(
-        (schedule) => !this.batteryBlockedScheduleIds.has(schedule.id),
-      );
-    }
-
-    let cycleConfig = config;
-    if (externalAmpChange || batteryProtectionTriggered) {
-      cycleConfig = { ...cycleConfig, ampDebounceThreshold: 0 };
-    }
-    if (batteryProtectionTriggered && activeChargeSchedules.length > 0) {
-      cycleConfig = { ...cycleConfig, batteryDischargeGraceMinutes: 0 };
-    }
+    const cycleSchedules = this.filterSchedulesForRuntimeProtection(
+      schedules,
+      batteryProtectionTriggered,
+    );
+    const cycleConfig = this.buildRuntimeControllerConfig(
+      config,
+      externalAmpChange || batteryProtectionTriggered,
+      batteryProtectionTriggered && activeChargeSchedules.length > 0,
+    );
 
     if (externalAmpChange) {
       this.logger.debug(
@@ -313,6 +304,35 @@ export class ChargeController {
       now,
       timestamp: Date.now(),
     });
+  }
+
+  private filterSchedulesForRuntimeProtection(
+    schedules: ScheduleRow[],
+    batteryProtectionTriggered: boolean,
+  ): ScheduleRow[] {
+    if (batteryProtectionTriggered) {
+      return schedules.filter((schedule) => schedule.scheduleType !== "charge");
+    }
+    if (this.batteryBlockedScheduleIds.size === 0) return schedules;
+    return schedules.filter(
+      (schedule) => !this.batteryBlockedScheduleIds.has(schedule.id),
+    );
+  }
+
+  private buildRuntimeControllerConfig(
+    config: ControllerConfig,
+    bypassAmpDebounce: boolean,
+    stopScheduledBatteryDischarge: boolean,
+  ): ControllerConfig {
+    if (stopScheduledBatteryDischarge) {
+      return {
+        ...config,
+        ampDebounceThreshold: 0,
+        batteryDischargeGraceMinutes: 0,
+      };
+    }
+    if (bypassAmpDebounce) return { ...config, ampDebounceThreshold: 0 };
+    return config;
   }
 
   /** Keep a charge schedule blocked only for the active window in which it
