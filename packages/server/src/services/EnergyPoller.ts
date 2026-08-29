@@ -116,10 +116,16 @@ export class EnergyPoller {
   } | null {
     if (!this.latestRealtime || !this.latestCumulative) return null;
     return {
-      timestamp: new Date().toISOString(),
+      timestamp: this.latestRealtime.lastUpdated,
       realtime: this.latestRealtime,
       cumulative: this.latestCumulative,
     };
+  }
+
+  /** Maximum age accepted by automatic charging control. Two missed adapter
+   *  cycles are tolerated, with a 30-second floor for very fast local APIs. */
+  getRealtimeMaxAgeMs(): number {
+    return Math.max(30_000, this.em.pollIntervalSeconds() * 2_000);
   }
 
   /** Returns an Observable that emits the initial snapshot (if any) then live energy updates. */

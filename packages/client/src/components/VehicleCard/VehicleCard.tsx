@@ -135,6 +135,9 @@ function getStatusText(
 
   if (state.isCharging) {
     if (mode === "charge_now") return "Charging now";
+    if (controllerReason === "energy_unavailable") {
+      return "Solar data unavailable — charging safely at minimum";
+    }
     if (controllerReason === "schedule") {
       return "Charging with lower-cost electricity";
     }
@@ -145,6 +148,9 @@ function getStatusText(
   }
 
   if (mode === "stop") return "Charging paused";
+  if (controllerReason === "energy_unavailable") {
+    return "Waiting for live solar data";
+  }
   if (controllerReason === "battery_priority") {
     return "Home battery has priority";
   }

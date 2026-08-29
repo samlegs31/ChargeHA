@@ -239,6 +239,23 @@ describe("VehicleCard", () => {
     expect(screen.getByText("Home battery has priority")).toBeInTheDocument();
   });
 
+  it("explains the safe minimum while live solar data is unavailable", () => {
+    renderVC({
+      state: makeVehicleState({ isCharging: true, chargeAmps: 5 }),
+      controllerReason: "energy_unavailable",
+    });
+    expect(
+      screen.getByText(
+        "Solar data unavailable — charging safely at minimum",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("explains why automatic charging is waiting for solar data", () => {
+    renderVC({ controllerReason: "energy_unavailable" });
+    expect(screen.getByText("Waiting for live solar data")).toBeInTheDocument();
+  });
+
   it("shows connection problem copy without exposing raw API text by default", () => {
     renderVC({ vehicleError: "Tesla API rate limited" });
 

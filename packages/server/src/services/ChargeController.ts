@@ -83,6 +83,11 @@ interface DecisionLogEntry {
   scheduleLimitContext?: { scheduleLimitPct: number; batteryLevel: number };
 }
 
+interface EnergyAvailability {
+  unavailable: boolean;
+  detail: string;
+}
+
 export class ChargeController {
   private readonly vehicleManager: VehicleManager;
   private readonly poller: EnergyPoller;
@@ -91,7 +96,10 @@ export class ChargeController {
   private readonly eventEmitter: TypedEventEmitter;
   private readonly logger: Logger;
   private readonly engine = new ControllerEngine();
-  private readonly batteryBlockedScheduleIds = new Set<string>();
+  private readonly batteryBlockedScheduleKeys = new Set<string>();
+  private energyUnavailable = false;
+  private energyRecoveryReadings = 0;
+  private lastRecoveryReadingAt: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private loopCount = 0;
 
@@ -137,12 +145,17 @@ export class ChargeController {
    *  without a redundant DB round-trip. */
   async runOnce(): Promise<ControllerConfig> {
     const traceId = createTraceId();
+    const timestamp = Date.now();
     const config = await this.loadConfig();
     const vehicles = await this.db.getVehicles();
     const schedules = await this.db.getSchedules();
     const energySnapshot = this.poller.tryGetRealtimeSnapshot();
-    const now = new Date();
+    const now = new Date(timestamp);
     const energy = energySnapshot?.realtime ?? null;
+    const energyAvailability = this.evaluateEnergyAvailability(
+      energy,
+      timestamp,
+    );
     const solarW = energy && Math.round(energy.solarProductionW);
     const gridW = energy && Math.round(energy.gridPowerW);
     const energySummary = energy ? `solar=${solarW}W grid=${gridW}W` : "none";
@@ -151,7 +164,7 @@ export class ChargeController {
     );
 
     // Compute context for middleware requests
-    const hasSolar = energy !== null &&
+    const hasSolar = !energyAvailability.unavailable && energy !== null &&
       energy.solarProductionW >= config.minSolarGenerationKw * 1000;
     // Request fresh state for each vehicle via middleware
     const engineVehicles: EngineVehicleInput[] = await Promise.all(
@@ -177,7 +190,8 @@ export class ChargeController {
           // signal used to wake a sleeping Tesla hourly even when household
           // load consumed all available solar.
           hasSolar: hasUsefulSolar,
-          hasDaylight: (energy?.solarProductionW ?? 0) > 0,
+          hasDaylight: !energyAvailability.unavailable &&
+            (energy?.solarProductionW ?? 0) > 0,
           hasSchedule: activeChargeSchedule !== undefined,
           hasBlockout: hasApplicableBlockout,
           isHome: cachedState?.isHome ?? null,
@@ -200,6 +214,8 @@ export class ChargeController {
       engineVehicles,
       energy,
       now,
+      timestamp,
+      energyAvailability,
     );
 
     // Execute decisions, build log entries, emit events
@@ -245,20 +261,21 @@ export class ChargeController {
     vehicles: EngineVehicleInput[],
     energy: EnergyData | null,
     now: Date,
+    timestamp: number,
+    energyAvailability: EnergyAvailability,
   ): EngineOutput {
-    const externalAmpChange = vehicles.some((vehicle) =>
-      this.hasExternalAmpChange(vehicle)
+    const externalAmpChangeVehicleIds = new Set(
+      vehicles.filter((vehicle) => this.hasExternalAmpChange(vehicle)).map(
+        (vehicle) => vehicle.id,
+      ),
     );
-    const batteryProtectionTriggered =
-      this.isHomeBatteryProtectionTriggered(config, energy);
-    const excessiveBatteryDischarge =
-      this.isExcessiveHomeBatteryDischarge(config, energy);
-    const activeChargeSchedules = schedules.filter((schedule) =>
-      schedule.scheduleType === "charge" && schedule.enabled &&
-      isScheduleActiveNow(schedule, now, config.timezone)
+    const batteryProtectionTriggered = this.isHomeBatteryProtectionTriggered(
+      config,
+      energy,
     );
-    const scheduledVehicleCharging = vehicles.some((vehicle) =>
-      vehicle.mode === "auto" && vehicle.state?.isCharging === true
+    const excessiveBatteryDischarge = this.isExcessiveHomeBatteryDischarge(
+      config,
+      energy,
     );
 
     this.releaseInactiveBatteryScheduleBlocks(
@@ -266,73 +283,67 @@ export class ChargeController {
       now,
       config.timezone,
     );
-    if (
-      excessiveBatteryDischarge && scheduledVehicleCharging &&
-      activeChargeSchedules.length > 0
-    ) {
-      activeChargeSchedules.forEach((schedule) =>
-        this.batteryBlockedScheduleIds.add(schedule.id)
-      );
-    }
-
-    const cycleSchedules = this.filterSchedulesForRuntimeProtection(
+    const scheduledChargingVehicles = this.scheduledChargingVehicles(
+      vehicles,
       schedules,
-      batteryProtectionTriggered,
+      excessiveBatteryDischarge,
+      now,
+      config.timezone,
     );
-    const cycleConfig = this.buildRuntimeControllerConfig(
-      config,
-      externalAmpChange || batteryProtectionTriggered,
-      batteryProtectionTriggered && activeChargeSchedules.length > 0,
+    const scheduledChargingVehicleIds = new Set(
+      scheduledChargingVehicles.map((vehicle) => vehicle.id),
+    );
+    scheduledChargingVehicles.forEach((vehicle) =>
+      this.activeChargeSchedulesForVehicle(
+        schedules,
+        vehicle.id,
+        now,
+        config.timezone,
+      ).forEach((schedule) =>
+        this.batteryBlockedScheduleKeys.add(
+          this.scheduleBlockKey(vehicle.id, schedule.id),
+        )
+      )
     );
 
-    if (externalAmpChange) {
+    const blockedChargeScheduleIdsByVehicle = this
+      .blockedChargeSchedulesByVehicle(
+        schedules,
+        vehicles,
+        batteryProtectionTriggered,
+        now,
+        config.timezone,
+      );
+    const runtimeConfigOverrides = this.runtimeConfigOverridesByVehicle(
+      externalAmpChangeVehicleIds,
+      scheduledChargingVehicleIds,
+    );
+
+    if (externalAmpChangeVehicleIds.size > 0) {
       this.logger.debug(
-        "External/manual charge-current change detected; bypassing amp debounce for this cycle",
+        `External/manual charge-current change detected for ${
+          [...externalAmpChangeVehicleIds].join(", ")
+        }; bypassing amp debounce only for affected vehicles`,
       );
     }
     if (batteryProtectionTriggered) {
       this.logger.debug(
-        "Home-battery protection active; charge schedules suppressed for this cycle",
+        "Home-battery protection active; applicable charge schedules suppressed per vehicle for this cycle",
       );
     }
 
     return this.engine.decide({
-      config: cycleConfig,
+      schedules,
+      config,
       vehicles,
-      schedules: cycleSchedules,
       energy,
       now,
-      timestamp: Date.now(),
+      timestamp,
+      energyUnavailable: energyAvailability.unavailable,
+      energyUnavailableDetail: energyAvailability.detail,
+      runtimeConfigOverrides,
+      blockedChargeScheduleIdsByVehicle,
     });
-  }
-
-  private filterSchedulesForRuntimeProtection(
-    schedules: ScheduleRow[],
-    batteryProtectionTriggered: boolean,
-  ): ScheduleRow[] {
-    if (batteryProtectionTriggered) {
-      return schedules.filter((schedule) => schedule.scheduleType !== "charge");
-    }
-    if (this.batteryBlockedScheduleIds.size === 0) return schedules;
-    return schedules.filter(
-      (schedule) => !this.batteryBlockedScheduleIds.has(schedule.id),
-    );
-  }
-
-  private buildRuntimeControllerConfig(
-    config: ControllerConfig,
-    bypassAmpDebounce: boolean,
-    stopScheduledBatteryDischarge: boolean,
-  ): ControllerConfig {
-    if (stopScheduledBatteryDischarge) {
-      return {
-        ...config,
-        ampDebounceThreshold: 0,
-        batteryDischargeGraceMinutes: 0,
-      };
-    }
-    if (bypassAmpDebounce) return { ...config, ampDebounceThreshold: 0 };
-    return config;
   }
 
   /** Keep a charge schedule blocked only for the active window in which it
@@ -342,12 +353,160 @@ export class ChargeController {
     now: Date,
     timezone: string,
   ): void {
-    this.batteryBlockedScheduleIds.forEach((id) => {
-      const schedule = schedules.find((candidate) => candidate.id === id);
+    this.batteryBlockedScheduleKeys.forEach((key) => {
+      const { vehicleId, scheduleId } = this.parseScheduleBlockKey(key);
+      const schedule = schedules.find((candidate) =>
+        candidate.id === scheduleId
+      );
       const stillActive = schedule?.scheduleType === "charge" &&
-        schedule.enabled && isScheduleActiveNow(schedule, now, timezone);
-      if (!stillActive) this.batteryBlockedScheduleIds.delete(id);
+        this.isScheduleApplicable(schedule, vehicleId, now, timezone);
+      if (!stillActive) this.batteryBlockedScheduleKeys.delete(key);
     });
+  }
+
+  private activeChargeSchedulesForVehicle(
+    schedules: ScheduleRow[],
+    vehicleId: string,
+    now: Date,
+    timezone: string,
+  ): ScheduleRow[] {
+    return schedules.filter((schedule) =>
+      schedule.scheduleType === "charge" &&
+      this.isScheduleApplicable(schedule, vehicleId, now, timezone)
+    );
+  }
+
+  private scheduledChargingVehicles(
+    vehicles: EngineVehicleInput[],
+    schedules: ScheduleRow[],
+    excessiveBatteryDischarge: boolean,
+    now: Date,
+    timezone: string,
+  ): EngineVehicleInput[] {
+    if (!excessiveBatteryDischarge) return [];
+    return vehicles.filter((vehicle) =>
+      vehicle.mode === "auto" && vehicle.state?.isCharging === true &&
+      this.activeChargeSchedulesForVehicle(
+          schedules,
+          vehicle.id,
+          now,
+          timezone,
+        ).length > 0
+    );
+  }
+
+  private blockedChargeSchedulesByVehicle(
+    schedules: ScheduleRow[],
+    vehicles: EngineVehicleInput[],
+    suppressActiveSchedules: boolean,
+    now: Date,
+    timezone: string,
+  ): ReadonlyMap<string, ReadonlySet<string>> {
+    const blocked = new Map<string, Set<string>>();
+    const add = (vehicleId: string, scheduleId: string) => {
+      const ids = blocked.get(vehicleId) ?? new Set<string>();
+      ids.add(scheduleId);
+      blocked.set(vehicleId, ids);
+    };
+
+    this.batteryBlockedScheduleKeys.forEach((key) => {
+      const pair = this.parseScheduleBlockKey(key);
+      add(pair.vehicleId, pair.scheduleId);
+    });
+
+    if (suppressActiveSchedules) {
+      vehicles.forEach((vehicle) => {
+        this.activeChargeSchedulesForVehicle(
+          schedules,
+          vehicle.id,
+          now,
+          timezone,
+        ).forEach((schedule) => add(vehicle.id, schedule.id));
+      });
+    }
+
+    return blocked;
+  }
+
+  private runtimeConfigOverridesByVehicle(
+    externalAmpChangeVehicleIds: ReadonlySet<string>,
+    immediateBatteryStopVehicleIds: ReadonlySet<string>,
+  ): ReadonlyMap<string, Partial<ControllerConfig>> {
+    const overrides = new Map<string, Partial<ControllerConfig>>();
+    const patch = (vehicleId: string, value: Partial<ControllerConfig>) => {
+      overrides.set(vehicleId, { ...overrides.get(vehicleId), ...value });
+    };
+    externalAmpChangeVehicleIds.forEach((vehicleId) =>
+      patch(vehicleId, { ampDebounceThreshold: 0 })
+    );
+    immediateBatteryStopVehicleIds.forEach((vehicleId) =>
+      patch(vehicleId, { batteryDischargeGraceMinutes: 0 })
+    );
+    return overrides;
+  }
+
+  private scheduleBlockKey(vehicleId: string, scheduleId: string): string {
+    return `${vehicleId}\u0000${scheduleId}`;
+  }
+
+  private parseScheduleBlockKey(
+    key: string,
+  ): { vehicleId: string; scheduleId: string } {
+    const separator = key.indexOf("\u0000");
+    return {
+      vehicleId: key.slice(0, separator),
+      scheduleId: key.slice(separator + 1),
+    };
+  }
+
+  private evaluateEnergyAvailability(
+    energy: EnergyData | null,
+    timestamp: number,
+  ): EnergyAvailability {
+    const unavailable = (detail: string): EnergyAvailability => {
+      this.energyUnavailable = true;
+      this.energyRecoveryReadings = 0;
+      this.lastRecoveryReadingAt = null;
+      return { unavailable: true, detail };
+    };
+
+    if (!energy) return unavailable("No live energy data");
+    if (energy.pollFailed === true) {
+      return unavailable("Energy inverter poll failed");
+    }
+
+    const observedAt = Date.parse(energy.lastUpdated);
+    const maxAgeMs = this.poller.getRealtimeMaxAgeMs();
+    if (!Number.isFinite(observedAt)) {
+      return unavailable("Energy data timestamp is invalid");
+    }
+    const ageMs = timestamp - observedAt;
+    if (ageMs > maxAgeMs || ageMs < -maxAgeMs) {
+      return unavailable(
+        `Energy data is stale (${Math.max(0, Math.round(ageMs / 1000))}s old)`,
+      );
+    }
+
+    if (!this.energyUnavailable) {
+      return { unavailable: false, detail: "Energy data available" };
+    }
+
+    if (this.lastRecoveryReadingAt !== energy.lastUpdated) {
+      this.lastRecoveryReadingAt = energy.lastUpdated;
+      this.energyRecoveryReadings++;
+    }
+    if (this.energyRecoveryReadings < 2) {
+      return {
+        unavailable: true,
+        detail:
+          `Energy data recovering (${this.energyRecoveryReadings}/2 valid readings)`,
+      };
+    }
+
+    this.energyUnavailable = false;
+    this.energyRecoveryReadings = 0;
+    this.lastRecoveryReadingAt = null;
+    return { unavailable: false, detail: "Energy data available" };
   }
 
   /** Detect a charge-current change that happened outside the controller.
