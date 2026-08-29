@@ -303,76 +303,148 @@
 .modeSection {
   display: flex;
   flex-direction: column;
-  align-items: center;
   margin: 20px 0 6px;
 }
 
-.smartChargeButton {
-  width: 100%;
-  min-height: 56px;
-  border-radius: 999px !important;
-  font-size: 1rem !important;
-  font-weight: 700 !important;
-  letter-spacing: -0.015em;
-  box-shadow:
-    0 10px 24px color-mix(in srgb, var(--blue-9) 18%, transparent),
-    inset 0 1px 0 color-mix(in srgb, white 30%, transparent);
-  transition: transform 140ms ease, box-shadow 180ms ease;
+.modeHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
-.smartChargeButton:not(:disabled):active {
-  transform: scale(0.985);
+.modeHeading > :first-child {
+  font-size: 0.94rem;
+  letter-spacing: -0.01em;
 }
 
-.smartChargeButton:focus-visible,
-.otherOptionsToggle:focus-visible,
-.otherOptions button:focus-visible,
+.modeGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.modeButton {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 112px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid var(--gray-a5);
+  border-radius: 16px;
+  color: var(--gray-12);
+  background: var(--gray-a2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.modeButton:hover:not(:disabled) {
+  border-color: var(--gray-a7);
+  background: var(--gray-a3);
+}
+
+.modeButton:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.modeButton:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.modeButton:focus-visible,
 .detailsToggle:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--blue-9) 50%, transparent);
   outline-offset: 3px;
 }
 
-.smartChargeActive {
-  background:
-    linear-gradient(110deg, var(--blue-9), var(--indigo-9)) !important;
+.modeButton[data-active="true"] {
+  border-color: var(--blue-a8);
+  background: var(--blue-a3);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--blue-9) 12%, transparent);
 }
 
-.smartChargeHint {
+.modeButton[data-mode="vacation"][data-active="true"] {
+  border-color: var(--orange-a8);
+  background: var(--orange-a3);
+}
+
+.modeButton[data-mode="charge_now"][data-active="true"] {
+  border-color: var(--green-a8);
+  background: var(--green-a3);
+}
+
+.modeButton[data-mode="stop"][data-active="true"] {
+  border-color: var(--gray-a8);
+  background: var(--gray-a4);
+}
+
+.modeButtonTop {
+  display: flex;
+  width: 100%;
+  min-height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  margin-bottom: 5px;
+}
+
+.modeIcon {
+  display: grid;
+  color: var(--blue-10);
+  place-items: center;
+}
+
+.modeButton[data-mode="vacation"] .modeIcon {
+  color: var(--orange-10);
+}
+
+.modeButton[data-mode="charge_now"] .modeIcon {
+  color: var(--green-10);
+}
+
+.modeButton[data-mode="stop"] .modeIcon {
+  color: var(--gray-10);
+}
+
+.modeSelected {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: currentColor;
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.modeButton > strong {
+  font-size: 0.94rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.modeDescription {
+  color: var(--gray-10);
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+
+.modeHint {
   display: block;
+  min-height: 18px;
   margin-top: 9px;
   text-align: center;
-}
-
-.otherOptionsToggle {
-  min-height: 40px;
-  margin-top: 7px;
-  border-radius: 999px !important;
-}
-
-.otherOptions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  width: 100%;
-  margin-top: 6px;
-  padding: 10px;
-  border: 1px solid var(--gray-a3);
-  border-radius: 17px;
-  background: var(--gray-a2);
-}
-
-.otherOptions button {
-  min-height: 46px;
-  border-radius: 999px !important;
-  font-size: 0.86rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  transition: transform 120ms ease, background-color 160ms ease,
-    border-color 160ms ease;
-}
-
-.otherOptions button:active {
-  transform: scale(0.98);
 }
 
 .detailsToggle {
@@ -530,31 +602,37 @@
     font-size: 0.92rem;
   }
 
-  .smartChargeButton {
-    min-height: 58px;
-    font-size: 1.05rem !important;
+  .modeHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
   }
 
-  .smartChargeHint {
-    max-width: 92%;
+  .modeGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .modeButton {
+    min-height: 105px;
+    padding: 13px;
+  }
+
+  .modeButton > strong {
+    font-size: 1rem;
+  }
+
+  .modeDescription {
+    font-size: 0.78rem;
+  }
+
+  .modeHint {
     font-size: 0.84rem;
     line-height: 1.45;
   }
 
-  .otherOptionsToggle,
   .detailsToggle {
     min-height: 48px;
     font-size: 0.9rem !important;
-  }
-
-  .otherOptions {
-    gap: 6px;
-    padding: 8px;
-  }
-
-  .otherOptions button {
-    min-height: 48px;
-    font-size: 0.94rem;
   }
 
   .controls {

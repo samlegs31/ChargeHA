@@ -65,16 +65,18 @@ describe("VehicleCard", () => {
     expect(screen.getByLabelText("Active mode: Smart charging"))
       .toBeInTheDocument();
 
-    expect(screen.getByRole("button", { name: "Smart Charge is on" }))
+    expect(screen.getByRole("button", { name: "Smart mode, selected" }))
       .toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Other options" }))
-      .toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("button", { name: "Solar" }))
-      .not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Now" }))
-      .not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Pause" }))
-      .not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Solar mode" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Now mode" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pause mode" }))
+      .toBeInTheDocument();
+    expect(screen.getByText("Solar + off-peak")).toBeInTheDocument();
+    expect(screen.getByText("Solar surplus only")).toBeInTheDocument();
+    expect(screen.getByText("Maximum power now")).toBeInTheDocument();
+    expect(screen.getByText("Until next plug-in")).toBeInTheDocument();
 
     expect(screen.getByText("Show details")).toBeInTheDocument();
     expect(screen.queryByText("Start Charging")).not.toBeInTheDocument();
@@ -130,11 +132,11 @@ describe("VehicleCard", () => {
     expect(screen.getByText("16A")).toBeInTheDocument();
   });
 
-  it("makes Smart Charge the single primary action", () => {
+  it("keeps every charging mode visible and selectable", () => {
     const onChangeMode = vi.fn();
     renderVC({ mode: "vacation", onChangeMode });
 
-    fireEvent.click(screen.getByRole("button", { name: "Use Smart Charge" }));
+    fireEvent.click(screen.getByRole("button", { name: "Smart mode" }));
     expect(onChangeMode).toHaveBeenCalledWith("auto");
   });
 
@@ -142,12 +144,11 @@ describe("VehicleCard", () => {
     ["Solar", "vacation"],
     ["Now", "charge_now"],
     ["Pause", "stop"],
-  ])("keeps %s inside Other options", (label, mode) => {
+  ])("selects the visible %s mode", (label, mode) => {
     const onChangeMode = vi.fn();
     renderVC({ onChangeMode });
 
-    fireEvent.click(screen.getByRole("button", { name: "Other options" }));
-    fireEvent.click(screen.getByRole("button", { name: label }));
+    fireEvent.click(screen.getByRole("button", { name: `${label} mode` }));
     expect(onChangeMode).toHaveBeenCalledWith(mode);
   });
 
@@ -219,10 +220,12 @@ describe("VehicleCard", () => {
       "Unplugged — Smart charging ready for next connection",
     ))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Smart Charge is on" }))
+    expect(screen.getByRole("button", { name: "Smart mode, selected" }))
       .toBeInTheDocument();
-    expect(screen.queryByText("Solar")).not.toBeInTheDocument();
-    expect(screen.queryByText("Now")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Solar mode" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Now mode" }))
+      .toBeInTheDocument();
   });
 
   it("shows a clear offline status", () => {
