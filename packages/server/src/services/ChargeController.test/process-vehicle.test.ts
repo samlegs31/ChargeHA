@@ -7,13 +7,13 @@ import {
   setupController,
 } from "../../test-helpers/ChargeControllerHarness.ts";
 
-const HOME_STATE = { latitude: -37.8136, longitude: 144.9631 };
-const HOME_CONFIG = {
-  home_latitude: "-37.8136",
-  home_longitude: "144.9631",
-} as const;
-
 describe("ChargeController — processVehicle", () => {
+  const HOME_STATE = { latitude: -37.8136, longitude: 144.9631 };
+  const HOME_CONFIG = {
+    home_latitude: "-37.8136",
+    home_longitude: "144.9631",
+  } as const;
+
   let ctx: ControllerCtx | undefined;
 
   afterEach(() => {
