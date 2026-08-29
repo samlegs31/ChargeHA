@@ -46,6 +46,16 @@ describe("ControllerEngine", () => {
       expect(d?.detail).toContain("Away from home");
     });
 
+    it("returns none when home location is not confirmed", () => {
+      const engine = new ControllerEngine();
+      const output = engine.decide(
+        makeInput({ vehicle: { state: { isHome: null } } }),
+      );
+      const decision = output.decisions.get("V1");
+      expect(decision?.action).toBe("none");
+      expect(decision?.detail).toContain("Home location not confirmed");
+    });
+
     it("stops when battery is at charge limit", () => {
       const engine = new ControllerEngine();
       const output = engine.decide(

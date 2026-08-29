@@ -415,7 +415,7 @@ export class SolarForecastService {
     if (config.consumptionExcludesCharging) return homeW;
     const states = await this.vehicleManager.getAllStates();
     const evW = [...states.values()]
-      .filter((state) => state.isHome !== false && state.isCharging)
+      .filter((state) => state.isHome === true && state.isCharging)
       .reduce((sum, state) => sum + finiteNonNegative(state.chargePowerKw) * 1000, 0);
     return Math.max(0, homeW - evW);
   }
@@ -1162,10 +1162,12 @@ function forecastRequestUnavailable(
   if (!state.isPluggedIn) {
     return unavailable("vehicle_unplugged", "Vehicle is not plugged in.");
   }
-  if (state.isHome === false) {
+  if (state.isHome !== true) {
     return unavailable(
       "vehicle_away",
-      "Solar forecast is only available for charging at home.",
+      state.isHome === false
+        ? "Solar forecast is only available for charging at home."
+        : "Home location must be confirmed before solar charging is available.",
     );
   }
   if (vehicle.mode !== "vacation" && vehicle.mode !== "auto") {

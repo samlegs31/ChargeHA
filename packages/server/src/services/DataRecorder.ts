@@ -121,13 +121,24 @@ export class DataRecorder {
     if (allStates.size === 0) return;
 
     // Collect charging vehicles and their power
-    const chargingVehicles = [...allStates]
-      .filter(([_, state]) => state.isCharging && state.chargePowerKw > 0)
-      .map(([id, state]) => ({ id, state }));
-    const totalChargePowerW = chargingVehicles
-      .reduce((sum, { state }) => sum + state.chargePowerKw * 1000, 0);
+    const activeStates = [...allStates]
+      .filter(([_, state]) => state.isCharging && state.chargePowerKw > 0);
+    if (activeStates.length === 0) return;
 
-    if (chargingVehicles.length === 0) return;
+    const homeLat = await this.db.getConfig("home_latitude");
+    const homeLng = await this.db.getConfig("home_longitude");
+    const home = parseHomeCoords(homeLat, homeLng);
+    const chargingVehicles = activeStates
+      .map(([id, state]) => ({
+        id,
+        state,
+        // Unknown charging is retained as non-home energy and never
+        // attributed to the house.
+        isHome: computeIsHome(home, state) === true,
+      }));
+    const totalHomeChargePowerW = chargingVehicles
+      .filter(({ isHome }) => isHome)
+      .reduce((sum, { state }) => sum + state.chargePowerKw * 1000, 0);
 
     // Get energy data for solar attribution
     const energy = this.latestRealtime;
@@ -139,19 +150,14 @@ export class DataRecorder {
     // everything to grid — that is the safe default during an inverter outage.
     const energyPollFailed = energy.pollFailed === true;
 
-    const homeLat = await this.db.getConfig("home_latitude");
-    const homeLng = await this.db.getConfig("home_longitude");
-    const home = parseHomeCoords(homeLat, homeLng);
-
-    await chargingVehicles.reduce((chain, { id, state }) => {
+    await chargingVehicles.reduce((chain, { id, state, isHome }) => {
       const chargePowerW = state.chargePowerKw * 1000;
-      const isHome = computeIsHome(home, state) ?? true; // Default to home if unknown
 
       // For away charging: solar_contribution_w = 0, grid_contribution_w = 0
       const homeAttribution = this.attributeHomeCharge(
         energyPollFailed,
         chargePowerW,
-        totalChargePowerW,
+        totalHomeChargePowerW,
         solarProductionW,
         homeConsumptionW,
         batteryPowerW,

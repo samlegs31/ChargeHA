@@ -47,7 +47,7 @@ export class SolarAllocator {
    *  Starts from grid export, then:
    *  - Subtracts home battery discharge. Power leaving the battery is not
    *    solar. Without this, a battery operating in self-consumption won't be
-   *    drawing from the grid, and would makes the EV's own draw reappear as 
+   *    drawing from the grid, and would makes the EV's own draw reappear as
    *    "available solar" through the add-back below, and the car would charge
    *    off the home battery.
    *  - Adds back the EV's charge power when the meter includes EV load in
@@ -214,12 +214,12 @@ export class SolarAllocator {
     }
 
     // Filter to eligible: either stored solar mode (auto or vacation), plugged
-    // in, at home (or unknown), and below the vehicle charge limit.
+    // in, positively confirmed at home, and below the vehicle charge limit.
     const eligible = vehicles
       .filter((v): v is EngineVehicleInput & { state: VehicleChargeState } =>
         (v.mode === "auto" || v.mode === "vacation") &&
         v.state?.isPluggedIn === true &&
-        v.state.isHome !== false &&
+        v.state.isHome === true &&
         v.state.batteryLevel < v.state.chargeLimit
       )
       .map((v) => {
