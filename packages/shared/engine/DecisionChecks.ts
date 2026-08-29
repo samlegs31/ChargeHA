@@ -16,7 +16,8 @@ export type CheckName =
   | "amp_debounce"
   | "grace_period"
   | "vehicle_polling"
-  | "solar_allocation";
+  | "solar_allocation"
+  | "energy_availability";
 
 /** A single check performed during decision evaluation. */
 export interface DecisionCheck {
@@ -137,6 +138,17 @@ export class DecisionChecks {
   static solarTrackingSkip(enabled: boolean): DecisionCheck {
     const result = enabled ? "skip (no energy data)" : "disabled";
     return { check: "solar_tracking", result };
+  }
+
+  static energyUnavailable(
+    detail: string,
+    elapsedSec: number,
+    graceSec: number,
+  ): DecisionCheck {
+    return {
+      check: "energy_availability",
+      result: `${detail} — ${Math.min(elapsedSec, graceSec)}s/${graceSec}s`,
+    };
   }
 
   static blockoutSchedule(

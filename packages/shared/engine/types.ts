@@ -72,6 +72,16 @@ export interface EngineInput {
   now: Date;
   /** Monotonic timestamp in ms (replaces Date.now() calls inside the engine). */
   timestamp: number;
+  /** True when the energy snapshot failed, is stale, or is still recovering. */
+  energyUnavailable?: boolean;
+  energyUnavailableDetail?: string;
+  /** Runtime-only safety overrides scoped to individual vehicles. */
+  runtimeConfigOverrides?: ReadonlyMap<string, Partial<ControllerConfig>>;
+  /** Charge schedules suppressed for one vehicle only. */
+  blockedChargeScheduleIdsByVehicle?: ReadonlyMap<
+    string,
+    ReadonlySet<string>
+  >;
 }
 
 // ---- Per-vehicle runtime state ----
@@ -107,6 +117,8 @@ export interface VehicleControlState {
    *  confirmed charging pass uses this to ramp away from the safe minimum
    *  without applying the steady-state amp debounce. */
   solarSafeStartPending: boolean;
+  /** First cycle in which live energy became unavailable. */
+  energyUnavailableStartedAt: number | null;
 }
 
 // ---- Engine output types ----
@@ -124,6 +136,7 @@ export type DecisionReason =
   | "grace_period"
   | "cooldown"
   | "no_solar"
+  | "energy_unavailable"
   | "charging_disabled"
   | "battery_at_limit"
   | "not_plugged_in"
@@ -163,6 +176,7 @@ export type ControlStateUpdates = Partial<
     | "pendingAmps"
     | "pendingSince"
     | "solarSafeStartPending"
+    | "energyUnavailableStartedAt"
   >
 >;
 
@@ -208,5 +222,6 @@ export function createControlState(): VehicleControlState {
     pendingAmps: null,
     pendingSince: null,
     solarSafeStartPending: false,
+    energyUnavailableStartedAt: null,
   };
 }

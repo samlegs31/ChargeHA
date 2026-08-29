@@ -71,10 +71,15 @@ export class MockAdapter {
 export class MockEnergyPoller {
   snapshot: { realtime: EnergyData; cumulative: CumulativeEnergyData } | null =
     null;
+  maxRealtimeAgeMs = Number.POSITIVE_INFINITY;
 
   tryGetRealtimeSnapshot() {
     if (!this.snapshot) return null;
-    return { timestamp: new Date().toISOString(), ...this.snapshot };
+    return { timestamp: this.snapshot.realtime.lastUpdated, ...this.snapshot };
+  }
+
+  getRealtimeMaxAgeMs(): number {
+    return this.maxRealtimeAgeMs;
   }
 }
 

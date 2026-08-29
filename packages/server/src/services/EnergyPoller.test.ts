@@ -65,9 +65,14 @@ describe("EnergyPoller", () => {
 
       const snapshot = poller.tryGetRealtimeSnapshot();
       assertExists(snapshot);
+      expect(snapshot.timestamp).toBe(BASE_REALTIME.lastUpdated);
       expect(snapshot.realtime.solarProductionW).toBe(5000);
       // Cumulative is built from DB — no readings inserted so daily values are 0
       expect(snapshot.cumulative.dailySolarProducedWh).toBe(0);
+    });
+
+    it("allows two missed polls with a 30-second minimum window", () => {
+      expect(poller.getRealtimeMaxAgeMs()).toBe(30_000);
     });
   });
 

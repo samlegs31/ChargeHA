@@ -18,6 +18,8 @@ import type {
 } from "./types.ts";
 import { createControlState } from "./types.ts";
 
+const ENERGY_UNAVAILABLE_GRACE_MS = 90_000;
+
 /** Pure decision engine for the charge controller.
  *
  *  Owns per-vehicle runtime state (grace periods, cooldowns, amp debouncing)
@@ -31,7 +33,18 @@ export class ControllerEngine {
 
   /** Make decisions for all vehicles in a single loop iteration. */
   decide(input: EngineInput): EngineOutput {
-    const { config, vehicles, schedules, energy, now, timestamp } = input;
+    const {
+      config,
+      vehicles,
+      schedules,
+      energy,
+      now,
+      timestamp,
+      energyUnavailable = false,
+      energyUnavailableDetail = "Live energy data unavailable",
+      runtimeConfigOverrides,
+      blockedChargeScheduleIdsByVehicle,
+    } = input;
     if (!config.chargingEnabled) {
       const decisions = new Map(
         vehicles.map((vehicle): [string, VehicleDecision] => {
@@ -73,10 +86,30 @@ export class ControllerEngine {
     });
 
     const decisions = new Map(
-      vehicles.map((vehicle): [string, VehicleDecision] => [
-        vehicle.id,
-        this.decideVehicle(vehicle, config, schedules, energy, now, timestamp),
-      ]),
+      vehicles.map((vehicle): [string, VehicleDecision] => {
+        const vehicleConfig = {
+          ...config,
+          ...runtimeConfigOverrides?.get(vehicle.id),
+        };
+        const blockedIds = blockedChargeScheduleIdsByVehicle?.get(vehicle.id);
+        const vehicleSchedules = this.filterBlockedChargeSchedules(
+          schedules,
+          blockedIds,
+        );
+        return [
+          vehicle.id,
+          this.decideVehicle(
+            vehicle,
+            vehicleConfig,
+            vehicleSchedules,
+            energy,
+            now,
+            timestamp,
+            energyUnavailable,
+            energyUnavailableDetail,
+          ),
+        ];
+      }),
     );
 
     return { decisions, controlStates: this.controlStates };
@@ -100,6 +133,8 @@ export class ControllerEngine {
     energy: EnergyData | null,
     now: Date,
     timestamp: number,
+    energyUnavailable: boolean,
+    energyUnavailableDetail: string,
   ): VehicleDecision {
     const precondition = this.checkPreconditions(vehicle);
     if (precondition.decision) {
@@ -143,6 +178,19 @@ export class ControllerEngine {
       return { ...blockout.decision, checks };
     }
 
+    const controlState = this.getControlState(vehicle.id);
+    if (energyUnavailable) {
+      return this.decideEnergyUnavailable(
+        state,
+        vehicle.id,
+        config,
+        timestamp,
+        energyUnavailableDetail,
+        checks,
+      );
+    }
+    controlState.energyUnavailableStartedAt = null;
+
     // SOLAR ONLY (stored as "vacation") never uses charge schedules.
     if (vehicle.mode === "vacation") {
       return this.decideSolarOnlyMode(
@@ -184,6 +232,83 @@ export class ControllerEngine {
       checks,
       vehicle.id,
       null,
+    );
+  }
+
+  private decideEnergyUnavailable(
+    state: VehicleChargeState,
+    vehicleId: string,
+    config: ControllerConfig,
+    timestamp: number,
+    detail: string,
+    checks: DecisionCheck[],
+  ): VehicleDecision {
+    const controlState = this.getControlState(vehicleId);
+    const startedAt = controlState.energyUnavailableStartedAt ?? timestamp;
+    controlState.energyUnavailableStartedAt = startedAt;
+    const elapsedMs = Math.max(0, timestamp - startedAt);
+    const elapsedSec = Math.round(elapsedMs / 1000);
+    const graceSec = Math.round(ENERGY_UNAVAILABLE_GRACE_MS / 1000);
+    const unavailableCheck = DecisionChecks.energyUnavailable(
+      detail,
+      elapsedSec,
+      graceSec,
+    );
+    const allChecks = [
+      ...checks,
+      DecisionChecks.batteryPrioritySkip(config.batteryPriorityEnabled),
+      DecisionChecks.solarTrackingSkip(config.solarTrackingEnabled),
+      unavailableCheck,
+    ];
+
+    if (!state.isCharging) {
+      return {
+        action: "none",
+        reason: "energy_unavailable",
+        detail: `${detail} — automatic start suspended`,
+        targetAmps: null,
+        checks: allChecks,
+      };
+    }
+
+    if (elapsedMs >= ENERGY_UNAVAILABLE_GRACE_MS) {
+      return {
+        action: "stop",
+        reason: "energy_unavailable",
+        detail: `Stop — ${detail} for ${elapsedSec}s`,
+        targetAmps: null,
+        checks: allChecks,
+      };
+    }
+
+    if (state.chargeAmps > state.chargeAmpsMin) {
+      return {
+        action: "adjust_amps",
+        reason: "energy_unavailable",
+        detail:
+          `Adjust to ${state.chargeAmpsMin}A — ${detail} (${elapsedSec}s/${graceSec}s)`,
+        targetAmps: state.chargeAmpsMin,
+        checks: allChecks,
+      };
+    }
+
+    return {
+      action: "none",
+      reason: "energy_unavailable",
+      detail:
+        `Holding at ${state.chargeAmpsMin}A — ${detail} (${elapsedSec}s/${graceSec}s)`,
+      targetAmps: state.chargeAmpsMin,
+      checks: allChecks,
+    };
+  }
+
+  private filterBlockedChargeSchedules(
+    schedules: EngineSchedule[],
+    blockedIds: ReadonlySet<string> | undefined,
+  ): EngineSchedule[] {
+    if (!blockedIds?.size) return schedules;
+    return schedules.filter((schedule) =>
+      schedule.scheduleType !== "charge" || !blockedIds.has(schedule.id)
     );
   }
 
