@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import {
   BatteryCharging,
   CalendarClock,
+  Check,
   ChevronDown,
   ChevronUp,
   Key,
@@ -61,29 +62,35 @@ const MODE_LABELS: Record<VehicleMode, string> = {
   stop: "Pause",
 };
 
-const OTHER_MODE_BUTTONS: {
+const MODE_OPTIONS: {
   value: VehicleMode;
   label: string;
-  color: "orange" | "blue" | "green" | "gray";
+  description: string;
   icon: ReactNode;
 }[] = [
   {
+    value: "auto",
+    label: "Smart",
+    description: "Solar + off-peak",
+    icon: <Sparkles size={20} aria-hidden="true" />,
+  },
+  {
     value: "vacation",
     label: "Solar",
-    color: "orange",
-    icon: <Sun size={18} aria-hidden="true" />,
+    description: "Solar surplus only",
+    icon: <Sun size={20} aria-hidden="true" />,
   },
   {
     value: "charge_now",
     label: "Now",
-    color: "green",
-    icon: <Zap size={18} aria-hidden="true" />,
+    description: "Maximum power now",
+    icon: <Zap size={20} aria-hidden="true" />,
   },
   {
     value: "stop",
     label: "Pause",
-    color: "gray",
-    icon: <Pause size={18} aria-hidden="true" />,
+    description: "Until next plug-in",
+    icon: <Pause size={20} aria-hidden="true" />,
   },
 ];
 
@@ -285,82 +292,72 @@ function VehicleModeSection(
     onChangeMode: (mode: VehicleMode) => void;
   },
 ) {
-  const [otherOptionsOpen, setOtherOptionsOpen] = useState(false);
-  const smartActive = mode === "auto";
-  const smartPending = pending === "mode:auto";
-
-  const selectOtherMode = (nextMode: VehicleMode) => {
-    onChangeMode(nextMode);
-    setOtherOptionsOpen(false);
-  };
-  const hint = smartChargeHint(mode, state.isPluggedIn);
+  const hint = chargingModeHint(mode, state.isPluggedIn);
 
   return (
     <div className={styles.modeSection}>
-      <Button
-        variant="solid"
-        color="blue"
-        size="3"
-        className={`${styles.smartChargeButton} ${
-          smartActive ? styles.smartChargeActive : ""
-        }`}
-        disabled={disabled}
-        onClick={() => {
-          if (!smartActive) onChangeMode("auto");
-        }}
-        aria-pressed={smartActive}
-      >
-        {smartPending ? <Spinner /> : <Sparkles size={21} aria-hidden="true" />}
-        {smartActive ? "Smart Charge is on" : "Use Smart Charge"}
-      </Button>
+      <div className={styles.modeHeading}>
+        <Text size="2" weight="bold">Charging mode</Text>
+        <Text size="1" color="gray">Choose how this vehicle charges</Text>
+      </div>
 
-      <Text size="1" color="gray" className={styles.smartChargeHint}>
+      <div className={styles.modeGrid} aria-label="Charging mode">
+        {MODE_OPTIONS.map((option) => {
+          const active = mode === option.value;
+          const isPending = pending === `mode:${option.value}`;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              className={styles.modeButton}
+              data-mode={option.value}
+              data-active={active}
+              disabled={disabled}
+              onClick={() => {
+                if (!active) onChangeMode(option.value);
+              }}
+              aria-label={`${option.label} mode${active ? ", selected" : ""}`}
+              aria-pressed={active}
+            >
+              <span className={styles.modeButtonTop}>
+                <span className={styles.modeIcon} aria-hidden="true">
+                  {isPending ? <Spinner /> : option.icon}
+                </span>
+                {active && (
+                  <span className={styles.modeSelected}>
+                    <Check size={12} aria-hidden="true" />
+                    Active
+                  </span>
+                )}
+              </span>
+              <strong>{option.label}</strong>
+              <span className={styles.modeDescription}>
+                {option.description}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <Text size="1" color="gray" className={styles.modeHint}>
         {hint}
       </Text>
-
-      <Button
-        variant="ghost"
-        color="gray"
-        size="2"
-        className={styles.otherOptionsToggle}
-        onClick={() => setOtherOptionsOpen((open) => !open)}
-        aria-expanded={otherOptionsOpen}
-      >
-        Other options
-        {otherOptionsOpen
-          ? <ChevronUp size={17} aria-hidden="true" />
-          : <ChevronDown size={17} aria-hidden="true" />}
-      </Button>
-
-      {otherOptionsOpen && (
-        <div
-          className={styles.otherOptions}
-          aria-label="Other charging options"
-        >
-          {OTHER_MODE_BUTTONS.map((btn) => (
-            <Button
-              key={btn.value}
-              variant={mode === btn.value ? "solid" : "soft"}
-              color={mode === btn.value ? btn.color : "gray"}
-              size="2"
-              disabled={disabled}
-              onClick={() => selectOtherMode(btn.value)}
-              aria-pressed={mode === btn.value}
-            >
-              {pending === `mode:${btn.value}` ? <Spinner /> : btn.icon}
-              {btn.label}
-            </Button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
 
-function smartChargeHint(mode: VehicleMode, isPluggedIn: boolean): string {
-  if (mode !== "auto") return `${MODE_LABELS[mode]} mode is active.`;
+function chargingModeHint(mode: VehicleMode, isPluggedIn: boolean): string {
   if (!isPluggedIn) return "Ready for the next connection.";
-  return "E.V. Solar chooses the cleanest, lowest-cost time.";
+  switch (mode) {
+    case "auto":
+      return "Smart uses solar first, then your off-peak schedule.";
+    case "vacation":
+      return "Solar charges only from available solar surplus.";
+    case "charge_now":
+      return "Now starts charging immediately at maximum power.";
+    case "stop":
+      return "Pause stops charging until the vehicle is unplugged.";
+  }
 }
 
 function TechnicalMeta(
