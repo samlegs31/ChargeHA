@@ -79,6 +79,19 @@ describe("SolarAllocator", () => {
     },
   });
 
+  it("excludes vehicles whose home location is unknown", () => {
+    const vehicles = [
+      makeVehicle("v1", 1, { isHome: true }),
+      makeVehicle("v2", 2, { isHome: null }),
+    ];
+    const allocation = SolarAllocator.allocate(
+      vehicles,
+      BASE_CONFIG,
+      BASE_ENERGY,
+    );
+    expect(allocation.size).toBe(0);
+  });
+
   // ── resolveVoltage ────────────────────────────────────────────────────────
 
   describe("resolveVoltage", () => {

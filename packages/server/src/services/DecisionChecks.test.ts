@@ -52,10 +52,10 @@ describe("DecisionChecks", () => {
       });
     });
 
-    it("returns 'unknown (assuming home)' when isHome is null", () => {
+    it("reports automation suspended when isHome is null", () => {
       expect(DecisionChecks.location(null)).toEqual({
         check: "location",
-        result: "unknown (assuming home)",
+        result: "unknown (automation suspended)",
       });
     });
   });

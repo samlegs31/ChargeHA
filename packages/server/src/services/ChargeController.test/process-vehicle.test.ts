@@ -8,6 +8,12 @@ import {
 } from "../../test-helpers/ChargeControllerHarness.ts";
 
 describe("ChargeController — processVehicle", () => {
+  const HOME_STATE = { latitude: -37.8136, longitude: 144.9631 };
+  const HOME_CONFIG = {
+    home_latitude: "-37.8136",
+    home_longitude: "144.9631",
+  } as const;
+
   let ctx: ControllerCtx | undefined;
 
   afterEach(() => {
@@ -77,9 +83,9 @@ describe("ChargeController — processVehicle", () => {
       ).toBe(true);
     });
 
-    it("reports 'unknown (assuming home)' when location is null", async () => {
+    it("suspends automation when location is null", async () => {
       ctx = await setupController(
-        {},
+        { latitude: null, longitude: null },
         "auto",
         { ...BASE_ENERGY, gridPowerW: -3000 },
       );
@@ -90,19 +96,28 @@ describe("ChargeController — processVehicle", () => {
       expect(
         log.checks.some(
           (c) =>
-            c.check === "location" && c.result === "unknown (assuming home)",
+            c.check === "location" &&
+            c.result === "unknown (automation suspended)",
         ),
       ).toBe(true);
+      expect(log.action).toBe("none");
+      expect(log.actionDetail).toContain("Home location not confirmed");
     });
   });
 
   describe("processVehicle — battery at limit when charging", () => {
     it("sends stop and logs 'Stop — battery at charge limit' when charging at limit", async () => {
-      ctx = await setupController({
-        batteryLevel: 80,
-        chargeLimit: 80,
-        isCharging: true,
-      });
+      ctx = await setupController(
+        {
+          ...HOME_STATE,
+          batteryLevel: 80,
+          chargeLimit: 80,
+          isCharging: true,
+        },
+        "auto",
+        BASE_ENERGY,
+        HOME_CONFIG,
+      );
       await ctx.runOneLoop();
 
       expect(ctx.adapter.commands).toContainEqual({ cmd: "stop" });
@@ -112,11 +127,17 @@ describe("ChargeController — processVehicle", () => {
     });
 
     it("logs 'Already stopped — battery at limit' when not charging at limit", async () => {
-      ctx = await setupController({
-        batteryLevel: 80,
-        chargeLimit: 80,
-        isCharging: false,
-      });
+      ctx = await setupController(
+        {
+          ...HOME_STATE,
+          batteryLevel: 80,
+          chargeLimit: 80,
+          isCharging: false,
+        },
+        "auto",
+        BASE_ENERGY,
+        HOME_CONFIG,
+      );
       await ctx.runOneLoop();
 
       const log = await ctx.getLastLogParsed();
@@ -128,8 +149,10 @@ describe("ChargeController — processVehicle", () => {
   describe("processVehicle — charge_now adjust amps", () => {
     it("adjusts amps when charging at different rate than max", async () => {
       ctx = await setupController(
-        { isCharging: true, chargeAmps: 10 },
+        { ...HOME_STATE, isCharging: true, chargeAmps: 10 },
         "charge_now",
+        BASE_ENERGY,
+        HOME_CONFIG,
       );
       await ctx.runOneLoop();
 

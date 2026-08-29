@@ -56,7 +56,7 @@ function ConnectedVehicleCard(
     { refetchInterval: 30_000 },
   );
   const setChargeLimitMutation = trpc.vehicle.setChargeLimit.useMutation();
-  const forecastEligible = props.state.isPluggedIn && props.atHome !== false &&
+  const forecastEligible = props.state.isPluggedIn && props.atHome === true &&
     (props.mode === "vacation" || props.mode === "auto");
   const forecast = trpc.forecast.today.useQuery(
     { vehicleId },

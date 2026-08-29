@@ -59,7 +59,7 @@ export class DecisionChecks {
   static location(isHome: boolean | null): DecisionCheck {
     if (isHome === false) return { check: "location", result: "away" };
     if (isHome === true) return { check: "location", result: "home" };
-    return { check: "location", result: "unknown (assuming home)" };
+    return { check: "location", result: "unknown (automation suspended)" };
   }
 
   static batteryAtLimit(

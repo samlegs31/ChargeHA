@@ -16,6 +16,7 @@ describe("TeslaApiStrategy", () => {
     hasSolar: false,
     hasSchedule: false,
     hasBlockout: false,
+    isHome: true,
     ...overrides,
   });
 
@@ -121,6 +122,17 @@ describe("TeslaApiStrategy", () => {
       expect(
         strategy.shouldWake(
           ctx({ hasSolar: true, isHome: false }),
+          state,
+          0,
+        ),
+      ).toBeNull();
+    });
+
+    it("returns null when home location is unknown", () => {
+      const state = buildVehicleChargeState({ isPluggedIn: true });
+      expect(
+        strategy.shouldWake(
+          ctx({ hasSolar: true, isHome: null }),
           state,
           0,
         ),

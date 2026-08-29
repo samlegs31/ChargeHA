@@ -497,11 +497,11 @@ describe("DataRecorder", () => {
       expect(insertCalled).toBe(false);
     });
 
-    it("defaults to home when home coords are not configured", async () => {
+    it("fails closed when home coords are not configured", async () => {
       feedEnergy(emitter, ENERGY_DATA);
       vehicleManager.setVehicleState("VIN1", CHARGE_STATE);
       // Intentionally leave home_latitude/home_longitude unset — isHome()
-      // returns null, so DataRecorder falls back to "home" for attribution.
+      // returns null, so DataRecorder must not attribute charging to home.
 
       // deno-lint-ignore no-explicit-any
       let capturedReading: any = null;
@@ -513,11 +513,11 @@ describe("DataRecorder", () => {
 
       await testable(recorder).recordVehicleCharges(25);
       expect(capturedReading).not.toBeNull();
-      expect(capturedReading.isHome).toBe(true);
-      expect(capturedReading.solarContributionW).toBeGreaterThan(0);
+      expect(capturedReading.isHome).toBe(false);
+      expect(capturedReading.solarContributionW).toBe(0);
     });
 
-    it("defaults to home when vehicle has no reported location", async () => {
+    it("fails closed when vehicle has no reported location", async () => {
       await setHomeConfig(db);
       feedEnergy(emitter, ENERGY_DATA);
       vehicleManager.setVehicleState("VIN1", {
@@ -535,8 +535,8 @@ describe("DataRecorder", () => {
       };
 
       await testable(recorder).recordVehicleCharges(25);
-      expect(capturedReading.isHome).toBe(true);
-      expect(capturedReading.solarContributionW).toBeGreaterThan(0);
+      expect(capturedReading.isHome).toBe(false);
+      expect(capturedReading.solarContributionW).toBe(0);
     });
 
     it("records correct solar attribution for home charging", async () => {

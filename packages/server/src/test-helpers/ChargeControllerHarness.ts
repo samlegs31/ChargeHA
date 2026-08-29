@@ -42,6 +42,8 @@ import type { VehiclePlugin } from "@chargeha/plugins/types";
 import { throwingMock } from "./throwingMock.ts";
 
 export const VIN = "TEST_VIN_001";
+const TEST_HOME_LATITUDE = -37.8136;
+const TEST_HOME_LONGITUDE = 144.9631;
 
 export const BASE_STATE: VehicleChargeState = {
   vehicleId: VIN,
@@ -61,9 +63,9 @@ export const BASE_STATE: VehicleChargeState = {
   chargePortOpen: true,
   vehicleName: "Test Car",
   lastUpdated: "2024-01-01T00:00:00.000Z",
-  latitude: null,
-  longitude: null,
-  isHome: null,
+  latitude: TEST_HOME_LATITUDE,
+  longitude: TEST_HOME_LONGITUDE,
+  isHome: true,
 };
 
 export const BASE_ENERGY: EnergyData = {
@@ -217,7 +219,12 @@ async function buildControllerStack(
     poller.snapshot = { realtime: energy, cumulative: { ...ZERO_CUMULATIVE } };
   }
 
-  await Object.entries(configOverrides)
+  const config = {
+    home_latitude: String(TEST_HOME_LATITUDE),
+    home_longitude: String(TEST_HOME_LONGITUDE),
+    ...configOverrides,
+  };
+  await Object.entries(config)
     .filter((entry): entry is [string, string] => entry[1] !== undefined)
     .reduce(async (prev, [key, value]) => {
       await prev;

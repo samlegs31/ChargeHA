@@ -222,12 +222,17 @@ export class ControllerEngine {
     }
 
     checks.push(DecisionChecks.location(state.isHome));
-    if (state.isHome === false) {
+    // Automation is allowed only when location positively confirms home.
+    // Unknown must fail closed: otherwise a plugged-in vehicle could start at
+    // another charging location.
+    if (state.isHome !== true) {
       return {
         decision: {
           action: "none",
           reason: "away_from_home",
-          detail: "Away from home — automation suspended",
+          detail: state.isHome === false
+            ? "Away from home — automation suspended"
+            : "Home location not confirmed — automation suspended",
           targetAmps: null,
         },
         checks,

@@ -59,9 +59,9 @@ export class TeslaApiStrategy {
     if (context.forceRefresh) return "force_refresh";
     // Blockout active — vehicle can't charge anyway, don't pay $0.02 to wake.
     if (context.hasBlockout) return null;
-    // A cached GPS fix says the vehicle is away. User actions still bypass
-    // this guard, but the controller must never wake a parked-away vehicle.
-    if (context.isHome === false) return null;
+    // Automatic wakes require a positive home fix. User force-refresh remains
+    // available away from home or with an unknown location.
+    if (context.isHome !== true) return null;
     if (!context.hasSchedule && !context.hasSolar) return null;
     // Not plugged in — Tesla wakes itself on plug-in, free /vehicles check catches it
     if (cachedState && !cachedState.isPluggedIn) return null;
