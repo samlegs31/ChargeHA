@@ -1,26 +1,21 @@
-import { type ReactNode, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
   BatteryCharging,
   CalendarClock,
   Check,
-  ChevronDown,
-  ChevronUp,
   Key,
-  Pause,
   Plug,
-  RefreshCw,
   Sparkles,
+  Square,
   Sun,
   Unplug,
   Zap,
 } from "lucide-react";
 import { Button, Card, Skeleton, Text } from "@radix-ui/themes";
 import type { VehicleChargeState, VehicleMode } from "@chargeha/shared";
-import { formatRelativeTime } from "../../utils/Format.ts";
 import { Spinner } from "../ui/Spinner.tsx";
 import { ErrorBanner } from "../ui/ErrorBanner.tsx";
 import { VehicleBatterySection } from "./VehicleBatterySection.tsx";
-import { VehicleCardDetails } from "./VehicleCardDetails.tsx";
 import { VehicleSilhouetteIcon } from "../icons/VehicleSilhouetteIcon.tsx";
 import styles from "./VehicleCard.module.css";
 import type { ScheduledChargeDisplay } from "../pages/Dashboard/scheduledCharge.ts";
@@ -59,7 +54,7 @@ const MODE_LABELS: Record<VehicleMode, string> = {
   auto: "Smart charging",
   charge_now: "Now",
   vacation: "Solar",
-  stop: "Pause",
+  stop: "Stop",
 };
 
 const MODE_OPTIONS: {
@@ -83,14 +78,14 @@ const MODE_OPTIONS: {
   {
     value: "charge_now",
     label: "Now",
-    description: "Maximum power now",
+    description: "Manual grid charging",
     icon: <Zap size={20} aria-hidden="true" />,
   },
   {
     value: "stop",
-    label: "Pause",
-    description: "Until next plug-in",
-    icon: <Pause size={20} aria-hidden="true" />,
+    label: "Stop",
+    description: "Stop charging",
+    icon: <Square size={18} aria-hidden="true" />,
   },
 ];
 
@@ -99,7 +94,7 @@ function ActiveMode({ mode }: { mode: VehicleMode }) {
     auto: <Sparkles size={15} aria-hidden="true" />,
     vacation: <Sun size={15} aria-hidden="true" />,
     charge_now: <Zap size={15} aria-hidden="true" />,
-    stop: <Pause size={15} aria-hidden="true" />,
+    stop: <Square size={13} aria-hidden="true" />,
   };
 
   return (
@@ -133,6 +128,8 @@ function getStatusText(
       : "Plugged in away from home";
   }
 
+  if (mode === "stop") return "Charging stopped until next connection";
+
   if (state.isCharging) {
     if (mode === "charge_now") return "Charging now";
     if (controllerReason === "energy_unavailable") {
@@ -147,7 +144,6 @@ function getStatusText(
     return "Smart charging in progress";
   }
 
-  if (mode === "stop") return "Charging paused";
   if (controllerReason === "energy_unavailable") {
     return "Waiting for live solar data";
   }
@@ -168,20 +164,68 @@ function getStatusText(
   return "Ready — E.V. Solar will choose the best time";
 }
 
-function getStatusColor(state: VehicleChargeState): string {
-  if (state.isCharging) return "var(--color-charging)";
-  if (state.isPluggedIn) return "var(--color-vehicle)";
-  return "var(--color-disconnected)";
+type ChargeStatusKind =
+  | "charging"
+  | "waiting"
+  | "connected"
+  | "stopped"
+  | "disconnected"
+  | "error";
+
+function getChargeStatusKind(
+  state: VehicleChargeState,
+  mode: VehicleMode,
+  controllerReason: string | null | undefined,
+  vehicleError: string | null | undefined,
+): ChargeStatusKind {
+  if (vehicleError || !state.isOnline) return "error";
+  if (!state.isPluggedIn) return "disconnected";
+  if (mode === "stop") return "stopped";
+  if (state.isCharging) return "charging";
+  if (
+    mode === "vacation" ||
+    controllerReason === "energy_unavailable" ||
+    controllerReason === "battery_priority" ||
+    controllerReason === "grace_period" ||
+    controllerReason === "cooldown"
+  ) return "waiting";
+  return "connected";
 }
 
-function StatusIcon({ state }: { state: VehicleChargeState }) {
-  const iconStyle = { color: getStatusColor(state), flexShrink: 0 };
-  if (state.isCharging) {
+function formatChargingPower(chargePowerKw: number): string {
+  const watts = Math.max(0, Math.round(chargePowerKw * 1000));
+  return `${new Intl.NumberFormat("fr-FR").format(watts)} W`;
+}
+
+function getStatusHeadline(
+  kind: ChargeStatusKind,
+  chargePowerKw: number,
+): string {
+  if (kind === "charging") {
+    return `Charging · ${formatChargingPower(chargePowerKw)}`;
+  }
+  if (kind === "waiting") return "Waiting for energy";
+  if (kind === "connected") return "Connected · Not charging";
+  if (kind === "stopped") return "Stopped";
+  if (kind === "disconnected") return "Disconnected";
+  return "Connection error";
+}
+
+function StatusIcon({ kind }: { kind: ChargeStatusKind }) {
+  if (kind === "charging") {
+    const iconStyle = { color: "currentColor", flexShrink: 0 };
     return <BatteryCharging size={20} style={iconStyle} aria-hidden="true" />;
   }
-  if (state.isPluggedIn) {
+  if (kind === "connected" || kind === "waiting") {
+    const iconStyle = { color: "currentColor", flexShrink: 0 };
     return <Plug size={20} style={iconStyle} aria-hidden="true" />;
   }
+  if (kind === "stopped") {
+    return (
+      <Square size={17} style={{ color: "currentColor" }} aria-hidden="true" />
+    );
+  }
+  const iconStyle = { color: "currentColor", flexShrink: 0 };
   return <Unplug size={20} style={iconStyle} aria-hidden="true" />;
 }
 
@@ -191,25 +235,47 @@ function PrimaryStatus(
     mode,
     atHome,
     controllerReason,
+    vehicleError,
   }: {
     state: VehicleChargeState;
     mode: VehicleMode;
     atHome: boolean | null | undefined;
     controllerReason: string | null | undefined;
+    vehicleError: string | null | undefined;
   },
 ) {
+  const kind = getChargeStatusKind(
+    state,
+    mode,
+    controllerReason,
+    vehicleError,
+  );
   return (
-    <div className={styles.status} aria-live="polite">
+    <div
+      className={styles.status}
+      data-status={kind}
+      data-mode={mode}
+      aria-live="polite"
+      data-testid="vehicle-charge-status"
+    >
       <div className={styles.statusIcon}>
-        <StatusIcon state={state} />
+        <StatusIcon kind={kind} />
       </div>
       <div className={styles.statusCopy}>
-        <Text size="1" color="gray" weight="medium">
-          Charging status
+        <Text size="3" weight="bold" className={styles.statusHeadline}>
+          {getStatusHeadline(kind, state.chargePowerKw)}
         </Text>
-        <Text size="3" weight="bold">
+        <Text size="1" color="gray" weight="medium">
           {getStatusText(state, mode, atHome, controllerReason)}
         </Text>
+        {kind === "charging" && (
+          <Text size="1" color="gray" className={styles.chargeMetrics}>
+            {state.chargeAmps} A · {state.energyAddedKwh.toFixed(1)} kWh added
+            {state.minutesToFull > 0
+              ? ` · ${state.minutesToFull} min remaining`
+              : ""}
+          </Text>
+        )}
       </div>
     </div>
   );
@@ -360,123 +426,48 @@ function chargingModeHint(mode: VehicleMode, isPluggedIn: boolean): string {
     case "vacation":
       return "Solar charges only from available solar surplus.";
     case "charge_now":
-      return "Now starts charging immediately at maximum power.";
+      return "Now charges from the grid at your selected current.";
     case "stop":
-      return "Pause stops charging until the vehicle is unplugged.";
+      return "Stop prevents charging until the vehicle is unplugged.";
   }
 }
 
-function TechnicalMeta(
+function NowAmpsControl(
   {
-    priority,
-    isOnline,
-    lastUpdatedText,
-    refreshing,
-    onRefresh,
+    state,
+    disabled,
+    commandPending,
+    onSetAmps,
   }: {
-    priority: number;
-    isOnline: boolean;
-    lastUpdatedText: string | null;
-    refreshing: boolean;
-    onRefresh?: () => Promise<unknown>;
+    state: VehicleChargeState;
+    disabled: boolean;
+    commandPending: string | false;
+    onSetAmps: (amps: number) => void;
   },
 ) {
+  const amps = state.chargeAmps;
   return (
-    <div className={styles.technicalMeta}>
-      <Text size="1" color="gray">
-        {isOnline ? "Online" : "Offline"} · Priority {priority}
-        {lastUpdatedText ? ` · Updated ${lastUpdatedText}` : ""}
-      </Text>
-      {onRefresh && (
+    <div className={styles.nowAmpsRow}>
+      <Text size="2" weight="bold">Manual current</Text>
+      <div className={styles.ampsControl}>
         <Button
           variant="ghost"
           size="1"
-          color="gray"
-          disabled={refreshing}
-          onClick={onRefresh}
+          disabled={disabled || amps <= state.chargeAmpsMin}
+          onClick={() => onSetAmps(Math.round(amps) - 1)}
         >
-          <RefreshCw
-            size={12}
-            className={refreshing ? styles.spinning : undefined}
-          />
-          {refreshing ? "Updating…" : "Refresh"}
+          {commandPending === "amps" ? <Spinner /> : "−"}
         </Button>
-      )}
-    </div>
-  );
-}
-
-interface TechnicalPanelProps {
-  open: boolean;
-  state: VehicleChargeState;
-  priority: number;
-  lastUpdatedText: string | null;
-  refreshing: boolean;
-  onRefresh?: () => Promise<unknown>;
-  pollingSuspended?: boolean;
-  pollingSuspendReason?: string | null;
-  commandsDisabledReason?: string;
-  vehicleError?: string | null;
-  allocationStatus?: string | null;
-  controllerReason?: string | null;
-  controllerDetail?: string | null;
-  disabled: boolean;
-  commandPending: string | false;
-  onStartCharging: () => void;
-  onStopCharging: () => void;
-  onSetAmps: (amps: number) => void;
-  solarPowerW: number;
-  batteryPowerW: number;
-  gridPowerW: number;
-  chargeLimitPercent: number;
-}
-
-function TechnicalPanel(props: TechnicalPanelProps) {
-  if (!props.open) return null;
-
-  return (
-    <div className={styles.technicalPanel}>
-      <TechnicalMeta
-        priority={props.priority}
-        isOnline={props.state.isOnline}
-        lastUpdatedText={props.lastUpdatedText}
-        refreshing={props.refreshing}
-        onRefresh={props.onRefresh}
-      />
-
-      {props.pollingSuspended && (
-        <Text size="1" color="gray">
-          Polling paused — {props.pollingSuspendReason ?? "idle"}
-        </Text>
-      )}
-      {props.commandsDisabledReason && (
-        <Text size="1" color="gray">
-          Control detail: {props.commandsDisabledReason}
-        </Text>
-      )}
-      {props.vehicleError && (
-        <Text size="1" color="gray">
-          Connection detail: {props.vehicleError}
-        </Text>
-      )}
-
-      {props.state.isPluggedIn && (
-        <VehicleCardDetails
-          allocationStatus={props.allocationStatus ?? null}
-          controllerReason={props.controllerReason ?? null}
-          controllerDetail={props.controllerDetail ?? null}
-          state={props.state}
-          disabled={props.disabled}
-          commandPending={props.commandPending}
-          onStartCharging={props.onStartCharging}
-          onStopCharging={props.onStopCharging}
-          onSetAmps={props.onSetAmps}
-          solarPowerW={props.solarPowerW}
-          batteryPowerW={props.batteryPowerW}
-          gridPowerW={props.gridPowerW}
-          chargeLimitPercent={props.chargeLimitPercent}
-        />
-      )}
+        <Text size="2" weight="bold">{amps} A</Text>
+        <Button
+          variant="ghost"
+          size="1"
+          disabled={disabled || amps >= state.chargeAmpsMax}
+          onClick={() => onSetAmps(Math.round(amps) + 1)}
+        >
+          {commandPending === "amps" ? <Spinner /> : "+"}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -489,68 +480,29 @@ function VehicleCardSkeleton() {
   );
 }
 
-function useVehicleCardRefresh(onRefresh: VehicleCardProps["onRefresh"]) {
-  const [refreshing, setRefreshing] = useState(false);
-  const handleRefresh = async () => {
-    if (!onRefresh) return;
-    setRefreshing(true);
-    try {
-      await onRefresh();
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  return { refreshing, handleRefresh };
-}
-
 export function VehicleCard({
   name,
   state,
-  priority,
   mode,
   commandPending,
-  onStartCharging,
-  onStopCharging,
   onSetAmps,
   onSetChargeLimit,
   onChangeMode,
   onNavigateSettings,
-  solarPowerW = 0,
-  batteryPowerW = 0,
-  gridPowerW = 0,
   loading = false,
   commandsDisabled = false,
-  commandsDisabledReason,
   vehicleError,
   atHome,
-  allocationStatus,
-  onRefresh,
-  pollingSuspended,
-  pollingSuspendReason,
   controllerReason,
-  controllerDetail,
   forecastContent,
   scheduledCharge,
 }: VehicleCardProps) {
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [, setTick] = useState(0);
-  const { refreshing, handleRefresh } = useVehicleCardRefresh(onRefresh);
-
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30_000);
-    return () => clearInterval(id);
-  }, []);
-
   if (loading) return <VehicleCardSkeleton />;
 
   const batteryPercent = Math.round(state.batteryLevel);
   const chargeLimitPercent = Math.round(state.chargeLimit);
   const pending = commandPending || "";
   const disabled = !!commandPending || commandsDisabled;
-  const lastUpdatedText = state.lastUpdated
-    ? formatRelativeTime(new Date(state.lastUpdated))
-    : null;
 
   return (
     <Card className={styles.card}>
@@ -577,6 +529,7 @@ export function VehicleCard({
         mode={mode}
         atHome={atHome}
         controllerReason={controllerReason}
+        vehicleError={vehicleError}
       />
 
       {scheduledCharge && <ScheduledChargeNotice charge={scheduledCharge} />}
@@ -599,43 +552,14 @@ export function VehicleCard({
         pending={pending}
         onChangeMode={onChangeMode}
       />
-
-      <Button
-        variant="ghost"
-        color="gray"
-        size="2"
-        className={styles.detailsToggle}
-        onClick={() => setDetailsOpen((value) => !value)}
-        aria-expanded={detailsOpen}
-      >
-        {detailsOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-        {detailsOpen ? "Hide details" : "Show details"}
-      </Button>
-
-      <TechnicalPanel
-        open={detailsOpen}
-        state={state}
-        priority={priority}
-        lastUpdatedText={lastUpdatedText}
-        refreshing={refreshing}
-        onRefresh={onRefresh ? handleRefresh : undefined}
-        pollingSuspended={pollingSuspended}
-        pollingSuspendReason={pollingSuspendReason}
-        commandsDisabledReason={commandsDisabledReason}
-        vehicleError={vehicleError}
-        allocationStatus={allocationStatus}
-        controllerReason={controllerReason}
-        controllerDetail={controllerDetail}
-        disabled={disabled}
-        commandPending={commandPending}
-        onStartCharging={onStartCharging}
-        onStopCharging={onStopCharging}
-        onSetAmps={onSetAmps}
-        solarPowerW={solarPowerW}
-        batteryPowerW={batteryPowerW}
-        gridPowerW={gridPowerW}
-        chargeLimitPercent={chargeLimitPercent}
-      />
+      {mode === "charge_now" && state.isOnline && state.isPluggedIn && (
+        <NowAmpsControl
+          state={state}
+          disabled={disabled}
+          commandPending={commandPending}
+          onSetAmps={onSetAmps}
+        />
+      )}
     </Card>
   );
 }
