@@ -68,9 +68,9 @@
 }
 
 .activeMode[data-mode="stop"] {
-  border-color: var(--gray-a5);
-  background: var(--gray-a3);
-  color: var(--gray-11);
+  border-color: var(--red-a6);
+  background: var(--red-a3);
+  color: var(--red-11);
 }
 
 .batterySection {
@@ -196,22 +196,64 @@
 }
 
 .status {
+  --status-color: var(--blue-9);
   display: flex;
   align-items: center;
   gap: 12px;
   min-height: 68px;
   margin-bottom: 22px;
   padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--color-vehicle) 10%,
+  border: 1px solid color-mix(in srgb, var(--status-color) 24%,
     var(--gray-a3));
   border-radius: 18px;
   background:
     radial-gradient(
     circle at 10% 50%,
-    color-mix(in srgb, var(--color-vehicle) 9%, transparent),
+    color-mix(in srgb, var(--status-color) 11%, transparent),
     transparent 42%
   ),
     var(--gray-a2);
+  color: var(--status-color);
+}
+
+.status[data-status="charging"] {
+  --status-color: #19c8a2;
+}
+
+.status[data-status="charging"][data-mode="auto"] {
+  --status-color: var(--blue-9);
+}
+
+.status[data-status="charging"][data-mode="vacation"] {
+  --status-color: var(--orange-9);
+}
+
+.status[data-status="charging"][data-mode="charge_now"] {
+  --status-color: var(--green-9);
+}
+
+.status[data-status="charging"][data-mode="stop"] {
+  --status-color: var(--red-9);
+}
+
+.status[data-status="waiting"] {
+  --status-color: var(--amber-9);
+}
+
+.status[data-status="connected"] {
+  --status-color: var(--blue-9);
+}
+
+.status[data-status="stopped"] {
+  --status-color: var(--red-9);
+}
+
+.status[data-status="disconnected"] {
+  --status-color: var(--gray-9);
+}
+
+.status[data-status="error"] {
+  --status-color: var(--red-9);
 }
 
 .statusIcon {
@@ -223,6 +265,7 @@
   place-items: center;
   background: var(--color-panel-solid);
   box-shadow: 0 5px 16px rgba(0, 0, 0, 0.07);
+  color: var(--status-color);
 }
 
 .statusCopy {
@@ -235,6 +278,18 @@
 .statusCopy > :last-child {
   line-height: 1.25;
   letter-spacing: -0.015em;
+}
+
+.statusHeadline {
+  color: var(--status-color);
+  font-size: 1.08rem;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+.chargeMetrics {
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
 }
 
 .scheduleNotice {
@@ -353,6 +408,41 @@
   background: var(--gray-a3);
 }
 
+.modeButton[data-mode="auto"] {
+  border-color: var(--blue-a5);
+  background: color-mix(in srgb, var(--blue-a2) 72%, var(--gray-a2));
+}
+
+.modeButton[data-mode="vacation"] {
+  border-color: var(--orange-a5);
+  background: color-mix(in srgb, var(--orange-a2) 72%, var(--gray-a2));
+}
+
+.modeButton[data-mode="charge_now"] {
+  border-color: var(--green-a5);
+  background: color-mix(in srgb, var(--green-a2) 72%, var(--gray-a2));
+}
+
+.modeButton[data-mode="stop"] {
+  border-color: var(--red-a5);
+  background: color-mix(in srgb, var(--red-a2) 65%, var(--gray-a2));
+}
+
+.modeButton[data-mode="auto"]:hover:not(:disabled) {
+  border-color: var(--blue-a7);
+  background: var(--blue-a3);
+}
+
+.modeButton[data-mode="vacation"]:hover:not(:disabled) {
+  border-color: var(--orange-a7);
+  background: var(--orange-a3);
+}
+
+.modeButton[data-mode="charge_now"]:hover:not(:disabled) {
+  border-color: var(--green-a7);
+  background: var(--green-a3);
+}
+
 .modeButton:active:not(:disabled) {
   transform: scale(0.98);
 }
@@ -362,8 +452,7 @@
   opacity: 0.55;
 }
 
-.modeButton:focus-visible,
-.detailsToggle:focus-visible {
+.modeButton:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--blue-9) 50%, transparent);
   outline-offset: 3px;
 }
@@ -385,8 +474,8 @@
 }
 
 .modeButton[data-mode="stop"][data-active="true"] {
-  border-color: var(--gray-a8);
-  background: var(--gray-a4);
+  border-color: var(--red-a8);
+  background: var(--red-a3);
 }
 
 .modeButtonTop {
@@ -414,7 +503,19 @@
 }
 
 .modeButton[data-mode="stop"] .modeIcon {
-  color: var(--gray-10);
+  color: var(--red-10);
+}
+
+.nowAmpsRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--gray-a4);
+  text-align: center;
 }
 
 .modeSelected {
@@ -447,80 +548,13 @@
   text-align: center;
 }
 
-.detailsToggle {
-  width: 100%;
-  min-height: 42px;
-  margin-top: 12px;
-  border-radius: 12px !important;
-  justify-content: center;
-}
-
-.technicalPanel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: 6px;
-  padding-top: 16px;
-  border-top: 1px solid var(--gray-a4);
-}
-
-.technicalMeta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.spinning {
-  animation: spin 1s linear infinite;
-}
-
-.details {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin: 4px 0 14px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--gray-a2);
-}
-
-.detailRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--gray-11);
-}
-
-.controls {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-  padding-right: 0;
-}
-
-.buttonRow {
-  display: flex;
-  flex: 1;
-  gap: 8px;
-}
-
-.buttonRow button {
-  min-height: 44px;
-  width: 100%;
-  border-radius: 12px !important;
-  font-weight: 650;
-}
-
 .ampsControl {
   display: inline-grid;
-  grid-template-columns: 40px minmax(54px, auto) 40px;
+  grid-template-columns: 44px minmax(54px, auto) 44px;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-height: 44px;
+  min-height: 48px;
   padding: 2px 4px;
   border: 1px solid var(--gray-a5);
   border-radius: 12px;
@@ -528,8 +562,8 @@
 }
 
 .ampsControl button {
-  min-width: 38px;
-  min-height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   font-size: 1.2rem;
 }
 
@@ -576,13 +610,13 @@
     height: 44px;
   }
 
-  .statusCopy > :first-child {
-    font-size: 0.8rem;
+  .statusHeadline {
+    font-size: 1.05rem;
   }
 
   .statusCopy > :last-child {
-    font-size: 1.05rem;
-    line-height: 1.35;
+    font-size: 0.8rem;
+    line-height: 1.4;
   }
 
   .scheduleNotice {
@@ -630,23 +664,8 @@
     line-height: 1.45;
   }
 
-  .detailsToggle {
-    min-height: 48px;
-    font-size: 0.9rem !important;
-  }
-
-  .controls {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .ampsControl {
     width: 100%;
     grid-template-columns: 1fr 1fr 1fr;
-  }
-
-  .technicalMeta {
-    align-items: flex-start;
-    flex-direction: column;
   }
 }
