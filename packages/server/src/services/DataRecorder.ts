@@ -9,7 +9,7 @@ import { calculateSolarAttribution } from "@chargeha/shared/solarAttribution";
 
 const DEFAULT_INTERVAL_SECONDS = 60;
 const DEFAULT_DATA_RETENTION_DAYS = 730;
-const DEFAULT_LOG_RETENTION_DAYS = 30;
+const DEFAULT_LOG_RETENTION_DAYS = 7;
 const PRUNE_EVERY_N_TICKS = 100;
 
 export class DataRecorder {

@@ -31,3 +31,29 @@ export function toSqliteDatetime(input: string): string {
   }
   return d.toISOString().slice(0, 19).replace("T", " ");
 }
+
+/**
+ * Convert a local calendar day and its UTC offset to index-friendly UTC bounds.
+ * The returned strings match SQLite's stored `YYYY-MM-DD HH:MM:SS` format.
+ */
+export function localDayUtcBounds(date: string, tzOffsetHours: number) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error(`Invalid local date: ${date}`);
+  }
+  if (!Number.isFinite(tzOffsetHours)) {
+    throw new Error(`Invalid timezone offset: ${tzOffsetHours}`);
+  }
+
+  const localMidnightAsUtc = Date.parse(`${date}T00:00:00.000Z`);
+  if (Number.isNaN(localMidnightAsUtc)) {
+    throw new Error(`Invalid local date: ${date}`);
+  }
+
+  const startMs = localMidnightAsUtc - tzOffsetHours * 60 * 60 * 1000;
+  return {
+    start: toSqliteDatetime(new Date(startMs).toISOString()),
+    end: toSqliteDatetime(
+      new Date(startMs + 24 * 60 * 60 * 1000).toISOString(),
+    ),
+  };
+}

@@ -133,5 +133,20 @@ export default defineConfig({
   build: {
     outDir: "../server/dist",
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("@radix-ui")) return "vendor-radix";
+          if (id.includes("@tanstack") || id.includes("@trpc")) {
+            return "vendor-data";
+          }
+          if (id.includes("lucide-react")) return "vendor-icons";
+          if (id.includes("react") || id.includes("scheduler")) {
+            return "vendor-react";
+          }
+        },
+      },
+    },
   },
 });

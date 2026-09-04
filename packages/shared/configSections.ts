@@ -264,7 +264,7 @@ export const systemConfigDef = defineSection({
   logRetentionDays: {
     key: "log_retention_days",
     schema: z.number().int().min(7).max(365),
-    default: 30,
+    default: 7,
   },
 });
 export type SystemConfig = SectionType<typeof systemConfigDef>;

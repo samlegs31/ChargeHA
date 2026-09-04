@@ -1,6 +1,6 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { toSqliteDatetime } from "./sqliteHelpers.ts";
+import { localDayUtcBounds, toSqliteDatetime } from "./sqliteHelpers.ts";
 
 describe("toSqliteDatetime", () => {
   it("converts ISO UTC string to SQLite datetime format", () => {
@@ -20,5 +20,21 @@ describe("toSqliteDatetime", () => {
 
   it("throws on unparseable input", () => {
     expect(() => toSqliteDatetime("not a date")).toThrow(/Invalid datetime/);
+  });
+});
+
+describe("localDayUtcBounds", () => {
+  it("converts a positive local offset to UTC", () => {
+    expect(localDayUtcBounds("2026-09-04", 2)).toEqual({
+      start: "2026-09-03 22:00:00",
+      end: "2026-09-04 22:00:00",
+    });
+  });
+
+  it("supports fractional and negative offsets", () => {
+    expect(localDayUtcBounds("2026-01-15", -3.5)).toEqual({
+      start: "2026-01-15 03:30:00",
+      end: "2026-01-16 03:30:00",
+    });
   });
 });

@@ -1,7 +1,7 @@
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import type { EnergyData } from "@chargeha/shared";
 import { and, count, desc, eq, gte, lt, lte, max, sql } from "drizzle-orm";
-import { sqliteTimezoneOffset, toSqliteDatetime } from "./sqliteHelpers.ts";
+import { localDayUtcBounds, toSqliteDatetime } from "./sqliteHelpers.ts";
 import { energyReadings } from "../Schema.ts";
 
 export class EnergyRepository {
@@ -146,7 +146,7 @@ export class EnergyRepository {
     const tzOffsetHours = timezone
       ? this.getTimezoneOffsetHours(timezone)
       : -(now.getTimezoneOffset() / 60);
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const bounds = localDayUtcBounds(todayStr, tzOffsetHours);
 
     const rows = await this.db.all<{
       solar_wh: number;
@@ -157,7 +157,8 @@ export class EnergyRepository {
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0)) AS grid_import_wh,
               SUM(MAX(-grid_power_w, 0) * (60.0 / 3600.0)) AS grid_export_wh
             FROM energy_readings
-            WHERE date(timestamp, ${offset}) = ${todayStr}`);
+            WHERE timestamp >= ${bounds.start}
+              AND timestamp < ${bounds.end}`);
     const row = rows[0];
     return {
       solarWh: (row?.solar_wh as number) ?? 0,

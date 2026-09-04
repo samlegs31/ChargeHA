@@ -102,7 +102,7 @@ describe("ConfigService", () => {
       expect(result.recordingIntervalSeconds).toBe(60);
       expect(result.timezone).toBe("");
       expect(result.dataRetentionDays).toBe(730);
-      expect(result.logRetentionDays).toBe(30);
+      expect(result.logRetentionDays).toBe(7);
     });
   });
 

@@ -1,11 +1,24 @@
-import { pluginDevComponents } from "@chargeha/plugins/componentRegistry";
+import { lazy, Suspense } from "react";
+import { pluginDevComponents } from "@chargeha/plugins/devComponentRegistry";
 import type { Page } from "./Layout/AppLayout.tsx";
 import { ErrorBoundary } from "./ui/ErrorBoundary.tsx";
 import { Dashboard } from "./pages/Dashboard/Dashboard.tsx";
-import { Stats } from "./pages/Stats/Stats.tsx";
-import { Schedules } from "./pages/Schedules/Schedules.tsx";
-import { Settings } from "./pages/Settings/Settings.tsx";
 
+const Stats = lazy(() =>
+  import("./pages/Stats/Stats.tsx").then((module) => ({
+    default: module.Stats,
+  }))
+);
+const Schedules = lazy(() =>
+  import("./pages/Schedules/Schedules.tsx").then((module) => ({
+    default: module.Schedules,
+  }))
+);
+const Settings = lazy(() =>
+  import("./pages/Settings/Settings.tsx").then((module) => ({
+    default: module.Settings,
+  }))
+);
 const VehicleVisualDev = pluginDevComponents["vehicle-visual"];
 
 const PAGE_LABELS: Record<Page, string> = {
@@ -32,5 +45,9 @@ export function renderPage(page: Page, onNavigate: (p: Page) => void) {
     vehicleVisualDev: () => <VehicleVisualDev />,
   };
   const content = pages[page]();
-  return <ErrorBoundary label={PAGE_LABELS[page]}>{content}</ErrorBoundary>;
+  return (
+    <ErrorBoundary label={PAGE_LABELS[page]}>
+      <Suspense fallback={null}>{content}</Suspense>
+    </ErrorBoundary>
+  );
 }

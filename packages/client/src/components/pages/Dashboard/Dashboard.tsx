@@ -23,15 +23,7 @@ interface DashboardProps {
 export function Dashboard({ onNavigateSettings }: DashboardProps) {
   const { addToast } = useToast();
   const { data: energyData } = useEnergyData();
-  const lastUpdated = energyData?.lastUpdated ?? null;
   const utils = trpc.useUtils();
-
-  // Re-render every 10s to keep relative time fresh when SSE stops
-  const [, setTick] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 1_000);
-    return () => clearInterval(id);
-  }, []);
 
   // Derive system alert from config query
   const { data: systemAlertRaw } = trpc.config.systemAlert.useQuery(
@@ -98,11 +90,23 @@ export function Dashboard({ onNavigateSettings }: DashboardProps) {
 
       <EnergyOverview pluginWarnings={pluginWarnings ?? []} />
 
-      {lastUpdated && (
-        <Text size="1" color="gray" className={styles.lastUpdated}>
-          Updated {formatRelativeTime(lastUpdated)}
-        </Text>
-      )}
+      <LastUpdated at={energyData?.lastUpdated ?? null} />
     </div>
+  );
+}
+
+function LastUpdated({ at }: { at: Date | null }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!at) return;
+    const id = setInterval(() => setTick((tick) => tick + 1), 10_000);
+    return () => clearInterval(id);
+  }, [at]);
+
+  if (!at) return null;
+  return (
+    <Text size="1" color="gray" className={styles.lastUpdated}>
+      Updated {formatRelativeTime(at)}
+    </Text>
   );
 }

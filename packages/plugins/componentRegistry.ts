@@ -3,7 +3,6 @@ import type { PluginStepDef } from "./hostUi.ts";
 
 // Tesla settings + development components
 import { TeslaSettings } from "./vehicles/tesla/client/TeslaSettings.tsx";
-import { TeslaVehicleVisualDev } from "./vehicles/tesla/client/TeslaVehicleVisualDev.tsx";
 
 // Fronius settings components
 import { FroniusCloudConfig } from "./energy/fronius-cloud/client/FroniusCloudConfig.tsx";
@@ -101,9 +100,4 @@ export const pluginSettingsComponents: Record<string, ComponentType> = {
   "fronius-cloud-config": FroniusCloudConfig,
   "sigenergy-local-config": SigenergyLocalConfig,
   "enphase-local-config": EnphaseLocalConfig,
-};
-
-/** Development-only pages implemented by plugins but mounted by the host. */
-export const pluginDevComponents: Record<string, ComponentType> = {
-  "vehicle-visual": TeslaVehicleVisualDev,
 };

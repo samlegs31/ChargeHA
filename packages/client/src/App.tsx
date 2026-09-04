@@ -8,8 +8,6 @@ import type { Route } from "./hooks/useRouter.ts";
 import type { Page } from "./components/Layout/AppLayout.tsx";
 import { AuthGate } from "./components/AuthGate.tsx";
 import { RealtimeSync } from "./components/RealtimeSync.tsx";
-import { WizardRouter } from "./components/WizardRouter.tsx";
-import { PluginSetupRouter } from "./components/PluginSetupRouter.tsx";
 import { AppLayout } from "./components/Layout/AppLayout.tsx";
 import { renderPage } from "./components/PageSwitch.tsx";
 import { ToastProvider } from "./hooks/useToast.tsx";
@@ -24,6 +22,16 @@ const devtoolsLoader = () =>
 const ReactQueryDevtools = viteMeta.env?.DEV
   ? lazy(devtoolsLoader)
   : () => null;
+const WizardRouter = lazy(() =>
+  import("./components/WizardRouter.tsx").then((module) => ({
+    default: module.WizardRouter,
+  }))
+);
+const PluginSetupRouter = lazy(() =>
+  import("./components/PluginSetupRouter.tsx").then((module) => ({
+    default: module.PluginSetupRouter,
+  }))
+);
 
 /** Redirects to wizard on first run. Rendered inside AuthGate so it only queries when authenticated. */
 function FirstRunRedirect() {
@@ -109,11 +117,13 @@ function AppContent() {
             <>
               <RealtimeSync />
               <FirstRunRedirect />
-              {renderRoute(route, navigate, {
-                onNavigate: navToPage,
-                authMode,
-                onLogout,
-              })}
+              <Suspense fallback={null}>
+                {renderRoute(route, navigate, {
+                  onNavigate: navToPage,
+                  authMode,
+                  onLogout,
+                })}
+              </Suspense>
             </>
           )}
         </AuthGate>
