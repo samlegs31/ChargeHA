@@ -305,7 +305,7 @@ describe("Config tRPC Router", () => {
       expect(data.controllerLoopSeconds).toBe(30);
       expect(data.recordingIntervalSeconds).toBe(60);
       expect(data.dataRetentionDays).toBe(730);
-      expect(data.logRetentionDays).toBe(30);
+      expect(data.logRetentionDays).toBe(7);
       expect(data.timezone).toBe("");
       expect(data.energyErrorThreshold).toBe(6);
     });

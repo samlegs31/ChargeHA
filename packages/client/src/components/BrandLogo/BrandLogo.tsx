@@ -13,7 +13,7 @@ export function BrandLogo({
     <span className={`${styles.logo} ${className}`}>
       <img
         className={styles.icon}
-        src="/ev-solar-icon-approved.png"
+        src="/icon-192-exact.png"
         alt={alt}
       />
       <span className={styles.wordmark} aria-hidden="true">

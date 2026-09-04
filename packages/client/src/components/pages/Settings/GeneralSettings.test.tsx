@@ -217,7 +217,7 @@ describe("GeneralSettings", () => {
   it.each<[string, "sec" | "days", 0 | 1, number]>([
     ["controllerLoopSeconds", "sec", 0, 10],
     ["dataRetentionDays", "days", 0, 730],
-    ["logRetentionDays", "days", 1, 30],
+    ["logRetentionDays", "days", 1, 7],
   ])(
     "falls back to default %s when parseInt returns NaN",
     (field, suffix, idx, fallback) => {

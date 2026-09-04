@@ -74,7 +74,8 @@ export function GeneralSettings(
           >
             <NumberInput
               value={String(fields.dataRetentionDays)}
-              onChange={(v) => setField("dataRetentionDays", parseInt(v) || 730)}
+              onChange={(v) =>
+                setField("dataRetentionDays", parseInt(v) || 730)}
               suffix="days"
               step={30}
               min={30}
@@ -88,7 +89,7 @@ export function GeneralSettings(
           >
             <NumberInput
               value={String(fields.logRetentionDays)}
-              onChange={(v) => setField("logRetentionDays", parseInt(v) || 30)}
+              onChange={(v) => setField("logRetentionDays", parseInt(v) || 7)}
               suffix="days"
               step={1}
               min={7}

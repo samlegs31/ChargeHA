@@ -1,6 +1,6 @@
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { sql } from "drizzle-orm";
-import { sqliteTimezoneOffset } from "./sqliteHelpers.ts";
+import { localDayUtcBounds, sqliteTimezoneOffset } from "./sqliteHelpers.ts";
 
 export class StatsRepository {
   constructor(private db: BetterSQLite3Database) {}
@@ -33,6 +33,7 @@ export class StatsRepository {
     }>
   > {
     const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const bounds = localDayUtcBounds(date, tzOffsetHours);
     const vehicleCondition = vehicleId
       ? sql` AND vehicle_id = ${vehicleId}`
       : sql``;
@@ -56,7 +57,8 @@ export class StatsRepository {
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN grid_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN solar_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM vehicle_charge_readings
-            WHERE date(timestamp, ${offset}) = ${date}${vehicleCondition}
+            WHERE timestamp >= ${bounds.start}
+              AND timestamp < ${bounds.end}${vehicleCondition}
             GROUP BY bucket
             ORDER BY bucket`);
     return rows.map((row) => ({
@@ -89,6 +91,7 @@ export class StatsRepository {
     }>
   > {
     const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const bounds = localDayUtcBounds(date, tzOffsetHours);
     const vehicleCondition = vehicleId
       ? sql` AND vehicle_id = ${vehicleId}`
       : sql``;
@@ -113,7 +116,8 @@ export class StatsRepository {
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN grid_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN solar_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM vehicle_charge_readings
-            WHERE date(timestamp, ${offset}) = ${date}${vehicleCondition}
+            WHERE timestamp >= ${bounds.start}
+              AND timestamp < ${bounds.end}${vehicleCondition}
             GROUP BY bucket
             ORDER BY bucket`);
     return rows.map((row) => ({
@@ -300,6 +304,7 @@ export class StatsRepository {
     }>
   > {
     const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const bounds = localDayUtcBounds(date, tzOffsetHours);
     const rows = await this.db.all<{
       bucket: string;
       solar_production_wh: number;
@@ -339,7 +344,8 @@ export class StatsRepository {
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MIN(solar_production_w, home_consumption_w) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM energy_readings
-            WHERE date(timestamp, ${offset}) = ${date}
+            WHERE timestamp >= ${bounds.start}
+              AND timestamp < ${bounds.end}
             GROUP BY bucket
             ORDER BY bucket`);
     return rows.map((row) => ({
@@ -377,6 +383,7 @@ export class StatsRepository {
     }>
   > {
     const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const bounds = localDayUtcBounds(date, tzOffsetHours);
     const rows = await this.db.all<{
       bucket: number;
       solar_production_wh: number;
@@ -417,7 +424,8 @@ export class StatsRepository {
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MIN(solar_production_w, home_consumption_w) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM energy_readings
-            WHERE date(timestamp, ${offset}) = ${date}
+            WHERE timestamp >= ${bounds.start}
+              AND timestamp < ${bounds.end}
             GROUP BY bucket
             ORDER BY bucket`);
     return rows.map((row) => ({
@@ -599,6 +607,7 @@ export class StatsRepository {
     tzOffsetHours: number,
   ): Promise<Array<{ bucket: number; solarProductionWh: number }>> {
     const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const bounds = localDayUtcBounds(date, tzOffsetHours);
     const rows = await this.db.all<{
       bucket: number;
       solar_production_wh: number;
@@ -607,7 +616,8 @@ export class StatsRepository {
                 + CAST(strftime('%M', timestamp, ${offset}) AS INTEGER) / 15 AS bucket,
               SUM(solar_production_w * (60.0 / 3600.0)) AS solar_production_wh
             FROM energy_readings
-            WHERE date(timestamp, ${offset}) = ${date}
+            WHERE timestamp >= ${bounds.start}
+              AND timestamp < ${bounds.end}
             GROUP BY bucket
             ORDER BY bucket`);
     return rows.map((row) => ({

@@ -290,22 +290,22 @@ describe("App", () => {
       expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
     });
 
-    it("renders Stats when path is /stats", () => {
+    it("renders Stats when path is /stats", async () => {
       globalThis.history.pushState(null, "", "/stats");
       render(<App />);
-      expect(screen.getByText("Stats Page")).toBeInTheDocument();
+      expect(await screen.findByText("Stats Page")).toBeInTheDocument();
     });
 
-    it("renders Schedules when path is /schedules", () => {
+    it("renders Schedules when path is /schedules", async () => {
       globalThis.history.pushState(null, "", "/schedules");
       render(<App />);
-      expect(screen.getByText("Schedules Page")).toBeInTheDocument();
+      expect(await screen.findByText("Schedules Page")).toBeInTheDocument();
     });
 
-    it("renders Settings when path is /settings", () => {
+    it("renders Settings when path is /settings", async () => {
       globalThis.history.pushState(null, "", "/settings");
       render(<App />);
-      expect(screen.getByText("Settings Page")).toBeInTheDocument();
+      expect(await screen.findByText("Settings Page")).toBeInTheDocument();
     });
 
     it("falls back to Dashboard when path is /logs", () => {
@@ -320,16 +320,16 @@ describe("App", () => {
       expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
     });
 
-    it("renders WizardShell when path is /wizard", () => {
+    it("renders WizardShell when path is /wizard", async () => {
       globalThis.history.pushState(null, "", "/wizard");
       render(<App />);
-      expect(screen.getByText("Wizard Page")).toBeInTheDocument();
+      expect(await screen.findByText("Wizard Page")).toBeInTheDocument();
     });
 
     it("navigates to Dashboard when wizard completes", async () => {
       globalThis.history.pushState(null, "", "/wizard");
       render(<App />);
-      expect(screen.getByText("Wizard Page")).toBeInTheDocument();
+      expect(await screen.findByText("Wizard Page")).toBeInTheDocument();
 
       await userEvent.click(screen.getByText("Complete Wizard"));
       expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
@@ -341,7 +341,7 @@ describe("App", () => {
       expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
 
       await userEvent.click(screen.getByText("Stats"));
-      expect(screen.getByText("Stats Page")).toBeInTheDocument();
+      expect(await screen.findByText("Stats Page")).toBeInTheDocument();
       expect(globalThis.location.pathname).toBe("/stats");
     });
 
@@ -364,22 +364,24 @@ describe("App", () => {
       // Navigate forward: Dashboard -> Stats -> Settings
       await userEvent.click(screen.getByText("Stats"));
       await userEvent.click(screen.getByText("Settings"));
-      expect(screen.getByText("Settings Page")).toBeInTheDocument();
+      expect(await screen.findByText("Settings Page")).toBeInTheDocument();
 
-      // Simulate browser back
-      globalThis.history.back();
+      // Simulate the locations delivered by browser back/forward. Using
+      // explicit popstate events keeps jsdom's shared origin deterministic.
+      globalThis.history.pushState(null, "", "/stats");
+      act(() => globalThis.dispatchEvent(new PopStateEvent("popstate")));
       await waitFor(() => {
         expect(screen.getByText("Stats Page")).toBeInTheDocument();
       });
 
-      // Simulate browser back again
-      globalThis.history.back();
+      globalThis.history.pushState(null, "", "/");
+      act(() => globalThis.dispatchEvent(new PopStateEvent("popstate")));
       await waitFor(() => {
         expect(screen.getByText("Dashboard Page")).toBeInTheDocument();
       });
 
-      // Simulate browser forward
-      globalThis.history.forward();
+      globalThis.history.pushState(null, "", "/stats");
+      act(() => globalThis.dispatchEvent(new PopStateEvent("popstate")));
       await waitFor(() => {
         expect(screen.getByText("Stats Page")).toBeInTheDocument();
       });
@@ -450,7 +452,6 @@ describe("App", () => {
   describe("appearance", () => {
     beforeEach(() => {
       globalThis.history.pushState(null, "", "/");
-      localStorage.clear();
       globalThis.ResizeObserver = vi.fn().mockImplementation(() => ({
         observe: vi.fn(),
         unobserve: vi.fn(),
@@ -462,7 +463,6 @@ describe("App", () => {
 
     afterEach(() => {
       vi.restoreAllMocks();
-      localStorage.clear();
     });
 
     it("uses dark appearance when matchMedia prefers dark scheme and no stored theme", () => {
