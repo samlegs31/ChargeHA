@@ -104,11 +104,13 @@ async function saveSolarWebCredentials(
 async function requireVehicle(
   ctx: {
     db: {
-      getVehicle(id: string): Promise<{
-        id: string;
-        name: string;
-        adapterType: string;
-      } | null>;
+      getVehicle(id: string): Promise<
+        {
+          id: string;
+          name: string;
+          adapterType: string;
+        } | null
+      >;
     };
   },
   vehicleId: string,
@@ -202,7 +204,8 @@ export const historyRouter = router({
       if (plugin?.importChargingHistory === undefined) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Charging history import is not available for this vehicle integration",
+          message:
+            "Charging history import is not available for this vehicle integration",
         });
       }
       try {
@@ -230,9 +233,15 @@ export const historyRouter = router({
       const history = await readSolarWebHistory(resolvedInput);
       await saveSolarWebCredentials(ctx, input);
       const repository = new HistoryRepository(ctx.db.db);
-      const importResult = await repository.importRows(input.vehicleId, history.rows);
+      const importResult = await repository.importRows(
+        input.vehicleId,
+        history.rows,
+      );
       const reconciledLegacyRows = reconcileLegacySolarWebHistory(ctx.db.db);
-      const coverage = await repository.getCoverage("solarweb", input.vehicleId);
+      const coverage = await repository.getCoverage(
+        "solarweb",
+        input.vehicleId,
+      );
       return {
         ...importResult,
         samplesRead: history.samplesRead,

@@ -128,7 +128,11 @@ function getStatusText(
       : "Plugged in away from home";
   }
 
-  if (mode === "stop") return "Charging stopped until next connection";
+  if (mode === "stop") {
+    return state.isCharging
+      ? "Stop requested — waiting for vehicle confirmation"
+      : "Charging stopped until next connection";
+  }
 
   if (state.isCharging) {
     if (mode === "charge_now") return "Charging now";
@@ -177,11 +181,13 @@ function getChargeStatusKind(
   mode: VehicleMode,
   controllerReason: string | null | undefined,
   vehicleError: string | null | undefined,
+  atHome: boolean | null | undefined,
 ): ChargeStatusKind {
   if (vehicleError || !state.isOnline) return "error";
   if (!state.isPluggedIn) return "disconnected";
-  if (mode === "stop") return "stopped";
   if (state.isCharging) return "charging";
+  if (atHome === false) return "connected";
+  if (mode === "stop") return "stopped";
   if (
     mode === "vacation" ||
     controllerReason === "energy_unavailable" ||
@@ -193,8 +199,10 @@ function getChargeStatusKind(
 }
 
 function formatChargingPower(chargePowerKw: number): string {
-  const watts = Math.max(0, Math.round(chargePowerKw * 1000));
-  return `${new Intl.NumberFormat("fr-FR").format(watts)} W`;
+  if (!Number.isFinite(chargePowerKw) || chargePowerKw < 0) {
+    return "Power unavailable";
+  }
+  return `${chargePowerKw.toFixed(1)} kW`;
 }
 
 function getStatusHeadline(
@@ -249,6 +257,7 @@ function PrimaryStatus(
     mode,
     controllerReason,
     vehicleError,
+    atHome,
   );
   return (
     <div

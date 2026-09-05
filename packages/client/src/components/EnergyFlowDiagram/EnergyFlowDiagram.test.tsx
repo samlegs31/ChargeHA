@@ -44,8 +44,14 @@ describe("EnergyFlowDiagram", () => {
     );
 
     expect(screen.getAllByTestId("energy-bus-track")).toHaveLength(1);
-    expect(screen.getByTestId("energy-bus")).toHaveAttribute("data-source", "solar");
-    expect(screen.getByTestId("energy-bus")).toHaveAttribute("data-route-count", "3");
+    expect(screen.getByTestId("energy-bus")).toHaveAttribute(
+      "data-source",
+      "solar",
+    );
+    expect(screen.getByTestId("energy-bus")).toHaveAttribute(
+      "data-route-count",
+      "3",
+    );
     expect(screen.queryByTestId("energy-hub")).not.toBeInTheDocument();
     expect(screen.getByTestId("energy-bus-solar-to-vehicle-edith"))
       .toHaveAttribute("data-motion", "forward");
@@ -57,31 +63,70 @@ describe("EnergyFlowDiagram", () => {
       .toHaveAttribute("data-bead-count", "1");
     expect(screen.queryByTestId("energy-bus-solar")).not.toBeInTheDocument();
 
-    expect(screen.getByTestId("flow-solar")).toHaveAttribute("data-direction", "up");
-    expect(screen.getByTestId("flow-solar")).toHaveAttribute("data-role", "source");
+    expect(screen.getByTestId("flow-solar")).toHaveAttribute(
+      "data-direction",
+      "up",
+    );
+    expect(screen.getByTestId("flow-solar")).toHaveAttribute(
+      "data-role",
+      "source",
+    );
     expect(screen.getByTestId("flow-solar").getAttribute("style"))
       .toContain("--branch-color: var(--color-solar)");
 
-    expect(screen.getByTestId("flow-vehicle-edith")).toHaveAttribute("data-direction", "up");
-    expect(screen.getByTestId("flow-vehicle-edith")).toHaveAttribute("data-role", "destination");
-    expect(screen.getByTestId("flow-vehicle-edith")).toHaveAttribute("data-sources", "solar");
+    expect(screen.getByTestId("flow-vehicle-edith")).toHaveAttribute(
+      "data-direction",
+      "up",
+    );
+    expect(screen.getByTestId("flow-vehicle-edith")).toHaveAttribute(
+      "data-role",
+      "destination",
+    );
+    expect(screen.getByTestId("flow-vehicle-edith")).toHaveAttribute(
+      "data-sources",
+      "solar",
+    );
     expect(screen.getByTestId("flow-vehicle-edith").getAttribute("style"))
       .toContain("--branch-color: var(--color-solar)");
 
-    expect(screen.getByTestId("flow-battery")).toHaveAttribute("data-direction", "down");
-    expect(screen.getByTestId("flow-battery")).toHaveAttribute("data-role", "destination");
-    expect(screen.getByTestId("flow-battery")).toHaveAttribute("data-sources", "solar");
+    expect(screen.getByTestId("flow-battery")).toHaveAttribute(
+      "data-direction",
+      "down",
+    );
+    expect(screen.getByTestId("flow-battery")).toHaveAttribute(
+      "data-role",
+      "destination",
+    );
+    expect(screen.getByTestId("flow-battery")).toHaveAttribute(
+      "data-sources",
+      "solar",
+    );
     expect(screen.getByTestId("flow-battery").getAttribute("style"))
       .toContain("--branch-color: var(--color-solar)");
 
-    expect(screen.getByTestId("flow-home")).toHaveAttribute("data-direction", "down");
-    expect(screen.getByTestId("flow-home")).toHaveAttribute("data-role", "destination");
-    expect(screen.getByTestId("flow-home")).toHaveAttribute("data-sources", "solar");
+    expect(screen.getByTestId("flow-home")).toHaveAttribute(
+      "data-direction",
+      "down",
+    );
+    expect(screen.getByTestId("flow-home")).toHaveAttribute(
+      "data-role",
+      "destination",
+    );
+    expect(screen.getByTestId("flow-home")).toHaveAttribute(
+      "data-sources",
+      "solar",
+    );
     expect(screen.getByTestId("flow-home").getAttribute("style"))
       .toContain("--branch-color: var(--color-solar)");
 
-    expect(screen.getByTestId("flow-grid")).toHaveAttribute("data-active", "false");
-    expect(screen.getByTestId("flow-grid")).toHaveAttribute("data-role", "idle");
+    expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+    expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+      "data-role",
+      "idle",
+    );
   });
 
   it("shows the capture values once without a duplicate metrics row", () => {
@@ -100,10 +145,14 @@ describe("EnergyFlowDiagram", () => {
 
     expect(screen.getByTestId("node-solar")).toHaveTextContent("3.1 kW");
     expect(screen.getByTestId("node-battery")).toHaveTextContent("225 W");
-    expect(screen.getByTestId("node-battery")).toHaveTextContent("46% · Charging");
+    expect(screen.getByTestId("node-battery")).toHaveTextContent(
+      "46% · Charging",
+    );
     expect(screen.getByTestId("node-home")).toHaveTextContent("695 W");
     expect(screen.getByTestId("node-grid")).toHaveTextContent("4 W");
-    expect(screen.getByTestId("vehicle-node-edith")).toHaveTextContent("2.1 kW");
+    expect(screen.getByTestId("vehicle-node-edith")).toHaveTextContent(
+      "2.1 kW",
+    );
     expect(screen.queryByTestId(/metric-/)).not.toBeInTheDocument();
   });
 
@@ -124,19 +173,30 @@ describe("EnergyFlowDiagram", () => {
       .toHaveAttribute("data-bead-count", "1");
     expect(screen.getByTestId("energy-bus-grid-to-home").getAttribute("style"))
       .toContain("--bus-bead-size: 11.5px");
-    expect(screen.getByTestId("energy-bus-grid-to-battery").getAttribute("style"))
+    expect(
+      screen.getByTestId("energy-bus-grid-to-battery").getAttribute("style"),
+    )
       .toContain("--bus-bead-size: 8.5px");
     expect(screen.getByTestId("energy-bus-solar-to-home").getAttribute("style"))
       .toContain("--bus-bead-size: 13px");
-    expect(screen.getByTestId("flow-solar")).toHaveAttribute("data-bead-count", "1");
-    expect(screen.getByTestId("flow-solar").querySelector("[data-source]")
-      ?.getAttribute("style"))
+    expect(screen.getByTestId("flow-solar")).toHaveAttribute(
+      "data-bead-count",
+      "1",
+    );
+    expect(
+      screen.getByTestId("flow-solar").querySelector("[data-source]")
+        ?.getAttribute("style"),
+    )
       .toContain("--branch-bead-size: 13px");
-    expect(screen.getByTestId("flow-battery").querySelector("[data-source]")
-      ?.getAttribute("style"))
+    expect(
+      screen.getByTestId("flow-battery").querySelector("[data-source]")
+        ?.getAttribute("style"),
+    )
       .toContain("--branch-bead-size: 10px");
-    expect(screen.getByTestId("flow-grid").querySelector("[data-source]")
-      ?.getAttribute("style"))
+    expect(
+      screen.getByTestId("flow-grid").querySelector("[data-source]")
+        ?.getAttribute("style"),
+    )
       .toContain("--branch-bead-size: 13px");
   });
 
@@ -152,11 +212,20 @@ describe("EnergyFlowDiagram", () => {
       />,
     );
 
-    expect(screen.getByTestId("energy-bus")).toHaveAttribute("data-source", "battery");
+    expect(screen.getByTestId("energy-bus")).toHaveAttribute(
+      "data-source",
+      "battery",
+    );
     expect(screen.getByTestId("energy-bus-battery-to-home"))
       .toHaveAttribute("data-motion", "forward");
-    expect(screen.getByTestId("flow-battery")).toHaveAttribute("data-direction", "up");
-    expect(screen.getByTestId("flow-battery")).toHaveAttribute("data-role", "source");
+    expect(screen.getByTestId("flow-battery")).toHaveAttribute(
+      "data-direction",
+      "up",
+    );
+    expect(screen.getByTestId("flow-battery")).toHaveAttribute(
+      "data-role",
+      "source",
+    );
   });
 
   it("moves grid import upward in red and reverses the central stream", () => {
@@ -170,11 +239,20 @@ describe("EnergyFlowDiagram", () => {
       />,
     );
 
-    expect(screen.getByTestId("energy-bus")).toHaveAttribute("data-source", "grid");
+    expect(screen.getByTestId("energy-bus")).toHaveAttribute(
+      "data-source",
+      "grid",
+    );
     expect(screen.getByTestId("energy-bus-grid-to-home"))
       .toHaveAttribute("data-motion", "reverse");
-    expect(screen.getByTestId("flow-grid")).toHaveAttribute("data-direction", "up");
-    expect(screen.getByTestId("flow-grid")).toHaveAttribute("data-role", "source");
+    expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+      "data-direction",
+      "up",
+    );
+    expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+      "data-role",
+      "source",
+    );
     expect(screen.getByTestId("flow-grid").getAttribute("style"))
       .toContain("--branch-color: var(--color-grid-import)");
   });
@@ -191,11 +269,20 @@ describe("EnergyFlowDiagram", () => {
       />,
     );
 
-    expect(screen.getByTestId("energy-bus")).toHaveAttribute("data-source", "solar");
+    expect(screen.getByTestId("energy-bus")).toHaveAttribute(
+      "data-source",
+      "solar",
+    );
     expect(screen.getByTestId("energy-bus-solar-to-grid"))
       .toHaveAttribute("data-motion", "forward");
-    expect(screen.getByTestId("flow-grid")).toHaveAttribute("data-direction", "down");
-    expect(screen.getByTestId("flow-grid")).toHaveAttribute("data-role", "destination");
+    expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+      "data-direction",
+      "down",
+    );
+    expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+      "data-role",
+      "destination",
+    );
     expect(screen.getByTestId("flow-grid").getAttribute("style"))
       .toContain("--branch-color: var(--color-solar)");
     expect(screen.getByTestId("node-grid")).toHaveTextContent("Export");
@@ -227,7 +314,10 @@ describe("EnergyFlowDiagram", () => {
       .toHaveAttribute("data-sources", "solar");
     expect(screen.getByTestId("flow-grid"))
       .toHaveAttribute("data-sources", "solar");
-    expect(screen.getByTestId("flow-grid")).toHaveAttribute("data-role", "destination");
+    expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+      "data-role",
+      "destination",
+    );
   });
 
   it("routes a discharging battery to the car, home, and grid export", () => {
@@ -255,7 +345,10 @@ describe("EnergyFlowDiagram", () => {
       .toHaveAttribute("data-sources", "battery");
     expect(screen.getByTestId("flow-grid"))
       .toHaveAttribute("data-sources", "battery");
-    expect(screen.getByTestId("flow-battery")).toHaveAttribute("data-role", "source");
+    expect(screen.getByTestId("flow-battery")).toHaveAttribute(
+      "data-role",
+      "source",
+    );
   });
 
   it("routes grid import to the car, home battery, and home", () => {
@@ -283,7 +376,10 @@ describe("EnergyFlowDiagram", () => {
       .toHaveAttribute("data-sources", "grid");
     expect(screen.getByTestId("flow-home"))
       .toHaveAttribute("data-sources", "grid");
-    expect(screen.getByTestId("flow-grid")).toHaveAttribute("data-role", "source");
+    expect(screen.getByTestId("flow-grid")).toHaveAttribute(
+      "data-role",
+      "source",
+    );
   });
 
   it("colors a mixed-source car from the energy that feeds it", () => {
@@ -311,9 +407,11 @@ describe("EnergyFlowDiagram", () => {
     expect(vehicleFlow).toHaveAttribute("data-bead-count", "3");
     expect(vehicleFlow.getAttribute("style"))
       .toContain("--branch-color: var(--color-solar)");
-    expect([...vehicleFlow.querySelectorAll("[data-source]")].map((node) =>
-      node.getAttribute("data-source")
-    )).toEqual(["solar", "battery", "grid"]);
+    expect(
+      [...vehicleFlow.querySelectorAll("[data-source]")].map((node) =>
+        node.getAttribute("data-source")
+      ),
+    ).toEqual(["solar", "battery", "grid"]);
 
     const vehicle = screen.getByTestId("vehicle-node-edith");
     expect(vehicle).toHaveAttribute("data-sources", "solar battery grid");
@@ -332,16 +430,28 @@ describe("EnergyFlowDiagram", () => {
       />,
     );
 
-    expect(screen.getByTestId("home-battery-icon")).toHaveAttribute("data-level", "low");
-    expect(screen.getByTestId("home-battery-icon")).toHaveAttribute("data-charging", "true");
+    expect(screen.getByTestId("home-battery-icon")).toHaveAttribute(
+      "data-level",
+      "low",
+    );
+    expect(screen.getByTestId("home-battery-icon")).toHaveAttribute(
+      "data-charging",
+      "true",
+    );
 
     rerender(
       <EnergyFlowDiagram
         data={makeEnergyData({ batteryPowerW: 800, batterySoc: 91 })}
       />,
     );
-    expect(screen.getByTestId("home-battery-icon")).toHaveAttribute("data-fill", "91");
-    expect(screen.getByTestId("home-battery-icon")).toHaveAttribute("data-level", "high");
+    expect(screen.getByTestId("home-battery-icon")).toHaveAttribute(
+      "data-fill",
+      "91",
+    );
+    expect(screen.getByTestId("home-battery-icon")).toHaveAttribute(
+      "data-level",
+      "high",
+    );
   });
 
   it("subtracts charging vehicles from ordinary home use", () => {
@@ -362,24 +472,41 @@ describe("EnergyFlowDiagram", () => {
         data={makeEnergyData({ homeConsumptionW: 14_000 })}
         chargingVehicles={[
           chargingVehicle,
-          { id: "friday", name: "F.R.I.D.A.Y.", chargePowerW: 7400, solarW: 1000, gridW: 6400 },
+          {
+            id: "friday",
+            name: "F.R.I.D.A.Y.",
+            chargePowerW: 7400,
+            solarW: 1000,
+            gridW: 6400,
+          },
         ]}
       />,
     );
 
     expect(screen.getByTestId("vehicle-node-edith")).toBeInTheDocument();
     expect(screen.getByTestId("vehicle-node-friday")).toBeInTheDocument();
-    expect(screen.getByTestId("flow-vehicle-edith")).toHaveAttribute("data-direction", "up");
-    expect(screen.getByTestId("flow-vehicle-friday")).toHaveAttribute("data-direction", "up");
+    expect(screen.getByTestId("flow-vehicle-edith")).toHaveAttribute(
+      "data-direction",
+      "up",
+    );
+    expect(screen.getByTestId("flow-vehicle-friday")).toHaveAttribute(
+      "data-direction",
+      "up",
+    );
     expect(screen.getAllByTestId("vehicle-silhouette-icon")).toHaveLength(2);
   });
 
   it("supports loading and installations without a battery", () => {
     renderWithProviders(
-      <EnergyFlowDiagram data={makeEnergyData({ batteryPowerW: null })} loading />,
+      <EnergyFlowDiagram
+        data={makeEnergyData({ batteryPowerW: null })}
+        loading
+      />,
     );
 
-    expect(screen.getByTestId("flow-summary")).toHaveTextContent("Connecting to live energy");
+    expect(screen.getByTestId("flow-summary")).toHaveTextContent(
+      "Connecting to live energy",
+    );
     expect(screen.getAllByText("---").length).toBeGreaterThanOrEqual(3);
     expect(screen.queryByTestId("home-battery-icon")).not.toBeInTheDocument();
     expect(screen.queryByTestId("flow-battery")).not.toBeInTheDocument();

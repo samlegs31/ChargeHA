@@ -88,10 +88,10 @@
   border-radius: 18px;
   background:
     radial-gradient(
-      circle at 8% 18%,
-      color-mix(in srgb, var(--color-solar-car) 18%, transparent),
-      transparent 42%
-    ),
+    circle at 8% 18%,
+    color-mix(in srgb, var(--color-solar-car) 18%, transparent),
+    transparent 42%
+  ),
     var(--color-panel-solid);
   box-shadow: none;
 }

@@ -51,15 +51,18 @@ vi.mock("../../../hooks/useRouter.ts", async (importOriginal) => {
   };
 });
 
-vi.mock("../../../hooks/usePluginOnboardingState.ts", async (importOriginal) => {
-  const actual = await importOriginal<
-    typeof import("../../../hooks/usePluginOnboardingState.ts")
-  >();
-  return {
-    ...actual,
-    clearPluginOnboarding: mockClearPluginOnboarding,
-  };
-});
+vi.mock(
+  "../../../hooks/usePluginOnboardingState.ts",
+  async (importOriginal) => {
+    const actual = await importOriginal<
+      typeof import("../../../hooks/usePluginOnboardingState.ts")
+    >();
+    return {
+      ...actual,
+      clearPluginOnboarding: mockClearPluginOnboarding,
+    };
+  },
+);
 
 vi.mock("../../../trpc.ts", () => ({
   widenTrpc: vi.fn(),

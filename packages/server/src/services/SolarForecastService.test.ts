@@ -29,7 +29,10 @@ Deno.test("SolarForecastService applies 0.5 percent annual degradation", () => {
 Deno.test("SolarForecastService uses Unix Open-Meteo timestamps without DST offset math", () => {
   const epochSeconds = 1_793_058_300;
   const parsed = openMeteoTimeToDate(epochSeconds, 7_200);
-  assertEquals(parsed.toISOString(), new Date(epochSeconds * 1000).toISOString());
+  assertEquals(
+    parsed.toISOString(),
+    new Date(epochSeconds * 1000).toISOString(),
+  );
 });
 
 Deno.test("SolarForecastService keeps legacy local timestamps as a safe fallback", () => {
@@ -39,42 +42,60 @@ Deno.test("SolarForecastService keeps legacy local timestamps as a safe fallback
 
 Deno.test("SolarForecastService ignores stale or invalid live solar readings", () => {
   const now = new Date("2026-08-24T12:10:00Z");
-  assertEquals(usableLiveSolarPowerW({
-    solarProductionW: 4_200,
-    lastUpdated: "2026-08-24T12:09:30Z",
-  }, now), 4_200);
-  assertEquals(usableLiveSolarPowerW({
-    solarProductionW: 4_200,
-    lastUpdated: "2026-08-24T12:03:00Z",
-  }, now), null);
-  assertEquals(usableLiveSolarPowerW({
-    solarProductionW: Number.NaN,
-    lastUpdated: "2026-08-24T12:09:30Z",
-  }, now), null);
-  assertEquals(usableLiveSolarPowerW({
-    solarProductionW: -1,
-    lastUpdated: "2026-08-24T12:09:30Z",
-  }, now), null);
+  assertEquals(
+    usableLiveSolarPowerW({
+      solarProductionW: 4_200,
+      lastUpdated: "2026-08-24T12:09:30Z",
+    }, now),
+    4_200,
+  );
+  assertEquals(
+    usableLiveSolarPowerW({
+      solarProductionW: 4_200,
+      lastUpdated: "2026-08-24T12:03:00Z",
+    }, now),
+    null,
+  );
+  assertEquals(
+    usableLiveSolarPowerW({
+      solarProductionW: Number.NaN,
+      lastUpdated: "2026-08-24T12:09:30Z",
+    }, now),
+    null,
+  );
+  assertEquals(
+    usableLiveSolarPowerW({
+      solarProductionW: -1,
+      lastUpdated: "2026-08-24T12:09:30Z",
+    }, now),
+    null,
+  );
 });
 
 Deno.test("SolarForecastService ignores Fronius offline all-zero live sentinel", () => {
   const now = new Date("2026-08-24T12:10:00Z");
-  assertEquals(usableLiveSolarPowerW({
-    solarProductionW: 0,
-    gridPowerW: 0,
-    homeConsumptionW: 0,
-    batteryPowerW: null,
-    batterySoc: null,
-    lastUpdated: "2026-08-24T12:09:30Z",
-  }, now), null);
-  assertEquals(usableLiveSolarPowerW({
-    solarProductionW: 0,
-    gridPowerW: 350,
-    homeConsumptionW: 350,
-    batteryPowerW: null,
-    batterySoc: null,
-    lastUpdated: "2026-08-24T12:09:30Z",
-  }, now), 0);
+  assertEquals(
+    usableLiveSolarPowerW({
+      solarProductionW: 0,
+      gridPowerW: 0,
+      homeConsumptionW: 0,
+      batteryPowerW: null,
+      batterySoc: null,
+      lastUpdated: "2026-08-24T12:09:30Z",
+    }, now),
+    null,
+  );
+  assertEquals(
+    usableLiveSolarPowerW({
+      solarProductionW: 0,
+      gridPowerW: 350,
+      homeConsumptionW: 350,
+      batteryPowerW: null,
+      batterySoc: null,
+      lastUpdated: "2026-08-24T12:09:30Z",
+    }, now),
+    0,
+  );
 });
 
 Deno.test("SolarForecastService integrates only the remaining part of the current 15 minute interval", () => {

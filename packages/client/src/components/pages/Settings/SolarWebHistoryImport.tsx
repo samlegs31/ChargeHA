@@ -103,7 +103,9 @@ async function importBatchSequence(
 ): Promise<WattpilotSummary> {
   const batch = batches[index];
   if (batch === undefined) return summary;
-  reportProgress(`Reading Wattpilot period ${index + 1} of ${batches.length}...`);
+  reportProgress(
+    `Reading Wattpilot period ${index + 1} of ${batches.length}...`,
+  );
   const result = await importBatch(batch);
   return await importBatchSequence(
     batches,
@@ -244,7 +246,11 @@ function SolarWebFields(props: {
             style={{ width: 260 }}
           />
           {props.hasSavedPassword && props.password === "" && (
-            <Text size="1" color="green" style={{ display: "block", marginTop: 3 }}>
+            <Text
+              size="1"
+              color="green"
+              style={{ display: "block", marginTop: 3 }}
+            >
               Saved securely
             </Text>
           )}
@@ -286,7 +292,8 @@ function WattpilotResult(props: WattpilotSummary) {
           No Solar.web aggregate data found for these dates
         </Text>
         <Text size="2" style={{ display: "block", marginTop: 4 }}>
-          Check the date range and make sure this is the correct Solar.web system.
+          Check the date range and make sure this is the correct Solar.web
+          system.
         </Text>
       </Card>
     );
@@ -310,10 +317,16 @@ function WattpilotResult(props: WattpilotSummary) {
     <Card style={{ borderLeft: "3px solid var(--green-9)" }}>
       <Text size="2" weight="bold">Wattpilot home history imported</Text>
       <Text size="2" style={{ display: "block", marginTop: 4 }}>
-        {formatKwh(props.chargedWh)} at home · {formatKwh(props.solarWh)} solar · {formatKwh(props.batteryWh)} battery · {formatKwh(props.gridWh)} grid
+        {formatKwh(props.chargedWh)} at home · {formatKwh(props.solarWh)}{" "}
+        solar · {formatKwh(props.batteryWh)} battery · {formatKwh(props.gridWh)}
+        {" "}
+        grid
       </Text>
       <TechnicalDetails>
-        {props.samplesRead} daily records · {props.chargingIntervals} Wattpilot days · {props.duplicateRows} duplicates · {props.overlapRows} overlaps
+        {props.samplesRead} daily records · {props.chargingIntervals}{" "}
+        Wattpilot days · {props.duplicateRows} duplicates · {props.overlapRows}
+        {" "}
+        overlaps
       </TechnicalDetails>
     </Card>
   );
@@ -359,7 +372,11 @@ function WattpilotCard(props: {
         title="Import Wattpilot home history"
         help="Solar.web provides daily Wattpilot energy totals. E.V. Solar assigns them directly to the car selected above."
       />
-      <Text size="1" color="gray" style={{ display: "block", margin: "10px 0" }}>
+      <Text
+        size="1"
+        color="gray"
+        style={{ display: "block", margin: "10px 0" }}
+      >
         {securityText}
       </Text>
       <SolarWebFields
@@ -379,7 +396,9 @@ function WattpilotCard(props: {
         style={{ marginTop: 8 }}
       >
         <CloudDownload size={15} />
-        {props.pending ? "Reading Wattpilot..." : "Import Wattpilot home history"}
+        {props.pending
+          ? "Reading Wattpilot..."
+          : "Import Wattpilot home history"}
       </Button>
       {props.progress !== "" && (
         <Text size="1" color="gray" style={{ display: "block", marginTop: 8 }}>
@@ -387,7 +406,9 @@ function WattpilotCard(props: {
         </Text>
       )}
       {props.result !== null && (
-        <div style={{ marginTop: 10 }}><WattpilotResult {...props.result} /></div>
+        <div style={{ marginTop: 10 }}>
+          <WattpilotResult {...props.result} />
+        </div>
       )}
     </Card>
   );
@@ -451,14 +472,15 @@ function useWattpilotImport(props: {
         buildDateBatches(props.from, props.to),
         0,
         emptyWattpilotSummary(),
-        (batch) => mutation.mutateAsync({
-          vehicleId: props.vehicleId,
-          email: props.email,
-          password: props.password === "" ? undefined : props.password,
-          pvSystemId: props.pvSystemId,
-          from: batch.from,
-          to: batch.to,
-        }),
+        (batch) =>
+          mutation.mutateAsync({
+            vehicleId: props.vehicleId,
+            email: props.email,
+            password: props.password === "" ? undefined : props.password,
+            pvSystemId: props.pvSystemId,
+            from: batch.from,
+            to: batch.to,
+          }),
         setProgress,
       );
       setResult(result);
@@ -468,7 +490,10 @@ function useWattpilotImport(props: {
           vehicleId: props.vehicleId,
           source: "solarweb",
         });
-        await Promise.all([utils.vehicle.list.invalidate(), utils.stats.invalidate()]);
+        await Promise.all([
+          utils.vehicle.list.invalidate(),
+          utils.stats.invalidate(),
+        ]);
         setProgress("Done. Wattpilot is now this car's home-history source.");
       } else {
         setProgress("Import finished, but no Wattpilot home energy was found.");
@@ -499,8 +524,10 @@ function useHistoryImportModel() {
   const rawVehicles = (vehiclesQuery.data?.vehicles ?? []) as HistoryVehicle[];
   const vehicles = vehicleOptions(rawVehicles);
   const rangeReady = vehicleId !== "" && from !== "" && to !== "" && from <= to;
-  const credentialsReady = credentials.email !== "" && credentials.pvSystemId !== "";
-  const passwordReady = credentials.password !== "" || credentials.hasSavedPassword;
+  const credentialsReady = credentials.email !== "" &&
+    credentials.pvSystemId !== "";
+  const passwordReady = credentials.password !== "" ||
+    credentials.hasSavedPassword;
   const wattpilotReady = rangeReady && credentialsReady && passwordReady;
   const wattpilotImport = useWattpilotImport({
     vehicleId,
@@ -529,11 +556,15 @@ function useHistoryImportModel() {
   };
 }
 
-function HistoryImportContent({ model }: { model: ReturnType<typeof useHistoryImportModel> }) {
+function HistoryImportContent(
+  { model }: { model: ReturnType<typeof useHistoryImportModel> },
+) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <Text size="2">
-        Select the car connected to this Wattpilot. Its Solar.web Wattpilot totals are assigned directly to that car; a separate vehicle-service charging-session import is not required.
+        Select the car connected to this Wattpilot. Its Solar.web Wattpilot
+        totals are assigned directly to that car; a separate vehicle-service
+        charging-session import is not required.
       </Text>
       <VehicleSelector
         vehicles={model.vehicles}

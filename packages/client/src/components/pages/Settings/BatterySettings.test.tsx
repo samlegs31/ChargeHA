@@ -120,7 +120,8 @@ describe("BatterySettings", () => {
     renderWithProviders(<BatterySettings mode="basic" />);
     expect(screen.getByText("Protect home battery")).toBeInTheDocument();
     expect(screen.getByText("Keep at least")).toBeInTheDocument();
-    expect(screen.queryByText("Allowed battery discharge")).not.toBeInTheDocument();
+    expect(screen.queryByText("Allowed battery discharge")).not
+      .toBeInTheDocument();
     expect(screen.queryByText("Discharge delay")).not.toBeInTheDocument();
   });
 

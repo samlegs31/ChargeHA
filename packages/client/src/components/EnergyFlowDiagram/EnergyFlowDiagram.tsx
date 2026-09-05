@@ -87,7 +87,9 @@ function dominantSupply(
   batteryW: number,
   gridW: number,
 ): { source: FlowSource; powerW: number } {
-  const candidates: Array<{ source: Exclude<FlowSource, "idle">; powerW: number }> = [
+  const candidates: Array<
+    { source: Exclude<FlowSource, "idle">; powerW: number }
+  > = [
     { source: "solar", powerW: Math.max(0, solarW) },
     { source: "battery", powerW: Math.max(0, batteryW) },
     { source: "grid", powerW: Math.max(0, gridW) },
@@ -119,24 +121,24 @@ function EnergyBus({ source, routes }: {
         const widthPct = Math.abs(route.endPct - route.startPct);
         const durationS = Math.max(1.45, flowDurationS(route.powerW));
         return (
-        <span
-          key={route.id}
-          className={styles.energyBusStream}
-          data-testid={`energy-bus-${route.id}`}
-          data-motion={forward ? "forward" : "reverse"}
-          data-bead-count="1"
-          style={{
-            "--route-color": route.color,
-            "--route-left": `${leftPct}%`,
-            "--route-width": `${widthPct}%`,
-            "--bus-duration": `${durationS}s`,
-            "--bus-bead-size": `${
-              flowBeadSizePx(route.powerW, route.limitW)
-            }px`,
-          } as CSSProperties}
-        >
-          <span className={styles.energyBead} />
-        </span>
+          <span
+            key={route.id}
+            className={styles.energyBusStream}
+            data-testid={`energy-bus-${route.id}`}
+            data-motion={forward ? "forward" : "reverse"}
+            data-bead-count="1"
+            style={{
+              "--route-color": route.color,
+              "--route-left": `${leftPct}%`,
+              "--route-width": `${widthPct}%`,
+              "--bus-duration": `${durationS}s`,
+              "--bus-bead-size": `${
+                flowBeadSizePx(route.powerW, route.limitW)
+              }px`,
+            } as CSSProperties}
+          >
+            <span className={styles.energyBead} />
+          </span>
         );
       })}
     </div>
@@ -275,7 +277,10 @@ function transferStreams(
         stream.source === transfer.source
       );
       if (!matching) {
-        return [...streams, { source: transfer.source, powerW: transfer.powerW }];
+        return [...streams, {
+          source: transfer.source,
+          powerW: transfer.powerW,
+        }];
       }
       return streams.map((stream) =>
         stream === matching
@@ -344,9 +349,7 @@ function busRoutes(
       startPct,
       endPct,
       powerW: transfer.powerW,
-      limitW: transfer.source === "grid"
-        ? GRID_LIMIT_W
-        : INVERTER_LIMIT_W,
+      limitW: transfer.source === "grid" ? GRID_LIMIT_W : INVERTER_LIMIT_W,
     };
   }).filter((route) => route.startPct !== route.endPct);
 }
@@ -391,22 +394,24 @@ function FlowBranch({
       {activeStreams.map((stream, streamIndex) => {
         const durationS = flowDurationS(stream.powerW);
         return (
-        <span
-          key={stream.source}
-          className={styles.branchBead}
-          data-source={stream.source}
-          style={{
-            "--bead-color": sourceColor(stream.source),
-            "--branch-duration": `${durationS}s`,
-            "--branch-delay": `${-streamIndex * durationS / activeStreams.length}s`,
-            "--branch-bead-size": `${
-              flowBeadSizePx(stream.powerW, limitW)
-            }px`,
-            "--branch-lane": `${
-              (streamIndex - (activeStreams.length - 1) / 2) * 5
-            }px`,
-          } as CSSProperties}
-        />
+          <span
+            key={stream.source}
+            className={styles.branchBead}
+            data-source={stream.source}
+            style={{
+              "--bead-color": sourceColor(stream.source),
+              "--branch-duration": `${durationS}s`,
+              "--branch-delay": `${
+                -streamIndex * durationS / activeStreams.length
+              }s`,
+              "--branch-bead-size": `${
+                flowBeadSizePx(stream.powerW, limitW)
+              }px`,
+              "--branch-lane": `${
+                (streamIndex - (activeStreams.length - 1) / 2) * 5
+              }px`,
+            } as CSSProperties}
+          />
         );
       })}
     </div>
@@ -471,13 +476,13 @@ function VehicleNode({ vehicle, loading, streams }: {
     flowProgressDeg(sourcePower("battery"), totalW);
   const gridStop = batteryStop + flowProgressDeg(sourcePower("grid"), totalW);
   const dominant = dominantStream(streams);
-  const energyColor = dominant
-    ? sourceColor(dominant.source)
-    : "var(--gray-8)";
+  const energyColor = dominant ? sourceColor(dominant.source) : "var(--gray-8)";
   return (
     <div className={styles.vehicleFlow}>
       <div
-        className={`${styles.vehicleNode} ${active ? styles.active : styles.idle}`}
+        className={`${styles.vehicleNode} ${
+          active ? styles.active : styles.idle
+        }`}
         data-testid={`vehicle-node-${vehicle.id}`}
         data-role={active ? "destination" : "idle"}
         data-sources={streams.map((stream) => stream.source).join(" ")}
@@ -904,7 +909,10 @@ export function EnergyFlowDiagram({
             {flowSummary(loading, transfers)}
           </div>
         </div>
-        <div className={styles.liveSignal} data-active={dominant.source !== "idle"}>
+        <div
+          className={styles.liveSignal}
+          data-active={dominant.source !== "idle"}
+        >
           <span aria-hidden="true" />
           Live
         </div>

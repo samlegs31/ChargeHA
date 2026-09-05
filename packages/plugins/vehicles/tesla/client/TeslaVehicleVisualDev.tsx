@@ -83,7 +83,9 @@ function VisualHero(
   },
 ) {
   const batteryLabel = batteryLevel === null ? "—" : `${batteryLevel} %`;
-  const limitLabel = chargeLimit === null ? "Not available" : `${chargeLimit} %`;
+  const limitLabel = chargeLimit === null
+    ? "Not available"
+    : `${chargeLimit} %`;
   const batteryWidth = Math.max(0, Math.min(100, batteryLevel ?? 0));
   return (
     <div className={styles.hero}>
@@ -125,14 +127,16 @@ function ProbePanel(
     errorMessage: string | null;
   },
 ) {
-  const buttonLabel = pending ? "Reading configuration…" : "Test vehicle_config";
+  const buttonLabel = pending
+    ? "Reading configuration…"
+    : "Test vehicle_config";
   return (
     <div className={styles.probePanel}>
       <div>
         <strong>Official Fleet API configuration</strong>
         <p>
-          Manual one-shot read. It does not send a wake command and does not poll in
-          the background.
+          Manual one-shot read. It does not send a wake command and does not
+          poll in the background.
         </p>
       </div>
       <Button onClick={onTest} disabled={pending}>
@@ -157,7 +161,9 @@ function ConfigPanels(
   return (
     <div className={styles.grid}>
       <article className={styles.panel}>
-        <h2><Database size={18} /> Detected configuration</h2>
+        <h2>
+          <Database size={18} /> Detected configuration
+        </h2>
         <DataRow label="Model / CarType" value={config?.carType} />
         <DataRow label="Exterior color" value={config?.exteriorColor} />
         <DataRow label="Wheels / WheelType" value={config?.wheelType} />
@@ -166,7 +172,9 @@ function ConfigPanels(
         <DataRow label="Spoiler" value={config?.spoilerType} />
       </article>
       <article className={styles.panel}>
-        <h2><CarFront size={18} /> Visual mapping</h2>
+        <h2>
+          <CarFront size={18} /> Visual mapping
+        </h2>
         <DataRow label="E.V. Solar key" value={visualKey} />
         <DataRow label="Adapter" value={adapterType} />
         <DataRow label="Renderer" value="Local WebGL · event driven" />
@@ -186,9 +194,10 @@ function SafetyNotice() {
       <div>
         <strong>Local 3D performance POC</strong>
         <p>
-          This test uses a lightweight local prototype mesh and renders only when the
-          view changes. No external image or 3D service is contacted. A final licensed
-          Tesla mesh can replace the prototype after performance is validated.
+          This test uses a lightweight local prototype mesh and renders only
+          when the view changes. No external image or 3D service is contacted. A
+          final licensed Tesla mesh can replace the prototype after performance
+          is validated.
         </p>
       </div>
     </div>
@@ -197,7 +206,8 @@ function SafetyNotice() {
 
 export function TeslaVehicleVisualDev() {
   const vehiclesQuery = trpc.plugin.vehicle.tesla.listVehicles.useQuery();
-  const configProbe = trpc.plugin.vehicle.tesla.vehicleVisualConfig.useMutation();
+  const configProbe = trpc.plugin.vehicle.tesla.vehicleVisualConfig
+    .useMutation();
   const vehicles = vehiclesQuery.data?.vehicles ?? [];
   const vehicle = vehicles.find((item) => item.adapterType === "tesla");
 
@@ -212,7 +222,9 @@ export function TeslaVehicleVisualDev() {
     );
   }
   if (!vehicle) {
-    return <div className={styles.stateMessage}>No Tesla vehicle is configured.</div>;
+    return (
+      <div className={styles.stateMessage}>No Tesla vehicle is configured.</div>
+    );
   }
 
   const config = configProbe.data ?? null;
@@ -221,7 +233,9 @@ export function TeslaVehicleVisualDev() {
   const errorMessage = configProbe.error?.message ?? null;
   return (
     <section className={styles.page}>
-      <div className={styles.kicker}><Sparkles size={15} /> POC · Local vehicle 3D</div>
+      <div className={styles.kicker}>
+        <Sparkles size={15} /> POC · Local vehicle 3D
+      </div>
       <VisualHero
         vehicleName={state?.vehicleName || vehicle.name}
         batteryLevel={state?.batteryLevel ?? null}

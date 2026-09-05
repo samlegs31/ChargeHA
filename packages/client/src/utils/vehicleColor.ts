@@ -100,7 +100,10 @@ function colorFamily(exteriorColor: string | null | undefined): string {
   if (color.includes("black")) return "black";
   if (color.includes("white") || color.includes("pearl")) return "white";
   if (color.includes("silver") || color.includes("quick")) return "silver";
-  if (color.includes("grey") || color.includes("gray") || color.includes("stealth")) {
+  if (
+    color.includes("grey") || color.includes("gray") ||
+    color.includes("stealth")
+  ) {
     return "grey";
   }
   if (color.includes("orange")) return "orange";

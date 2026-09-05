@@ -154,9 +154,7 @@ function VehicleCardHeader({
           }}
         />
         <Text size="2" weight="bold">{title}</Text>
-        {exteriorColor && (
-          <Text size="1" color="gray">{palette.label}</Text>
-        )}
+        {exteriorColor && <Text size="1" color="gray">{palette.label}</Text>}
       </div>
       <Badge variant="soft" size="1">
         {homeSourceLabel(homeChargingSource)}
@@ -289,7 +287,9 @@ function UnassignedHistoryCard({ data }: { data: UnassignedBreakdown }) {
           <History size={16} style={{ color: "var(--gray-11)" }} />
           <Text size="2" weight="bold">Unassigned history</Text>
         </div>
-        <Badge variant="soft" color="gray" size="1">Legacy / unattributed</Badge>
+        <Badge variant="soft" color="gray" size="1">
+          Legacy / unattributed
+        </Badge>
       </div>
       <Text size="1" color="gray">
         Included in the global totals but not linked to a configured vehicle.

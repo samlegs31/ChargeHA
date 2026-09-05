@@ -114,7 +114,12 @@ export class HistoryRepository {
         return inserted + result.changes;
       }, 0)
     );
-    return this.importResult(rows.length, importableRows.length, insertedRows, overlapRows);
+    return this.importResult(
+      rows.length,
+      importableRows.length,
+      insertedRows,
+      overlapRows,
+    );
   }
 
   async importChargeHqRows(
@@ -141,7 +146,12 @@ export class HistoryRepository {
         return inserted + result.changes;
       }, 0)
     );
-    return this.importResult(rows.length, importableRows.length, insertedRows, overlapRows);
+    return this.importResult(
+      rows.length,
+      importableRows.length,
+      insertedRows,
+      overlapRows,
+    );
   }
 
   async getCoverage(
@@ -150,9 +160,15 @@ export class HistoryRepository {
   ): Promise<HistoryCoverage> {
     const rows = await this.db.select({
       rowCount: sql<number>`count(*)`,
-      firstStartTimeLocal: sql<string | null>`min(${vehicleChargeHistory.startTimeLocal})`,
-      lastStartTimeLocal: sql<string | null>`max(${vehicleChargeHistory.startTimeLocal})`,
-      chargedWh: sql<number>`coalesce(sum(${vehicleChargeHistory.chargedWh}), 0)`,
+      firstStartTimeLocal: sql<
+        string | null
+      >`min(${vehicleChargeHistory.startTimeLocal})`,
+      lastStartTimeLocal: sql<
+        string | null
+      >`max(${vehicleChargeHistory.startTimeLocal})`,
+      chargedWh: sql<
+        number
+      >`coalesce(sum(${vehicleChargeHistory.chargedWh}), 0)`,
     }).from(vehicleChargeHistory).where(and(
       eq(vehicleChargeHistory.source, source),
       eq(vehicleChargeHistory.vehicleId, vehicleId),
@@ -163,9 +179,15 @@ export class HistoryRepository {
   async getAggregateCoverage(source: string): Promise<HistoryCoverage> {
     const rows = await this.db.select({
       rowCount: sql<number>`count(*)`,
-      firstStartTimeLocal: sql<string | null>`min(${aggregateEvChargeHistory.startTimeLocal})`,
-      lastStartTimeLocal: sql<string | null>`max(${aggregateEvChargeHistory.startTimeLocal})`,
-      chargedWh: sql<number>`coalesce(sum(${aggregateEvChargeHistory.chargedWh}), 0)`,
+      firstStartTimeLocal: sql<
+        string | null
+      >`min(${aggregateEvChargeHistory.startTimeLocal})`,
+      lastStartTimeLocal: sql<
+        string | null
+      >`max(${aggregateEvChargeHistory.startTimeLocal})`,
+      chargedWh: sql<
+        number
+      >`coalesce(sum(${aggregateEvChargeHistory.chargedWh}), 0)`,
     }).from(aggregateEvChargeHistory).where(
       eq(aggregateEvChargeHistory.source, source),
     );
@@ -202,7 +224,10 @@ export class HistoryRepository {
         SUM(charged_wh) AS total_wh
       FROM archive GROUP BY bucket ORDER BY bucket
     `);
-    return rows.map((row) => ({ ...this.mapStatsRow(row), bucket: Number(row.bucket) }));
+    return rows.map((row) => ({
+      ...this.mapStatsRow(row),
+      bucket: Number(row.bucket),
+    }));
   }
 
   async getChargeHqStatsMonth(
@@ -556,12 +581,14 @@ export class HistoryRepository {
     };
   }
 
-  private coverageRow(row: {
-    rowCount: number;
-    firstStartTimeLocal: string | null;
-    lastStartTimeLocal: string | null;
-    chargedWh: number;
-  } | undefined): HistoryCoverage {
+  private coverageRow(
+    row: {
+      rowCount: number;
+      firstStartTimeLocal: string | null;
+      lastStartTimeLocal: string | null;
+      chargedWh: number;
+    } | undefined,
+  ): HistoryCoverage {
     return {
       rowCount: Number(row?.rowCount ?? 0),
       firstStartTimeLocal: row?.firstStartTimeLocal ?? null,

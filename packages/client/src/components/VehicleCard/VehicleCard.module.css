@@ -217,23 +217,7 @@
 }
 
 .status[data-status="charging"] {
-  --status-color: #19c8a2;
-}
-
-.status[data-status="charging"][data-mode="auto"] {
-  --status-color: var(--blue-9);
-}
-
-.status[data-status="charging"][data-mode="vacation"] {
-  --status-color: var(--orange-9);
-}
-
-.status[data-status="charging"][data-mode="charge_now"] {
-  --status-color: var(--green-9);
-}
-
-.status[data-status="charging"][data-mode="stop"] {
-  --status-color: var(--red-9);
+  --status-color: var(--green-11);
 }
 
 .status[data-status="waiting"] {

@@ -307,7 +307,10 @@ describe("HistoryRepository", () => {
       intervalSeconds: 300,
     };
 
-    await repository.importChargeHqRows("vehicle-1", [chargeHqHome, chargeHqAway]);
+    await repository.importChargeHqRows("vehicle-1", [
+      chargeHqHome,
+      chargeHqAway,
+    ]);
     await repository.importAggregateRows([solarweb]);
 
     const beforeVehicle = await repository.getChargeHqStatsDay("2025-06-01");

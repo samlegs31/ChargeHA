@@ -1,3 +1,20 @@
+.brand,
+.navLink,
+.navLinkActive,
+.mobileNavLink,
+.mobileNavLinkActive {
+  border: 0;
+  font: inherit;
+  background: transparent;
+}
+
+.brand:focus-visible,
+.nav button:focus-visible,
+.mobileNav button:focus-visible {
+  outline: 2px solid var(--accent-9);
+  outline-offset: 3px;
+}
+
 .layout {
   min-height: 100vh;
   display: flex;
@@ -106,6 +123,7 @@
   .header {
     padding: 9px 12px;
     gap: 8px;
+    flex-wrap: wrap;
   }
 
   .brandLogo {
@@ -113,7 +131,18 @@
   }
 
   .nav {
-    display: none;
+    order: 4;
+    flex: 1 0 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .nav button {
+    min-height: 44px;
+    padding: 7px 4px;
+    font-size: 0.78rem;
+    white-space: nowrap;
   }
 
   .status {
@@ -163,13 +192,13 @@
   }
 
   .mobileMenu {
-    position: sticky;
-    top: 51px;
+    position: relative;
     z-index: 49;
     display: flex;
     flex-direction: column;
     border-bottom: 1px solid var(--gray-a5);
-    background-color: color-mix(in srgb, var(--color-background) 96%, transparent);
+    background-color: color-mix(in srgb, var(--color-background) 96%,
+      transparent);
     backdrop-filter: blur(18px);
   }
 

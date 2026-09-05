@@ -58,7 +58,9 @@ function nestedRecords(value: unknown, depth = 0): JsonRecord[] {
   if (record === null || depth > 3) return [];
   return [
     record,
-    ...Object.values(record).flatMap((child) => nestedRecords(child, depth + 1)),
+    ...Object.values(record).flatMap((child) =>
+      nestedRecords(child, depth + 1)
+    ),
   ];
 }
 
@@ -68,10 +70,15 @@ function readValue(record: JsonRecord, keys: readonly string[]): unknown {
     .find((value) => value !== undefined && value !== null);
 }
 
-function readString(record: JsonRecord, keys: readonly string[]): string | null {
+function readString(
+  record: JsonRecord,
+  keys: readonly string[],
+): string | null {
   const value = readValue(record, keys);
   if (typeof value === "string" && value.trim() !== "") return value.trim();
-  return typeof value === "number" && Number.isFinite(value) ? String(value) : null;
+  return typeof value === "number" && Number.isFinite(value)
+    ? String(value)
+    : null;
 }
 
 function numericValue(value: unknown): number {
@@ -80,7 +87,10 @@ function numericValue(value: unknown): number {
   return Number.NaN;
 }
 
-function readNumber(record: JsonRecord, keys: readonly string[]): number | null {
+function readNumber(
+  record: JsonRecord,
+  keys: readonly string[],
+): number | null {
   const number = numericValue(readValue(record, keys));
   return Number.isFinite(number) ? number : null;
 }
@@ -114,7 +124,9 @@ function responseRecords(payload: unknown): JsonRecord[] {
   if (root === null) return [];
   const response = root.response ?? payload;
   if (Array.isArray(response)) {
-    return response.map(asRecord).filter((row): row is JsonRecord => row !== null);
+    return response.map(asRecord).filter((row): row is JsonRecord =>
+      row !== null
+    );
   }
   const record = asRecord(response);
   if (record === null) return [];
@@ -136,9 +148,18 @@ function responseMeta(payload: unknown): JsonRecord {
   return asRecord(root.response) ?? root;
 }
 
-function hasMorePages(payload: unknown, page: number, rowCount: number): boolean {
+function hasMorePages(
+  payload: unknown,
+  page: number,
+  rowCount: number,
+): boolean {
   const meta = responseMeta(payload);
-  const explicit = readValue(meta, ["hasMore", "has_more", "hasNext", "has_next"]);
+  const explicit = readValue(meta, [
+    "hasMore",
+    "has_more",
+    "hasNext",
+    "has_next",
+  ]);
   if (typeof explicit === "boolean") return explicit;
   const total = readNumber(meta, [
     "totalResults",
@@ -147,8 +168,8 @@ function hasMorePages(payload: unknown, page: number, rowCount: number): boolean
     "total_count",
     "total",
   ]);
-  const pageSize = readNumber(meta, ["pageSize", "page_size", "limit"])
-    ?? PAGE_SIZE;
+  const pageSize = readNumber(meta, ["pageSize", "page_size", "limit"]) ??
+    PAGE_SIZE;
   return total === null ? rowCount >= PAGE_SIZE : page * pageSize < total;
 }
 
@@ -228,7 +249,9 @@ function splitSession(
   const wh = sessionEnergyWh(record);
   if (startRaw === null || wh === null || wh <= 0) return [];
   const startMs = parseTimestamp(startRaw);
-  if (!Number.isFinite(startMs) || startMs < fromMs || startMs >= toMs) return [];
+  if (!Number.isFinite(startMs) || startMs < fromMs || startMs >= toMs) {
+    return [];
+  }
   const rawEnd = sessionEnd(record);
   const parsedEnd = rawEnd === null ? Number.NaN : parseTimestamp(rawEnd);
   const endMs = Number.isFinite(parsedEnd) && parsedEnd > startMs
@@ -241,8 +264,14 @@ function splitSession(
   const localOffset = offsetMinutes(startRaw);
   return Array.from({ length: count }, (_, index) => {
     const intervalStart = startMs + index * INTERVAL_SECONDS * 1000;
-    const intervalEnd = Math.min(endMs, intervalStart + INTERVAL_SECONDS * 1000);
-    const seconds = Math.max(1, Math.round((intervalEnd - intervalStart) / 1000));
+    const intervalEnd = Math.min(
+      endMs,
+      intervalStart + INTERVAL_SECONDS * 1000,
+    );
+    const seconds = Math.max(
+      1,
+      Math.round((intervalEnd - intervalStart) / 1000),
+    );
     const intervalWh = wh * seconds / durationSeconds;
     return {
       source: "vehicle-history" as const,
@@ -274,7 +303,10 @@ function historyUrl(
   }
   if (mode === "filtered") {
     url.searchParams.set("startTime", `${input.from}T00:00:00Z`);
-    url.searchParams.set("endTime", new Date(endExclusiveMs(input.to)).toISOString());
+    url.searchParams.set(
+      "endTime",
+      new Date(endExclusiveMs(input.to)).toISOString(),
+    );
     url.searchParams.set("sortBy", "chargeStartDateTime");
     url.searchParams.set("sortOrder", "ASC");
   }
@@ -306,7 +338,9 @@ async function firstPage(
   modes: readonly RequestMode[] = ["filtered", "vin-paged", "bare"],
 ): Promise<{ response: Response; mode: RequestMode }> {
   const mode = modes[0];
-  if (mode === undefined) throw new ChargingHistoryError("Charging history unavailable");
+  if (mode === undefined) {
+    throw new ChargingHistoryError("Charging history unavailable");
+  }
   const response = await requestPage(base, token, input, 1, mode, fetchFn);
   if (response.ok) return { response, mode };
   if ([400, 422].includes(response.status) && modes.length > 1) {
@@ -345,10 +379,12 @@ async function readPages(
     const vin = sessionVin(session);
     return vin === input.vin || (vin === null && mode !== "bare");
   });
-  const rows = matched.flatMap((session) => splitSession(session, fromMs, toMs));
-  const matchedCount = matched.filter((session) =>
-    splitSession(session, fromMs, toMs).length > 0
-  ).length;
+  const rows = matched.flatMap((session) =>
+    splitSession(session, fromMs, toMs)
+  );
+  const matchedCount =
+    matched.filter((session) => splitSession(session, fromMs, toMs).length > 0)
+      .length;
   const more = hasMorePages(payload, page, sessions.length);
   const stop = !more || mode === "bare" || page >= MAX_PAGES;
   const current: PageArchive = {
@@ -362,7 +398,15 @@ async function readPages(
   };
   if (stop) return current;
   const next = await requestPage(base, token, input, page + 1, mode, fetchFn);
-  const tail = await readPages(base, token, input, fetchFn, mode, page + 1, next);
+  const tail = await readPages(
+    base,
+    token,
+    input,
+    fetchFn,
+    mode,
+    page + 1,
+    next,
+  );
   return {
     rows: [...current.rows, ...tail.rows],
     pagesRead: current.pagesRead + tail.pagesRead,
@@ -384,5 +428,13 @@ export async function fetchChargingHistory(
     provider.getFleetApiBaseUrl(),
   ]);
   const first = await firstPage(base, token, input, fetchFn);
-  return await readPages(base, token, input, fetchFn, first.mode, 1, first.response);
+  return await readPages(
+    base,
+    token,
+    input,
+    fetchFn,
+    first.mode,
+    1,
+    first.response,
+  );
 }
