@@ -120,7 +120,7 @@ describe("VehicleCard", () => {
 
     expect(screen.getByText("Charging with lower-cost electricity"))
       .toBeInTheDocument();
-    expect(screen.getByText(/Charging · 7.400 W/)).toBeInTheDocument();
+    expect(screen.getByText("Charging · 7.4 kW")).toBeInTheDocument();
     expect(screen.getByTestId("vehicle-charge-status"))
       .toHaveAttribute("data-status", "charging");
     expect(screen.getByTestId("vehicle-charge-status"))
@@ -136,7 +136,7 @@ describe("VehicleCard", () => {
       controllerReason: "solar_tracking",
     });
 
-    expect(screen.getByText(/Charging · 4.800 W/)).toBeInTheDocument();
+    expect(screen.getByText("Charging · 4.8 kW")).toBeInTheDocument();
     expect(screen.getByTestId("vehicle-charge-status"))
       .toHaveAttribute("data-mode", "vacation");
   });
@@ -364,7 +364,7 @@ describe("VehicleCard", () => {
   it("shows a red stopped status when Stop is active", () => {
     renderVC({
       mode: "stop",
-      state: makeVehicleState({ isCharging: true, chargePowerKw: 4.8 }),
+      state: makeVehicleState({ isCharging: false }),
     });
 
     expect(screen.getByText("Stopped")).toBeInTheDocument();
@@ -375,6 +375,33 @@ describe("VehicleCard", () => {
     expect(screen.getByTestId("vehicle-charge-status"))
       .toHaveAttribute("data-status", "stopped");
   });
+
+  it.each([true, false])(
+    "keeps actual charging visible in Stop mode (home: %s)",
+    (atHome) => {
+      renderVC({
+        mode: "stop",
+        atHome,
+        state: makeVehicleState({ isCharging: true, chargePowerKw: 4.8 }),
+      });
+      expect(screen.getByText("Charging · 4.8 kW")).toBeInTheDocument();
+      expect(screen.queryByText("Stopped")).not.toBeInTheDocument();
+      expect(screen.getByText(
+        atHome
+          ? "Stop requested — waiting for vehicle confirmation"
+          : "Charging away from home",
+      )).toBeInTheDocument();
+    },
+  );
+
+  it.each(["stop", "vacation"] as const)(
+    "does not apply home %s waiting status to an away vehicle",
+    (mode) => {
+      renderVC({ mode, atHome: false, controllerReason: "battery_priority" });
+      expect(screen.getByText("Connected · Not charging")).toBeInTheDocument();
+      expect(screen.getByText("Plugged in away from home")).toBeInTheDocument();
+    },
+  );
 
   it("does not show stale charging metrics during an error", () => {
     renderVC({

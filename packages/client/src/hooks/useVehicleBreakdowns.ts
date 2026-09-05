@@ -93,9 +93,16 @@ export function computeUnassignedBreakdown(
     data.totalBatteryWh,
     attributed.batteryWh,
   );
-  const totalGridWh = nonNegativeDifference(data.totalGridWh, attributed.gridWh);
-  const totalAwayWh = nonNegativeDifference(data.totalAwayWh, attributed.awayWh);
-  const totalChargedWh = totalSolarWh + totalBatteryWh + totalGridWh + totalAwayWh;
+  const totalGridWh = nonNegativeDifference(
+    data.totalGridWh,
+    attributed.gridWh,
+  );
+  const totalAwayWh = nonNegativeDifference(
+    data.totalAwayWh,
+    attributed.awayWh,
+  );
+  const totalChargedWh = totalSolarWh + totalBatteryWh + totalGridWh +
+    totalAwayWh;
 
   // Keep real legacy/unattributed history visible, but ignore sub-Wh float noise.
   if (totalChargedWh < 1) return null;
@@ -192,9 +199,10 @@ export function useVehicleBreakdowns({
   );
   const hasCompleteVehicleStats = vehicleBreakdowns.length === vehicles.length;
   const unassignedBreakdown = useMemo(
-    () => hasConfiguredVehicles && hasCompleteVehicleStats
-      ? computeUnassignedBreakdown(data, vehicleBreakdowns)
-      : null,
+    () =>
+      hasConfiguredVehicles && hasCompleteVehicleStats
+        ? computeUnassignedBreakdown(data, vehicleBreakdowns)
+        : null,
     [data, vehicleBreakdowns, hasConfiguredVehicles, hasCompleteVehicleStats],
   );
 

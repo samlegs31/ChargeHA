@@ -48,13 +48,13 @@ function MobileMenu(
   },
 ) {
   return (
-    <div className={styles.mobileMenu}>
+    <div id="mobile-navigation" className={styles.mobileMenu}>
       <nav className={styles.mobileNav}>
         {NAV_ITEMS.map(({ page, label, icon: Icon }) => (
-          <Text
+          <button
+            type="button"
             key={page}
-            size="3"
-            weight="medium"
+            aria-current={activePage === page ? "page" : undefined}
             className={activePage === page
               ? styles.mobileNavLinkActive
               : styles.mobileNavLink}
@@ -62,7 +62,7 @@ function MobileMenu(
           >
             <Icon size={16} />
             {label}
-          </Text>
+          </button>
         ))}
       </nav>
       {authMode && authMode !== "none" && onLogout && (
@@ -104,26 +104,27 @@ export function AppLayout(
   return (
     <div className={styles.layout}>
       <header className={styles.header}>
-        <div
+        <button
+          type="button"
           className={styles.brand}
           onClick={() => handleNavigate("dashboard")}
           aria-label="E.V. Solar"
         >
           <BrandLogo className={styles.brandLogo} alt="" />
-        </div>
+        </button>
         <nav className={styles.nav}>
           {NAV_ITEMS.map(({ page, label }) => (
-            <Text
+            <button
+              type="button"
               key={page}
-              size="2"
-              weight="medium"
+              aria-current={activePage === page ? "page" : undefined}
               className={activePage === page
                 ? styles.navLinkActive
                 : styles.navLink}
               onClick={() => onNavigate(page)}
             >
               {label}
-            </Text>
+            </button>
           ))}
         </nav>
         <div className={styles.status}>
@@ -151,6 +152,8 @@ export function AppLayout(
           className={styles.menuButton}
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-navigation"
         >
           {mobileMenuOpen
             ? <X size={26} strokeWidth={2.4} />

@@ -38,9 +38,7 @@ async function availableYears(
   vehicleId?: string,
 ): Promise<number[]> {
   const offset = sqliteTimezoneOffset(tz);
-  const nativeVehicle = vehicleId
-    ? sql`AND vehicle_id = ${vehicleId}`
-    : sql``;
+  const nativeVehicle = vehicleId ? sql`AND vehicle_id = ${vehicleId}` : sql``;
   const archiveVehicle = archiveVehicleFilter(vehicleId);
   const rows = await db.db.all<{ year: string | null }>(sql`
     SELECT year FROM (
@@ -117,7 +115,9 @@ export async function buildTotalStats(
   const annual = await Promise.all(
     years.map((year) => annualStats(db, statsService, year, tz, vehicleId)),
   );
-  const buckets = annual.map((stats, index) => chargingBucket(years[index], stats));
+  const buckets = annual.map((stats, index) =>
+    chargingBucket(years[index], stats)
+  );
   const totalSolarWh = buckets.reduce((sum, row) => sum + row.solarWh, 0);
   const totalBatteryWh = buckets.reduce((sum, row) => sum + row.batteryWh, 0);
   const totalGridWh = buckets.reduce((sum, row) => sum + row.gridWh, 0);

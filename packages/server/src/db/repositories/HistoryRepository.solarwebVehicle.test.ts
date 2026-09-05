@@ -161,7 +161,11 @@ describe("vehicle-attributed charging history", () => {
       atHomeWh: 0,
     });
 
-    await repository.importRows("VIN_EDITH", [wattpilot, homeDuplicate, external]);
+    await repository.importRows("VIN_EDITH", [
+      wattpilot,
+      homeDuplicate,
+      external,
+    ]);
     const stats = await repository.getChargeHqStatsDay(
       "2025-06-02",
       "VIN_EDITH",
@@ -243,16 +247,20 @@ describe("vehicle-attributed charging history", () => {
       gridWh: 200,
       atHomeWh: 900,
     });
-    const edithTeslaOverlap = historyRow("vehicle-history", "edith-tesla-home", {
-      startTimeUtc: "2025-06-01 08:04:00",
-      startTimeLocal: "2025-06-01 10:04:00",
-      chargedWh: 1000,
-      solarWh: 0,
-      batteryWh: 0,
-      gridWh: 0,
-      awayWh: 1000,
-      atHomeWh: 0,
-    });
+    const edithTeslaOverlap = historyRow(
+      "vehicle-history",
+      "edith-tesla-home",
+      {
+        startTimeUtc: "2025-06-01 08:04:00",
+        startTimeLocal: "2025-06-01 10:04:00",
+        chargedWh: 1000,
+        solarWh: 0,
+        batteryWh: 0,
+        gridWh: 0,
+        awayWh: 1000,
+        atHomeWh: 0,
+      },
+    );
     const fridayHome = historyRow("chargehq", "friday-home", {
       chargedWh: 700,
       solarWh: 200,

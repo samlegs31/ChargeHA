@@ -117,15 +117,12 @@ function retryAfterMs(response: Response, detail: string): number {
   if (retryAfter) {
     const seconds = Number(retryAfter);
     if (Number.isFinite(seconds) && seconds >= 0) {
-      return Math.min(MAX_RETRY_AFTER_MS, Math.ceil(seconds * 1000));
+      return Math.ceil(seconds * 1000);
     }
 
     const retryDate = Date.parse(retryAfter);
     if (Number.isFinite(retryDate)) {
-      return Math.min(
-        MAX_RETRY_AFTER_MS,
-        Math.max(0, retryDate - Date.now()),
-      );
+      return Math.max(0, retryDate - Date.now());
     }
   }
 
@@ -133,7 +130,7 @@ function retryAfterMs(response: Response, detail: string): number {
   if (bodyMatch) {
     const seconds = Number(bodyMatch[1]);
     if (Number.isFinite(seconds) && seconds >= 0) {
-      return Math.min(MAX_RETRY_AFTER_MS, Math.ceil(seconds * 1000));
+      return Math.ceil(seconds * 1000);
     }
   }
 
@@ -158,13 +155,20 @@ async function solarWebRequest(
   const detail = await responseErrorDetail(response);
   if (retry >= MAX_RATE_LIMIT_RETRIES) {
     throw new SolarWebHistoryError(
-      `Solar.web API rate limit persisted after ${retry + 1} attempts: HTTP 429${
-        detail ? ` — ${detail}` : ""
-      }`,
+      `Solar.web API rate limit persisted after ${
+        retry + 1
+      } attempts: HTTP 429${detail ? ` — ${detail}` : ""}`,
     );
   }
 
   const waitMs = retryAfterMs(response, detail);
+  if (waitMs > MAX_RETRY_AFTER_MS) {
+    throw new SolarWebHistoryError(
+      `Solar.web quota requires waiting ${
+        Math.ceil(waitMs / 60_000)
+      } minutes. Retry the import later; no early retry was sent.`,
+    );
+  }
   console.warn(
     `[solarweb-history] Solar.web API rate limit reached during ${operation}; retrying in ${
       Math.ceil(waitMs / 1000)
@@ -229,9 +233,10 @@ async function fetchJson(
   );
   if (!response.ok) {
     const detail = await responseErrorDetail(response);
-    const message = `Solar.web aggregate request failed: HTTP ${response.status}${
-      detail ? ` — ${detail}` : ""
-    }`;
+    const message =
+      `Solar.web aggregate request failed: HTTP ${response.status}${
+        detail ? ` — ${detail}` : ""
+      }`;
     console.error(`[solarweb-history] ${message}`);
     throw new SolarWebHistoryError(message);
   }
@@ -336,7 +341,9 @@ async function fetchAggregates(
   // production response shape observed on a real Wattpilot installation.
   const params = new URLSearchParams({ from, to });
   const body = await fetchJson(
-    `/pvsystems/${encodeURIComponent(pvSystemId)}/aggrdata?${params.toString()}`,
+    `/pvsystems/${
+      encodeURIComponent(pvSystemId)
+    }/aggrdata?${params.toString()}`,
     token,
     fetchFn,
   );

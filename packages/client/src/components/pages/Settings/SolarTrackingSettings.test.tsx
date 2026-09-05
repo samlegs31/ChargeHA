@@ -125,7 +125,8 @@ describe("SolarTrackingSettings", () => {
 
   it("does not expose legacy solar mode/reference controls or the stale simulator", () => {
     renderWithProviders(<SolarTrackingSettings />);
-    expect(screen.queryByText("Solar tracking enabled")).not.toBeInTheDocument();
+    expect(screen.queryByText("Solar tracking enabled")).not
+      .toBeInTheDocument();
     expect(screen.queryByText("Mode")).not.toBeInTheDocument();
     expect(screen.queryByText("Reference")).not.toBeInTheDocument();
     expect(screen.queryByText("Solar + Grid")).not.toBeInTheDocument();

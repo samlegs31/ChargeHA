@@ -62,7 +62,11 @@ describe("useStats", () => {
   const createWrapper = () => {
     const queryClient = createTestQueryClient();
     return ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: queryClient }, children);
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        children,
+      );
   };
 
   const setResult = (period: Period, state: Partial<QueryState>) => {

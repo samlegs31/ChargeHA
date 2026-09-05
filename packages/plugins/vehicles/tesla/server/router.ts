@@ -35,7 +35,9 @@ function vehicleVisualConfigProcedure(plugin: TeslaVehiclePlugin) {
       const fleetBase = await plugin.teslaTokenManager.getFleetApiBaseUrl();
       const endpoints = encodeURIComponent("vehicle_config");
       const response = await fetch(
-        `${fleetBase}/api/1/vehicles/${encodeURIComponent(input.vin)}/vehicle_data?endpoints=${endpoints}`,
+        `${fleetBase}/api/1/vehicles/${
+          encodeURIComponent(input.vin)
+        }/vehicle_data?endpoints=${endpoints}`,
         {
           headers: { Authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(15000),

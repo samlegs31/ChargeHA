@@ -10,15 +10,16 @@ export function BrandLogo({
   className = "",
 }: BrandLogoProps) {
   return (
-    <span className={`${styles.logo} ${className}`}>
+    <picture className={`${styles.logo} ${className}`}>
+      <source
+        media="(prefers-color-scheme: dark)"
+        srcSet="/ev-solar-logo-dark-exact.webp"
+      />
       <img
-        className={styles.icon}
-        src="/icon-192-exact.png"
+        className={styles.artwork}
+        src="/ev-solar-logo-exact.webp"
         alt={alt}
       />
-      <span className={styles.wordmark} aria-hidden="true">
-        E.V. <span className={styles.solar}>Solar</span>
-      </span>
-    </span>
+    </picture>
   );
 }

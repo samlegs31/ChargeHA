@@ -292,7 +292,6 @@ export function SolarTrackingSettings() {
 
         {showAdvanced && <AdvancedRows fields={fields} setField={setField} />}
       </SettingsSection>
-
     </>
   );
 }

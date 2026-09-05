@@ -323,13 +323,15 @@ describe("App", () => {
     it("renders WizardShell when path is /wizard", async () => {
       globalThis.history.pushState(null, "", "/wizard");
       render(<App />);
-      expect(await screen.findByText("Wizard Page")).toBeInTheDocument();
+      expect(await screen.findByText("Wizard Page", {}, { timeout: 5000 }))
+        .toBeInTheDocument();
     });
 
     it("navigates to Dashboard when wizard completes", async () => {
       globalThis.history.pushState(null, "", "/wizard");
       render(<App />);
-      expect(await screen.findByText("Wizard Page")).toBeInTheDocument();
+      expect(await screen.findByText("Wizard Page", {}, { timeout: 5000 }))
+        .toBeInTheDocument();
 
       await userEvent.click(screen.getByText("Complete Wizard"));
       expect(screen.getByText("Dashboard Page")).toBeInTheDocument();

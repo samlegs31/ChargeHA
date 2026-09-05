@@ -84,7 +84,11 @@ describe("useVehicleBreakdowns", () => {
   const createWrapper = () => {
     const queryClient = createTestQueryClient();
     return ({ children }: { children: React.ReactNode }) =>
-      React.createElement(QueryClientProvider, { client: queryClient }, children);
+      React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        children,
+      );
   };
 
   type Args = Parameters<typeof useVehicleBreakdowns>[0];
@@ -388,7 +392,8 @@ describe("useVehicleBreakdowns", () => {
     expect(result.current.activeVehicleBreakdowns).toHaveLength(1);
     expect(result.current.activeVehicleBreakdowns[0].vehicleId).toBe("VIN1");
     expect(result.current.activeVehicleBreakdowns[0].exteriorColor).toBeNull();
-    expect(result.current.activeVehicleBreakdowns[0].homeChargingSource).toBeNull();
+    expect(result.current.activeVehicleBreakdowns[0].homeChargingSource)
+      .toBeNull();
     expect(result.current.unassignedBreakdown).toEqual({
       totalChargedWh: 2500,
       totalSolarWh: 1000,

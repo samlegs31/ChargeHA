@@ -5,10 +5,10 @@
   border-radius: 20px;
   background:
     radial-gradient(
-      circle at 5% 5%,
-      color-mix(in srgb, var(--yellow-8) 13%, transparent),
-      transparent 44%
-    ),
+    circle at 5% 5%,
+    color-mix(in srgb, var(--yellow-8) 13%, transparent),
+    transparent 44%
+  ),
     var(--gray-a2);
 }
 

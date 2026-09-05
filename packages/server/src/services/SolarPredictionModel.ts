@@ -112,9 +112,13 @@ function sanitizeLearningState(value: unknown): SolarPredictionLearningState {
   };
 }
 
-function sanitizeBuckets(value: unknown): Record<string, SolarPredictionLearningBucket> {
+function sanitizeBuckets(
+  value: unknown,
+): Record<string, SolarPredictionLearningBucket> {
   if (!isRecord(value)) return {};
-  return Object.entries(value).reduce<Record<string, SolarPredictionLearningBucket>>(
+  return Object.entries(value).reduce<
+    Record<string, SolarPredictionLearningBucket>
+  >(
     (result, [key, bucket]) => {
       const sanitized = sanitizeBucket(bucket);
       return sanitized ? { ...result, [key]: sanitized } : result;
@@ -155,7 +159,9 @@ function sanitizeProviders(
   );
 }
 
-function sanitizeProvider(value: unknown): SolarPredictionProviderLearning | null {
+function sanitizeProvider(
+  value: unknown,
+): SolarPredictionProviderLearning | null {
   if (!isRecord(value)) return null;
   if (!finiteInRange(value.meanAbsPctError, 0, 1)) return null;
   if (!finiteInRange(value.sampleCount, 0, 1_000_000)) return null;
@@ -191,7 +197,11 @@ export function updateSolarPredictionLearning(
   const error = observationError(observation.actualW, observation.predictedW);
   const alpha = existing.sampleCount < 4 ? 0.22 : 0.08;
   const bucket = updatedLearningBucket(existing, ratio, error, alpha, slot);
-  const providers = updatedProviderLearnings(state.providers, observation, slot);
+  const providers = updatedProviderLearnings(
+    state.providers,
+    observation,
+    slot,
+  );
   return {
     ...state,
     buckets: { ...state.buckets, [key]: bucket },
@@ -202,7 +212,8 @@ export function updateSolarPredictionLearning(
 function validObservation(observation: SolarPredictionObservation): boolean {
   if (!Number.isFinite(observation.predictedW)) return false;
   if (!Number.isFinite(observation.actualW)) return false;
-  return observation.predictedW >= MIN_LEARNING_POWER_W && observation.actualW >= 0;
+  return observation.predictedW >= MIN_LEARNING_POWER_W &&
+    observation.actualW >= 0;
 }
 
 function emptyLearningBucket(): SolarPredictionLearningBucket {
@@ -289,7 +300,9 @@ function emptyProviderLearning(): SolarPredictionProviderLearning {
   return { meanAbsPctError: 0.25, sampleCount: 0, lastObservedSlot: null };
 }
 
-function isSolarWeatherProvider(value: string): value is SolarWeatherProviderId {
+function isSolarWeatherProvider(
+  value: string,
+): value is SolarWeatherProviderId {
   return value === "meteofrance" || value === "dwd_icon";
 }
 
@@ -351,10 +364,13 @@ function aggregatePoint(
 ): AggregateSums {
   const bucket = state.buckets[learningBucketKey(point.at, timezone)];
   const learned = Boolean(bucket && bucket.sampleCount > 0);
-  const error = learned ? bucket?.meanAbsPctError ?? UNLEARNED_ERROR : UNLEARNED_ERROR;
+  const error = learned
+    ? bucket?.meanAbsPctError ?? UNLEARNED_ERROR
+    : UNLEARNED_ERROR;
   const interval = empiricalIntervalAt(state, point.at, timezone);
   return {
-    sampleWeighted: result.sampleWeighted + (bucket?.sampleCount ?? 0) * point.powerW,
+    sampleWeighted: result.sampleWeighted +
+      (bucket?.sampleCount ?? 0) * point.powerW,
     errorWeighted: result.errorWeighted + error * point.powerW,
     intervalWeighted: result.intervalWeighted + interval * point.powerW,
     learnedWeight: result.learnedWeight + (learned ? point.powerW : 0),
@@ -525,7 +541,12 @@ export function buildSolarPredictionConfidence(
   const rawScore = 50 + sampleBonus + coverageBonus + providerBonus -
     learnedError * 38 - spread * 30 - liveDeviation * 26 - capacityPenalty;
   const score = Math.round(clamp(rawScore, 20, 97));
-  const intervalPct = confidenceIntervalPct(input, learnedError, spread, coverage);
+  const intervalPct = confidenceIntervalPct(
+    input,
+    learnedError,
+    spread,
+    coverage,
+  );
   return {
     score,
     label: confidenceLabel(score),
@@ -564,7 +585,9 @@ function confidenceRegime(
   coverage: number,
 ): "stable" | "variable" | "uncertain" {
   if (coverage < 0.35) return "uncertain";
-  if (spread <= 0.12 && liveDeviation <= 0.12 && coverage >= 0.7) return "stable";
+  if (spread <= 0.12 && liveDeviation <= 0.12 && coverage >= 0.7) {
+    return "stable";
+  }
   if (spread <= 0.25 && liveDeviation <= 0.25) return "variable";
   return "uncertain";
 }

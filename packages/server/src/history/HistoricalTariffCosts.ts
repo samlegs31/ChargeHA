@@ -102,7 +102,9 @@ function bucketIndex(
   if (response.period === "year") return month - 1;
   if (response.period === "month") return day - 1;
   if (response.period === "day") {
-    const detailed = response.buckets.some((bucket) => bucket.label.includes(":"));
+    const detailed = response.buckets.some((bucket) =>
+      bucket.label.includes(":")
+    );
     return detailed ? hour * 4 + Math.floor(minute / 15) : hour;
   }
   return null;

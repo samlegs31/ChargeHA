@@ -124,7 +124,9 @@ function normalizeVector([x, y, z]: Vec3): Vec3 {
 
 function trianglesToMesh(items: readonly Triangle[]): MeshData {
   return {
-    positions: items.flatMap((item) => item.points.flatMap((point) => [...point])),
+    positions: items.flatMap((item) =>
+      item.points.flatMap((point) => [...point])
+    ),
     normals: items.flatMap((item) => [
       ...item.normal,
       ...item.normal,
@@ -133,16 +135,23 @@ function trianglesToMesh(items: readonly Triangle[]): MeshData {
   };
 }
 
-function extrudedProfile(profile: readonly Vec2[], halfWidth: number): MeshData {
+function extrudedProfile(
+  profile: readonly Vec2[],
+  halfWidth: number,
+): MeshData {
   if (profile.length < 3) return { positions: [], normals: [] };
   const front = profile.map(([x, y]) => vec3(x, y, halfWidth));
   const back = profile.map(([x, y]) => vec3(x, y, -halfWidth));
   const faceCount = profile.length - 2;
-  const frontFaces = Array.from({ length: faceCount }, (_, index) =>
-    triangle(front[0], front[index + 1], front[index + 2], vec3(0, 0, 1))
+  const frontFaces = Array.from(
+    { length: faceCount },
+    (_, index) =>
+      triangle(front[0], front[index + 1], front[index + 2], vec3(0, 0, 1)),
   );
-  const backFaces = Array.from({ length: faceCount }, (_, index) =>
-    triangle(back[0], back[index + 2], back[index + 1], vec3(0, 0, -1))
+  const backFaces = Array.from(
+    { length: faceCount },
+    (_, index) =>
+      triangle(back[0], back[index + 2], back[index + 1], vec3(0, 0, -1)),
   );
   const sideFaces = profile.flatMap((point, index) => {
     const next = profile[(index + 1) % profile.length];
@@ -150,7 +159,9 @@ function extrudedProfile(profile: readonly Vec2[], halfWidth: number): MeshData 
     const b = vec3(next[0], next[1], halfWidth);
     const c = vec3(point[0], point[1], -halfWidth);
     const d = vec3(next[0], next[1], -halfWidth);
-    const normal = normalizeVector(vec3(next[1] - point[1], point[0] - next[0], 0));
+    const normal = normalizeVector(
+      vec3(next[1] - point[1], point[0] - next[0], 0),
+    );
     return [triangle(a, c, b, normal), triangle(b, c, d, normal)];
   });
   return trianglesToMesh([...frontFaces, ...backFaces, ...sideFaces]);
@@ -169,7 +180,11 @@ function cylinderPoint(
   );
 }
 
-function cylinderMesh(center: Vec3, radius: number, halfDepth: number): MeshData {
+function cylinderMesh(
+  center: Vec3,
+  radius: number,
+  halfDepth: number,
+): MeshData {
   const segments = 18;
   const parts = Array.from({ length: segments }, (_, index) => {
     const a0 = index / segments * Math.PI * 2;
@@ -504,7 +519,8 @@ export function TeslaLocal3DPreview(
         <span>Drag to rotate</span>
         {stats && (
           <span>
-            {stats.backend} · {Math.round(stats.triangles)} triangles · {stats.renderMs.toFixed(2)} ms
+            {stats.backend} · {Math.round(stats.triangles)} triangles ·{" "}
+            {stats.renderMs.toFixed(2)} ms
           </span>
         )}
       </div>

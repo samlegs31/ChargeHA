@@ -275,7 +275,8 @@ export class NotificationListener {
     }
 
     const previousSoc = this.lastBatterySoc;
-    const crossedTarget = previousSoc !== null && previousSoc < limit && soc >= limit;
+    const crossedTarget = previousSoc !== null && previousSoc < limit &&
+      soc >= limit;
 
     if (crossedTarget && !this.batteryTargetReached) {
       this.batteryTargetReached = true;
@@ -285,7 +286,9 @@ export class NotificationListener {
       this.notificationService.notify(
         "battery_target_reached",
         "Home Battery Ready",
-        `Home battery reached ${Math.round(soc)}%. Priority target ${limit}% is satisfied.`,
+        `Home battery reached ${
+          Math.round(soc)
+        }%. Priority target ${limit}% is satisfied.`,
       );
     }
 

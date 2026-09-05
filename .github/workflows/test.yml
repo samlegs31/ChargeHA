@@ -13,7 +13,7 @@ jobs:
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.9.4
+          deno-version: v2.9.6
 
       - name: Cache Deno deps
         uses: actions/cache@v4
@@ -21,9 +21,9 @@ jobs:
           path: |
             ~/.cache/deno
             node_modules
-          key: deno-2.9.4-${{ runner.os }}-${{ hashFiles('deno.lock', 'deno.json', 'packages/*/deno.json') }}
+          key: deno-2.9.6-${{ runner.os }}-${{ hashFiles('deno.lock', 'deno.json', 'packages/*/deno.json') }}
           restore-keys: |
-            deno-2.9.4-${{ runner.os }}-
+            deno-2.9.6-${{ runner.os }}-
 
       - name: Print Deno version
         run: deno --version
@@ -33,9 +33,6 @@ jobs:
 
       # Keep these checks in the exact same order as `deno task check:all`, but
       # expose each command as its own step so CI failures identify the blocker.
-      - name: Format
-        run: deno fmt
-
       - name: Format check
         run: deno fmt --check
 

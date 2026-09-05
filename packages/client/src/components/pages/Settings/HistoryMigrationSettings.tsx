@@ -325,7 +325,8 @@ function ChargeHqFilePicker(
     <div>
       <Text size="2" weight="medium">Choose your ChargeHQ CSV file</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
-        Choose the Interval Data export from ChargeHQ. E.V. Solar checks it automatically.
+        Choose the Interval Data export from ChargeHQ. E.V. Solar checks it
+        automatically.
       </Text>
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
         <input
@@ -389,11 +390,13 @@ function ChargeHqPreview({ summary }: { summary: ChargeHqSummary }) {
     <Card style={{ borderLeft: "3px solid var(--blue-9)" }}>
       <Text size="2" weight="bold">Ready to import</Text>
       <Text size="2" style={{ display: "block", marginTop: 6 }}>
-        {formatKwh(summary.chargedKwh)} kWh total · {formatKwh(summary.atHomeKwh)} kWh at home ·{" "}
+        {formatKwh(summary.chargedKwh)} kWh total ·{" "}
+        {formatKwh(summary.atHomeKwh)} kWh at home ·{" "}
         {formatKwh(summary.awayKwh)} kWh away
       </Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-        {summary.firstStartTimeLocal ?? "?"} → {summary.lastStartTimeLocal ?? "?"}
+        {summary.firstStartTimeLocal ?? "?"} →{" "}
+        {summary.lastStartTimeLocal ?? "?"}
       </Text>
     </Card>
   );
@@ -405,7 +408,8 @@ function ExistingArchive({ coverage }: { coverage: HistoryCoverage | null }) {
     <Card>
       <Text size="2" weight="bold">Already imported</Text>
       <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-        {coverage.firstStartTimeLocal ?? "?"} → {coverage.lastStartTimeLocal ?? "?"} ·{" "}
+        {coverage.firstStartTimeLocal ?? "?"} →{" "}
+        {coverage.lastStartTimeLocal ?? "?"} ·{" "}
         {formatKwh(coverage.chargedWh / 1000)} kWh
       </Text>
     </Card>
@@ -420,7 +424,14 @@ function ImportControls({ model }: { model: HistoryMigrationModel }) {
   const hasVehicle = model.vehicleId !== "" && model.vehicles.length > 0;
   const disabled = model.busy || !model.readyToImport || !hasVehicle;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+      }}
+    >
       <Button size="2" disabled={disabled} onClick={model.importHistory}>
         <Upload size={15} />
         {importButtonLabel(model.isImporting)}
@@ -443,8 +454,10 @@ function ImportResultCard({ result }: { result: ImportTotals | null }) {
       <details style={{ marginTop: 8 }}>
         <summary style={{ cursor: "pointer" }}>Technical details</summary>
         <Text size="1" color="gray" style={{ display: "block", marginTop: 4 }}>
-          {result.files} files · {result.parsedIntervals} intervals · {result.insertedRows}{" "}
-          rows added · {result.duplicateRows} duplicates · {result.overlapRows} overlaps skipped
+          {result.files} files · {result.parsedIntervals} intervals ·{" "}
+          {result.insertedRows} rows added · {result.duplicateRows} duplicates ·
+          {" "}
+          {result.overlapRows} overlaps skipped
         </Text>
       </details>
     </Card>
@@ -472,7 +485,9 @@ function HistoryMigrationView({ model }: { model: HistoryMigrationModel }) {
           onSelect={model.selectFiles}
         />
         <ChargeHqFileList files={model.files} previews={model.previews} />
-        {model.readyToImport && <ChargeHqPreview summary={model.previewTotals} />}
+        {model.readyToImport && (
+          <ChargeHqPreview summary={model.previewTotals} />
+        )}
         <ExistingArchive coverage={model.coverage} />
         <ImportControls model={model} />
         <ImportResultCard result={model.lastImport} />
