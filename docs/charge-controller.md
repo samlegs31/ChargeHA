@@ -129,8 +129,12 @@ In excess mode two adjustments are applied to `-gridPowerW`:
   in self-consumption mode and not drawing from the grid makes the vehicle's own
   draw reappear as available solar through the add-back below, and the car
   charges off the house battery - probably not what you want!. Battery
-  _charging_ is not added back — we'll try to charge a home battery first from
-  any solar surplus (see battery priority for SoC-based control).
+  _charging_ keeps priority until the enabled home-battery reserve is reached.
+  At or above that threshold, its charging power is added back so the EV can
+  start from solar even while the inverter holds grid export at zero. Grid
+  import is still subtracted, and battery discharge is never counted as solar.
+  Without an enabled reserve or a valid battery SoC, charging power is not
+  reclaimed.
 - **The vehicle's charge power is added back** when the energy meter includes EV
   charging in its consumption reading (that's the most common setup), since the
   car's own draw suppresses export. Skipped if `consumptionExcludesCharging` is

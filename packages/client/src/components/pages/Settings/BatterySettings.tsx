@@ -92,7 +92,7 @@ function BatteryReserveRows({
 
       <SettingsRow
         label="Keep at least"
-        help="Solar car charging pauses if the home battery falls below this level."
+        help="The home battery charges first up to this level. Once reached, available solar goes to the car, starting at minimum current. Car charging pauses if the battery falls below this level."
       >
         <div
           style={{

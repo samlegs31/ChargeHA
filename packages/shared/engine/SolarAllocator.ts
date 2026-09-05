@@ -52,6 +52,8 @@ export class SolarAllocator {
    *    off the home battery.
    *  - Adds back the EV's charge power when the meter includes EV load in
    *    consumption (the default), since the car's own draw suppresses export.
+   *  - Once the enabled home-battery reserve is reached, includes power still
+   *    charging that battery so the EV can start without waiting for export.
    *  - Caps at solar production: surplus can never exceed what the panels are
    *    making right now.
    *
@@ -60,10 +62,30 @@ export class SolarAllocator {
   static surplusW(
     energy: EnergyData,
     addBackW: number,
+    config: ControllerConfig,
   ): number {
     const batteryDischargeW = Math.max(0, energy.batteryPowerW ?? 0);
-    const exportW = -energy.gridPowerW - batteryDischargeW;
+    const batteryChargeW = SolarAllocator.reclaimableBatteryChargeW(
+      config,
+      energy,
+    );
+    // Once the reserve is met, redirect solar still going into the home
+    // battery to the EV. Subtracting grid import keeps grid-fed battery
+    // charging from being mistaken for available solar.
+    const exportW = -energy.gridPowerW - batteryDischargeW + batteryChargeW;
     return Math.min(exportW + addBackW, energy.solarProductionW);
+  }
+
+  private static reclaimableBatteryChargeW(
+    config: ControllerConfig,
+    energy: EnergyData,
+  ): number {
+    if (!config.batteryPriorityEnabled || energy.batterySoc === null) return 0;
+    const soc = energy.batterySoc;
+    if (!Number.isFinite(soc) || soc > 100) return 0;
+    if (soc < config.batteryPriorityLimit) return 0;
+    if (!Number.isFinite(energy.batteryPowerW)) return 0;
+    return Math.max(0, -(energy.batteryPowerW ?? 0));
   }
 
   /** Charge power to add back for one vehicle — zero when the meter already
@@ -98,7 +120,10 @@ export class SolarAllocator {
       return Math.max(0, energy.solarProductionW - marginW);
     }
 
-    return Math.max(0, SolarAllocator.surplusW(energy, addBackW) - marginW);
+    return Math.max(
+      0,
+      SolarAllocator.surplusW(energy, addBackW, config) - marginW,
+    );
   }
 
   /** Calculate available solar power in watts for a single vehicle's charging. */
