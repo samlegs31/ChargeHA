@@ -132,10 +132,10 @@ export class SolarAllocator {
     return Math.max(
       0,
       SolarAllocator.surplusW(
-          energy,
-          addBackW,
-          reclaimableBatteryChargeW,
-        ) - marginW,
+        energy,
+        addBackW,
+        reclaimableBatteryChargeW,
+      ) - marginW,
     );
   }
 
