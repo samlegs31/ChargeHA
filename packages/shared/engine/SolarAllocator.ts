@@ -42,6 +42,26 @@ export class SolarAllocator {
     return config.threePhaseCharger ? 3 : state.chargerPhases;
   }
 
+  /** Solar power currently charging the home battery that can be redirected
+   *  to an EV without violating the configured home-battery reserve.
+   *
+   *  Below the priority limit the battery keeps first claim on all charging
+   *  power. At or above the limit, charging power becomes part of the usable
+   *  solar budget: diverting it to the EV simply reduces battery charging.
+   *  Battery discharge is never counted here. */
+  static reclaimableBatteryChargeW(
+    config: ControllerConfig,
+    energy: EnergyData,
+  ): number {
+    if (
+      !config.batteryPriorityEnabled || energy.batterySoc === null ||
+      energy.batterySoc < config.batteryPriorityLimit
+    ) {
+      return 0;
+    }
+    return Math.max(0, -(energy.batteryPowerW ?? 0));
+  }
+
   /** Surplus solar in watts, before the safety margin.
    *
    *  Starts from grid export, then:
@@ -50,20 +70,27 @@ export class SolarAllocator {
    *    drawing from the grid, and would makes the EV's own draw reappear as
    *    "available solar" through the add-back below, and the car would charge
    *    off the home battery.
+   *  - Adds back reclaimable home-battery charging once the configured
+   *    priority SOC has been reached. This lets the EV use solar that would
+   *    otherwise keep filling the home battery above its priority reserve.
    *  - Adds back the EV's charge power when the meter includes EV load in
    *    consumption (the default), since the car's own draw suppresses export.
    *  - Caps at solar production: surplus can never exceed what the panels are
    *    making right now.
    *
-   *  `addBackW` is the charge power to add back — 0 when the meter excludes EV
-   *  load or nothing is charging. */
+   *  `addBackW` is the EV charge power to add back — 0 when the meter excludes
+   *  EV load or nothing is charging. */
   static surplusW(
     energy: EnergyData,
     addBackW: number,
+    reclaimableBatteryChargeW = 0,
   ): number {
     const batteryDischargeW = Math.max(0, energy.batteryPowerW ?? 0);
     const exportW = -energy.gridPowerW - batteryDischargeW;
-    return Math.min(exportW + addBackW, energy.solarProductionW);
+    return Math.min(
+      exportW + reclaimableBatteryChargeW + addBackW,
+      energy.solarProductionW,
+    );
   }
 
   /** Charge power to add back for one vehicle — zero when the meter already
@@ -98,7 +125,18 @@ export class SolarAllocator {
       return Math.max(0, energy.solarProductionW - marginW);
     }
 
-    return Math.max(0, SolarAllocator.surplusW(energy, addBackW) - marginW);
+    const reclaimableBatteryChargeW = SolarAllocator.reclaimableBatteryChargeW(
+      config,
+      energy,
+    );
+    return Math.max(
+      0,
+      SolarAllocator.surplusW(
+        energy,
+        addBackW,
+        reclaimableBatteryChargeW,
+      ) - marginW,
+    );
   }
 
   /** Calculate available solar power in watts for a single vehicle's charging. */
