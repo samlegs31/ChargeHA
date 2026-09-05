@@ -44,6 +44,7 @@ export interface DecisionInputs {
     gridPowerW: number;
     homeConsumptionW: number;
     batterySoc: number | null;
+    batteryPowerW?: number | null;
   } | null;
   vehicleState: {
     isPluggedIn: boolean;
@@ -857,6 +858,7 @@ export class ChargeController {
       gridPowerW: energy.gridPowerW,
       homeConsumptionW: energy.homeConsumptionW,
       batterySoc: energy.batterySoc,
+      batteryPowerW: energy.batteryPowerW,
     };
   }
 

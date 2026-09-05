@@ -1147,7 +1147,7 @@ export class ControllerEngine {
     const voltage = SolarAllocator.resolveVoltage(state, energy, config);
     const phases = SolarAllocator.resolvePhases(state, config);
     const addBackW = SolarAllocator.addBackW(config, state, voltage, phases);
-    return SolarAllocator.surplusW(energy, addBackW) / 1000;
+    return SolarAllocator.surplusW(energy, addBackW, config) / 1000;
   }
 
   // ---- Amp debouncing ----
