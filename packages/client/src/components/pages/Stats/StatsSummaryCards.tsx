@@ -68,8 +68,7 @@ function selfPoweredShare(data: StatsViewResponse | null): number {
 
   const totalWh = homeChargedWh(data);
   if (totalWh <= 0) return 0;
-  const selfPoweredWh = (data?.totalSolarWh ?? 0) +
-    (data?.totalBatteryWh ?? 0);
+  const selfPoweredWh = (data?.totalSolarWh ?? 0) + (data?.totalBatteryWh ?? 0);
   return Math.round((selfPoweredWh / totalWh) * 100);
 }
 
@@ -82,8 +81,7 @@ function selfPoweredDescription(
   if (share <= 0) {
     return "No solar or home-battery charging recorded for this period.";
   }
-  const selfPoweredWh = (data?.totalSolarWh ?? 0) +
-    (data?.totalBatteryWh ?? 0);
+  const selfPoweredWh = (data?.totalSolarWh ?? 0) + (data?.totalBatteryWh ?? 0);
   return `${
     kwhValue(selfPoweredWh)
   } of your home charging came from solar or your home battery.`;
