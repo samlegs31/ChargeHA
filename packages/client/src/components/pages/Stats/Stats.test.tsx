@@ -186,7 +186,9 @@ describe("Stats", () => {
     expect(screen.getByText("From Grid")).toBeInTheDocument();
     expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Self-powered charging")).toBeInTheDocument();
-    expect(screen.queryByText("Solar-powered charging")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Solar-powered charging"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Solar Produced")).not.toBeInTheDocument();
     expect(screen.queryByText("Total Consumed")).not.toBeInTheDocument();
   });
