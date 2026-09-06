@@ -1,3 +1,5 @@
+<!-- deno-fmt-ignore-file -->
+
 # E.V. Solar vs Charge HQ — functional parity audit
 
 Audit date: 2026-09-06  
