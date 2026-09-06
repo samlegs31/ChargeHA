@@ -60,24 +60,33 @@ function homeChargedWh(data: StatsViewResponse | null): number {
     (data?.totalGridWh ?? 0);
 }
 
-function solarShare(data: StatsViewResponse | null): number {
+function selfPoweredShare(data: StatsViewResponse | null): number {
+  const serverShare = data?.selfPoweredPercent;
+  if (typeof serverShare === "number" && Number.isFinite(serverShare)) {
+    return Math.max(0, Math.min(100, Math.round(serverShare)));
+  }
+
   const totalWh = homeChargedWh(data);
   if (totalWh <= 0) return 0;
-  return Math.round(((data?.totalSolarWh ?? 0) / totalWh) * 100);
+  const selfPoweredWh = (data?.totalSolarWh ?? 0) +
+    (data?.totalBatteryWh ?? 0);
+  return Math.round((selfPoweredWh / totalWh) * 100);
 }
 
-function solarShareDescription(
+function selfPoweredDescription(
   data: StatsViewResponse | null,
   loading: boolean,
   share: number,
 ): string {
-  if (loading) return "Calculating your solar share…";
+  if (loading) return "Calculating your self-powered share…";
   if (share <= 0) {
-    return "No direct solar charging recorded for this period.";
+    return "No solar or home-battery charging recorded for this period.";
   }
+  const selfPoweredWh = (data?.totalSolarWh ?? 0) +
+    (data?.totalBatteryWh ?? 0);
   return `${
-    kwhValue(data?.totalSolarWh ?? 0)
-  } of your home charging came directly from solar.`;
+    kwhValue(selfPoweredWh)
+  } of your home charging came from solar or your home battery.`;
 }
 
 export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
@@ -86,7 +95,7 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
   const solarSavingsCents = data?.evSolarSavingsCents ?? 0;
   const hasFinancialData = gridCostCents > 0 || solarSavingsCents > 0;
   const homeWh = homeChargedWh(data);
-  const share = solarShare(data);
+  const share = selfPoweredShare(data);
 
   return (
     <>
@@ -96,12 +105,12 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
             <Sun size={26} />
           </span>
           <div className={styles.heroCopy}>
-            <Text weight="bold">Solar-powered charging</Text>
+            <Text weight="bold">Self-powered charging</Text>
             <span className={styles.heroValue}>
               {loading ? "—" : `${share}%`}
             </span>
             <Text color="gray" className={styles.heroDescription}>
-              {solarShareDescription(data, loading, share)}
+              {selfPoweredDescription(data, loading, share)}
             </Text>
           </div>
         </div>
