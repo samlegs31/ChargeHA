@@ -185,10 +185,10 @@ describe("Stats", () => {
     expect(screen.getByText("From Battery")).toBeInTheDocument();
     expect(screen.getByText("From Grid")).toBeInTheDocument();
     expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("Solar-powered charging")).toBeInTheDocument();
+    expect(screen.getByText("Self-powered charging")).toBeInTheDocument();
+    expect(screen.queryByText("Solar-powered charging")).not.toBeInTheDocument();
     expect(screen.queryByText("Solar Produced")).not.toBeInTheDocument();
     expect(screen.queryByText("Total Consumed")).not.toBeInTheDocument();
-    expect(screen.queryByText("Self Powered")).not.toBeInTheDocument();
   });
 
   it("shows seven summary placeholders while loading", () => {
@@ -198,10 +198,23 @@ describe("Stats", () => {
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 
-  it("calculates solar share from home charging only", () => {
-    setStats({ isAtPresent: false, data: mockStatsData });
+  it("uses self-powered share including the home battery", () => {
+    setStats({
+      isAtPresent: false,
+      data: {
+        ...mockStatsData,
+        totalBatteryWh: 300,
+        totalChargedWh: 2300,
+        selfPoweredPercent: 85,
+      },
+    });
     renderStats();
-    expect(screen.getAllByText("82%").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("85%").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByText(
+        "1.7 kWh of your home charging came from solar or your home battery.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("does not render legacy home energy cards", () => {
