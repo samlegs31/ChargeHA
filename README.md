@@ -102,6 +102,21 @@ change charging. Telegram notifications can report charging events and errors.
 
 ## Latest changes — September 2026
 
+- **Shared power budgets:** multi-vehicle solar allocation works in watts before
+  converting to each car's voltage and phase count, and redistributes unused
+  power.
+- **Optional charging limits:** configure a maximum current per car and a
+  whole-home active grid-import limit in My cars. Limits apply to automatic and
+  manual commands; an enabled grid limit requires fresh home energy readings.
+  Defaults preserve the existing setup. These controls do not replace electrical
+  protection.
+- **Visible decision details:** the home card shows why a connected car is
+  waiting, including the home-battery reserve values, without opening the logs.
+- **Safer recovery:** battery-protected schedule blocks survive a restart for
+  the current occurrence. Queued starts are cancelled by a subsequent stop
+  request. The update script recovers from backup failure and requires a
+  matching image revision before stopping the service.
+
 - **Automatic solar handoff at the battery reserve:** solar flowing into the
   home battery becomes available to the EV once the configured reserve is met.
   Regression tests cover the threshold, gradual startup, away vehicles and
@@ -141,11 +156,10 @@ charger control or production control for other vehicle brands. Raspberry Pi is
 the supported development deployment; hosted server/VPS operation is not yet
 supported.
 
-Next priorities include a user-defined maximum-current cap, a real-time
-subscribed-power limiter, clearer charging-decision explanations, one-off
-schedules and CSV export. Subscribed power is currently modelled in forecasts;
-it is not a hard real-time controller limit. See the functional audit for the
-full roadmap.
+Next priorities include a departure-time planner, one-off schedules, durable
+history imports and CSV export. Subscribed kVA is modelled in forecasts; the new
+optional runtime grid limit controls measured active kW, not individual phase
+current or apparent power. See the functional audit for the broader roadmap.
 
 ## Self-hosted by design
 

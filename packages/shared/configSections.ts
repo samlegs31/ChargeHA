@@ -30,6 +30,16 @@ export function defineSection<const T extends SectionDef>(def: T): T {
 // ── Core section definitions ────────────────────────────────────────────────
 
 export const chargingConfigDef = defineSection({
+  vehicleCurrentLimits: {
+    key: "vehicle_current_limits",
+    schema: z.record(z.number().int().min(1).max(80)),
+    default: {} as Record<string, number>,
+  },
+  maxGridImportKw: {
+    key: "max_grid_import_kw",
+    schema: z.number().min(0).max(100).nullable(),
+    default: null,
+  },
   chargingEnabled: {
     key: "charging_enabled",
     schema: z.boolean(),
@@ -479,6 +489,14 @@ function deserializeValue<T extends z.ZodTypeAny>(
     const result = schema.safeParse(raw);
     return result.success ? result.data : defaultValue;
   }
+  if (innerSchema instanceof z.ZodRecord) {
+    try {
+      const result = schema.safeParse(JSON.parse(raw));
+      return result.success ? result.data : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  }
   // String passthrough
   return raw;
 }
@@ -494,7 +512,7 @@ function serializeValue<T extends z.ZodTypeAny>(
   if (value === null || value === undefined) return "";
   if (typeof value === "boolean") return value ? "true" : "false";
   if (typeof value === "number") return String(value);
-  return String(value);
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
 /** Unwrap z.nullable() to get the inner schema, or return the schema itself. */

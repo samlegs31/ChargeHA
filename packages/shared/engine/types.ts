@@ -16,6 +16,8 @@ import type { DecisionCheck } from "./DecisionChecks.ts";
  *  Assembled from the DB by ChargeController.loadConfig(), or constructed
  *  directly by the simulator. */
 export interface ControllerConfig {
+  vehicleCurrentLimits?: Record<string, number>;
+  maxGridImportKw?: number | null;
   chargingEnabled: boolean;
   controllerLoopSeconds: number;
   solarTrackingEnabled: boolean;
@@ -126,6 +128,7 @@ export interface VehicleControlState {
 /** Why the engine made this decision. Used by the UI to render
  *  user-friendly status messages without string-matching on detail. */
 export type DecisionReason =
+  | "power_limit"
   | "solar_tracking"
   | "schedule"
   | "blockout"

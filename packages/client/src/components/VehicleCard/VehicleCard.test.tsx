@@ -53,6 +53,27 @@ describe("VehicleCard", () => {
     return { props, ...renderWithProviders(<VehicleCard {...props} />) };
   };
 
+  it("shows the numeric reason for waiting without opening another screen", () => {
+    renderVC({
+      atHome: true,
+      controllerReason: "battery_priority",
+      controllerDetail: "Home battery 78% / 80% reserve",
+    });
+    expect(screen.getByTestId("charging-decision-detail")).toHaveTextContent(
+      "78% / 80%",
+    );
+  });
+
+  it("does not show a home waiting decision on an away vehicle", () => {
+    renderVC({
+      atHome: false,
+      controllerReason: "battery_priority",
+      controllerDetail: "Home battery 78% / 80% reserve",
+    });
+    expect(screen.queryByTestId("charging-decision-detail")).not
+      .toBeInTheDocument();
+  });
+
   it("shows a simple plugged-in card by default", () => {
     renderVC();
 

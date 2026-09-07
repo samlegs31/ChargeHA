@@ -1,3 +1,4 @@
+import { BatteryScheduleMemory } from "./BatteryScheduleMemory.ts";
 import {
   type ControllerAction,
   createTraceId,
@@ -96,6 +97,7 @@ export class ChargeController {
   private readonly configService: ConfigService;
   private readonly eventEmitter: TypedEventEmitter;
   private readonly logger: Logger;
+  private readonly scheduleMemory: BatteryScheduleMemory;
   private readonly engine = new ControllerEngine();
   private readonly batteryBlockedScheduleKeys = new Set<string>();
   private energyUnavailable = false;
@@ -115,9 +117,14 @@ export class ChargeController {
     this.vehicleManager = vehicleManager;
     this.poller = poller;
     this.db = db;
+    this.scheduleMemory = new BatteryScheduleMemory(db.config);
     this.configService = configService;
     this.eventEmitter = eventEmitter;
     this.logger = logger;
+    this.vehicleManager.setPowerEnergyReader(() => ({
+      energy: this.poller.tryGetRealtimeSnapshot()?.realtime ?? null,
+      maxAgeMs: this.poller.getRealtimeMaxAgeMs(),
+    }));
     this.start();
   }
 
@@ -152,17 +159,18 @@ export class ChargeController {
     const schedules = await this.db.getSchedules();
     const energySnapshot = this.poller.tryGetRealtimeSnapshot();
     const now = new Date(timestamp);
+    await this.scheduleMemory.restore(
+      this.batteryBlockedScheduleKeys,
+      schedules,
+      now,
+      config.timezone,
+    );
     const energy = energySnapshot?.realtime ?? null;
     const energyAvailability = this.evaluateEnergyAvailability(
       energy,
       timestamp,
     );
-    const solarW = energy && Math.round(energy.solarProductionW);
-    const gridW = energy && Math.round(energy.gridPowerW);
-    const energySummary = energy ? `solar=${solarW}W grid=${gridW}W` : "none";
-    this.logger.debug(
-      `Loop: ${vehicles.length} vehicles, ${schedules.length} schedules, energy=${energySummary}`,
-    );
+    this.logLoop(vehicles.length, schedules.length, energy);
 
     // Compute context for middleware requests
     const hasSolar = !energyAvailability.unavailable && energy !== null &&
@@ -219,6 +227,13 @@ export class ChargeController {
       energyAvailability,
     );
 
+    await this.scheduleMemory.persist(
+      this.batteryBlockedScheduleKeys,
+      schedules,
+      now,
+      config.timezone,
+    );
+
     // Execute decisions, build log entries, emit events
     const logEntries: ControllerLogInput[] = await vehicles.reduce(
       async (prevPromise, vehicle) => {
@@ -240,6 +255,24 @@ export class ChargeController {
       Promise.resolve([] as ControllerLogInput[]),
     );
 
+    await this.finishLoop(logEntries);
+    return config;
+  }
+
+  private logLoop(
+    vehicles: number,
+    schedules: number,
+    energy: EnergyData | null,
+  ): void {
+    const solarW = energy && Math.round(energy.solarProductionW);
+    const gridW = energy && Math.round(energy.gridPowerW);
+    const summary = energy ? `solar=${solarW}W grid=${gridW}W` : "none";
+    this.logger.debug(
+      `Loop: ${vehicles} vehicles, ${schedules} schedules, energy=${summary}`,
+    );
+  }
+
+  private async finishLoop(logEntries: ControllerLogInput[]): Promise<void> {
     // Batch-insert log entries
     if (logEntries.length > 0) {
       await this.db.insertControllerLogEntries(logEntries);
@@ -251,8 +284,6 @@ export class ChargeController {
       const system = await this.configService.getSystem();
       await this.db.pruneControllerLogs(system.logRetentionDays);
     }
-
-    return config;
   }
 
   /** Apply runtime safety overrides without changing persisted settings. */
@@ -909,6 +940,8 @@ export class ChargeController {
     ]);
 
     return {
+      vehicleCurrentLimits: charging.vehicleCurrentLimits,
+      maxGridImportKw: charging.maxGridImportKw,
       chargingEnabled: charging.chargingEnabled,
       controllerLoopSeconds: system.controllerLoopSeconds,
       solarTrackingEnabled: solar.solarTrackingEnabled,

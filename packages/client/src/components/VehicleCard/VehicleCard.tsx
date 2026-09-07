@@ -135,6 +135,9 @@ function getStatusText(
   }
 
   if (state.isCharging) {
+    if (controllerReason === "power_limit") {
+      return "Charging within configured electrical limits";
+    }
     if (mode === "charge_now") return "Charging now";
     if (controllerReason === "energy_unavailable") {
       return "Solar data unavailable — charging safely at minimum";
@@ -150,6 +153,9 @@ function getStatusText(
 
   if (controllerReason === "energy_unavailable") {
     return "Waiting for live solar data";
+  }
+  if (controllerReason === "power_limit") {
+    return "Charging limited by available power";
   }
   if (controllerReason === "battery_priority") {
     return "Home battery has priority";
@@ -243,12 +249,14 @@ function PrimaryStatus(
     mode,
     atHome,
     controllerReason,
+    controllerDetail,
     vehicleError,
   }: {
     state: VehicleChargeState;
     mode: VehicleMode;
     atHome: boolean | null | undefined;
     controllerReason: string | null | undefined;
+    controllerDetail?: string | null;
     vehicleError: string | null | undefined;
   },
 ) {
@@ -277,6 +285,14 @@ function PrimaryStatus(
         <Text size="1" color="gray" weight="medium">
           {getStatusText(state, mode, atHome, controllerReason)}
         </Text>
+        {controllerDetail && atHome !== false && state.isPluggedIn &&
+          mode !== "stop" &&
+          (mode !== "charge_now" || controllerReason === "power_limit") &&
+          (!state.isCharging || controllerReason === "power_limit") && (
+          <Text size="1" color="gray" data-testid="charging-decision-detail">
+            {controllerDetail}
+          </Text>
+        )}
         {kind === "charging" && (
           <Text size="1" color="gray" className={styles.chargeMetrics}>
             {state.chargeAmps} A · {state.energyAddedKwh.toFixed(1)} kWh added
@@ -503,6 +519,7 @@ export function VehicleCard({
   vehicleError,
   atHome,
   controllerReason,
+  controllerDetail,
   forecastContent,
   scheduledCharge,
 }: VehicleCardProps) {
@@ -538,6 +555,7 @@ export function VehicleCard({
         mode={mode}
         atHome={atHome}
         controllerReason={controllerReason}
+        controllerDetail={controllerDetail}
         vehicleError={vehicleError}
       />
 

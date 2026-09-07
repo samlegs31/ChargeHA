@@ -294,3 +294,20 @@ and debounce state will simply reset.
 | `battery_priority_enabled`      | `false`      | Whether to prioritize home battery charging          |
 | `battery_priority_limit`        | `80`         | Home battery SoC threshold (%)                       |
 | `priority_charging_enabled`     | `false`      | Use waterfall allocation instead of equal split      |
+
+## Optional electrical limits (September 2026)
+
+The final decision guard applies per-vehicle current ceilings and an optional
+whole-home active grid-import limit after mode/schedule/solar decisions. This
+includes Now and running vehicles when normal automation is disabled. Direct
+start/current API commands pass a second guard at VehicleManager. Limits default
+to disabled; they do not replace circuit protection or a per-phase limiter.
+
+The grid guard preserves the home-battery reserve handoff: once the configured
+reserve is reached, available solar still charging that battery may be
+reassigned to the EV even when maximum grid import is zero. Fresh home energy is
+required when the grid limit is enabled.
+
+See [electrical limits and recovery](reliability-2026-09-07.md) for
+configuration, command ordering, persisted schedule blocks and deployment
+validation.

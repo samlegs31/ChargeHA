@@ -24,7 +24,11 @@ export const controllerStatusStore = {
   ) {
     const current = store.getSnapshot();
     const prev = current[vehicleId];
-    if (prev?.action === action && prev?.detail === detail) return;
+    if (
+      prev?.action === action && prev?.detail === detail &&
+      prev?.reason === reason && prev?.targetAmps === targetAmps &&
+      prev?.checksJson === checksJson
+    ) return;
     store.setState({
       ...current,
       [vehicleId]: { action, reason, detail, targetAmps, checksJson },

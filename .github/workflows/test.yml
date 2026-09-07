@@ -48,6 +48,9 @@ jobs:
       - name: Check packument bloat
         run: deno task check:packument
 
+      - name: Deployment recovery tests
+        run: deno task check:deployment
+
       - name: Server tests
         run: deno task test:server
 

@@ -22,6 +22,7 @@ need() {
 
 need docker
 need git
+need python3
 
 docker compose version >/dev/null 2>&1 || {
   echo "Docker Compose plugin is required (docker compose)." >&2
@@ -83,9 +84,8 @@ deadline=$((SECONDS + WAIT_SECONDS))
 while (( SECONDS < deadline )); do
   if docker pull "$IMAGE" >/dev/null; then
     IMAGE_SHA="$(docker image inspect "$IMAGE" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' 2>/dev/null || true)"
-    if [[ -z "$IMAGE_SHA" || "$IMAGE_SHA" == "$EXPECTED_SHA" ]]; then
+    if [[ "$IMAGE_SHA" == "$EXPECTED_SHA" ]]; then
       image_ready=true
-      [[ -z "$IMAGE_SHA" ]] && echo "Warning: image has no revision label; continuing after successful pull."
       break
     fi
     echo "latest is still $IMAGE_SHA; waiting for GitHub image $EXPECTED_SHA..."
@@ -98,12 +98,45 @@ $image_ready || {
   exit 1
 }
 
+PINNED_IMAGE_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}')"
+[[ -n "$PINNED_IMAGE_ID" ]] || { echo "Missing image ID" >&2; exit 1; }
+
 mkdir -p "$BACKUP_DIR"
 old_image_id=""
 was_running=false
+COMPOSE_ARGS=(-p evsolar -f "$COMPOSE_FILE")
+
+# Install recovery before stopping the service or copying the database.
+recover_preparation() {
+  local failure=$?
+  trap - ERR
+  if $was_running && docker inspect "$CONTAINER" >/dev/null 2>&1; then
+    docker start "$CONTAINER" >/dev/null || echo "Could not restart the previous container" >&2
+  fi
+  echo "Preparation failed; no new image was started. Backup directory: $BACKUP_DIR" >&2
+  exit "$failure"
+}
+trap recover_preparation ERR
 
 if $container_exists; then
   docker inspect "$CONTAINER" > "$BACKUP_DIR/container-inspect.json"
+  # Compose preserves all existing host bindings, including loopback + LAN.
+  if [[ -z "${EVSOLAR_BIND:-}" ]]; then
+    python3 - "$BACKUP_DIR/container-inspect.json" "$BACKUP_DIR/ports.compose.json" <<'PYPORTS'
+import json, sys
+with open(sys.argv[1]) as source:
+    config = json.load(source)[0]
+bindings = config.get("HostConfig", {}).get("PortBindings", {}).get("8000/tcp") or []
+ports = []
+for binding in bindings:
+    ip = binding.get("HostIp") or "0.0.0.0"
+    host = f"[{ip}]" if ":" in ip else ip
+    ports.append(f"{host}:{binding['HostPort']}:8000")
+with open(sys.argv[2], "w") as target:
+    json.dump({"services": {"evsolar": {"ports": ports}}}, target)
+PYPORTS
+    COMPOSE_ARGS+=(-f "$BACKUP_DIR/ports.compose.json")
+  fi
   old_image_id="$(docker inspect -f '{{.Image}}' "$CONTAINER")"
   [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER")" == "true" ]] && was_running=true
 
@@ -117,13 +150,13 @@ else
   echo "No existing $CONTAINER container found; creating it from the existing data volume."
 fi
 
-export EVSOLAR_IMAGE="$IMAGE"
+export EVSOLAR_IMAGE="$PINNED_IMAGE_ID"
 export EVSOLAR_DATA_VOLUME="$DATA_VOLUME"
 export EVSOLAR_KEY_FILE="$KEY_FILE"
 export EVSOLAR_BIND="$BIND"
 
 start_new() {
-  docker compose -p evsolar -f "$COMPOSE_FILE" up -d --remove-orphans
+  docker compose "${COMPOSE_ARGS[@]}" up -d --pull never --remove-orphans
 }
 
 wait_healthy() {
@@ -133,7 +166,7 @@ wait_healthy() {
     local running health
     running="$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || echo false)"
     health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$CONTAINER" 2>/dev/null || echo missing)"
-    if [[ "$running" == "true" && ( "$health" == "healthy" || "$health" == "none" ) ]]; then
+    if [[ "$running" == "true" && "$health" == "healthy" ]]; then
       return 0
     fi
     if [[ "$health" == "unhealthy" ]]; then
@@ -157,7 +190,7 @@ rollback() {
       -c 'find /app/data -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; cp -a /backup/. /app/data/; chown -R 1000:1000 /app/data'
 
     EVSOLAR_IMAGE="$ROLLBACK_TAG" \
-      docker compose -p evsolar -f "$COMPOSE_FILE" up -d --pull never --remove-orphans
+      docker compose "${COMPOSE_ARGS[@]}" up -d --pull never --remove-orphans
     echo "Previous image restored as $ROLLBACK_TAG." >&2
   fi
   echo "Backup kept at: $BACKUP_DIR" >&2

@@ -1,3 +1,4 @@
+import { applyElectricalLimits } from "./ElectricalLimits.ts";
 import type { EnergyData, VehicleChargeState } from "../types.ts";
 import { SolarAllocator } from "./SolarAllocator.ts";
 import { DecisionChecks } from "./DecisionChecks.ts";
@@ -64,7 +65,10 @@ export class ControllerEngine {
           }];
         }),
       );
-      return { decisions, controlStates: this.controlStates };
+      return {
+        decisions: applyElectricalLimits(input, decisions),
+        controlStates: this.controlStates,
+      };
     }
 
     // Both stored solar modes always use excess-solar-only behavior outside
@@ -76,7 +80,18 @@ export class ControllerEngine {
       solarReference: "excess",
     };
     const allocation = SolarAllocator.allocate(
-      vehicles,
+      vehicles.map((v) => {
+        if (!v.state) return v;
+        const maximum = config.vehicleCurrentLimits?.[v.id] ??
+          v.state.chargeAmpsMax;
+        return {
+          ...v,
+          state: {
+            ...v.state,
+            chargeAmpsMax: Math.min(v.state.chargeAmpsMax, maximum),
+          },
+        };
+      }),
       solarOnlyConfig,
       energy,
     );
@@ -112,7 +127,10 @@ export class ControllerEngine {
       }),
     );
 
-    return { decisions, controlStates: this.controlStates };
+    return {
+      decisions: applyElectricalLimits(input, decisions),
+      controlStates: this.controlStates,
+    };
   }
 
   /** Read a vehicle's control state (for the orchestrator's event emission). */
