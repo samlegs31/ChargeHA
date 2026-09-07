@@ -42,6 +42,8 @@ vi.mock("./useVehicleSettings.ts", () => ({
   useVehicleSettings: () => hookRef.current,
 }));
 
+vi.mock("./ElectricalSettings.tsx", () => ({ ElectricalSettings: () => null }));
+
 vi.mock("./SettingsLayout.tsx", () => ({
   SettingsSection: (
     { children, title }: { children: React.ReactNode; title: string },

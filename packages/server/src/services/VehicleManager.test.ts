@@ -96,6 +96,34 @@ describe("VehicleManager", () => {
     db.close();
   });
 
+  it("enforces current limits even for forced direct API commands", async () => {
+    await db.setConfig("vehicle_current_limits", JSON.stringify({ VIN1: 8 }));
+    await manager.addVehicle(VEHICLE_ROW);
+    const result = await manager.startChargingAt(
+      "VIN1",
+      32,
+      { origin: "user:test", traceId: "test" },
+      MOCK_STATE,
+      { force: true },
+    );
+    expect(result.success).toBe(true);
+    expect(middlewares.get("VIN1")?.setAmpsCalls.at(-1)?.amps).toBe(8);
+  });
+
+  it("cancels a queued start when a stop is requested", async () => {
+    await manager.addVehicle(VEHICLE_ROW);
+    const context = { origin: "user:test", traceId: "test" };
+    const start = manager.startChargingAt("VIN1", 16, context, MOCK_STATE);
+    const stop = manager.stopCharging("VIN1", context, {
+      ...MOCK_STATE,
+      isCharging: true,
+    });
+    const [result] = await Promise.all([start, stop]);
+    expect(result.success).toBe(false);
+    expect(middlewares.get("VIN1")?.startCalls.length).toBe(0);
+    expect(middlewares.get("VIN1")?.stopCalls.length).toBe(1);
+  });
+
   describe("addVehicle", () => {
     it("creates middleware for a vehicle row", async () => {
       await manager.addVehicle(VEHICLE_ROW);

@@ -41,6 +41,7 @@ export function SettingsRow({
 }
 
 export function NumberInput({
+  "aria-label": ariaLabel,
   value,
   onChange,
   suffix,
@@ -49,6 +50,7 @@ export function NumberInput({
   max,
   placeholder,
 }: {
+  "aria-label"?: string;
   value: string;
   onChange: (v: string) => void;
   suffix: string;
@@ -66,6 +68,7 @@ export function NumberInput({
   return (
     <div className={styles.numberInput}>
       <TextField.Root
+        aria-label={ariaLabel}
         size="3"
         type="number"
         step={step}

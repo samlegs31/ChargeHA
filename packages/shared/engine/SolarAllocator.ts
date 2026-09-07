@@ -1,3 +1,4 @@
+import { allocatePower } from "./PowerAllocation.ts";
 import type { EnergyData, VehicleChargeState } from "../types.ts";
 import type { ControllerConfig, EngineVehicleInput } from "./types.ts";
 
@@ -13,7 +14,6 @@ export interface AllocationEntry {
 
 interface AllocationContext {
   eligible: AllocationEntry[];
-  totalAmps: number;
   availableW: number;
 }
 
@@ -76,8 +76,11 @@ export class SolarAllocator {
     return Math.min(exportW + addBackW, energy.solarProductionW);
   }
 
-  private static reclaimableBatteryChargeW(
-    config: ControllerConfig,
+  static reclaimableBatteryChargeW(
+    config: Pick<
+      ControllerConfig,
+      "batteryPriorityEnabled" | "batteryPriorityLimit"
+    >,
     energy: EnergyData,
   ): number {
     if (!config.batteryPriorityEnabled || energy.batterySoc === null) return 0;
@@ -152,7 +155,7 @@ export class SolarAllocator {
       : SolarAllocator.equal(vehicles, config, energy);
   }
 
-  /** Equal allocation: split amps evenly, remainder to highest priority.
+  /** Equal allocation: share watts, convert for each vehicle, redistribute leftovers.
    *  When the split gives any vehicle less than its chargeAmpsMin, progressively
    *  drops lowest-priority vehicles until the split is viable. */
   static equal(
@@ -162,45 +165,35 @@ export class SolarAllocator {
   ): Map<string, number> {
     const ctx = SolarAllocator.getContext(vehicles, config, energy);
     if (!ctx) return new Map();
-    const { eligible, totalAmps } = ctx;
-
-    // Find the largest group of highest-priority vehicles where the
-    // per-vehicle split meets every vehicle's chargeAmpsMin.
-    // Hysteresis: vehicles already charging only need chargeAmpsMin to stay,
-    // but new vehicles need chargeAmpsMin + 2A headroom to be included.
-    // This prevents oscillation at the split boundary.
+    const { eligible, availableW } = ctx;
     const groupSizes = Array.from(
       { length: eligible.length },
       (_, i) => eligible.length - i,
     );
-    const canSplit = (n: number) => {
-      const perV = Math.floor(totalAmps / n);
-      return eligible.slice(0, n).every((e) => {
+    const canShare = (n: number) =>
+      eligible.slice(0, n).every((e) => {
         const buffer = e.state.isCharging ? 0 : 2;
-        return perV >= e.state.chargeAmpsMin + buffer;
+        return availableW / n >=
+          (e.state.chargeAmpsMin + buffer) * e.voltage * e.phases;
       });
-    };
-    const groupSize = groupSizes.find(canSplit) ?? 1;
-
+    const groupSize = groupSizes.find(canShare) ?? 1;
     const recipients = eligible.slice(0, groupSize);
-    const excluded = eligible.slice(groupSize);
-
-    // Equal split with remainder: e.g. 11A across 2 vehicles = 6A + 5A.
-    // Remainder amps go to higher-priority vehicles (lower index).
-    const perVehicle = Math.floor(totalAmps / recipients.length);
-    const remainder = totalAmps - perVehicle * recipients.length;
-
-    const allocated = new Map([
-      ...recipients.map((e, i) =>
-        [e.id, perVehicle + (i < remainder ? 1 : 0)] as const
-      ),
-      ...excluded.map((e) => [e.id, 0] as const),
+    const allocated = allocatePower(
+      recipients.map((e) => ({
+        id: e.id,
+        wattsPerAmp: e.voltage * e.phases,
+        maxAmps: e.state.chargeAmpsMax,
+      })),
+      availableW,
+      true,
+    );
+    return new Map([
+      ...allocated,
+      ...eligible.slice(groupSize).map((e) => [e.id, 0] as const),
     ]);
-
-    return allocated;
   }
 
-  /** Waterfall allocation: priority 1 gets min(totalAmps, chargeAmpsMax),
+  /** Waterfall allocation: priority 1 takes watts up to its current limit,
    *  overflow goes to priority 2, then priority 3, etc. */
   static waterfall(
     vehicles: EngineVehicleInput[],
@@ -209,21 +202,15 @@ export class SolarAllocator {
   ): Map<string, number> {
     const ctx = SolarAllocator.getContext(vehicles, config, energy);
     if (!ctx) return new Map();
-    const { eligible, totalAmps } = ctx;
-
-    // Each vehicle gets min(remaining, chargeAmpsMax) in priority order.
-    const { allocations } = eligible.reduce(
-      (acc, e) => {
-        const amps = Math.min(acc.remaining, e.state.chargeAmpsMax);
-        return {
-          remaining: acc.remaining - amps,
-          allocations: new Map(acc.allocations).set(e.id, amps),
-        };
-      },
-      { remaining: totalAmps, allocations: new Map<string, number>() },
+    return allocatePower(
+      ctx.eligible.map((e) => ({
+        id: e.id,
+        wattsPerAmp: e.voltage * e.phases,
+        maxAmps: e.state.chargeAmpsMax,
+      })),
+      ctx.availableW,
+      false,
     );
-
-    return allocations;
   }
 
   /** Build the allocation context: filter eligible vehicles, compute total
@@ -278,9 +265,6 @@ export class SolarAllocator {
       chargingAddBackW,
     );
 
-    const { voltage: refV, phases: refP } = eligible[0];
-    const totalAmps = Math.floor(availableW / (refV * refP));
-
-    return { eligible, totalAmps, availableW };
+    return { eligible, availableW };
   }
 }

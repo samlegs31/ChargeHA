@@ -1,3 +1,4 @@
+import { CommandPowerGuard, type GuardEnergy } from "./CommandPowerGuard.ts";
 import type {
   AdapterVehicleChargeState,
   CallContext,
@@ -64,6 +65,14 @@ interface PlugTracker {
  * adapter directly — everything flows through the middleware.
  */
 export class VehicleManager {
+  private readonly powerGuard: CommandPowerGuard;
+  private commandQueue: Promise<unknown> = Promise.resolve();
+  private stopGeneration = new Map<string, number>();
+
+  setPowerEnergyReader(reader: () => GuardEnergy): void {
+    this.powerGuard.setEnergyReader(reader);
+  }
+
   private vehicles = new Map<string, VehicleEntry>();
   private plugTrackers = new Map<string, PlugTracker>();
   private vehicleErrors = new Map<
@@ -89,6 +98,7 @@ export class VehicleManager {
     vehiclePlugins: VehiclePluginRegistry,
   ) {
     this.db = db;
+    this.powerGuard = new CommandPowerGuard(db);
     this.eventEmitter = eventEmitter;
     this.logger = logger;
     this.vehiclePlugins = vehiclePlugins;
@@ -282,7 +292,25 @@ export class VehicleManager {
   /** Start or adjust charging. Handles: clamp amps → set amps → start →
    *  error/backoff tracking. The middleware handles wake internally.
    *  Idempotent: only sends commands when state differs from target. */
-  async startChargingAt(
+  startChargingAt(
+    vehicleId: string,
+    amps: number,
+    ctx: CallContext,
+    state: VehicleChargeState,
+    options: { force?: boolean } = {},
+  ): Promise<CommandResult> {
+    const generation = this.stopGeneration.get(vehicleId) ?? 0;
+    const command = this.commandQueue.then(() => {
+      if ((this.stopGeneration.get(vehicleId) ?? 0) !== generation) {
+        return { success: false, error: "Charging request superseded by stop" };
+      }
+      return this.startChargingGuarded(vehicleId, amps, ctx, state, options);
+    });
+    this.commandQueue = command.catch(() => undefined);
+    return command;
+  }
+
+  private async startChargingGuarded(
     vehicleId: string,
     amps: number,
     ctx: CallContext,
@@ -303,10 +331,23 @@ export class VehicleManager {
     }
 
     try {
-      const clampedAmps = Math.max(
-        state.chargeAmpsMin,
-        Math.min(state.chargeAmpsMax, Math.round(amps)),
+      const permitted = await this.powerGuard.limit(
+        state,
+        Math.max(state.chargeAmpsMin, Math.round(amps)),
       );
+      if (permitted < state.chargeAmpsMin) {
+        if (state.isCharging) {
+          await this.stopChargingGuarded(vehicleId, ctx, state, {
+            force: true,
+          });
+        }
+        return {
+          success: false,
+          error:
+            "Charging blocked by configured electrical limits or unavailable home energy data",
+        };
+      }
+      const clampedAmps = permitted;
 
       const ampsChanged = state.chargeAmps !== clampedAmps;
 
@@ -351,7 +392,24 @@ export class VehicleManager {
   /** Stop charging. Handles: send stop → error/backoff tracking.
    *  The middleware updates cached state on success.
    *  Idempotent: only sends stop when vehicle is currently charging. */
-  async stopCharging(
+  stopCharging(
+    vehicleId: string,
+    ctx: CallContext,
+    state: VehicleChargeState,
+    options: { force?: boolean } = {},
+  ): Promise<CommandResult> {
+    this.stopGeneration.set(
+      vehicleId,
+      (this.stopGeneration.get(vehicleId) ?? 0) + 1,
+    );
+    const command = this.commandQueue.then(() =>
+      this.stopChargingGuarded(vehicleId, ctx, state, options)
+    );
+    this.commandQueue = command.catch(() => undefined);
+    return command;
+  }
+
+  private async stopChargingGuarded(
     vehicleId: string,
     ctx: CallContext,
     state: VehicleChargeState,
