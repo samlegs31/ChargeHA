@@ -56,7 +56,8 @@ The versioned update script now requires the expected image revision, pins the
 image ID and prevents Compose from pulling a different image during startup.
 Recovery is installed before stopping or copying data. If the backup fails, the
 old container is restarted and no new image is launched. A successful deployment
-requires Docker health confirmation. Fake-Docker tests exercise backup failure,
+requires Docker health confirmation. Existing loopback and LAN port bindings are
+preserved through a Compose override. Fake-Docker tests exercise backup failure,
 wrong revision and successful pinned-image startup; they run locally and in CI.
 
 ## Validation and later work

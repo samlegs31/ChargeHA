@@ -7,7 +7,7 @@ import unittest
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts/update-evsolar.sh"
 FAKE_DOCKER = '''#!/usr/bin/env python3
-import os, sys
+import json, os, sys
 from pathlib import Path
 a = sys.argv[1:]
 with open(os.environ["CALL_LOG"], "a") as f:
@@ -22,7 +22,7 @@ elif a and a[0] == "inspect":
  elif ".State.Running" in text: print("true")
  elif ".State.Health" in text: print("healthy")
  elif ".Image" in text: print("sha256:old")
- else: print("{}")
+ else: print(json.dumps([{"HostConfig":{"PortBindings":{"8000/tcp":[{"HostIp":"127.0.0.1","HostPort":"8000"},{"HostIp":"192.168.1.100","HostPort":"8000"}]}}}]))
 elif a and a[0] == "cp" and os.environ["CASE"] == "backup":
  sys.exit(1)
 '''
@@ -47,6 +47,10 @@ class UpdateTests(unittest.TestCase):
                        EVSOLAR_WAIT_SECONDS="1", CALL_LOG=str(root / "calls"), CASE=case)
             result = subprocess.run(["bash", str(SCRIPT)], env=env, capture_output=True,
                                     text=True, timeout=10)
+            if case == "success":
+                override = next((root / "backup").glob("*/ports.compose.json"))
+                self.assertIn("192.168.1.100:8000:8000", override.read_text())
+                self.assertIn("127.0.0.1:8000:8000", override.read_text())
             return result, (root / "calls").read_text()
 
     def test_backup_failure_restarts_old_container(self):

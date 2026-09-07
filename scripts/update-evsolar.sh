@@ -22,6 +22,7 @@ need() {
 
 need docker
 need git
+need python3
 
 docker compose version >/dev/null 2>&1 || {
   echo "Docker Compose plugin is required (docker compose)." >&2
@@ -103,6 +104,7 @@ PINNED_IMAGE_ID="$(docker image inspect "$IMAGE" --format '{{.Id}}')"
 mkdir -p "$BACKUP_DIR"
 old_image_id=""
 was_running=false
+COMPOSE_ARGS=(-p evsolar -f "$COMPOSE_FILE")
 
 # Install recovery before stopping the service or copying the database.
 recover_preparation() {
@@ -118,6 +120,23 @@ trap recover_preparation ERR
 
 if $container_exists; then
   docker inspect "$CONTAINER" > "$BACKUP_DIR/container-inspect.json"
+  # Compose preserves all existing host bindings, including loopback + LAN.
+  if [[ -z "${EVSOLAR_BIND:-}" ]]; then
+    python3 - "$BACKUP_DIR/container-inspect.json" "$BACKUP_DIR/ports.compose.json" <<'PYPORTS'
+import json, sys
+with open(sys.argv[1]) as source:
+    config = json.load(source)[0]
+bindings = config.get("HostConfig", {}).get("PortBindings", {}).get("8000/tcp") or []
+ports = []
+for binding in bindings:
+    ip = binding.get("HostIp") or "0.0.0.0"
+    host = f"[{ip}]" if ":" in ip else ip
+    ports.append(f"{host}:{binding['HostPort']}:8000")
+with open(sys.argv[2], "w") as target:
+    json.dump({"services": {"evsolar": {"ports": ports}}}, target)
+PYPORTS
+    COMPOSE_ARGS+=(-f "$BACKUP_DIR/ports.compose.json")
+  fi
   old_image_id="$(docker inspect -f '{{.Image}}' "$CONTAINER")"
   [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER")" == "true" ]] && was_running=true
 
@@ -137,7 +156,7 @@ export EVSOLAR_KEY_FILE="$KEY_FILE"
 export EVSOLAR_BIND="$BIND"
 
 start_new() {
-  docker compose -p evsolar -f "$COMPOSE_FILE" up -d --pull never --remove-orphans
+  docker compose "${COMPOSE_ARGS[@]}" up -d --pull never --remove-orphans
 }
 
 wait_healthy() {
@@ -171,7 +190,7 @@ rollback() {
       -c 'find /app/data -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; cp -a /backup/. /app/data/; chown -R 1000:1000 /app/data'
 
     EVSOLAR_IMAGE="$ROLLBACK_TAG" \
-      docker compose -p evsolar -f "$COMPOSE_FILE" up -d --pull never --remove-orphans
+      docker compose "${COMPOSE_ARGS[@]}" up -d --pull never --remove-orphans
     echo "Previous image restored as $ROLLBACK_TAG." >&2
   fi
   echo "Backup kept at: $BACKUP_DIR" >&2
