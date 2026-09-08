@@ -152,7 +152,7 @@ function PrimaryStatus({
         </Text>
         <Text size="1" color="gray" weight="medium">
           {commandsDisabled
-            ? "Vehicle control unavailable"
+            ? "Control unavailable"
             : getStatusDetail(state, mode, atHome, controllerReason)}
         </Text>
         {controllerDetail && kind === "waiting" && atHome !== false && (
