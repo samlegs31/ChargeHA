@@ -17,6 +17,7 @@ import { VehicleCard } from "../../VehicleCard/VehicleCard.tsx";
 import { VehicleSilhouetteIcon } from "../../icons/VehicleSilhouetteIcon.tsx";
 import { SolarForecastInline } from "../../VehicleCard/SolarForecastInline.tsx";
 import {
+  type ChargeStatusKind,
   getChargeStatusKind,
   getStatusDetail,
   getStatusHeadline,
@@ -146,7 +147,7 @@ function AsleepVehicleCard({
           <Text size="2" weight="bold" className={styles.asleepStatus}>
             Disconnected
           </Text>
-          <Text size="1" color="gray">Asleep or unreachable</Text>
+          <Text size="1" color="gray">Vehicle is asleep or unreachable</Text>
         </div>
         <span className={styles.compactMode}>{VEHICLE_MODE_LABELS[mode]}</span>
       </div>
@@ -195,30 +196,31 @@ function SecondaryVehicleCard({
     { vehicleId: vehicle.id },
     { enabled: state !== null, refetchInterval: 30_000 },
   );
-  const statusKind = state
-    ? getChargeStatusKind({
+
+  let statusKind: ChargeStatusKind = "disconnected";
+  let statusHeadline = "Disconnected";
+  let statusDetail = "Vehicle is asleep or unreachable";
+  let batteryPercent: number | null = null;
+  if (state) {
+    statusKind = getChargeStatusKind({
       state,
       mode,
       controllerReason,
       vehicleError,
       commandsDisabled: cmdStatus?.commandsDisabled ?? false,
-    })
-    : "disconnected";
-  const statusHeadline = state
-    ? getStatusHeadline(statusKind, state, mode)
-    : "Disconnected";
-  const statusDetail = scheduledCharge?.title ??
-    (state
-      ? getStatusDetail(state, mode, atHome, controllerReason)
-      : "Asleep or unreachable");
-  const batteryPercent = state ? Math.round(state.batteryLevel) : null;
+    });
+    statusHeadline = getStatusHeadline(statusKind, state, mode);
+    statusDetail = getStatusDetail(state, mode, atHome, controllerReason);
+    batteryPercent = Math.round(state.batteryLevel);
+  }
+  if (scheduledCharge) statusDetail = scheduledCharge.title;
 
   return (
     <button
       type="button"
       className={styles.secondaryVehicle}
       onClick={onSelect}
-      aria-label={`Select ${name}`}
+      aria-label={`Show ${name} as the main vehicle`}
       data-status={statusKind}
       data-testid="secondary-vehicle-card"
     >
@@ -285,7 +287,9 @@ function NoVehiclesCard({
       <VehicleSilhouetteIcon size={38} aria-hidden="true" />
       <div className={styles.messageCopy}>
         <Text size="3" weight="bold">No vehicles configured</Text>
-        <Text size="2" color="gray">Add a vehicle to start.</Text>
+        <Text size="2" color="gray">
+          Add a vehicle to monitor charging and control solar allocation.
+        </Text>
       </div>
       <Button variant="soft" size="2" onClick={onNavigateSettings}>
         <Settings size={16} />
@@ -387,57 +391,60 @@ function VehicleCards({
     timezone,
   );
 
+  let primaryCard: ReactNode;
+  if (primaryVehicle.state) {
+    primaryCard = (
+      <ConnectedVehicleCard
+        key={primaryVehicle.id}
+        vehicleId={primaryVehicle.id}
+        name={primaryVehicle.name || primaryVehicle.state.vehicleName}
+        state={primaryVehicle.state}
+        priority={primaryVehicle.priority}
+        mode={primaryVehicle.mode as VehicleMode}
+        commandPending={commandPending[primaryVehicle.id] ?? false}
+        onStartCharging={() => startCharging(primaryVehicle.id)}
+        onStopCharging={() => stopCharging(primaryVehicle.id)}
+        onSetAmps={(amps) => setAmps(primaryVehicle.id, amps)}
+        onChangeMode={(mode) => changeMode(primaryVehicle.id, mode)}
+        solarPowerW={vehicleSolarGrid[primaryVehicle.id]?.solarW ?? 0}
+        batteryPowerW={vehicleSolarGrid[primaryVehicle.id]?.batteryW ?? 0}
+        gridPowerW={vehicleSolarGrid[primaryVehicle.id]?.gridW ?? 0}
+        loading={vehiclesLoading}
+        atHome={primaryVehicle.lastLocation
+          ? isHome(home, primaryVehicle.lastLocation)
+          : null}
+        vehicleError={vehicleErrors[primaryVehicle.id]}
+        allocationStatus={allocationStatus[primaryVehicle.id] ?? null}
+        pollingSuspended={primaryVehicle.pollingSuspended}
+        pollingSuspendReason={primaryVehicle.pollingSuspendReason}
+        controllerReason={controllerStatuses[primaryVehicle.id]?.reason ?? null}
+        controllerDetail={controllerStatuses[primaryVehicle.id]?.detail ?? null}
+        scheduledCharge={scheduledCharge}
+        onNavigateSettings={onNavigateSettings}
+        onRefresh={() =>
+          refreshMutation.mutateAsync({ vehicleId: primaryVehicle.id })}
+      />
+    );
+  } else {
+    primaryCard = (
+      <AsleepVehicleCard
+        key={primaryVehicle.id}
+        vehicle={primaryVehicle}
+        isWaking={wakeMutation.isPending &&
+          wakeMutation.variables?.vehicleId === primaryVehicle.id}
+        scheduledCharge={scheduledCharge}
+        onWake={() =>
+          wakeMutation.mutate({
+            vehicleId: primaryVehicle.id,
+            command: "wake",
+          })}
+      />
+    );
+  }
+
   return (
     <div className={styles.vehicleCards}>
-      {primaryVehicle.state
-        ? (
-          <ConnectedVehicleCard
-            key={primaryVehicle.id}
-            vehicleId={primaryVehicle.id}
-            name={primaryVehicle.name || primaryVehicle.state.vehicleName}
-            state={primaryVehicle.state}
-            priority={primaryVehicle.priority}
-            mode={primaryVehicle.mode as VehicleMode}
-            commandPending={commandPending[primaryVehicle.id] ?? false}
-            onStartCharging={() => startCharging(primaryVehicle.id)}
-            onStopCharging={() => stopCharging(primaryVehicle.id)}
-            onSetAmps={(amps) => setAmps(primaryVehicle.id, amps)}
-            onChangeMode={(mode) => changeMode(primaryVehicle.id, mode)}
-            solarPowerW={vehicleSolarGrid[primaryVehicle.id]?.solarW ?? 0}
-            batteryPowerW={vehicleSolarGrid[primaryVehicle.id]?.batteryW ?? 0}
-            gridPowerW={vehicleSolarGrid[primaryVehicle.id]?.gridW ?? 0}
-            loading={vehiclesLoading}
-            atHome={primaryVehicle.lastLocation
-              ? isHome(home, primaryVehicle.lastLocation)
-              : null}
-            vehicleError={vehicleErrors[primaryVehicle.id]}
-            allocationStatus={allocationStatus[primaryVehicle.id] ?? null}
-            pollingSuspended={primaryVehicle.pollingSuspended}
-            pollingSuspendReason={primaryVehicle.pollingSuspendReason}
-            controllerReason={controllerStatuses[primaryVehicle.id]?.reason ??
-              null}
-            controllerDetail={controllerStatuses[primaryVehicle.id]?.detail ??
-              null}
-            scheduledCharge={scheduledCharge}
-            onNavigateSettings={onNavigateSettings}
-            onRefresh={() =>
-              refreshMutation.mutateAsync({ vehicleId: primaryVehicle.id })}
-          />
-        )
-        : (
-          <AsleepVehicleCard
-            key={primaryVehicle.id}
-            vehicle={primaryVehicle}
-            isWaking={wakeMutation.isPending &&
-              wakeMutation.variables?.vehicleId === primaryVehicle.id}
-            scheduledCharge={scheduledCharge}
-            onWake={() =>
-              wakeMutation.mutate({
-                vehicleId: primaryVehicle.id,
-                command: "wake",
-              })}
-          />
-        )}
+      {primaryCard}
 
       {secondaryVehicles.length > 0 && (
         <div className={styles.secondaryVehicles}>
