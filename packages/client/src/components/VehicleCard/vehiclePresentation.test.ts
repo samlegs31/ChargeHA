@@ -65,17 +65,41 @@ describe("vehiclePresentation", () => {
     string | null,
     string,
   ]>([
-    ["charging", makeState({ isCharging: true, chargePowerKw: 4.8 }), "auto", null, null, "charging"],
+    [
+      "charging",
+      makeState({ isCharging: true, chargePowerKw: 4.8 }),
+      "auto",
+      null,
+      null,
+      "charging",
+    ],
     ["waiting", makeState(), "vacation", null, null, "waiting"],
-    ["waiting reason", makeState(), "auto", "battery_priority", null, "waiting"],
+    [
+      "waiting reason",
+      makeState(),
+      "auto",
+      "battery_priority",
+      null,
+      "waiting",
+    ],
     ["connected", makeState(), "auto", null, null, "connected"],
     ["stopped", makeState(), "stop", null, null, "connected"],
-    ["disconnected", makeState({ isPluggedIn: false }), "auto", null, null, "disconnected"],
+    [
+      "disconnected",
+      makeState({ isPluggedIn: false }),
+      "auto",
+      null,
+      null,
+      "disconnected",
+    ],
     ["offline", makeState({ isOnline: false }), "auto", null, null, "error"],
     ["adapter error", makeState(), "auto", null, "Tesla API error", "error"],
-  ])("derives the %s presentation state", (_label, state, mode, reason, error, expected) => {
-    expect(kind(state, mode, reason, error)).toBe(expected);
-  });
+  ])(
+    "derives the %s presentation state",
+    (_label, state, mode, reason, error, expected) => {
+      expect(kind(state, mode, reason, error)).toBe(expected);
+    },
+  );
 
   it("keeps the real charging state visible even when Stop is selected", () => {
     const state = makeState({ isCharging: true, chargePowerKw: 4.8 });
@@ -87,6 +111,8 @@ describe("vehiclePresentation", () => {
   it("uses one of the five Home states for Stop", () => {
     const state = makeState();
     const status = kind(state, "stop");
-    expect(getStatusHeadline(status, state, "stop")).toBe("Connected · Stopped");
+    expect(getStatusHeadline(status, state, "stop")).toBe(
+      "Connected · Stopped",
+    );
   });
 });

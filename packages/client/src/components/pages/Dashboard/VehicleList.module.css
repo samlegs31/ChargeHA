@@ -79,10 +79,12 @@
 .asleepIcon {
   display: grid;
   place-items: center;
-  border: 1px solid color-mix(in srgb, var(--compact-status, var(--gray-9)) 16%, var(--gray-a3));
+  border: 1px solid color-mix(in srgb, var(--compact-status, var(--gray-9)) 16%,
+    var(--gray-a3));
   border-radius: 16px;
   color: var(--compact-status, var(--gray-9));
-  background: color-mix(in srgb, var(--compact-status, var(--gray-9)) 7%, var(--gray-a2));
+  background: color-mix(in srgb, var(--compact-status, var(--gray-9)) 7%,
+    var(--gray-a2));
 }
 
 .secondaryVehicleIcon {

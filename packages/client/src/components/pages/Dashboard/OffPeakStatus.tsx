@@ -29,8 +29,14 @@ export function OffPeakStatus() {
 
   if (!data) {
     return (
-      <section className={styles.card} data-active="false" aria-label="Off-Peak not configured">
-        <span className={styles.icon} aria-hidden="true"><Moon size={20} /></span>
+      <section
+        className={styles.card}
+        data-active="false"
+        aria-label="Off-Peak not configured"
+      >
+        <span className={styles.icon} aria-hidden="true">
+          <Moon size={20} />
+        </span>
         <span className={styles.copy}>
           <strong>Off-Peak</strong>
           <span>Not configured</span>
@@ -55,7 +61,9 @@ export function OffPeakStatus() {
       aria-label={`Off-Peak ${active ? "active" : "inactive"}`}
       data-testid="off-peak-status"
     >
-      <span className={styles.icon} aria-hidden="true"><Moon size={20} /></span>
+      <span className={styles.icon} aria-hidden="true">
+        <Moon size={20} />
+      </span>
       <span className={styles.copy}>
         <strong>Off-Peak</strong>
         <span>{timing}</span>

@@ -180,7 +180,9 @@ describe("VehicleCard", () => {
         state: makeVehicleState({ isCharging: true, chargePowerKw: 4.8 }),
       });
       expect(screen.getByText("Charging · 4.8 kW")).toBeInTheDocument();
-      expect(screen.getByText(atHome ? "Stop requested" : "Charging away from home"))
+      expect(
+        screen.getByText(atHome ? "Stop requested" : "Charging away from home"),
+      )
         .toBeInTheDocument();
     },
   );
@@ -264,7 +266,8 @@ describe("VehicleCard", () => {
     const onSetAmps = vi.fn();
     renderVC({ mode: "charge_now", onSetAmps });
 
-    expect(screen.getByLabelText("Active mode: Charge Now")).toBeInTheDocument();
+    expect(screen.getByLabelText("Active mode: Charge Now"))
+      .toBeInTheDocument();
     expect(screen.getByText("Manual current")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Charge Now mode" }))
       .not.toBeInTheDocument();

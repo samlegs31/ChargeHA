@@ -141,7 +141,8 @@
   flex: 0 0 auto;
   place-items: center;
   border-radius: 13px;
-  background: color-mix(in srgb, var(--status-color) 10%, var(--color-panel-solid));
+  background: color-mix(in srgb, var(--status-color) 10%,
+    var(--color-panel-solid));
   color: var(--status-color);
 }
 

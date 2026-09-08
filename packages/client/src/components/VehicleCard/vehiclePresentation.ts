@@ -94,7 +94,9 @@ export function getStatusDetail(
     if (mode === "charge_now") return "Manual charging";
     return "Charging";
   }
-  if (controllerReason === "energy_unavailable") return "Waiting for solar data";
+  if (controllerReason === "energy_unavailable") {
+    return "Waiting for solar data";
+  }
   if (controllerReason === "power_limit") return "Waiting for available power";
   if (controllerReason === "battery_priority") return "Home battery priority";
   if (controllerReason === "grace_period") return "Waiting for stable solar";
