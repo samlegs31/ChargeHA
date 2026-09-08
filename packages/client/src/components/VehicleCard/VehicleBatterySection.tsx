@@ -96,7 +96,7 @@ export function VehicleBatterySection({
             width: `${batteryPercent}%`,
             backgroundColor: isCharging
               ? "var(--color-charging)"
-              : "var(--color-vehicle)",
+              : "var(--ev-accent-strong)",
           }}
         />
         {interactive && (
