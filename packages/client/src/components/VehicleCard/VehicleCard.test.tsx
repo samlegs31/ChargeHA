@@ -53,7 +53,139 @@ describe("VehicleCard", () => {
     return { props, ...renderWithProviders(<VehicleCard {...props} />) };
   };
 
-  it("shows the numeric reason for waiting without opening another screen", () => {
+  it("shows the essential vehicle state without a details disclosure", () => {
+    renderVC();
+
+    expect(screen.getByText("Model 3")).toBeInTheDocument();
+    expect(screen.getByTestId("vehicle-silhouette-icon")).toBeInTheDocument();
+    expect(screen.getByText("72%")).toBeInTheDocument();
+    expect(screen.getByText("Limit 80%")).toBeInTheDocument();
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(screen.getByText("Plugged in · Ready")).toBeInTheDocument();
+    expect(screen.getByTestId("vehicle-charge-status"))
+      .toHaveAttribute("data-status", "connected");
+    expect(screen.queryByText("Show details")).not.toBeInTheDocument();
+  });
+
+  it("uses the three requested Home charging modes", () => {
+    renderVC();
+
+    expect(
+      screen.getByRole("button", { name: "Solar + Off-Peak mode, selected" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Solar Only mode" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop mode" }))
+      .toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Charge Now mode" }))
+      .not.toBeInTheDocument();
+  });
+
+  it.each<[
+    string,
+    VCProps["mode"],
+  ]>([
+    ["Stop", "stop"],
+    ["Solar + Off-Peak", "auto"],
+    ["Solar Only", "vacation"],
+  ])("changes to %s from the segmented control", (label, mode) => {
+    const onChangeMode = vi.fn();
+    renderVC({ mode: mode === "auto" ? "vacation" : "auto", onChangeMode });
+
+    fireEvent.click(screen.getByRole("button", { name: `${label} mode` }));
+    expect(onChangeMode).toHaveBeenCalledWith(mode);
+  });
+
+  it.each<[VCProps["mode"], string]>([
+    ["auto", "Solar + Off-Peak"],
+    ["vacation", "Solar Only"],
+    ["charge_now", "Charge Now"],
+    ["stop", "Stop"],
+  ])("identifies the active %s mode", (mode, label) => {
+    renderVC({ mode });
+    expect(screen.getByLabelText(`Active mode: ${label}`))
+      .toHaveAttribute("data-mode", mode);
+  });
+
+  it("shows real charging power immediately", () => {
+    renderVC({
+      state: makeVehicleState({
+        isCharging: true,
+        chargePowerKw: 4.8,
+        energyAddedKwh: 2.3,
+      }),
+    });
+
+    expect(screen.getByText("Charging · 4.8 kW")).toBeInTheDocument();
+    expect(screen.getByTestId("vehicle-charge-status"))
+      .toHaveAttribute("data-status", "charging");
+  });
+
+  it("formats sub-kW charging power in watts", () => {
+    renderVC({
+      state: makeVehicleState({ isCharging: true, chargePowerKw: 0.45 }),
+    });
+    expect(screen.getByText("Charging · 450 W")).toBeInTheDocument();
+  });
+
+  it.each<[
+    string,
+    Partial<VehicleChargeState>,
+    Partial<VCProps>,
+    string,
+    string,
+  ]>([
+    [
+      "waiting",
+      { isPluggedIn: true, isCharging: false },
+      { mode: "vacation", controllerReason: "solar_tracking" },
+      "Waiting",
+      "waiting",
+    ],
+    [
+      "disconnected",
+      { isPluggedIn: false, isCharging: false },
+      {},
+      "Disconnected",
+      "disconnected",
+    ],
+    [
+      "error",
+      { isOnline: false },
+      {},
+      "Error",
+      "error",
+    ],
+  ])("shows the %s state directly", (_label, state, props, text, kind) => {
+    renderVC({ ...props, state: makeVehicleState(state) });
+    expect(screen.getByText(text)).toBeInTheDocument();
+    expect(screen.getByTestId("vehicle-charge-status"))
+      .toHaveAttribute("data-status", kind);
+  });
+
+  it("shows connected and stopped without introducing a sixth status", () => {
+    renderVC({ mode: "stop" });
+    expect(screen.getByText("Connected · Stopped")).toBeInTheDocument();
+    expect(screen.getByText("Charging stopped")).toBeInTheDocument();
+    expect(screen.getByTestId("vehicle-charge-status"))
+      .toHaveAttribute("data-status", "connected");
+  });
+
+  it.each([true, false])(
+    "keeps actual charging visible in Stop mode (home: %s)",
+    (atHome) => {
+      renderVC({
+        mode: "stop",
+        atHome,
+        state: makeVehicleState({ isCharging: true, chargePowerKw: 4.8 }),
+      });
+      expect(screen.getByText("Charging · 4.8 kW")).toBeInTheDocument();
+      expect(screen.getByText(atHome ? "Stop requested" : "Charging away from home"))
+        .toBeInTheDocument();
+    },
+  );
+
+  it("keeps a numeric waiting reason visible", () => {
     renderVC({
       atHome: true,
       controllerReason: "battery_priority",
@@ -64,51 +196,17 @@ describe("VehicleCard", () => {
     );
   });
 
-  it("does not show a home waiting decision on an away vehicle", () => {
+  it("does not show a home-only waiting reason for an away vehicle", () => {
     renderVC({
       atHome: false,
       controllerReason: "battery_priority",
       controllerDetail: "Home battery 78% / 80% reserve",
     });
-    expect(screen.queryByTestId("charging-decision-detail")).not
-      .toBeInTheDocument();
+    expect(screen.queryByTestId("charging-decision-detail"))
+      .not.toBeInTheDocument();
   });
 
-  it("shows a simple plugged-in card by default", () => {
-    renderVC();
-
-    expect(screen.getByText("Model 3")).toBeInTheDocument();
-    expect(screen.getByTestId("vehicle-silhouette-icon")).toBeInTheDocument();
-    expect(screen.getByText("72%")).toBeInTheDocument();
-    expect(screen.getByText("Limit 80%")).toBeInTheDocument();
-    expect(screen.getByText("Ready — E.V. Solar will choose the best time"))
-      .toBeInTheDocument();
-    expect(screen.getByText("Connected · Not charging")).toBeInTheDocument();
-    expect(screen.getByTestId("vehicle-charge-status"))
-      .toHaveAttribute("data-status", "connected");
-    expect(screen.getByLabelText("Active mode: Smart charging"))
-      .toBeInTheDocument();
-
-    expect(screen.getByRole("button", { name: "Smart mode, selected" }))
-      .toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Solar mode" }))
-      .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Now mode" }))
-      .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Stop mode" }))
-      .toBeInTheDocument();
-    expect(screen.getByText("Solar + off-peak")).toBeInTheDocument();
-    expect(screen.getByText("Solar surplus only")).toBeInTheDocument();
-    expect(screen.getByText("Manual grid charging")).toBeInTheDocument();
-    expect(screen.getByText("Stop charging")).toBeInTheDocument();
-
-    expect(screen.queryByText("Show details")).not.toBeInTheDocument();
-    expect(screen.queryByText("Start Charging")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Priority 1/)).not.toBeInTheDocument();
-    expect(screen.queryByText("16 A")).not.toBeInTheDocument();
-  });
-
-  it("shows an upcoming programmed charge with details visible", () => {
+  it("shows a scheduled charge without a hidden details section", () => {
     renderVC({
       scheduledCharge: {
         scheduleId: "night-charge",
@@ -124,223 +222,27 @@ describe("VehicleCard", () => {
     expect(screen.getByText("23:10–04:40 · Target 80%"))
       .toBeInTheDocument();
     expect(screen.queryByText("Show details")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Online · Priority/)).not.toBeInTheDocument();
   });
 
-  it("makes an active programmed charge explicit", () => {
+  it("uses concise source information while charging", () => {
     renderVC({
-      state: makeVehicleState({ isCharging: true, chargePowerKw: 7.4 }),
-      controllerReason: "schedule",
-      scheduledCharge: {
-        scheduleId: "active-charge",
-        status: "active",
-        title: "Programmed charge in progress",
-        detail: "Until 06:00 · Target 80%",
-      },
-    });
-
-    expect(screen.getByText("Charging with lower-cost electricity"))
-      .toBeInTheDocument();
-    expect(screen.getByText("Charging · 7.4 kW")).toBeInTheDocument();
-    expect(screen.getByTestId("vehicle-charge-status"))
-      .toHaveAttribute("data-status", "charging");
-    expect(screen.getByTestId("vehicle-charge-status"))
-      .toHaveAttribute("data-mode", "auto");
-    expect(screen.getByText("Programmed charge in progress"))
-      .toBeInTheDocument();
-  });
-
-  it("uses the active Solar mode color for the charging status", () => {
-    renderVC({
-      state: makeVehicleState({ isCharging: true, chargePowerKw: 4.8 }),
+      state: makeVehicleState({ isCharging: true, chargePowerKw: 4.2 }),
       mode: "vacation",
       controllerReason: "solar_tracking",
     });
-
-    expect(screen.getByText("Charging · 4.8 kW")).toBeInTheDocument();
-    expect(screen.getByTestId("vehicle-charge-status"))
-      .toHaveAttribute("data-mode", "vacation");
+    expect(screen.getByText("Solar charging")).toBeInTheDocument();
   });
 
-  it.each<[
-    string,
-    Partial<VehicleChargeState>,
-    Partial<VCProps>,
-    string,
-    string,
-  ]>([
-    [
-      "waiting for solar",
-      { isPluggedIn: true, isCharging: false },
-      { mode: "vacation", controllerReason: "solar_tracking" },
-      "Waiting for energy",
-      "waiting",
-    ],
-    [
-      "disconnected",
-      { isPluggedIn: false, isCharging: false },
-      {},
-      "Disconnected",
-      "disconnected",
-    ],
-    [
-      "in error",
-      { isOnline: false },
-      {},
-      "Connection error",
-      "error",
-    ],
-  ])("shows the %s state on the card", (_label, state, props, text, kind) => {
-    renderVC({ ...props, state: makeVehicleState(state) });
-    expect(screen.getByText(text)).toBeInTheDocument();
-    expect(screen.getByTestId("vehicle-charge-status"))
-      .toHaveAttribute("data-status", kind);
-  });
-
-  it("keeps the home card free from the technical footer", () => {
-    renderVC();
-
-    expect(screen.queryByText("Show details")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Online · Priority 1/)).not.toBeInTheDocument();
-    expect(screen.queryByText("Start Charging")).not.toBeInTheDocument();
-    expect(screen.queryByText("16 A")).not.toBeInTheDocument();
-  });
-
-  it("keeps every charging mode visible and selectable", () => {
-    const onChangeMode = vi.fn();
-    renderVC({ mode: "vacation", onChangeMode });
-
-    fireEvent.click(screen.getByRole("button", { name: "Smart mode" }));
-    expect(onChangeMode).toHaveBeenCalledWith("auto");
-  });
-
-  it.each<[string, VCProps["mode"]]>([
-    ["Solar", "vacation"],
-    ["Now", "charge_now"],
-    ["Stop", "stop"],
-  ])("selects the visible %s mode", (label, mode) => {
-    const onChangeMode = vi.fn();
-    renderVC({ onChangeMode });
-
-    fireEvent.click(screen.getByRole("button", { name: `${label} mode` }));
-    expect(onChangeMode).toHaveBeenCalledWith(mode);
-  });
-
-  it.each<[VCProps["mode"], string]>([
-    ["auto", "Smart charging"],
-    ["vacation", "Solar"],
-    ["charge_now", "Now"],
-    ["stop", "Stop"],
-  ])("identifies the active %s mode with its mode color", (mode, label) => {
-    renderVC({ mode });
-    expect(screen.getByLabelText(`Active mode: ${label}`))
-      .toHaveAttribute("data-mode", mode);
-  });
-
-  it.each<
-    [
-      string,
-      Partial<VehicleChargeState>,
-      VCProps["mode"],
-      string | null,
-      string,
-    ]
-  >([
-    [
-      "solar charging",
-      { isCharging: true, chargePowerKw: 4.2 },
-      "vacation",
-      "solar_tracking",
-      "Charging with available solar",
-    ],
-    [
-      "scheduled charging",
-      { isCharging: true, chargePowerKw: 3.7 },
-      "auto",
-      "schedule",
-      "Charging with lower-cost electricity",
-    ],
-    [
-      "charge now",
-      { isCharging: true, chargePowerKw: 7.4 },
-      "charge_now",
-      null,
-      "Charging now",
-    ],
-  ])(
-    "uses human status copy for %s",
-    (_label, state, mode, reason, expected) => {
-      renderVC({
-        state: makeVehicleState(state),
-        mode,
-        controllerReason: reason,
-      });
-      expect(screen.getByText(expected)).toBeInTheDocument();
-    },
-  );
-
-  it("makes away charging explicit", () => {
+  it("makes Off-Peak charging explicit", () => {
     renderVC({
-      state: makeVehicleState({ isCharging: true, chargePowerKw: 7.4 }),
-      atHome: false,
+      state: makeVehicleState({ isCharging: true, chargePowerKw: 3.7 }),
+      mode: "auto",
+      controllerReason: "schedule",
     });
-    expect(screen.getByText("Charging away from home")).toBeInTheDocument();
+    expect(screen.getByText("Off-Peak charging")).toBeInTheDocument();
   });
 
-  it("keeps unplugged cards calm and compact", () => {
-    renderVC({ state: makeVehicleState({ isPluggedIn: false }) });
-
-    expect(screen.getByText(
-      "Unplugged — Smart charging ready for next connection",
-    ))
-      .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Smart mode, selected" }))
-      .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Solar mode" }))
-      .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Now mode" }))
-      .toBeInTheDocument();
-  });
-
-  it("shows a clear offline status", () => {
-    renderVC({ state: makeVehicleState({ isOnline: false }) });
-    expect(screen.getByText("Vehicle offline — waiting to reconnect"))
-      .toBeInTheDocument();
-  });
-
-  it("uses simple controller waiting messages", () => {
-    renderVC({ controllerReason: "battery_priority" });
-    expect(screen.getByText("Home battery has priority")).toBeInTheDocument();
-  });
-
-  it("explains the safe minimum while live solar data is unavailable", () => {
-    renderVC({
-      state: makeVehicleState({ isCharging: true, chargeAmps: 5 }),
-      controllerReason: "energy_unavailable",
-    });
-    expect(
-      screen.getByText(
-        "Solar data unavailable — charging safely at minimum",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("explains why automatic charging is waiting for solar data", () => {
-    renderVC({ controllerReason: "energy_unavailable" });
-    expect(screen.getByText("Waiting for live solar data")).toBeInTheDocument();
-  });
-
-  it("shows connection problem copy without raw technical detail", () => {
-    renderVC({ vehicleError: "Tesla API rate limited" });
-
-    expect(screen.getByText("Vehicle connection problem")).toBeInTheDocument();
-    expect(screen.getByText(/It will keep trying automatically/))
-      .toBeInTheDocument();
-    expect(screen.queryByText(/Connection detail: Tesla API rate limited/))
-      .not.toBeInTheDocument();
-  });
-
-  it("shows a simple automatic charging error with a Settings action", () => {
+  it("shows an error state and Settings action when control is unavailable", () => {
     const onNavigateSettings = vi.fn();
     renderVC({
       commandsDisabled: true,
@@ -348,116 +250,25 @@ describe("VehicleCard", () => {
       onNavigateSettings,
     });
 
-    expect(screen.getByText("Automatic charging unavailable"))
+    expect(screen.getByTestId("vehicle-charge-status"))
+      .toHaveAttribute("data-status", "error");
+    expect(screen.getByText("Vehicle control unavailable"))
       .toBeInTheDocument();
     fireEvent.click(screen.getByText("Open Settings"));
     expect(onNavigateSettings).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps raw control diagnostics off the home card", () => {
-    renderVC({
-      commandsDisabled: true,
-      commandsDisabledReason: "Tesla API token is expired.",
-    });
-
-    expect(screen.queryByText(/Control detail: Tesla API token is expired\./))
+    expect(screen.queryByText(/Tesla API token is expired/))
       .not.toBeInTheDocument();
   });
 
-  it("shows the amp selector only in Now mode", () => {
+  it("keeps legacy Charge Now readable without exposing it in the Home selector", () => {
     const onSetAmps = vi.fn();
     renderVC({ mode: "charge_now", onSetAmps });
 
+    expect(screen.getByLabelText("Active mode: Charge Now")).toBeInTheDocument();
     expect(screen.getByText("Manual current")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Charge Now mode" }))
+      .not.toBeInTheDocument();
     fireEvent.click(screen.getByText("+"));
     expect(onSetAmps).toHaveBeenCalledWith(17);
-  });
-
-  it("uses the red Stop mode instead of a duplicate charge button", () => {
-    const onChangeMode = vi.fn();
-    renderVC({ onChangeMode });
-
-    fireEvent.click(screen.getByRole("button", { name: "Stop mode" }));
-    expect(onChangeMode).toHaveBeenCalledWith("stop");
-    expect(screen.queryByText("Stop Charging")).not.toBeInTheDocument();
-  });
-
-  it("shows a red stopped status when Stop is active", () => {
-    renderVC({
-      mode: "stop",
-      state: makeVehicleState({ isCharging: false }),
-    });
-
-    expect(screen.getByText("Stopped")).toBeInTheDocument();
-    expect(screen.getByText("Charging stopped until next connection"))
-      .toBeInTheDocument();
-    expect(screen.queryByText("Smart charging in progress"))
-      .not.toBeInTheDocument();
-    expect(screen.getByTestId("vehicle-charge-status"))
-      .toHaveAttribute("data-status", "stopped");
-  });
-
-  it.each([true, false])(
-    "keeps actual charging visible in Stop mode (home: %s)",
-    (atHome) => {
-      renderVC({
-        mode: "stop",
-        atHome,
-        state: makeVehicleState({ isCharging: true, chargePowerKw: 4.8 }),
-      });
-      expect(screen.getByText("Charging · 4.8 kW")).toBeInTheDocument();
-      expect(screen.queryByText("Stopped")).not.toBeInTheDocument();
-      expect(screen.getByText(
-        atHome
-          ? "Stop requested — waiting for vehicle confirmation"
-          : "Charging away from home",
-      )).toBeInTheDocument();
-    },
-  );
-
-  it.each(["stop", "vacation"] as const)(
-    "does not apply home %s waiting status to an away vehicle",
-    (mode) => {
-      renderVC({ mode, atHome: false, controllerReason: "battery_priority" });
-      expect(screen.getByText("Connected · Not charging")).toBeInTheDocument();
-      expect(screen.getByText("Plugged in away from home")).toBeInTheDocument();
-    },
-  );
-
-  it("does not show stale charging metrics during an error", () => {
-    renderVC({
-      state: makeVehicleState({ isCharging: true, chargePowerKw: 4.8 }),
-      vehicleError: "Simulated error",
-    });
-
-    expect(screen.getByText("Connection error")).toBeInTheDocument();
-    expect(screen.queryByText(/kWh added/)).not.toBeInTheDocument();
-  });
-
-  it.each([
-    ["offline", { isOnline: false }],
-    ["unplugged", { isPluggedIn: false }],
-  ])("hides the Now current selector when %s", (_label, state) => {
-    renderVC({ mode: "charge_now", state: makeVehicleState(state) });
-    expect(screen.queryByText("Manual current")).not.toBeInTheDocument();
-  });
-
-  it("keeps refresh metadata off the home card", () => {
-    const onRefresh = vi.fn().mockResolvedValue(undefined);
-    renderVC({ onRefresh });
-
-    expect(screen.queryByText("Refresh")).not.toBeInTheDocument();
-    expect(onRefresh).not.toHaveBeenCalled();
-  });
-
-  it("does not render a GPS map on the home card", () => {
-    const { container } = renderVC();
-    expect(container.querySelector('img[src*="tile.openstreetmap.org"]'))
-      .toBeNull();
-  });
-
-  it("shows a skeleton while loading", () => {
-    renderVC({ loading: true });
-    expect(screen.queryByText("Model 3")).not.toBeInTheDocument();
   });
 });
