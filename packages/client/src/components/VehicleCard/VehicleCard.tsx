@@ -204,33 +204,35 @@ function VehicleCardBanners({
 }) {
   if (!commandsDisabled && !vehicleError) return null;
 
+  if (commandsDisabled) {
+    return (
+      <div className={styles.bannerWrap}>
+        <ErrorBanner
+          title="Vehicle control unavailable"
+          description="Check Settings if the connection does not recover."
+        >
+          {onNavigateSettings && (
+            <Button
+              variant="soft"
+              color="orange"
+              size="2"
+              onClick={onNavigateSettings}
+            >
+              <Key size={14} />
+              Open Settings
+            </Button>
+          )}
+        </ErrorBanner>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.bannerWrap}>
-      {commandsDisabled
-        ? (
-          <ErrorBanner
-            title="Vehicle control unavailable"
-            description="Check Settings if the connection does not recover."
-          >
-            {onNavigateSettings && (
-              <Button
-                variant="soft"
-                color="orange"
-                size="2"
-                onClick={onNavigateSettings}
-              >
-                <Key size={14} />
-                Open Settings
-              </Button>
-            )}
-          </ErrorBanner>
-        )
-        : (
-          <ErrorBanner
-            title="Vehicle connection unavailable"
-            description="E.V. Solar will retry automatically."
-          />
-        )}
+      <ErrorBanner
+        title="Vehicle connection unavailable"
+        description="E.V. Solar will retry automatically."
+      />
     </div>
   );
 }
