@@ -14,6 +14,18 @@ function formatClock(iso: string): string {
   }).format(new Date(iso));
 }
 
+function offPeakTiming(
+  label: string,
+  nextRate: { label: string; startsAt: string } | null | undefined,
+): string {
+  const active = isOffPeakLabel(label);
+  if (active && nextRate) return `Until ${formatClock(nextRate.startsAt)}`;
+  if (!active && nextRate && isOffPeakLabel(nextRate.label)) {
+    return `Starts ${formatClock(nextRate.startsAt)}`;
+  }
+  return label;
+}
+
 export function OffPeakStatus() {
   const { data, isLoading } = trpc.tariff.currentRate.useQuery(undefined, {
     refetchInterval: 60_000,
@@ -47,13 +59,7 @@ export function OffPeakStatus() {
   }
 
   const active = isOffPeakLabel(data.label);
-  const nextIsOffPeak = isOffPeakLabel(data.nextRate?.label);
-  let timing = data.label;
-  if (active && data.nextRate) {
-    timing = `Until ${formatClock(data.nextRate.startsAt)}`;
-  } else if (!active && nextIsOffPeak && data.nextRate) {
-    timing = `Starts ${formatClock(data.nextRate.startsAt)}`;
-  }
+  const timing = offPeakTiming(data.label, data.nextRate);
 
   return (
     <section
