@@ -199,7 +199,8 @@ function getSecondaryPresentation({
     return {
       statusKind: "disconnected",
       statusHeadline: "Disconnected",
-      statusDetail: scheduledCharge?.title ?? "Vehicle is asleep or unreachable",
+      statusDetail: scheduledCharge?.title ??
+        "Vehicle is asleep or unreachable",
       batteryPercent: null,
     };
   }
@@ -278,7 +279,9 @@ function SecondaryVehicleCard({
         <span className={styles.secondaryStatus}>
           {presentation.statusHeadline}
         </span>
-        <span className={styles.secondaryDetail}>{presentation.statusDetail}</span>
+        <span className={styles.secondaryDetail}>
+          {presentation.statusDetail}
+        </span>
       </span>
       <span className={styles.secondaryVehicleBattery}>
         <strong>
