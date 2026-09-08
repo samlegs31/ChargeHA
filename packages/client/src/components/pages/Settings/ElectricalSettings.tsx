@@ -22,8 +22,8 @@ export function ElectricalSettings(
   return (
     <SettingsSection
       icon={<Shield size={18} />}
-      title="Charging limits"
-      description="Optional limits applied to Solar, Smart, Now and manual charging commands."
+      title="Electrical limits"
+      description="Maximum current per car and maximum grid power for the home. These are power limits, not battery charge targets (%)."
       onSave={save}
       saveStatus={saveStatus}
       isDirty={isDirty}
