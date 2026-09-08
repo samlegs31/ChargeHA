@@ -1,6 +1,6 @@
 import { type ComponentProps, type ReactNode, useMemo, useState } from "react";
-import { CalendarClock, ChevronRight, Settings, Zap } from "lucide-react";
-import { Button, Card, Text } from "@radix-ui/themes";
+import { CalendarClock, Settings, Zap } from "lucide-react";
+import { Button, Card, Skeleton, Text } from "@radix-ui/themes";
 import type { Schedule, VehicleMode } from "@chargeha/shared";
 import type { SolarChargeForecastResult } from "@chargeha/shared/forecast";
 import { isHome } from "@chargeha/shared/geo";
@@ -16,6 +16,12 @@ import { useControllerStatuses } from "../../../hooks/controllerStatusStore.ts";
 import { VehicleCard } from "../../VehicleCard/VehicleCard.tsx";
 import { VehicleSilhouetteIcon } from "../../icons/VehicleSilhouetteIcon.tsx";
 import { SolarForecastInline } from "../../VehicleCard/SolarForecastInline.tsx";
+import {
+  getChargeStatusKind,
+  getStatusDetail,
+  getStatusHeadline,
+  VEHICLE_MODE_LABELS,
+} from "../../VehicleCard/vehiclePresentation.ts";
 import { trpc } from "../../../trpc.ts";
 import { useVehicleSolarGrid } from "./energyHelpers.ts";
 import {
@@ -25,6 +31,8 @@ import {
 import styles from "./VehicleList.module.css";
 
 type VehicleCardProps = ComponentProps<typeof VehicleCard>;
+type VehicleItem = ReturnType<typeof useVehicles>["vehicles"][number];
+type HomePoint = { lat: number; lng: number } | null;
 
 function renderSolarForecast(
   eligible: boolean,
@@ -44,7 +52,6 @@ function renderSolarForecast(
   );
 }
 
-/** Wraps VehicleCard with per-vehicle command status and charge-limit control. */
 function ConnectedVehicleCard(
   { vehicleId, ...props }:
     & { vehicleId: string }
@@ -113,162 +120,174 @@ interface VehicleListProps {
 }
 
 function WakingSpinner() {
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        width: 14,
-        height: 14,
-        border: "2px solid currentColor",
-        borderTopColor: "transparent",
-        borderRadius: "50%",
-        animation: "spin 0.6s linear infinite",
-        verticalAlign: "middle",
-      }}
-    />
-  );
+  return <span className={styles.wakingSpinner} aria-hidden="true" />;
 }
 
-function AsleepVehicleCard(
-  { v, isWaking, onWake, scheduledCharge }: {
-    v: { id: string; name: string };
-    isWaking: boolean;
-    onWake: () => void;
-    scheduledCharge: ScheduledChargeDisplay | null;
-  },
-) {
-  const wakeIcon = isWaking ? <WakingSpinner /> : <Zap size={14} />;
+function AsleepVehicleCard({
+  vehicle,
+  isWaking,
+  onWake,
+  scheduledCharge,
+}: {
+  vehicle: VehicleItem;
+  isWaking: boolean;
+  onWake: () => void;
+  scheduledCharge: ScheduledChargeDisplay | null;
+}) {
+  const mode = vehicle.mode as VehicleMode;
   return (
-    <Card key={v.id} style={{ borderLeft: "3px solid var(--gray-a6)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <VehicleSilhouetteIcon
-          size={30}
-          style={{ color: "var(--gray-9)" }}
-          aria-hidden="true"
-        />
-        <div style={{ flex: 1 }}>
-          <Text size="2" weight="bold">{v.name}</Text>
-          <Text size="1" color="gray" style={{ display: "block" }}>
-            Vehicle is asleep or unreachable
+    <Card className={styles.asleepCard} data-status="disconnected">
+      <div className={styles.asleepMain}>
+        <span className={styles.asleepIcon} aria-hidden="true">
+          <VehicleSilhouetteIcon size={46} />
+        </span>
+        <div className={styles.asleepCopy}>
+          <Text size="4" weight="bold">{vehicle.name || "Vehicle"}</Text>
+          <Text size="2" weight="bold" className={styles.asleepStatus}>
+            Disconnected
           </Text>
-          {scheduledCharge && (
-            <Text
-              size="2"
-              color="blue"
-              weight="medium"
-              style={{ display: "flex", alignItems: "center", gap: 5 }}
-            >
-              <CalendarClock size={15} aria-hidden="true" />
-              {scheduledCharge.title} · {scheduledCharge.detail}
-            </Text>
-          )}
+          <Text size="1" color="gray">Asleep or unreachable</Text>
         </div>
-        <Button variant="soft" size="1" disabled={isWaking} onClick={onWake}>
-          {wakeIcon}
-          {isWaking ? "Waking..." : "Wake"}
-        </Button>
+        <span className={styles.compactMode}>{VEHICLE_MODE_LABELS[mode]}</span>
       </div>
+      {scheduledCharge && (
+        <div className={styles.compactSchedule}>
+          <CalendarClock size={15} aria-hidden="true" />
+          <span>{scheduledCharge.title}</span>
+        </div>
+      )}
+      <Button
+        variant="soft"
+        size="2"
+        className={styles.wakeButton}
+        disabled={isWaking}
+        onClick={onWake}
+      >
+        {isWaking ? <WakingSpinner /> : <Zap size={15} />}
+        {isWaking ? "Waking…" : "Wake"}
+      </Button>
     </Card>
   );
 }
 
-function SecondaryVehicleCard(
-  {
-    vehicle,
-    scheduledCharge,
-    onSelect,
-  }: {
-    vehicle: ReturnType<typeof useVehicles>["vehicles"][number];
-    scheduledCharge: ScheduledChargeDisplay | null;
-    onSelect: () => void;
-  },
-) {
+function SecondaryVehicleCard({
+  vehicle,
+  scheduledCharge,
+  home,
+  controllerReason,
+  vehicleError,
+  onSelect,
+}: {
+  vehicle: VehicleItem;
+  scheduledCharge: ScheduledChargeDisplay | null;
+  home: HomePoint;
+  controllerReason: string | null;
+  vehicleError?: string;
+  onSelect: () => void;
+}) {
   const state = vehicle.state;
+  const mode = vehicle.mode as VehicleMode;
   const name = vehicle.name || state?.vehicleName || "Vehicle";
-  const status = getSecondaryVehicleStatus(state);
+  const atHome = vehicle.lastLocation
+    ? isHome(home, vehicle.lastLocation)
+    : null;
+  const { data: cmdStatus } = trpc.vehicle.commandStatus.useQuery(
+    { vehicleId: vehicle.id },
+    { enabled: state !== null, refetchInterval: 30_000 },
+  );
+  const statusKind = state
+    ? getChargeStatusKind({
+      state,
+      mode,
+      controllerReason,
+      vehicleError,
+      commandsDisabled: cmdStatus?.commandsDisabled ?? false,
+    })
+    : "disconnected";
+  const statusHeadline = state
+    ? getStatusHeadline(statusKind, state, mode)
+    : "Disconnected";
+  const statusDetail = scheduledCharge?.title ?? (state
+    ? getStatusDetail(state, mode, atHome, controllerReason)
+    : "Asleep or unreachable");
+  const batteryPercent = state ? Math.round(state.batteryLevel) : null;
 
   return (
     <button
       type="button"
       className={styles.secondaryVehicle}
       onClick={onSelect}
-      aria-label={`Show ${name} as the main vehicle`}
+      aria-label={`Select ${name}`}
+      data-status={statusKind}
       data-testid="secondary-vehicle-card"
     >
       <span className={styles.secondaryVehicleIcon} aria-hidden="true">
-        <VehicleSilhouetteIcon size={40} />
+        <VehicleSilhouetteIcon size={46} />
       </span>
       <span className={styles.secondaryVehicleCopy}>
-        <strong>{name}</strong>
-        <span>{scheduledCharge?.title ?? status}</span>
+        <span className={styles.secondaryTopLine}>
+          <strong>{name}</strong>
+          <span className={styles.compactMode}>{VEHICLE_MODE_LABELS[mode]}</span>
+        </span>
+        <span className={styles.secondaryStatus}>{statusHeadline}</span>
+        <span className={styles.secondaryDetail}>{statusDetail}</span>
       </span>
       <span className={styles.secondaryVehicleBattery}>
-        <strong>{state ? `${Math.round(state.batteryLevel)}%` : "—"}</strong>
-        <span>{state?.isPluggedIn ? "PLUGGED IN" : "VEHICLE"}</span>
+        <strong>{batteryPercent === null ? "—" : `${batteryPercent}%`}</strong>
+        <span className={styles.compactBatteryTrack} aria-hidden="true">
+          <span
+            className={styles.compactBatteryFill}
+            style={{ width: `${batteryPercent ?? 0}%` }}
+          />
+        </span>
       </span>
-      <ChevronRight size={22} className={styles.secondaryVehicleChevron} />
     </button>
   );
 }
 
-function getSecondaryVehicleStatus(
-  state: ReturnType<typeof useVehicles>["vehicles"][number]["state"],
-): string {
-  if (state === null) return "Asleep or unreachable";
-  if (state.isCharging) {
-    return `Charging · ${state.chargePowerKw.toFixed(1)} kW`;
-  }
-  if (state.isPluggedIn) return "Plugged in · ready";
-  return "Unplugged";
-}
-
-function VehicleListErrorCard(
-  { error, onRetry }: { error: string; onRetry: () => void },
-) {
+function VehicleListLoadingCard() {
   return (
-    <Card style={{ borderLeft: "3px solid var(--red-a7)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <VehicleSilhouetteIcon
-          size={34}
-          style={{ color: "var(--red-9)" }}
-          aria-hidden="true"
-        />
-        <div style={{ flex: 1 }}>
-          <Text size="3" weight="bold" style={{ display: "block" }}>
-            Unable to load vehicles
-          </Text>
-          <Text size="2" color="gray">{error}</Text>
-        </div>
-        <Button variant="soft" size="2" onClick={onRetry}>Retry</Button>
-      </div>
+    <Card className={styles.loadingCard}>
+      <Skeleton width="100%" height="168px" />
     </Card>
   );
 }
 
-function NoVehiclesCard(
-  { onNavigateSettings }: { onNavigateSettings?: () => void },
-) {
+function VehicleListErrorCard({
+  error,
+  onRetry,
+}: {
+  error: string;
+  onRetry: () => void;
+}) {
   return (
-    <Card style={{ borderLeft: "3px solid var(--color-vehicle)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <VehicleSilhouetteIcon
-          size={34}
-          style={{ color: "var(--color-vehicle)" }}
-          aria-hidden="true"
-        />
-        <div style={{ flex: 1 }}>
-          <Text size="3" weight="bold" style={{ display: "block" }}>
-            No vehicles configured
-          </Text>
-          <Text size="2" color="gray">
-            Add a vehicle to monitor charging and control solar allocation.
-          </Text>
-        </div>
-        <Button variant="soft" size="2" onClick={onNavigateSettings}>
-          <Settings size={16} />
-          Add Vehicle
-        </Button>
+    <Card className={styles.messageCard} data-tone="error">
+      <VehicleSilhouetteIcon size={38} aria-hidden="true" />
+      <div className={styles.messageCopy}>
+        <Text size="3" weight="bold">Unable to load vehicles</Text>
+        <Text size="2" color="gray">{error}</Text>
       </div>
+      <Button variant="soft" size="2" onClick={onRetry}>Retry</Button>
+    </Card>
+  );
+}
+
+function NoVehiclesCard({
+  onNavigateSettings,
+}: {
+  onNavigateSettings?: () => void;
+}) {
+  return (
+    <Card className={styles.messageCard}>
+      <VehicleSilhouetteIcon size={38} aria-hidden="true" />
+      <div className={styles.messageCopy}>
+        <Text size="3" weight="bold">No vehicles configured</Text>
+        <Text size="2" color="gray">Add a vehicle to start.</Text>
+      </div>
+      <Button variant="soft" size="2" onClick={onNavigateSettings}>
+        <Settings size={16} />
+        Add Vehicle
+      </Button>
     </Card>
   );
 }
@@ -303,52 +322,50 @@ function useAllocationStatus(
   }, [priorityChargingEnabled, vehicles, controllerStatuses]);
 }
 
-function VehicleCards(
-  {
-    vehicles,
-    schedules,
-    timezone,
-    home,
-    vehiclesLoading,
-    commandPending,
-    vehicleErrors,
-    vehicleSolarGrid,
-    allocationStatus,
-    controllerStatuses,
-    wakeMutation,
-    refreshMutation,
-    startCharging,
-    stopCharging,
-    setAmps,
-    changeMode,
-    onNavigateSettings,
-    selectedVehicleId,
-    onSelectVehicle,
-  }: {
-    vehicles: ReturnType<typeof useVehicles>["vehicles"];
-    schedules: Schedule[];
-    timezone: string;
-    home: { lat: number; lng: number } | null;
-    vehiclesLoading: boolean;
-    commandPending: Record<string, string | false>;
-    vehicleErrors: Record<string, string | undefined>;
-    vehicleSolarGrid: Record<
-      string,
-      { solarW: number; batteryW: number; gridW: number }
-    >;
-    allocationStatus: Record<string, string>;
-    controllerStatuses: ReturnType<typeof useControllerStatuses>;
-    wakeMutation: ReturnType<typeof trpc.vehicle.command.useMutation>;
-    refreshMutation: ReturnType<typeof trpc.vehicle.refreshState.useMutation>;
-    startCharging: (id: string) => void;
-    stopCharging: (id: string) => void;
-    setAmps: (id: string, amps: number) => void;
-    changeMode: (id: string, mode: VehicleMode) => void;
-    onNavigateSettings?: () => void;
-    selectedVehicleId: string | null;
-    onSelectVehicle: (id: string) => void;
-  },
-) {
+function VehicleCards({
+  vehicles,
+  schedules,
+  timezone,
+  home,
+  vehiclesLoading,
+  commandPending,
+  vehicleErrors,
+  vehicleSolarGrid,
+  allocationStatus,
+  controllerStatuses,
+  wakeMutation,
+  refreshMutation,
+  startCharging,
+  stopCharging,
+  setAmps,
+  changeMode,
+  onNavigateSettings,
+  selectedVehicleId,
+  onSelectVehicle,
+}: {
+  vehicles: ReturnType<typeof useVehicles>["vehicles"];
+  schedules: Schedule[];
+  timezone: string;
+  home: HomePoint;
+  vehiclesLoading: boolean;
+  commandPending: Record<string, string | false>;
+  vehicleErrors: Record<string, string | undefined>;
+  vehicleSolarGrid: Record<
+    string,
+    { solarW: number; batteryW: number; gridW: number }
+  >;
+  allocationStatus: Record<string, string>;
+  controllerStatuses: ReturnType<typeof useControllerStatuses>;
+  wakeMutation: ReturnType<typeof trpc.vehicle.command.useMutation>;
+  refreshMutation: ReturnType<typeof trpc.vehicle.refreshState.useMutation>;
+  startCharging: (id: string) => void;
+  stopCharging: (id: string) => void;
+  setAmps: (id: string, amps: number) => void;
+  changeMode: (id: string, mode: VehicleMode) => void;
+  onNavigateSettings?: () => void;
+  selectedVehicleId: string | null;
+  onSelectVehicle: (id: string) => void;
+}) {
   const now = new Date();
   const primaryId = selectedVehicleId ?? vehicles[0]?.id ?? null;
   const primaryVehicle = vehicles.find((vehicle) => vehicle.id === primaryId) ??
@@ -368,8 +385,8 @@ function VehicleCards(
   );
 
   return (
-    <>
-      {primaryVehicle.state && (
+    <div className={styles.vehicleCards}>
+      {primaryVehicle.state ? (
         <ConnectedVehicleCard
           key={primaryVehicle.id}
           vehicleId={primaryVehicle.id}
@@ -393,21 +410,17 @@ function VehicleCards(
           allocationStatus={allocationStatus[primaryVehicle.id] ?? null}
           pollingSuspended={primaryVehicle.pollingSuspended}
           pollingSuspendReason={primaryVehicle.pollingSuspendReason}
-          controllerReason={controllerStatuses[primaryVehicle.id]?.reason ??
-            null}
-          controllerDetail={controllerStatuses[primaryVehicle.id]?.detail ??
-            null}
+          controllerReason={controllerStatuses[primaryVehicle.id]?.reason ?? null}
+          controllerDetail={controllerStatuses[primaryVehicle.id]?.detail ?? null}
           scheduledCharge={scheduledCharge}
           onNavigateSettings={onNavigateSettings}
           onRefresh={() =>
             refreshMutation.mutateAsync({ vehicleId: primaryVehicle.id })}
         />
-      )}
-
-      {!primaryVehicle.state && (
+      ) : (
         <AsleepVehicleCard
           key={primaryVehicle.id}
-          v={primaryVehicle}
+          vehicle={primaryVehicle}
           isWaking={wakeMutation.isPending &&
             wakeMutation.variables?.vehicleId === primaryVehicle.id}
           scheduledCharge={scheduledCharge}
@@ -432,18 +445,19 @@ function VehicleCards(
                 now,
                 timezone,
               )}
+              home={home}
+              controllerReason={controllerStatuses[vehicle.id]?.reason ?? null}
+              vehicleError={vehicleErrors[vehicle.id]}
               onSelect={() => onSelectVehicle(vehicle.id)}
             />
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
-export function VehicleList(
-  { onNavigateSettings }: VehicleListProps,
-) {
+export function VehicleList({ onNavigateSettings }: VehicleListProps) {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
     null,
   );
@@ -504,17 +518,12 @@ export function VehicleList(
       ? selectedVehicleId
       : orderedVehicles[0]?.id ?? null;
 
+  if (vehiclesLoading && vehicles.length === 0) {
+    return <VehicleListLoadingCard />;
+  }
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {/* Vehicle section — one card per configured vehicle */}
-      <Text
-        size="2"
-        color="gray"
-        weight="medium"
-        style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}
-      >
-        Vehicles
-      </Text>
+    <div className={styles.list}>
       <VehicleCards
         vehicles={orderedVehicles}
         schedules={scheduleData?.schedules ?? []}
@@ -538,10 +547,7 @@ export function VehicleList(
       />
 
       {!vehiclesLoading && vehicles.length === 0 && vehiclesError && (
-        <VehicleListErrorCard
-          error={vehiclesError}
-          onRetry={refreshVehicles}
-        />
+        <VehicleListErrorCard error={vehiclesError} onRetry={refreshVehicles} />
       )}
 
       {!vehiclesLoading && vehicles.length === 0 && !vehiclesError && (
