@@ -48,11 +48,12 @@ export function OffPeakStatus() {
 
   const active = isOffPeakLabel(data.label);
   const nextIsOffPeak = isOffPeakLabel(data.nextRate?.label);
-  const timing = active && data.nextRate
-    ? `Until ${formatClock(data.nextRate.startsAt)}`
-    : !active && nextIsOffPeak && data.nextRate
-    ? `Starts ${formatClock(data.nextRate.startsAt)}`
-    : data.label;
+  let timing = data.label;
+  if (active && data.nextRate) {
+    timing = `Until ${formatClock(data.nextRate.startsAt)}`;
+  } else if (!active && nextIsOffPeak && data.nextRate) {
+    timing = `Starts ${formatClock(data.nextRate.startsAt)}`;
+  }
 
   return (
     <section
