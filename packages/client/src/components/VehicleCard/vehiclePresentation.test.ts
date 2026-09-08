@@ -6,42 +6,42 @@ import {
   getStatusHeadline,
 } from "./vehiclePresentation.ts";
 
-const makeState = (
-  overrides: Partial<VehicleChargeState> = {},
-): VehicleChargeState => ({
-  vehicleId: "vin-1",
-  batteryLevel: 72,
-  chargeLimit: 80,
-  isCharging: false,
-  isPluggedIn: true,
-  isOnline: true,
-  chargeAmps: 16,
-  chargeAmpsMax: 32,
-  chargeAmpsMin: 5,
-  chargePowerKw: 0,
-  chargerVoltage: 230,
-  chargerPhases: 1,
-  energyAddedKwh: 0,
-  minutesToFull: 0,
-  chargePortOpen: true,
-  vehicleName: "F.R.I.D.A.Y.",
-  lastUpdated: "2026-09-08T20:00:00.000Z",
-  latitude: null,
-  longitude: null,
-  isHome: true,
-  ...overrides,
-});
-
-function kind(
-  state: VehicleChargeState,
-  mode: VehicleMode = "auto",
-  controllerReason: string | null = null,
-  vehicleError: string | null = null,
-) {
-  return getChargeStatusKind({ state, mode, controllerReason, vehicleError });
-}
-
 describe("vehiclePresentation", () => {
+  const makeState = (
+    overrides: Partial<VehicleChargeState> = {},
+  ): VehicleChargeState => ({
+    vehicleId: "vin-1",
+    batteryLevel: 72,
+    chargeLimit: 80,
+    isCharging: false,
+    isPluggedIn: true,
+    isOnline: true,
+    chargeAmps: 16,
+    chargeAmpsMax: 32,
+    chargeAmpsMin: 5,
+    chargePowerKw: 0,
+    chargerVoltage: 230,
+    chargerPhases: 1,
+    energyAddedKwh: 0,
+    minutesToFull: 0,
+    chargePortOpen: true,
+    vehicleName: "F.R.I.D.A.Y.",
+    lastUpdated: "2026-09-08T20:00:00.000Z",
+    latitude: null,
+    longitude: null,
+    isHome: true,
+    ...overrides,
+  });
+
+  const kind = (
+    state: VehicleChargeState,
+    mode: VehicleMode = "auto",
+    controllerReason: string | null = null,
+    vehicleError: string | null = null,
+  ) => {
+    return getChargeStatusKind({ state, mode, controllerReason, vehicleError });
+  };
+
   it.each([
     [0, "0 W"],
     [0.45, "450 W"],
