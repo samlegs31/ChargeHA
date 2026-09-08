@@ -39,6 +39,27 @@
   --color-connected: #22c55e;
   --color-connecting: #f59e0b;
   --color-disconnected: #ef4444;
+
+  /* E.V. Solar design system */
+  --ev-accent: #25cbc8;
+  --ev-accent-strong: #11b8b5;
+  --ev-accent-soft: color-mix(in srgb, var(--ev-accent) 12%, transparent);
+  --ev-radius-card: 24px;
+  --ev-radius-control: 16px;
+  --ev-radius-pill: 999px;
+  --ev-space-1: 4px;
+  --ev-space-2: 8px;
+  --ev-space-3: 12px;
+  --ev-space-4: 16px;
+  --ev-space-5: 20px;
+  --ev-space-6: 24px;
+  --ev-surface: color-mix(in srgb, var(--color-panel-solid) 97%, transparent);
+  --ev-surface-muted: color-mix(in srgb, var(--gray-a2) 70%, var(--color-panel-solid));
+  --ev-border: color-mix(in srgb, var(--gray-a6) 72%, transparent);
+  --ev-shadow-card: 0 14px 40px rgba(0, 0, 0, 0.065);
+  --ev-shadow-active: 0 12px 30px color-mix(in srgb, var(--ev-accent) 12%, transparent);
+  --ev-transition-fast: 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  --ev-transition-medium: 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes spin {
