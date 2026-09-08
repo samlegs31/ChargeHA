@@ -293,6 +293,16 @@ describe("Settings", () => {
     });
   });
 
+  it("places electrical limits in Advanced rather than My cars", () => {
+    renderWithProviders(<Settings />);
+    expect(screen.queryByText("Electrical limits")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Advanced/i }),
+    );
+    expect(screen.getByText("Electrical limits")).toBeInTheDocument();
+    expect(screen.queryByTestId("vehicle-settings")).not.toBeInTheDocument();
+  });
+
   it("shows one simple Settings topic at a time", () => {
     renderWithProviders(<Settings />);
     expect(screen.getByRole("heading", { name: "Settings" }))

@@ -1,4 +1,3 @@
-import { ElectricalSettings } from "./ElectricalSettings.tsx";
 import { Car, Plus, Trash2 } from "lucide-react";
 import { ArrowDownIcon, ArrowUpIcon } from "@radix-ui/react-icons";
 import { Badge, Button, Card, Switch, Text } from "@radix-ui/themes";
@@ -374,7 +373,6 @@ export function VehicleSettings() {
 
   return (
     <>
-      <ElectricalSettings vehicles={vehicles} />
       {error && (
         <Card style={{ borderLeft: "3px solid var(--red-9)" }}>
           <div

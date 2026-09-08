@@ -21,6 +21,7 @@ import { useDraftConfig } from "../../../hooks/useDraftConfig.ts";
 import { SettingsRow, SettingsSection } from "./SettingsLayout.tsx";
 import { AuthSettings } from "./AuthSettings.tsx";
 import { InverterSettings } from "./InverterSettings.tsx";
+import { ElectricalSettings } from "./ElectricalSettings.tsx";
 import { VehicleSettings } from "./VehicleSettings.tsx";
 import { SolarTrackingSettings } from "./SolarTrackingSettings.tsx";
 import { SolarForecastSettings } from "./SolarForecastSettings.tsx";
@@ -280,12 +281,14 @@ function HistorySettingsPage() {
 }
 
 function AdvancedSettingsPage() {
+  const { data } = trpc.vehicle.list.useQuery();
   return (
     <div className={styles.settingsPage}>
       <PageIntro
         title="Advanced settings"
         description="Fine tuning. Most people can leave these settings alone."
       />
+      <ElectricalSettings vehicles={data?.vehicles ?? []} />
       <SolarTrackingSettings />
       <BatterySettings mode="advanced" />
       <GeneralSettings mode="system" />
