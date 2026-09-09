@@ -1,0 +1,38 @@
+name: Fix energy flow node width
+
+on:
+  push:
+    branches:
+      - design/premium-home-2026
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: design/premium-home-2026
+
+      - name: Expand energy nodes to their grid column
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path("packages/client/src/components/EnergyFlowDiagram/EnergyFlowDiagram.module.css")
+          text = path.read_text()
+          old = ".node {\n  --node-color: var(--gray-8);\n  display: flex;"
+          new = ".node {\n  --node-color: var(--gray-8);\n  display: flex;\n  width: 100%;"
+          if text.count(old) != 1:
+              raise SystemExit(f"Expected one node rule, found {text.count(old)}")
+          path.write_text(text.replace(old, new, 1))
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/client/src/components/EnergyFlowDiagram/EnergyFlowDiagram.module.css
+          git commit -m "Fix energy flow node width"
+          git push origin HEAD:design/premium-home-2026
