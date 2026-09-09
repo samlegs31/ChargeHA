@@ -17,6 +17,7 @@ const COMMIT_KEYS = new Set([
 
 interface VehicleBatterySectionProps {
   batteryPercent: number;
+  rangeKm?: number | null;
   chargeLimitPercent: number;
   isCharging: boolean;
   isPluggedIn: boolean;
@@ -33,6 +34,7 @@ function normalizeChargeLimit(percent: number): number {
 
 export function VehicleBatterySection({
   batteryPercent,
+  rangeKm,
   chargeLimitPercent,
   isCharging,
   isPluggedIn,
@@ -52,6 +54,10 @@ export function VehicleBatterySection({
 
   const interactive = isPluggedIn && onSetChargeLimit !== undefined;
   const displayedLimit = interactive ? draftLimit : normalizedLimit;
+  const displayedRangeKm = typeof rangeKm === "number" &&
+      Number.isFinite(rangeKm) && rangeKm >= 0
+    ? Math.round(rangeKm)
+    : null;
 
   const commitLimit = async () => {
     if (!interactive || disabled || saving || !dirty) return;
@@ -83,7 +89,9 @@ export function VehicleBatterySection({
       <div className={styles.batteryTop}>
         <div>
           <div className={styles.batteryPercent}>{batteryPercent}%</div>
-          <Text size="1" color="gray">Battery</Text>
+          <Text size="1" color="gray">
+            {displayedRangeKm === null ? "Battery" : `${displayedRangeKm} km`}
+          </Text>
         </div>
         <Text size="2" color="gray">
           Limit {displayedLimit}%{saving ? " · Saving…" : ""}

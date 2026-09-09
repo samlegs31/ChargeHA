@@ -38,6 +38,7 @@ export class TeslaApiError extends Error {
 
 // Tesla hardware minimum charging amps
 const MIN_CHARGE_AMPS = 5;
+const MILES_TO_KM = 1.609344;
 
 // Wake-up polling config. A single paid wake is followed by free /vehicles
 // probes for up to 90s so a slow deep-sleep wake is not treated as a failure.
@@ -47,6 +48,10 @@ const WAKE_TIMEOUT_MS = 90000;
 /** Tesla Fleet API charge_state fields used by this adapter. */
 interface TeslaChargeState {
   battery_level?: number;
+  /** Tesla estimated range at the current SOC, in miles. */
+  est_battery_range?: number;
+  /** Tesla rated range at the current SOC, in miles. */
+  battery_range?: number;
   charge_limit_soc?: number;
   charging_state?: string;
   /** Legacy current field used by older vehicle_data responses. */
@@ -71,6 +76,12 @@ type TeslaAdapterChargeState = AdapterVehicleChargeState & {
   /** Exterior paint reported by Tesla vehicle_config. */
   exteriorColor: string | null;
 };
+
+function getRangeKm(charge: TeslaChargeState): number | null {
+  const miles = charge.est_battery_range ?? charge.battery_range;
+  if (miles === undefined || !Number.isFinite(miles) || miles < 0) return null;
+  return Math.round(miles * MILES_TO_KM);
+}
 
 /** Tesla Fleet API vehicle_state fields used by this adapter. */
 interface TeslaVehicleState {
@@ -197,6 +208,7 @@ export class TeslaAdapter implements VehicleAdapter {
     const state: TeslaAdapterChargeState = {
       vehicleId: this.vin,
       batteryLevel: charge.battery_level ?? 0,
+      rangeKm: getRangeKm(charge),
       chargeLimit: charge.charge_limit_soc ?? 0,
       isCharging,
       isPluggedIn: chargingState !== "Disconnected",

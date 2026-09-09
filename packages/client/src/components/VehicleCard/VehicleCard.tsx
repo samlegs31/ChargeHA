@@ -393,6 +393,7 @@ export function VehicleCard({
 
       <VehicleBatterySection
         batteryPercent={batteryPercent}
+        rangeKm={state.rangeKm}
         chargeLimitPercent={chargeLimitPercent}
         isCharging={state.isCharging}
         isPluggedIn={state.isPluggedIn}
