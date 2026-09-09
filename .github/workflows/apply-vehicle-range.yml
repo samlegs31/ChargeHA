@@ -108,8 +108,8 @@ jobs:
 
           replace_once(
               "packages/client/src/components/VehicleCard/VehicleCard.tsx",
-              "          batteryPercent={batteryPercent}\n          chargeLimitPercent={chargeLimitPercent}",
-              "          batteryPercent={batteryPercent}\n          rangeKm={state.rangeKm}\n          chargeLimitPercent={chargeLimitPercent}",
+              "        batteryPercent={batteryPercent}\n        chargeLimitPercent={chargeLimitPercent}",
+              "        batteryPercent={batteryPercent}\n        rangeKm={state.rangeKm}\n        chargeLimitPercent={chargeLimitPercent}",
           )
 
           replace_once(
