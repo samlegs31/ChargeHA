@@ -450,7 +450,7 @@
 }
 
 .nodeMeta {
-  max-width: 84px;
+  max-width: 100%;
   overflow: hidden;
   font-size: 0.68rem;
   font-weight: 600;
