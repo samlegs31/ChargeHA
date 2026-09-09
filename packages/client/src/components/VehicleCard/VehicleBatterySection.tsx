@@ -32,6 +32,13 @@ function normalizeChargeLimit(percent: number): number {
   );
 }
 
+function formatRangeKm(rangeKm?: number | null): number | null {
+  if (typeof rangeKm !== "number" || !Number.isFinite(rangeKm) || rangeKm < 0) {
+    return null;
+  }
+  return Math.round(rangeKm);
+}
+
 export function VehicleBatterySection({
   batteryPercent,
   rangeKm,
@@ -54,10 +61,7 @@ export function VehicleBatterySection({
 
   const interactive = isPluggedIn && onSetChargeLimit !== undefined;
   const displayedLimit = interactive ? draftLimit : normalizedLimit;
-  const displayedRangeKm = typeof rangeKm === "number" &&
-      Number.isFinite(rangeKm) && rangeKm >= 0
-    ? Math.round(rangeKm)
-    : null;
+  const displayedRangeKm = formatRangeKm(rangeKm);
 
   const commitLimit = async () => {
     if (!interactive || disabled || saving || !dirty) return;

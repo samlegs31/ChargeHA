@@ -85,6 +85,9 @@ jobs:
 
           const vehicleState: VehicleChargeState = {
             vehicleId: "visual-tesla",
+            carType: "model3",
+            exteriorColor: "DeepBlue",
+            wheelType: "StilettoRefresh19",
             batteryLevel: 57,
             rangeKm: 347,
             chargeLimit: 80,
