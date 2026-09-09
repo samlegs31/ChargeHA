@@ -1,0 +1,143 @@
+name: Apply vehicle range patch
+
+on:
+  push:
+    branches:
+      - design/premium-home-2026
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: design/premium-home-2026
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Apply range patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected 1 match, found {count}")
+              file.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "packages/shared/types.ts",
+              "  batteryLevel: number; // Current SOC percentage (0-100)\n  chargeLimit: number; // Charge limit percentage",
+              "  batteryLevel: number; // Current SOC percentage (0-100)\n  rangeKm?: number | null; // Estimated driving range in kilometres when available\n  chargeLimit: number; // Charge limit percentage",
+          )
+
+          replace_once(
+              "packages/plugins/vehicles/tesla/server/TeslaAdapter.ts",
+              "const MIN_CHARGE_AMPS = 5;",
+              "const MIN_CHARGE_AMPS = 5;\nconst MILES_TO_KM = 1.609344;",
+          )
+
+          replace_once(
+              "packages/plugins/vehicles/tesla/server/TeslaAdapter.ts",
+              "  battery_level?: number;\n  charge_limit_soc?: number;",
+              "  battery_level?: number;\n  /** Tesla estimated range at the current SOC, in miles. */\n  est_battery_range?: number;\n  /** Tesla rated range at the current SOC, in miles. */\n  battery_range?: number;\n  charge_limit_soc?: number;",
+          )
+
+          replace_once(
+              "packages/plugins/vehicles/tesla/server/TeslaAdapter.ts",
+              "/** Tesla Fleet API vehicle_state fields used by this adapter. */",
+              "function getRangeKm(charge: TeslaChargeState): number | null {\n  const miles = charge.est_battery_range ?? charge.battery_range;\n  if (miles === undefined || !Number.isFinite(miles) || miles < 0) return null;\n  return Math.round(miles * MILES_TO_KM);\n}\n\n/** Tesla Fleet API vehicle_state fields used by this adapter. */",
+          )
+
+          replace_once(
+              "packages/plugins/vehicles/tesla/server/TeslaAdapter.ts",
+              "      batteryLevel: charge.battery_level ?? 0,\n      chargeLimit: charge.charge_limit_soc ?? 0,",
+              "      batteryLevel: charge.battery_level ?? 0,\n      rangeKm: getRangeKm(charge),\n      chargeLimit: charge.charge_limit_soc ?? 0,",
+          )
+
+          replace_once(
+              "packages/plugins/vehicles/tesla/server/TeslaAdapter.test.ts",
+              "        battery_level: 72,\n        charge_limit_soc: 80,",
+              "        battery_level: 72,\n        est_battery_range: 215.6,\n        battery_range: 210,\n        charge_limit_soc: 80,",
+          )
+
+          replace_once(
+              "packages/plugins/vehicles/tesla/server/TeslaAdapter.test.ts",
+              "      expect(state.batteryLevel).toBe(72);\n      expect(state.chargeLimit).toBe(80);",
+              "      expect(state.batteryLevel).toBe(72);\n      expect(state.rangeKm).toBe(347);\n      expect(state.chargeLimit).toBe(80);",
+          )
+
+          replace_once(
+              "packages/plugins/vehicles/tesla/server/TeslaAdapter.test.ts",
+              "    it(\"sets isCharging to false when not charging\", async () => {",
+              "    it(\"falls back to rated range when estimated range is unavailable\", async () => {\n      responseOverrides.set(`/api/1/vehicles/${VIN}/vehicle_data`, {\n        status: 200,\n        body: {\n          response: {\n            ...MOCK_VEHICLE_DATA.response,\n            charge_state: {\n              ...MOCK_VEHICLE_DATA.response.charge_state,\n              est_battery_range: undefined,\n              battery_range: 200,\n            },\n          },\n        },\n      });\n\n      const state = await adapter.getChargeState(c(\"test:charge-state\"));\n      expect(state.rangeKm).toBe(322);\n    });\n\n    it(\"sets isCharging to false when not charging\", async () => {",
+          )
+
+          replace_once(
+              "packages/client/src/components/VehicleCard/VehicleBatterySection.tsx",
+              "  batteryPercent: number;\n  chargeLimitPercent: number;",
+              "  batteryPercent: number;\n  rangeKm?: number | null;\n  chargeLimitPercent: number;",
+          )
+
+          replace_once(
+              "packages/client/src/components/VehicleCard/VehicleBatterySection.tsx",
+              "  batteryPercent,\n  chargeLimitPercent,",
+              "  batteryPercent,\n  rangeKm,\n  chargeLimitPercent,",
+          )
+
+          replace_once(
+              "packages/client/src/components/VehicleCard/VehicleBatterySection.tsx",
+              "  const fillColor = isCharging\n    ? \"var(--energy-charging)\"\n    : \"var(--ev-accent-strong)\";",
+              "  const fillColor = isCharging\n    ? \"var(--energy-charging)\"\n    : \"var(--ev-accent-strong)\";\n  const displayedRangeKm = typeof rangeKm === \"number\" &&\n      Number.isFinite(rangeKm) && rangeKm >= 0\n    ? Math.round(rangeKm)\n    : null;",
+          )
+
+          replace_once(
+              "packages/client/src/components/VehicleCard/VehicleBatterySection.tsx",
+              "            <Text size=\"1\" color=\"gray\">Battery</Text>",
+              "            <Text size=\"1\" color=\"gray\">\n              {displayedRangeKm === null ? \"Battery\" : `${displayedRangeKm} km`}\n            </Text>",
+          )
+
+          replace_once(
+              "packages/client/src/components/VehicleCard/VehicleCard.tsx",
+              "          batteryPercent={batteryPercent}\n          chargeLimitPercent={chargeLimitPercent}",
+              "          batteryPercent={batteryPercent}\n          rangeKm={state.rangeKm}\n          chargeLimitPercent={chargeLimitPercent}",
+          )
+
+          replace_once(
+              "packages/client/src/components/VehicleCard/VehicleBatterySection.test.tsx",
+              "  it(\"keeps the existing battery bar read-only when unplugged\", () => {",
+              "  it(\"shows vehicle range when available\", () => {\n    renderBattery({ rangeKm: 347 });\n\n    expect(screen.getByText(\"347 km\")).toBeInTheDocument();\n    expect(screen.queryByText(\"Battery\")).not.toBeInTheDocument();\n  });\n\n  it(\"keeps the existing battery bar read-only when unplugged\", () => {",
+          )
+
+      - name: Format changed files
+        run: |
+          deno fmt \
+            packages/shared/types.ts \
+            packages/plugins/vehicles/tesla/server/TeslaAdapter.ts \
+            packages/plugins/vehicles/tesla/server/TeslaAdapter.test.ts \
+            packages/client/src/components/VehicleCard/VehicleCard.tsx \
+            packages/client/src/components/VehicleCard/VehicleBatterySection.tsx \
+            packages/client/src/components/VehicleCard/VehicleBatterySection.test.tsx
+
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            packages/shared/types.ts \
+            packages/plugins/vehicles/tesla/server/TeslaAdapter.ts \
+            packages/plugins/vehicles/tesla/server/TeslaAdapter.test.ts \
+            packages/client/src/components/VehicleCard/VehicleCard.tsx \
+            packages/client/src/components/VehicleCard/VehicleBatterySection.tsx \
+            packages/client/src/components/VehicleCard/VehicleBatterySection.test.tsx
+          git commit -m "Add Tesla vehicle range to Home"
+          git push origin HEAD:design/premium-home-2026
