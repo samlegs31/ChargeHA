@@ -25,7 +25,7 @@ function ReadingCells({ r }: { r: EnergyReadingEntry }) {
     return (
       <td colSpan={6}>
         <Text size="2" color="red">
-          Poll failed — no data (see Plugin Logs for the error)
+          Poll failed — no data (see Integration logs for the error)
         </Text>
       </td>
     );

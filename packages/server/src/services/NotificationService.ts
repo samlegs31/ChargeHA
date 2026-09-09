@@ -126,8 +126,7 @@ export class NotificationService {
     const payload: NotificationPayload = {
       eventType: "charge_started",
       title: "Test Notification",
-      message:
-        "If you're reading this, ChargeHA notifications are working correctly!",
+      message: "E.V. Solar notifications are working.",
       timestamp: new Date(),
     };
 

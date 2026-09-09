@@ -258,7 +258,7 @@ function SolarWebFields(props: {
       </SettingsRow>
       <SettingsRow
         label="PV System ID"
-        help="The long ID at the end of your Solar.web system URL."
+        help="The pvSystemId value in your Solar.web system URL."
       >
         <TextField.Root
           size="2"
@@ -305,7 +305,7 @@ function WattpilotResult(props: WattpilotSummary) {
           Solar.web has data, but no Wattpilot charge was found
         </Text>
         <Text size="2" style={{ display: "block", marginTop: 4 }}>
-          The selected period contains no positive Wattpilot energy total.
+          No Wattpilot charging recorded for these dates.
         </Text>
         <TechnicalDetails>
           {props.samplesRead} daily Solar.web records read.

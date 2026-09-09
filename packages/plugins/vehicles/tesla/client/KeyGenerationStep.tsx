@@ -26,7 +26,7 @@ function SuccessView(
   return (
     <div className={styles.stepContainer}>
       <Text as="p" size="3" color="gray">
-        ChargeHA needs an EC key pair to communicate securely with the Tesla
+        E.V. Solar needs an EC key pair to communicate securely with the Tesla
         Fleet API.
       </Text>
       <Callout.Root color="green">
@@ -105,7 +105,7 @@ function ErrorCallout(
         <Callout.Text>{error.message}</Callout.Text>
       </Callout.Root>
       <div className={styles.stepActions}>
-        <Button variant="soft" onClick={resetToChoose}>Try Again</Button>
+        <Button variant="soft" onClick={resetToChoose}>Try again</Button>
       </div>
     </>
   );
@@ -213,7 +213,7 @@ function KeyGenerationView(
   return (
     <div className={styles.stepContainer}>
       <Text as="p" size="3" color="gray">
-        ChargeHA needs an EC key pair to communicate securely with the Tesla
+        E.V. Solar needs an EC key pair to communicate securely with the Tesla
         Fleet API.
       </Text>
 

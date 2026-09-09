@@ -90,10 +90,10 @@ describe("StatsVehicleBreakdown", () => {
     expect(screen.getByText("Model Y")).toBeInTheDocument();
     expect(screen.getByText("Red")).toBeInTheDocument();
     expect(screen.getByText("Home · ChargeHQ")).toBeInTheDocument();
-    expect(screen.getByText("Total Charged")).toBeInTheDocument();
-    expect(screen.getByText("Home Solar")).toBeInTheDocument();
-    expect(screen.getByText("Home Battery")).toBeInTheDocument();
-    expect(screen.getByText("Home Grid")).toBeInTheDocument();
+    expect(screen.getByText("Total charged")).toBeInTheDocument();
+    expect(screen.getByText("Home solar")).toBeInTheDocument();
+    expect(screen.getByText("Home battery")).toBeInTheDocument();
+    expect(screen.getByText("Home grid")).toBeInTheDocument();
     expect(screen.getByText("External")).toBeInTheDocument();
     expect(screen.queryByText("Energy Sources")).not.toBeInTheDocument();
   });
@@ -123,9 +123,9 @@ describe("StatsVehicleBreakdown", () => {
     });
     renderComponent();
     expect(screen.getByText("Unassigned history")).toBeInTheDocument();
-    expect(screen.getByText("Legacy / unattributed")).toBeInTheDocument();
+    expect(screen.getByText("No car assigned")).toBeInTheDocument();
     expect(screen.getByText(
-      "Included in the global totals but not linked to a configured vehicle.",
+      "Included in totals; not assigned to a car.",
     )).toBeInTheDocument();
   });
 

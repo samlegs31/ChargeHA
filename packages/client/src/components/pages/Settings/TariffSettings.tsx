@@ -336,7 +336,7 @@ export function TariffSettings() {
     return (
       <SettingsSection
         icon={<Zap size={18} />}
-        title="Electricity Tariffs"
+        title="Electricity tariff"
         description="Loading tariff configuration..."
       >
         <Text size="2" color="gray">Loading...</Text>
@@ -470,8 +470,8 @@ function TariffSettingsView(
   return (
     <SettingsSection
       icon={<DollarSign size={18} />}
-      title="Electricity Tariffs"
-      description="Configure your electricity rates to track charging costs and solar savings."
+      title="Electricity tariff"
+      description="Rates used to calculate charging costs and solar savings."
     >
       {displayError && <Text size="2" color="red">{displayError}</Text>}
 

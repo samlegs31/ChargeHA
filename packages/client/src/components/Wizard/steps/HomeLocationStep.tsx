@@ -158,7 +158,7 @@ export const homeLocationStep: StepDef = {
       view: (
         <div className={styles.stepContainer}>
           <Text size="2" color="gray">
-            Set your home location so ChargeHA knows when your vehicle is home
+            Set your home location so E.V. Solar knows when your vehicle is home
             and can manage charging automatically.
           </Text>
 

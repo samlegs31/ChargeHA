@@ -26,10 +26,10 @@ export function UnstableOriginCallout(
           and you'll need one of the options below.
         </Text>
         <Text as="p" size="2" style={{ marginTop: 4 }}>
-          2. Open ChargeHA via localhost instead. Run this in a terminal on the
-          computer you're browsing from — it connects to the ChargeHA server
-          over ssh and makes it reachable at localhost on your machine (add{" "}
-          <Code size="1">user@</Code>{" "}
+          2. Open E.V. Solar via localhost instead. Run this in a terminal on
+          the computer you're browsing from — it connects to the E.V. Solar
+          server over ssh and makes it reachable at localhost on your machine
+          (add <Code size="1">user@</Code>{" "}
           before the address if your username differs on the server):
         </Text>
         <Text as="p" size="2" style={{ marginTop: 4 }}>
@@ -41,7 +41,7 @@ export function UnstableOriginCallout(
           — localhost addresses can be registered with Tesla.
         </Text>
         <Text as="p" size="2" style={{ marginTop: 4 }}>
-          3. Serve ChargeHA over https on a real domain.
+          3. Serve E.V. Solar over https on a real domain.
         </Text>
       </Callout.Text>
     </Callout.Root>

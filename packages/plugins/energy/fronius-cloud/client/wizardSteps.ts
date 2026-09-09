@@ -10,6 +10,6 @@ export const froniusCloudOption: EnergyPluginOption = {
   id: "fronius_cloud",
   label: "Fronius (Solar.web Account)",
   description:
-    "Connect through Solar.web with a read-only guest-role account. Provides the same E.V Solar energy fields as Fronius Local when Solar.web exposes the corresponding channels.",
+    "Connect through Solar.web with a read-only guest-role account. Provides the same E.V. Solar energy fields as Fronius Local when Solar.web exposes the corresponding channels.",
   iconKey: "cloud",
 };

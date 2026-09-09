@@ -32,7 +32,7 @@ describe("LoginPage", () => {
     );
 
     expect(screen.getByAltText("E.V. Solar")).toBeInTheDocument();
-    expect(screen.queryByText("ChargeHA")).not.toBeInTheDocument();
+    expect(screen.queryByText("E.V. Solar")).not.toBeInTheDocument();
   });
 
   // ── Auth mode rendering ──

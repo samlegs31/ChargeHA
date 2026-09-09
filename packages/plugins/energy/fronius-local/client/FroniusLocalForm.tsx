@@ -173,7 +173,7 @@ export function FroniusLocalForm({
       </Text>
 
       <Text as="p" size="1" color="gray">
-        If you're running ChargeHA in a Docker container, it must use host
+        If you're running E.V. Solar in a Docker container, it must use host
         networking (<code>--network host</code>) to reach devices on your LAN.
       </Text>
 

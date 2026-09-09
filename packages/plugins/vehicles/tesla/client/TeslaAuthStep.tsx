@@ -40,7 +40,7 @@ function SuccessView() {
       <Callout.Icon>
         <CheckCircle size={16} />
       </Callout.Icon>
-      <Callout.Text>Tesla account authorized successfully!</Callout.Text>
+      <Callout.Text>Tesla account connected.</Callout.Text>
     </Callout.Root>
   );
 }
@@ -56,7 +56,7 @@ function ErrorView(
       <div className={styles.stepActions}>
         <Button size="3" onClick={onRetry}>
           <ExternalLink size={16} />
-          Try Again
+          Try again
         </Button>
       </div>
     </>
@@ -149,7 +149,7 @@ function TeslaAuthView(
   return (
     <div className={styles.stepContainer}>
       <Text as="p" size="3" color="gray">
-        Authorize ChargeHA to access your Tesla account. This will open a new
+        Authorize E.V. Solar to access your Tesla account. This will open a new
         window where you can log in to Tesla and grant access.
       </Text>
 

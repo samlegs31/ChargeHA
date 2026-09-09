@@ -200,9 +200,9 @@ function AuthFields(
       {method === "credentials" && (
         <>
           <Text as="p" size="1" color="gray">
-            ChargeHA uses your Enphase account email and password to generate an
-            access token and renews it before it expires. Your credentials are
-            stored encrypted with your <Code size="1">ENCRYPTION_KEY</Code>.
+            E.V. Solar uses your Enphase account email and password to generate
+            an access token and renews it before it expires. Your credentials
+            are stored encrypted with your <Code size="1">ENCRYPTION_KEY</Code>.
           </Text>
           <LabelledField
             label="Enphase account email"

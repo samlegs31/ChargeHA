@@ -314,7 +314,7 @@ describe("AuthSettings", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Password changed successfully"),
+        screen.getByText("Password changed."),
       ).toBeInTheDocument();
     });
   });

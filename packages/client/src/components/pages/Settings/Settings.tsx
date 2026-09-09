@@ -101,26 +101,26 @@ const MENU_ITEMS: readonly MenuItem[] = [
   },
   {
     id: "prediction",
-    title: "Solar Prediction",
+    title: "Solar forecast",
     description: "Solar and charging forecast",
     icon: <CloudSun size={26} />,
   },
   {
     id: "electricity",
     title: "Electricity price",
-    description: "Prices and cheap hours",
+    description: "Rates and off-peak hours",
     icon: <CircleDollarSign size={26} />,
   },
   {
     id: "history",
     title: "Charging history",
-    description: "Bring old charges into Stats",
+    description: "Import charging history",
     icon: <History size={26} />,
   },
   {
     id: "advanced",
     title: "Advanced",
-    description: "Fine tuning and system tools",
+    description: "Charging controls and system",
     icon: <Settings2 size={26} />,
   },
 ];
@@ -181,7 +181,6 @@ function AutomaticChargingSettings() {
     <SettingsSection
       icon={<Zap size={18} />}
       title="Automatic charging"
-      description="Turn E.V. Solar automatic charging on or off."
       saveStatus={saveStatus}
       isDirty={isDirty}
       onSave={save}
@@ -243,25 +242,11 @@ function PredictionSettingsPage() {
   return (
     <div className={styles.settingsPage}>
       <PageIntro
-        title="Solar Prediction"
+        title="Solar forecast"
         description="Configure the installation used to predict solar energy and vehicle charging."
       />
       <SolarForecastSettings />
     </div>
-  );
-}
-
-function HistoryHelp() {
-  return (
-    <Card className={styles.historyHelp}>
-      <Text weight="bold" className={styles.historyTitle}>
-        You only need this for old charging data
-      </Text>
-      <Text color="gray" className={styles.historyText}>
-        Normal charging works without importing anything here. Choose the car,
-        then use the import that matches where its old charging data comes from.
-      </Text>
-    </Card>
   );
 }
 
@@ -270,9 +255,8 @@ function HistorySettingsPage() {
     <div className={styles.settingsPage}>
       <PageIntro
         title="Charging history"
-        description="Optional: add old charging sessions to Stats."
+        description="Import past charging energy into Stats."
       />
-      <HistoryHelp />
       <HistoryMigrationSettings />
       <SolarWebHistoryImport />
     </div>
@@ -284,7 +268,7 @@ function AdvancedSettingsPage() {
     <div className={styles.settingsPage}>
       <PageIntro
         title="Advanced settings"
-        description="Fine tuning. Most people can leave these settings alone."
+        description="Charging response, notifications and access."
       />
       <SolarTrackingSettings />
       <BatterySettings mode="advanced" />
@@ -315,7 +299,6 @@ export function Settings() {
     <div className={styles.settings}>
       <div className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>Settings</h1>
-        <p className={styles.pageSubtitle}>Choose a large category below.</p>
       </div>
       {encryptionMissing && <EncryptionWarning />}
       <SettingsMenu page={page} onChange={setPage} />

@@ -469,7 +469,7 @@ function HistoryMigrationView({ model }: { model: HistoryMigrationModel }) {
     <SettingsSection
       icon={<DatabaseBackup size={18} />}
       title="Import a ChargeHQ file"
-      description="Use this if this car's old charging history comes from ChargeHQ."
+      description="Import a ChargeHQ Interval Data CSV export for one car."
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <DestinationVehicle

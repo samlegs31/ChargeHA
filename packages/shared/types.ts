@@ -236,80 +236,79 @@ export const NOTIFICATION_EVENTS: NotificationEventInfo[] = [
   {
     key: "error",
     label: "Errors",
-    description: "Adapter or connection failures",
+    description: "Equipment or connection failures",
   },
   {
     key: "energy_recovered",
-    label: "Energy Recovered",
+    label: "Energy connection restored",
     description: "Energy source came back online after an outage",
   },
   {
     key: "charge_started",
-    label: "Charge Started",
-    description: "Controller initiated charging",
+    label: "Charging started",
+    description: "E.V. Solar started charging",
   },
   {
     key: "charge_stopped",
-    label: "Charge Stopped",
-    description: "Controller stopped charging",
+    label: "Charging stopped",
+    description: "E.V. Solar stopped charging",
   },
   {
     key: "charge_complete",
-    label: "Charge Complete",
+    label: "Charging complete",
     description: "Vehicle reached its charge limit",
   },
   {
     key: "external_charge_detected",
-    label: "External Charge Detected",
-    description: "Vehicle charging was not initiated by ChargeHA",
+    label: "Charging started elsewhere",
+    description: "Charging started outside E.V. Solar control",
   },
   {
     key: "vehicle_plugged_in",
-    label: "Vehicle Plugged In",
+    label: "Car plugged in",
     description: "Cable connected to vehicle",
   },
   {
     key: "vehicle_unplugged",
-    label: "Vehicle Unplugged",
+    label: "Car unplugged",
     description: "Cable disconnected from vehicle",
   },
   {
     key: "vehicle_sleep",
-    label: "Vehicle Asleep",
+    label: "Car asleep",
     description: "Vehicle is asleep or offline (not an error)",
   },
   {
     key: "low_solar",
-    label: "Low Solar",
+    label: "Low solar",
     description:
-      "Solar dropped below threshold, grace period started (can be noisy)",
+      "Solar fell below the threshold; charging grace period started. May notify frequently.",
   },
   {
     key: "schedule_activated",
-    label: "Schedule Activated",
-    description: "A charge or blockout schedule became active",
+    label: "Schedule started",
+    description: "A charging schedule or no-charge period started",
   },
   {
     key: "safety_trip",
-    label: "Safety Trip",
-    description: "Charging disabled due to charge oscillation detected",
+    label: "Charging safety stop",
+    description: "Automatic charging disabled after repeated starts and stops",
   },
   {
     key: "mode_changed",
-    label: "Mode Changed",
-    description:
-      "Vehicle mode switched (Solar + clock / Solar Only / Charge Now / Stop)",
+    label: "Charging mode changed",
+    description: "Solar + Off-Peak, Solar Only, Charge Now or Stop selected",
   },
   {
     key: "arrived_home_not_plugged_in",
-    label: "Plug-in Reminder",
+    label: "Plug-in reminder",
     description:
       "Reminds you to plug in when you arrive home below the charge target",
   },
   {
     key: "battery_target_reached",
-    label: "Home Battery Target Reached",
-    description: "Home battery reached the configured priority SOC",
+    label: "Home battery reserve reached",
+    description: "Home battery reached its reserve level",
   },
 ];
 

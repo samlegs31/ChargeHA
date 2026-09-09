@@ -184,7 +184,7 @@ export function HomeLocationSection({
     <SettingsSection
       icon={<MapPin size={18} />}
       title="Home Location"
-      description="Set your home location so ChargeHA knows when your vehicle is home and can manage charging automatically."
+      description="Set where home charging is allowed."
       saveStatus={mutation.saveStatus}
     >
       {hasCoords && (

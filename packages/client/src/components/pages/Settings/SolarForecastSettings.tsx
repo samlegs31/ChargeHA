@@ -266,7 +266,7 @@ function ForecastBasics({
       </SettingsRow>
       <SettingsRow
         label="Installation date"
-        help="Used to apply the average 0.5% annual panel degradation automatically."
+        help="Forecasts assume panel output decreases by 0.5% per year."
       >
         <TextField.Root
           size="2"
@@ -298,7 +298,7 @@ function HomeGridSettings({
     >
       <SettingsRow
         label="Subscribed grid power"
-        help="Used to keep predicted grid charging within your electricity contract."
+        help="Limits forecast grid charging; does not limit live charging."
       >
         <NumberInput
           value={String(subscribedPowerKva ?? "")}
@@ -322,7 +322,7 @@ function HomeGridSettings({
       >
         <Clock3 size={19} aria-hidden="true" />
         <Text size="1">
-          Off-peak hours are read automatically from Electricity tariff.
+          Off-peak hours come from your electricity tariff.
         </Text>
       </div>
     </div>
@@ -426,7 +426,7 @@ function EquipmentSettings({
     <>
       <SettingsRow
         label="Energy equipment"
-        help="Choose a known combination to fill in its verified limits automatically."
+        help="Choose a profile to fill in equipment specifications."
       >
         <Select.Root
           value={selectedEquipmentProfile(values)}
@@ -670,8 +670,8 @@ export function SolarForecastSettings() {
   return (
     <SettingsSection
       icon={<SunMedium size={18} />}
-      title="Solar Prediction"
-      description="Tell E.V. Solar about your installation so it can predict available solar, home-battery energy and vehicle charging more accurately."
+      title="Solar forecast"
+      description="Set up your equipment to estimate solar production and charging."
       saveStatus={saveStatus}
       isDirty={isDirty}
       onSave={save}

@@ -138,7 +138,7 @@ export function ScheduleForm({
       <form onSubmit={handleSubmit} className={styles.form}>
         {/* Time range */}
         <div className={styles.field}>
-          <Text size="2" weight="medium">Time Range</Text>
+          <Text size="2" weight="medium">Time range</Text>
           <div className={styles.timeRow}>
             <TimePicker
               value={form.startTime}

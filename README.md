@@ -52,12 +52,16 @@ precedence and technical details.
 
 ## Charging modes
 
-| Mode      | What it does                                                                                               |
-| --------- | ---------------------------------------------------------------------------------------------------------- |
-| **Smart** | Uses solar outside scheduled periods and allows configured scheduled charging, including off-peak periods. |
-| **Solar** | Uses available solar while respecting home-battery protection and charging rules.                          |
-| **Now**   | Requests immediate charging with manual current control.                                                   |
-| **Stop**  | Requests a stop and prevents automatic charging until another mode is selected.                            |
+| Mode                 | What it does                                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Solar + Off-Peak** | Uses solar outside scheduled periods and allows configured scheduled charging, including off-peak periods.         |
+| **Solar Only**       | Uses available solar while respecting home-battery protection and charging rules.                                  |
+| **Charge Now**       | Requests immediate charging with manual current control.                                                           |
+| **Stop**             | Requests a stop. Automatic charging resumes when another mode is selected or the car is unplugged and reconnected. |
+
+Solar + Off-Peak follows the periods configured in Schedules; those periods can
+also fall outside your tariff’s off-peak hours. Solar Only ignores charge
+schedules. No-charge periods pause both solar modes; Charge Now bypasses them.
 
 Weekly schedules support selected days, overnight periods, charging current,
 vehicle charge limits and do-not-charge windows. Tesla charge limits can also be

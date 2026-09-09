@@ -339,14 +339,14 @@ function NoVehiclesCard({
     <Card className={styles.messageCard}>
       <VehicleSilhouetteIcon size={38} aria-hidden="true" />
       <div className={styles.messageCopy}>
-        <Text size="3" weight="bold">No vehicles configured</Text>
+        <Text size="3" weight="bold">No cars connected</Text>
         <Text size="2" color="gray">
           Add a vehicle to monitor charging and control solar allocation.
         </Text>
       </div>
       <Button variant="soft" size="2" onClick={onNavigateSettings}>
         <Settings size={16} />
-        Add Vehicle
+        Add car
       </Button>
     </Card>
   );

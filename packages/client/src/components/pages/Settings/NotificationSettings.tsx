@@ -95,7 +95,7 @@ function TestButtonContent(
   }
   return (
     <>
-      <Send size={14} /> Send Test Notification
+      <Send size={14} /> Send test notification
     </>
   );
 }
@@ -120,7 +120,7 @@ function EventToggles(
           Choose which events trigger notifications.
         </Text>
       </div>
-      <SettingsRow label="Toggle All" help="Enable or disable all events">
+      <SettingsRow label="Toggle all" help="Enable or disable all events">
         <Switch
           checked={NOTIFICATION_EVENTS.every((evt) =>
             enabledEvents.includes(evt.key)
@@ -229,7 +229,7 @@ export function NotificationSettings() {
       onSave={save}
     >
       {/* Provider selection */}
-      <SettingsRow label="Provider" help="Select your notification service.">
+      <SettingsRow label="Provider">
         <Select.Root
           value={provider || "__none__"}
           onValueChange={(v) =>

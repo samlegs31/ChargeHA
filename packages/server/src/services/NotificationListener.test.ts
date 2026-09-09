@@ -52,7 +52,7 @@ describe("NotificationListener", () => {
       expect(notificationService.notifications).toHaveLength(1);
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("vehicle_plugged_in");
-      expect(n.title).toBe("Vehicle Plugged In");
+      expect(n.title).toBe("Car plugged in");
       expect(n.message).toBe("Test Car has been plugged in (at home).");
     });
 
@@ -64,7 +64,7 @@ describe("NotificationListener", () => {
       });
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("vehicle_unplugged");
-      expect(n.title).toBe("Vehicle Unplugged");
+      expect(n.title).toBe("Car unplugged");
       expect(n.message).toBe(
         "Test Car has been unplugged (away from home).",
       );
@@ -91,7 +91,7 @@ describe("NotificationListener", () => {
       });
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("error");
-      expect(n.title).toBe("Vehicle Fetch Failed");
+      expect(n.title).toBe("Vehicle update failed");
       expect(n.message).toBe(
         "Failed to fetch state for Test Car: Connection refused",
       );
@@ -105,7 +105,7 @@ describe("NotificationListener", () => {
       });
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("vehicle_sleep");
-      expect(n.title).toBe("Vehicle Asleep");
+      expect(n.title).toBe("Car asleep");
     });
 
     it("did not respond → vehicle_sleep", () => {
@@ -119,7 +119,7 @@ describe("NotificationListener", () => {
       );
     });
 
-    it("command error → Vehicle Command Failed", () => {
+    it("command error → Vehicle command failed", () => {
       eventEmitter.emit("vehicle_error", {
         ...VEH,
         error: "rejected by vehicle",
@@ -127,7 +127,7 @@ describe("NotificationListener", () => {
       });
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("error");
-      expect(n.title).toBe("Vehicle Command Failed");
+      expect(n.title).toBe("Vehicle command failed");
     });
 
     it("null error is ignored", () => {
@@ -201,7 +201,7 @@ describe("NotificationListener", () => {
       );
     });
 
-    it("charge_stopped with reason=battery_at_limit routes to Charge Complete", () => {
+    it("charge_stopped with reason=battery_at_limit routes to Charging complete", () => {
       eventEmitter.emit("controller_charge_stopped", {
         ...VEH,
         actionDetail: "Stop — battery at charge limit",
@@ -211,7 +211,7 @@ describe("NotificationListener", () => {
       });
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("charge_complete");
-      expect(n.title).toBe("Charge Complete");
+      expect(n.title).toBe("Charging complete");
       expect(n.message).toBe(
         "Test Car reached its charge limit of 100% (currently 100%).",
       );
@@ -242,7 +242,7 @@ describe("NotificationListener", () => {
       });
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("low_solar");
-      expect(n.title).toBe("Grace Period Started — Low Solar");
+      expect(n.title).toBe("Low solar — grace period started");
       expect(n.message).toBe(
         "Test Car is entering a 5-minute grace period. If solar does not return above the minimum amps, charging will stop.",
       );
@@ -334,27 +334,27 @@ describe("NotificationListener", () => {
       eventEmitter.emit("vehicle_mode_changed", { ...VEH, mode: "charge_now" });
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("mode_changed");
-      expect(n.title).toBe("Charge Now Activated");
+      expect(n.title).toBe("Charge Now selected");
       expect(n.message).toBe(
-        "Test Car will charge at full rate until unplugged. Schedules and solar tracking are bypassed.",
+        "Test Car will start charging now, subject to charging limits. You can adjust the current manually. Schedules are bypassed.",
       );
     });
 
     it("stop", () => {
       eventEmitter.emit("vehicle_mode_changed", { ...VEH, mode: "stop" });
       const n = notificationService.notifications[0];
-      expect(n.title).toBe("Stop Mode Activated");
+      expect(n.title).toBe("Stop selected");
       expect(n.message).toBe(
-        "Test Car will not charge until it is next unplugged and replugged. Schedules and solar tracking are bypassed.",
+        "Test Car will stay stopped until you change mode or unplug and reconnect.",
       );
     });
 
     it("auto", () => {
       eventEmitter.emit("vehicle_mode_changed", { ...VEH, mode: "auto" });
       const n = notificationService.notifications[0];
-      expect(n.title).toBe("Auto Mode Activated");
+      expect(n.title).toBe("Solar + Off-Peak selected");
       expect(n.message).toBe(
-        "Test Car is back on auto. Schedules and solar tracking will resume.",
+        "Test Car will follow charging schedules and use solar outside scheduled periods.",
       );
     });
   });
@@ -368,7 +368,7 @@ describe("NotificationListener", () => {
       });
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("safety_trip");
-      expect(n.title).toBe("Safety Trip — Charging Disabled");
+      expect(n.title).toBe("Charging safety stop — Charging Disabled");
       expect(n.message).toContain("4 start/stop cycles in 60 minutes");
     });
   });

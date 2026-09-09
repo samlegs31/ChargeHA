@@ -85,7 +85,7 @@ export function getStatusDetail(
     return state.isCharging ? "Stop requested" : "Charging stopped";
   }
   if (state.isCharging) {
-    if (controllerReason === "schedule") return "Off-Peak charging";
+    if (controllerReason === "schedule") return "Scheduled charging";
     if (controllerReason === "solar_tracking" || mode === "vacation") {
       return "Solar charging";
     }
@@ -95,7 +95,7 @@ export function getStatusDetail(
     return "Charging";
   }
   if (controllerReason === "energy_unavailable") {
-    return "Waiting for solar data";
+    return "Waiting for energy data";
   }
   if (controllerReason === "power_limit") return "Waiting for available power";
   if (controllerReason === "battery_priority") return "Home battery priority";

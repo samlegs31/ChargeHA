@@ -22,8 +22,8 @@ export function ElectricalSettings(
   return (
     <SettingsSection
       icon={<Shield size={18} />}
-      title="Charging limits"
-      description="Optional limits applied to Solar, Smart, Now and manual charging commands."
+      title="Electrical limits"
+      description="Current and grid power limits for all charging modes."
       onSave={save}
       saveStatus={saveStatus}
       isDirty={isDirty}
@@ -32,7 +32,7 @@ export function ElectricalSettings(
         <SettingsRow
           key={vehicle.id}
           label={`${vehicle.name} maximum current`}
-          help="Set the permitted current for this charging circuit. Leave empty to use the vehicle-reported maximum."
+          help="Maximum current for this circuit. Leave empty to use the car’s reported maximum."
         >
           <NumberInput
             value={limits[vehicle.id] == null ? "" : String(limits[vehicle.id])}

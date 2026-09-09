@@ -13,12 +13,10 @@ import {
 } from "./SettingsLayout.tsx";
 
 const AMP_THRESHOLD_HELP =
-  // deno-lint-ignore custom-plugin-refs/no-plugin-refs
-  "Amp changes smaller than or equal to this are delayed until the target has been stable for the settle time below. Larger changes apply immediately. Reducing this number will increase the number of calls to the Tesla API and may exceed Tesla's monthly free quota.";
+  "Changes at or below this threshold wait for the settle time. Larger changes apply immediately. A lower threshold increases vehicle API calls.";
 
 const AMP_SETTLE_HELP =
-  // deno-lint-ignore custom-plugin-refs/no-plugin-refs
-  "How long a small amp change must remain stable before it is applied. Reducing this number will increase the number of calls to the Tesla API and may exceed Tesla's monthly free quota.";
+  "How long a small current change must stay stable before applying. Shorter times increase vehicle API calls.";
 
 type SolarFields = NonNullable<ReturnType<typeof useSolarConfig>["data"]>;
 type SetSolarField = <K extends keyof SolarFields>(
@@ -37,7 +35,7 @@ function SolarMainRows(
     <>
       <SettingsRow
         label="Solar margin"
-        help="Reserve solar for your household before allocating to the car. Positive values keep a buffer for home use. Negative values allow a small amount of grid import."
+        help="Positive values reserve solar for the house. Negative values allow some grid import."
       >
         <div
           style={{
@@ -82,8 +80,8 @@ function SolarThresholdRows(
   return (
     <>
       <SettingsRow
-        label="Min solar generation"
-        help="Minimum total solar production before charging can start. Prevents charging during low-light periods like dawn and dusk. If production drops below this while charging, the grace period applies (drops to min amps, then stops if it doesn't recover). If solar drops to zero, charging stops immediately with no grace period."
+        label="Minimum solar production"
+        help="Production needed to start charging. Below this, charging reduces to minimum current during the grace period, then stops. Zero production stops charging immediately."
       >
         <NumberInput
           value={String(fields.minSolarGenerationKw)}
@@ -99,8 +97,8 @@ function SolarThresholdRows(
         </Text>
       </SettingsRow>
       <SettingsRow
-        label="Min excess solar"
-        help="Minimum surplus solar (after home consumption) required to start charging. Once charging, the normal grace period handles fluctuations. Leave empty to disable."
+        label="Minimum solar surplus"
+        help="Surplus needed to start after home use. Once charging, the grace period handles solar drops. Leave empty to disable."
       >
         <NumberInput
           value={fields.minExcessSolarKw != null
@@ -125,7 +123,7 @@ function SolarThresholdRows(
       </SettingsRow>
       <SettingsRow
         label="Grace period"
-        help="How long to tolerate a temporary solar drop before stopping. During this grace period E.V Solar may reduce charging to the minimum current, then stops if usable excess solar does not recover."
+        help="Time allowed for solar to recover before charging stops. Charging may drop to minimum current while waiting."
       >
         <NumberInput
           value={String(fields.gracePeriodMinutes)}
@@ -138,7 +136,7 @@ function SolarThresholdRows(
       </SettingsRow>
       <SettingsRow
         label="Cooldown period"
-        help="After stopping due to insufficient solar, wait this long before restarting. Prevents rapid on/off cycling when solar is fluctuating near the threshold."
+        help="Wait before restarting after a solar shortage, to avoid repeated starts and stops."
       >
         <NumberInput
           value={String(fields.cooldownPeriodMinutes)}
@@ -180,7 +178,7 @@ function SolarHardwareRows(
       </SettingsRow>
       <SettingsRow
         label="Three-phase charger"
-        help="Enable if your charger is wired for 3-phase power. The solar algorithm divides available watts by voltage x phases to calculate amps — if the car misreports phases as 1, the controller will overshoot by 3x without this setting."
+        help="Enable for a three-phase charger so available solar is converted to the correct charging current."
       >
         <Switch
           size="2"
@@ -253,8 +251,8 @@ export function SolarTrackingSettings() {
     <>
       <SettingsSection
         icon={<Sun size={18} />}
-        title="Solar Tracking"
-        description="Solar Only and Solar + 🕒 always use real excess solar outside scheduled charging windows. Configure the thresholds and response timing here."
+        title="Solar charging"
+        description="Set solar thresholds and charging response times."
         saveStatus={saveStatus}
         isDirty={isDirty}
         onSave={save}
