@@ -452,12 +452,12 @@
 
 .nodeMeta {
   max-width: 100%;
-  overflow: hidden;
   font-size: 0.68rem;
   font-weight: 600;
+  line-height: 1.35;
   color: var(--gray-9);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .batteryGlyph {
@@ -586,7 +586,7 @@
     font-size: 1.05rem;
   }
   .nodeMeta {
-    max-width: 76px;
+    max-width: 100%;
     font-size: 0.66rem;
   }
 }

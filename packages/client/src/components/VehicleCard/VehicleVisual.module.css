@@ -1,0 +1,69 @@
+.visual {
+  position: relative;
+  margin: -12px -8px 8px;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: clamp(190px, 32vw, 300px);
+  isolation: isolate;
+}
+
+.stage::before {
+  position: absolute;
+  z-index: -1;
+  bottom: 8%;
+  width: 80%;
+  height: 45%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--vehicle-tint,
+    var(--gray-9)) 15%, transparent), transparent 70%);
+  content: "";
+}
+
+.stage img {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 12px rgba(0, 0, 0, 0.12));
+}
+
+.fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--gray-8);
+}
+
+.caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 10px;
+  color: var(--gray-10);
+  font-size: 0.65rem;
+  line-height: 1.4;
+}
+
+.caption span:first-child {
+  overflow-wrap: anywhere;
+}
+
+.caption span:last-child {
+  flex-shrink: 0;
+}
+
+.thumbnail {
+  width: 96px;
+  max-width: 100%;
+  height: 64px;
+  object-fit: contain;
+}

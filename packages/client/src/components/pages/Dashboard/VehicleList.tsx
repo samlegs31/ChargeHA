@@ -13,6 +13,7 @@ import { useEnergyData } from "../../../hooks/useEnergyData.ts";
 import { useVehicles } from "../../../hooks/useVehicles.ts";
 import { useToast } from "../../../hooks/useToast.tsx";
 import { useControllerStatuses } from "../../../hooks/controllerStatusStore.ts";
+import { VehicleThumbnail } from "../../VehicleCard/VehicleVisual.tsx";
 import { VehicleCard } from "../../VehicleCard/VehicleCard.tsx";
 import { VehicleSilhouetteIcon } from "../../icons/VehicleSilhouetteIcon.tsx";
 import { SolarForecastInline } from "../../VehicleCard/SolarForecastInline.tsx";
@@ -267,7 +268,9 @@ function SecondaryVehicleCard({
       data-testid="secondary-vehicle-card"
     >
       <span className={styles.secondaryVehicleIcon} aria-hidden="true">
-        <VehicleSilhouetteIcon size={46} />
+        {state
+          ? <VehicleThumbnail state={state} />
+          : <VehicleSilhouetteIcon size={46} />}
       </span>
       <span className={styles.secondaryVehicleCopy}>
         <span className={styles.secondaryTopLine}>

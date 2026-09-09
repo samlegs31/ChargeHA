@@ -17,7 +17,7 @@ import type { VehicleChargeState, VehicleMode } from "@chargeha/shared";
 import { Spinner } from "../ui/Spinner.tsx";
 import { ErrorBanner } from "../ui/ErrorBanner.tsx";
 import { VehicleBatterySection } from "./VehicleBatterySection.tsx";
-import { VehicleSilhouetteIcon } from "../icons/VehicleSilhouetteIcon.tsx";
+import { vehicleModelLabel, VehicleVisual } from "./VehicleVisual.tsx";
 import styles from "./VehicleCard.module.css";
 import type { ScheduledChargeDisplay } from "../pages/Dashboard/scheduledCharge.ts";
 import {
@@ -355,23 +355,31 @@ export function VehicleCard({
   const disabled = !!commandPending || commandsDisabled;
 
   return (
-    <Card className={styles.card}>
+    <Card
+      className={styles.card}
+      data-status={getChargeStatusKind({
+        state,
+        mode,
+        controllerReason,
+        vehicleError,
+        commandsDisabled,
+      })}
+    >
       <div className={styles.header}>
         <div className={styles.vehicleIdentity}>
-          <span className={styles.vehicleIcon} aria-hidden="true">
-            <VehicleSilhouetteIcon size={46} />
-          </span>
           <div className={styles.vehicleNameGroup}>
             <Text size="4" weight="bold" className={styles.vehicleName}>
               {name}
             </Text>
             <Text size="1" color="gray">
-              {state.isPluggedIn ? "Plugged in" : "Unplugged"}
+              {vehicleModelLabel(state.carType)}
             </Text>
           </div>
         </div>
         <ActiveMode mode={mode} />
       </div>
+
+      <VehicleVisual state={state} />
 
       <PrimaryStatus
         state={state}
@@ -401,14 +409,14 @@ export function VehicleCard({
         onSetChargeLimit={onSetChargeLimit}
       />
 
-      {forecastContent}
-
       <VehicleModeSection
         mode={mode}
         disabled={disabled}
         pending={pending}
         onChangeMode={onChangeMode}
       />
+
+      {forecastContent}
 
       {mode === "charge_now" && state.isOnline && state.isPluggedIn && (
         <NowAmpsControl

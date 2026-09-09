@@ -27,18 +27,6 @@
   gap: 12px;
 }
 
-.vehicleIcon {
-  display: grid;
-  width: 62px;
-  height: 52px;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--ev-accent) 16%, var(--gray-a3));
-  border-radius: 17px;
-  color: var(--ev-accent-strong);
-  background: color-mix(in srgb, var(--ev-accent) 7%, var(--gray-a2));
-}
-
 .vehicleNameGroup {
   display: flex;
   min-width: 0;
@@ -474,12 +462,6 @@
     gap: 10px;
   }
 
-  .vehicleIcon {
-    width: 54px;
-    height: 48px;
-    border-radius: 15px;
-  }
-
   .vehicleName {
     font-size: 1.12rem;
   }
@@ -537,5 +519,63 @@
   .status,
   .chargeLimitSlider::-webkit-slider-thumb {
     transition: none;
+  }
+}
+
+/* Vehicle identity and render form one calm, dominant surface. */
+.card[data-status] {
+  --vehicle-tint: var(--gray-9);
+  padding: 24px;
+}
+
+.card[data-status="charging"] {
+  --vehicle-tint: var(--green-10);
+}
+.card[data-status="connected"],
+.card[data-status="waiting"] {
+  --vehicle-tint: var(--ev-accent-strong);
+}
+.card[data-status="error"] {
+  --vehicle-tint: var(--red-10);
+}
+
+.card[data-status] .vehicleName {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.045em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.card[data-status] .header {
+  margin-bottom: 4px;
+}
+
+.card[data-status] .status {
+  padding: 12px 0;
+  margin-bottom: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--gray-a4);
+  border-radius: 0;
+  background: transparent;
+}
+
+.card[data-status] .statusHeadline {
+  font-size: 1.13rem;
+}
+
+.card[data-status] .batteryTop {
+  align-items: center;
+}
+
+.card[data-status] .batteryPercent {
+  font-size: 2.7rem;
+}
+
+@media (max-width: 640px) {
+  .card[data-status] {
+    padding: 20px 16px;
+  }
+  .card[data-status] .activeMode {
+    max-width: 48%;
   }
 }

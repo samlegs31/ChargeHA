@@ -373,3 +373,22 @@
     animation-duration: 1.2s;
   }
 }
+
+.secondaryVehicle {
+  grid-template-columns: 96px minmax(0, 1fr) 72px;
+}
+.secondaryVehicleIcon {
+  width: 96px;
+  height: 70px;
+  border: 0;
+  background: transparent;
+}
+@media (max-width: 640px) {
+  .secondaryVehicle {
+    grid-template-columns: 76px minmax(0, 1fr) 54px;
+  }
+  .secondaryVehicleIcon {
+    width: 76px;
+    height: 60px;
+  }
+}

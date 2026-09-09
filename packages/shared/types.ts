@@ -43,6 +43,9 @@ export type SolarReference = "excess" | "gross";
 export interface VehicleChargeState {
   vehicleId: string; // Unique ID for this vehicle (VIN)
   batteryLevel: number; // Current SOC percentage (0-100)
+  carType?: string | null; // Model reported by the vehicle adapter
+  exteriorColor?: string | null; // Manufacturer paint name
+  wheelType?: string | null; // Manufacturer wheel configuration
   rangeKm?: number | null; // Estimated driving range in kilometres when available
   chargeLimit: number; // Charge limit percentage
   isCharging: boolean; // Currently charging
