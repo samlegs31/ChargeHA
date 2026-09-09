@@ -370,6 +370,7 @@
 .node {
   --node-color: var(--gray-8);
   display: flex;
+  width: 100%;
   min-width: 0;
   flex-direction: column;
   align-items: center;
