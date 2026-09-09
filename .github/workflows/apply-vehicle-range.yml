@@ -96,14 +96,14 @@ jobs:
 
           replace_once(
               "packages/client/src/components/VehicleCard/VehicleBatterySection.tsx",
-              "  const fillColor = isCharging\n    ? \"var(--energy-charging)\"\n    : \"var(--ev-accent-strong)\";",
-              "  const fillColor = isCharging\n    ? \"var(--energy-charging)\"\n    : \"var(--ev-accent-strong)\";\n  const displayedRangeKm = typeof rangeKm === \"number\" &&\n      Number.isFinite(rangeKm) && rangeKm >= 0\n    ? Math.round(rangeKm)\n    : null;",
+              "  const displayedLimit = interactive ? draftLimit : normalizedLimit;",
+              "  const displayedLimit = interactive ? draftLimit : normalizedLimit;\n  const displayedRangeKm = typeof rangeKm === \"number\" &&\n      Number.isFinite(rangeKm) && rangeKm >= 0\n    ? Math.round(rangeKm)\n    : null;",
           )
 
           replace_once(
               "packages/client/src/components/VehicleCard/VehicleBatterySection.tsx",
-              "            <Text size=\"1\" color=\"gray\">Battery</Text>",
-              "            <Text size=\"1\" color=\"gray\">\n              {displayedRangeKm === null ? \"Battery\" : `${displayedRangeKm} km`}\n            </Text>",
+              "          <Text size=\"1\" color=\"gray\">Battery</Text>",
+              "          <Text size=\"1\" color=\"gray\">\n            {displayedRangeKm === null ? \"Battery\" : `${displayedRangeKm} km`}\n          </Text>",
           )
 
           replace_once(
