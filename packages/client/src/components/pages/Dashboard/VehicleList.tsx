@@ -6,7 +6,6 @@ import type { SolarChargeForecastResult } from "@chargeha/shared/forecast";
 import { isHome } from "@chargeha/shared/geo";
 import {
   useChargingConfig,
-  useHomeConfig,
   useSystemConfig,
 } from "../../../hooks/useSectionConfig.ts";
 import { useEnergyData } from "../../../hooks/useEnergyData.ts";
@@ -17,7 +16,10 @@ import { VehicleCard } from "../../VehicleCard/VehicleCard.tsx";
 import { VehicleSilhouetteIcon } from "../../icons/VehicleSilhouetteIcon.tsx";
 import { SolarForecastInline } from "../../VehicleCard/SolarForecastInline.tsx";
 import { trpc } from "../../../trpc.ts";
-import { useVehicleSolarGrid } from "./energyHelpers.ts";
+import {
+  useConfiguredHomeLocation,
+  useVehicleSolarGrid,
+} from "./energyHelpers.ts";
 import {
   getScheduledChargeDisplay,
   type ScheduledChargeDisplay,
@@ -449,20 +451,11 @@ export function VehicleList(
   );
   const { addToast } = useToast();
   const { data: chargingConfig } = useChargingConfig();
-  const { data: homeConfig } = useHomeConfig();
   const { data: systemConfig } = useSystemConfig();
   const { data: scheduleData } = trpc.schedule.list.useQuery(undefined, {
     refetchInterval: 60_000,
   });
-  const homeLat = homeConfig?.homeLatitude;
-  const homeLng = homeConfig?.homeLongitude;
-  const home = useMemo(
-    () =>
-      homeLat != null && homeLng != null
-        ? { lat: homeLat, lng: homeLng }
-        : null,
-    [homeLat, homeLng],
-  );
+  const home = useConfiguredHomeLocation();
   const timezone = systemConfig?.timezone ||
     Intl.DateTimeFormat().resolvedOptions().timeZone;
   const { data: energyData } = useEnergyData();
