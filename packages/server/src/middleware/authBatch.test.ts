@@ -2,16 +2,16 @@ import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { setupAuthApp } from "../test-helpers/authHarness.ts";
 
-function setupBatchAuthApp() {
-  return setupAuthApp({
-    authMode: "local",
-    extraRoutes: (app) => {
-      app.all("/trpc/*", (c) => c.json({ result: true }));
-    },
-  });
-}
-
 describe("tRPC auth batch exemptions", () => {
+  function setupBatchAuthApp() {
+    return setupAuthApp({
+      authMode: "local",
+      extraRoutes: (app) => {
+        app.all("/trpc/*", (c) => c.json({ result: true }));
+      },
+    });
+  }
+
   it("allows a batch containing only public procedures", async () => {
     const { app } = setupBatchAuthApp();
 
