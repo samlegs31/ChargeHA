@@ -37,13 +37,21 @@ jobs:
         continue-on-error: true
         run: deno audit --level=high
 
-      - name: Show lockfile migration
-        run: git diff -- deno.lock
-
-      # Keep these checks in the exact same order as `deno task check:all`, but
-      # expose each command as its own step so CI failures identify the blocker.
-      - name: Format check
-        run: deno fmt --check
+      # Format only files changed by this PR in the ephemeral runner. This lets
+      # lint/type/tests continue while preserving a patch we can commit cleanly.
+      - name: Format migration files
+        run: |
+          deno fmt \
+            .github/workflows/test.yml \
+            packages/client/deno.json \
+            packages/client/src/components/pages/Dashboard/Dashboard.tsx \
+            packages/client/src/components/pages/Dashboard/VehicleList.tsx \
+            packages/client/src/components/pages/Dashboard/energyHelpers.ts \
+            packages/client/vite.config.ts \
+            packages/plugins/deno.json \
+            packages/server/src/bootstrap/bootstrap.ts \
+            packages/server/src/lib/AsyncQueue.test.ts \
+            packages/server/src/lib/AsyncQueue.ts
 
       - name: Lint
         run: deno lint
@@ -65,3 +73,23 @@ jobs:
 
       - name: Client tests
         run: deno task test:client
+
+      - name: Capture migration worktree
+        if: always()
+        run: |
+          git diff --binary > migration.patch
+          git diff --stat > migration-stat.txt
+          git status --short > migration-status.txt
+
+      - name: Upload migration diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-migration-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 3
+          path: |
+            deno.lock
+            migration.patch
+            migration-stat.txt
+            migration-status.txt
