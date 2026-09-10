@@ -28,8 +28,8 @@ jobs:
       - name: Print Deno version
         run: deno --version
 
-      # Temporary migration validation: resolve the updated package ranges and
-      # exercise the full suite before the resulting lockfile is committed.
+      # Temporary migration validation: resolve updated ranges and exercise the
+      # complete suite before committing the generated lockfile.
       - name: Resolve dependency migration
         run: deno install
 
@@ -37,8 +37,6 @@ jobs:
         continue-on-error: true
         run: deno audit --level=high
 
-      # Format only files changed by this PR in the ephemeral runner. This lets
-      # lint/type/tests continue while preserving a patch we can commit cleanly.
       - name: Format migration files
         run: |
           deno fmt \
@@ -52,6 +50,82 @@ jobs:
             packages/server/src/bootstrap/bootstrap.ts \
             packages/server/src/lib/AsyncQueue.test.ts \
             packages/server/src/lib/AsyncQueue.ts
+
+      # Apply the two structural lint fixes in the disposable runner so we can
+      # validate them before committing the resulting source files.
+      - name: Validate structural lint fixes
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          vehicle_path = Path("packages/client/src/components/pages/Dashboard/VehicleList.tsx")
+          vehicle = vehicle_path.read_text()
+          vehicle = vehicle.replace(
+              '  useChargingConfig,\n  useHomeConfig,\n  useSystemConfig,\n',
+              '  useChargingConfig,\n  useSystemConfig,\n',
+          )
+          vehicle = vehicle.replace(
+              'import { useVehicleSolarGrid } from "./energyHelpers.ts";',
+              'import {\n  useConfiguredHomeLocation,\n  useVehicleSolarGrid,\n} from "./energyHelpers.ts";',
+          )
+          vehicle = vehicle.replace('  const { data: homeConfig } = useHomeConfig();\n', '')
+          old_home = '''  const homeLat = homeConfig?.homeLatitude;
+          const homeLng = homeConfig?.homeLongitude;
+          const home = useMemo(
+            () =>
+              homeLat != null && homeLng != null
+                ? { lat: homeLat, lng: homeLng }
+                : null,
+            [homeLat, homeLng],
+          );
+          '''
+          if old_home not in vehicle:
+              raise SystemExit("VehicleList home-location block not found")
+          vehicle = vehicle.replace(old_home, '  const home = useConfiguredHomeLocation();\n')
+          vehicle_path.write_text(vehicle)
+
+          bootstrap_path = Path("packages/server/src/bootstrap/bootstrap.ts")
+          bootstrap = bootstrap_path.read_text()
+          start = bootstrap.index('  const staticRoot = "./packages/server/dist";')
+          end = bootstrap.index('\n\n  return app;', start)
+          bootstrap = bootstrap[:start] + '  registerStaticAssets(app);' + bootstrap[end:]
+          marker = '\nfunction setupTrpcEndpoint('
+          helper = r'''
+
+          function registerStaticAssets(app: Hono) {
+            const staticRoot = "./packages/server/dist";
+            app.use(
+              "/*",
+              serveStatic({
+                root: staticRoot,
+                precompressed: true,
+                onFound: (_path, c) => {
+                  const cacheControl = c.req.path.startsWith("/assets/")
+                    ? "public, max-age=31536000, immutable"
+                    : "no-cache";
+                  c.header("Cache-Control", cacheControl);
+                },
+              }),
+            );
+            app.use(
+              "/*",
+              serveStatic({
+                root: staticRoot,
+                path: "index.html",
+                precompressed: true,
+                onFound: (_path, c) => c.header("Cache-Control", "no-cache"),
+              }),
+            );
+          }
+          '''
+          if marker not in bootstrap:
+              raise SystemExit("bootstrap insertion marker not found")
+          bootstrap = bootstrap.replace(marker, helper + marker, 1)
+          bootstrap_path.write_text(bootstrap)
+          PY
+          deno fmt \
+            packages/client/src/components/pages/Dashboard/VehicleList.tsx \
+            packages/server/src/bootstrap/bootstrap.ts
 
       - name: Lint
         run: deno lint
@@ -93,3 +167,5 @@ jobs:
             migration.patch
             migration-stat.txt
             migration-status.txt
+            packages/client/src/components/pages/Dashboard/VehicleList.tsx
+            packages/server/src/bootstrap/bootstrap.ts
