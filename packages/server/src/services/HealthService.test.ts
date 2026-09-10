@@ -3,7 +3,7 @@ import { expect } from "@std/expect";
 import { HealthService } from "./HealthService.ts";
 import type { VehiclePluginRegistry } from "@chargeha/server/bootstrap/VehiclePluginRegistry";
 import { EnergyPluginRegistry } from "@chargeha/server/bootstrap/EnergyPluginRegistry";
-import type { PluginHealthCheck } from "@chargeha/plugins/types";
+import type { PluginHealthCheck } from "@chargeha/plugins";
 import { throwingMock } from "../test-helpers/throwingMock.ts";
 
 describe("HealthService", () => {
