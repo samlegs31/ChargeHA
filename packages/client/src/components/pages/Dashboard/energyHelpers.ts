@@ -21,7 +21,7 @@ export function formatTimeUntil(isoString: string): string {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
-function useConfiguredHomeLocation(): HomeLocation {
+export function useConfiguredHomeLocation(): HomeLocation {
   const { data: homeConfig } = useHomeConfig();
   const homeLat = homeConfig?.homeLatitude;
   const homeLng = homeConfig?.homeLongitude;
