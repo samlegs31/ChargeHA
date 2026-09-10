@@ -456,9 +456,13 @@ export function VehicleList(
   });
   const homeLat = homeConfig?.homeLatitude;
   const homeLng = homeConfig?.homeLongitude;
-  const home = homeLat != null && homeLng != null
-    ? { lat: homeLat, lng: homeLng }
-    : null;
+  const home = useMemo(
+    () =>
+      homeLat != null && homeLng != null
+        ? { lat: homeLat, lng: homeLng }
+        : null,
+    [homeLat, homeLng],
+  );
   const timezone = systemConfig?.timezone ||
     Intl.DateTimeFormat().resolvedOptions().timeZone;
   const { data: energyData } = useEnergyData();
@@ -488,7 +492,7 @@ export function VehicleList(
     },
   });
 
-  const vehicleSolarGrid = useVehicleSolarGrid(realtime, vehicles);
+  const vehicleSolarGrid = useVehicleSolarGrid(realtime, vehicles, home);
   const controllerStatuses = useControllerStatuses();
   const allocationStatus = useAllocationStatus(
     chargingConfig?.priorityChargingEnabled,
