@@ -197,7 +197,7 @@ describe("Schedules", () => {
 
     expect(
       screen.getByText(
-        /Add a vehicle in Settings to start creating charge and blockout schedules/,
+        /Add a car in Settings to create charging schedules/,
       ),
     ).toBeInTheDocument();
   });
@@ -278,7 +278,7 @@ describe("Schedules", () => {
 
     expect(
       screen.getByText(
-        /No no-charge periods yet. Add one to pause charging during selected times/,
+        /No pauses scheduled/,
       ),
     ).toBeInTheDocument();
   });
@@ -304,7 +304,7 @@ describe("Schedules", () => {
       ),
     ).toBeDefined();
     expect(
-      screen.queryByText(/No no-charge periods yet/),
+      screen.queryByText(/No pauses scheduled/),
     ).not.toBeInTheDocument();
   });
 

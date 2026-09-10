@@ -80,7 +80,7 @@ describe("PartnerRegistrationStep", () => {
           isSuccess: true,
           data: { success: true, message: "Partner registration successful" },
         },
-        /Partner registration successful/,
+        /Tesla partner registration complete/,
       ],
       [
         "error",
