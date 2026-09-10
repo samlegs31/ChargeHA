@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { JSX } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Button, Text, TextField } from "@radix-ui/themes";
 import { type PhotonResult, useAddressAutocomplete } from "../../../hostUi.ts";
