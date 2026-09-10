@@ -9,43 +9,46 @@ interface FakeAbortSignalState {
   removed: number;
 }
 
-function createFakeAbortSignal() {
-  const state: FakeAbortSignalState = {
-    aborted: false,
-    listener: null,
-    added: 0,
-    removed: 0,
-  };
-  const signal = {
-    get aborted() {
-      return state.aborted;
-    },
-    addEventListener(_type: string, listener: EventListenerOrEventListenerObject) {
-      state.added += 1;
-      state.listener = typeof listener === "function"
-        ? () => listener(new Event("abort"))
-        : () => listener.handleEvent(new Event("abort"));
-    },
-    removeEventListener(
-      _type: string,
-      _listener: EventListenerOrEventListenerObject,
-    ) {
-      state.removed += 1;
-      state.listener = null;
-    },
-  } as unknown as AbortSignal;
-
-  return {
-    signal,
-    state,
-    abort() {
-      state.aborted = true;
-      state.listener?.();
-    },
-  };
-}
-
 describe("createAsyncQueue()", () => {
+  function createFakeAbortSignal() {
+    const state: FakeAbortSignalState = {
+      aborted: false,
+      listener: null,
+      added: 0,
+      removed: 0,
+    };
+    const signal = {
+      get aborted() {
+        return state.aborted;
+      },
+      addEventListener(
+        _type: string,
+        listener: EventListenerOrEventListenerObject,
+      ) {
+        state.added += 1;
+        state.listener = typeof listener === "function"
+          ? () => listener(new Event("abort"))
+          : () => listener.handleEvent(new Event("abort"));
+      },
+      removeEventListener(
+        _type: string,
+        _listener: EventListenerOrEventListenerObject,
+      ) {
+        state.removed += 1;
+        state.listener = null;
+      },
+    } as unknown as AbortSignal;
+
+    return {
+      signal,
+      state,
+      abort() {
+        state.aborted = true;
+        state.listener?.();
+      },
+    };
+  }
+
   it("delivers buffered events in FIFO order", async () => {
     const queue = createAsyncQueue<number>();
     const abort = createFakeAbortSignal();
