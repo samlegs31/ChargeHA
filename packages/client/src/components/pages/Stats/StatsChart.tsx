@@ -205,15 +205,16 @@ function useChartClickHandler(
   dateCursor: Date,
   onDrillDown: (period: StatsViewPeriod, date: Date) => void,
 ) {
-  return useCallback((event: { activeLabel?: string }) => {
-    if (!event.activeLabel) return;
+  return useCallback((event: { activeLabel?: string | number }) => {
+    if (event.activeLabel === undefined) return;
+    const activeLabel = String(event.activeLabel);
     if (period === "total") {
-      const year = parseInt(event.activeLabel, 10);
+      const year = parseInt(activeLabel, 10);
       if (!isNaN(year)) onDrillDown("year", new Date(year, 0, 1));
       return;
     }
     if (period === "month") {
-      const day = parseInt(event.activeLabel, 10);
+      const day = parseInt(activeLabel, 10);
       if (!isNaN(day)) {
         onDrillDown(
           "day",
@@ -223,7 +224,7 @@ function useChartClickHandler(
       return;
     }
     if (period !== "year") return;
-    const monthIndex = MONTH_ABBRS.indexOf(event.activeLabel);
+    const monthIndex = MONTH_ABBRS.indexOf(activeLabel);
     if (monthIndex < 0) return;
     onDrillDown("month", new Date(dateCursor.getFullYear(), monthIndex, 1));
   }, [period, dateCursor, onDrillDown]);
