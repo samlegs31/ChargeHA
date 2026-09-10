@@ -23,7 +23,7 @@ function VerifyResult(
         <Callout.Icon>
           <CheckCircle size={14} />
         </Callout.Icon>
-        <Callout.Text>Public key verified successfully.</Callout.Text>
+        <Callout.Text>Public key verified.</Callout.Text>
       </Callout.Root>
     );
   }

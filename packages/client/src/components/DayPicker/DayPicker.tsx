@@ -64,7 +64,7 @@ export function DayPicker({ value, onChange }: DayPickerProps) {
           size="1"
           onClick={() => setPreset(ALL_DAYS)}
         >
-          Every Day
+          Every day
         </Button>
         <Button
           type="button"

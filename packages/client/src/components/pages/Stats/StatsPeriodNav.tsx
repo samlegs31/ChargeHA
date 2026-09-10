@@ -37,7 +37,7 @@ export function StatsPeriodNav({
           <SegmentedControl.Item value="day">Day</SegmentedControl.Item>
           <SegmentedControl.Item value="month">Month</SegmentedControl.Item>
           <SegmentedControl.Item value="year">Year</SegmentedControl.Item>
-          <SegmentedControl.Item value="total">Total</SegmentedControl.Item>
+          <SegmentedControl.Item value="total">All time</SegmentedControl.Item>
         </SegmentedControl.Root>
       </div>
 

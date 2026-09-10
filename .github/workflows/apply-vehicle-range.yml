@@ -1,0 +1,270 @@
+name: Validate premium Home in Chromium
+
+on:
+  push:
+    branches:
+      - design/premium-home-2026
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: design/premium-home-2026
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Install app dependencies
+        run: deno install --frozen --allow-scripts=npm:esbuild
+
+      - name: Create temporary visual harness
+        run: |
+          cat > packages/client/visual-home.html <<'EOF'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>E.V. Solar Home visual check</title>
+            </head>
+            <body>
+              <div id="root"></div>
+              <script type="module" src="/src/visual-home.tsx"></script>
+            </body>
+          </html>
+          EOF
+
+          cat > packages/client/src/visual-home.css <<'EOF'
+          html, body, #root { min-height: 100%; margin: 0; }
+          body { background: var(--gray-2); }
+          .visual-page { min-height: 100vh; padding: 18px; box-sizing: border-box; }
+          .visual-home { width: min(100%, 920px); margin: 0 auto; display: grid; gap: 16px; }
+          .visual-offpeak {
+            min-height: 64px;
+            border: 1px solid var(--gray-a5);
+            border-radius: var(--ev-radius-card, 22px);
+            background: var(--color-panel-solid);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 14px 16px;
+            box-sizing: border-box;
+            box-shadow: var(--shadow-1);
+          }
+          .visual-offpeak strong { font-size: 14px; }
+          .visual-offpeak span { color: var(--gray-11); font-size: 13px; }
+          .visual-offpeak-state { text-align: right; }
+          .visual-offpeak-state b { display: block; font-size: 13px; color: var(--green-11); }
+          @media (max-width: 640px) {
+            .visual-page { padding: 12px; }
+            .visual-home { gap: 12px; }
+          }
+          EOF
+
+          cat > packages/client/src/visual-home.tsx <<'EOF'
+          import { createRoot } from "react-dom/client";
+          import { Theme } from "@radix-ui/themes";
+          import "@radix-ui/themes/styles.css";
+          import "./styles/global.css";
+          import "./visual-home.css";
+          import type { EnergyData, VehicleChargeState } from "@chargeha/shared";
+          import { VehicleCard } from "./components/VehicleCard/VehicleCard.tsx";
+          import { EnergyFlowDiagram } from "./components/EnergyFlowDiagram/EnergyFlowDiagram.tsx";
+
+          const appearance = new URLSearchParams(location.search).get("theme") === "dark"
+            ? "dark"
+            : "light";
+
+          const vehicleState: VehicleChargeState = {
+            vehicleId: "visual-tesla",
+            carType: "model3",
+            exteriorColor: "DeepBlue",
+            wheelType: "StilettoRefresh19",
+            batteryLevel: 57,
+            rangeKm: 347,
+            chargeLimit: 80,
+            isCharging: true,
+            isPluggedIn: true,
+            isOnline: true,
+            chargeAmps: 21,
+            chargeAmpsMax: 32,
+            chargeAmpsMin: 5,
+            chargePowerKw: 4.8,
+            chargerVoltage: 230,
+            chargerPhases: 1,
+            energyAddedKwh: 8.2,
+            minutesToFull: 85,
+            chargePortOpen: true,
+            vehicleName: "F.R.I.D.A.Y.",
+            lastUpdated: new Date().toISOString(),
+            latitude: null,
+            longitude: null,
+            isHome: true,
+          };
+
+          const energyData: EnergyData = {
+            solarProductionW: 6200,
+            gridPowerW: 400,
+            homeConsumptionW: 7000,
+            batteryPowerW: -800,
+            batterySoc: 74,
+            gridVoltageV: 230,
+            lastUpdated: new Date().toISOString(),
+          };
+
+          function VisualHome() {
+            return (
+              <Theme appearance={appearance} accentColor="cyan" grayColor="slate" radius="large">
+                <main className="visual-page" data-theme={appearance}>
+                  <div className="visual-home">
+                    <VehicleCard
+                      name="F.R.I.D.A.Y."
+                      state={vehicleState}
+                      priority={1}
+                      mode="auto"
+                      commandPending={false}
+                      onStartCharging={() => {}}
+                      onStopCharging={() => {}}
+                      onSetAmps={() => {}}
+                      onSetChargeLimit={async () => {}}
+                      onChangeMode={() => {}}
+                      atHome={true}
+                      controllerReason="solar_tracking"
+                    />
+                    <EnergyFlowDiagram
+                      data={energyData}
+                      chargingVehicles={[{
+                        id: "visual-tesla",
+                        name: "F.R.I.D.A.Y.",
+                        chargePowerW: 4800,
+                        solarW: 4400,
+                        batteryW: 0,
+                        gridW: 400,
+                      }]}
+                    />
+                    <section className="visual-offpeak" aria-label="Off-Peak status">
+                      <div><strong>Off-Peak</strong><br /><span>Current tariff window</span></div>
+                      <div className="visual-offpeak-state"><b>Active</b><span>Until 06:40</span></div>
+                    </section>
+                  </div>
+                </main>
+              </Theme>
+            );
+          }
+
+          createRoot(document.getElementById("root")!).render(<VisualHome />);
+          EOF
+
+      - name: Start Vite
+        run: |
+          cd packages/client
+          nohup deno run -A --unstable-no-legacy-abort npm:vite@^6 --host 127.0.0.1 --port 4173 > /tmp/evsolar-vite.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4173/visual-home.html >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/evsolar-vite.log
+          exit 1
+
+      - name: Install Chromium harness
+        run: |
+          mkdir -p /tmp/evsolar-visual
+          cd /tmp/evsolar-visual
+          npm init -y >/dev/null 2>&1
+          npm install playwright@1.55.0 >/dev/null
+          npx playwright install --with-deps chromium
+
+      - name: Capture iPhone and desktop light/dark
+        run: |
+          cat > /tmp/evsolar-visual/capture.mjs <<'EOF'
+          import { chromium } from "playwright";
+          import fs from "node:fs";
+
+          const cases = [
+            { name: "iphone-light", width: 393, height: 852, theme: "light" },
+            { name: "iphone-dark", width: 393, height: 852, theme: "dark" },
+            { name: "desktop-light", width: 1440, height: 1000, theme: "light" },
+            { name: "desktop-dark", width: 1440, height: 1000, theme: "dark" },
+          ];
+
+          fs.mkdirSync("/tmp/evsolar-screenshots", { recursive: true });
+          const browser = await chromium.launch({ headless: true });
+          const report = [];
+
+          for (const item of cases) {
+            const context = await browser.newContext({
+              viewport: { width: item.width, height: item.height },
+              colorScheme: item.theme,
+              deviceScaleFactor: item.name.startsWith("iphone") ? 2 : 1,
+            });
+            const page = await context.newPage();
+            await page.goto(`http://127.0.0.1:4173/visual-home.html?theme=${item.theme}`, {
+              waitUntil: "networkidle",
+            });
+            await page.getByText("Charging · 4.8 kW").waitFor();
+            await page.getByText("347 km").waitFor();
+            await page.getByText("Solar + Off-Peak", { exact: true }).first().waitFor();
+            await page.getByText("Solar Only", { exact: true }).waitFor();
+            await page.getByText("Stop", { exact: true }).waitFor();
+
+            const metrics = await page.evaluate(() => {
+              const root = document.documentElement;
+              const card = document.querySelector('[data-status="charging"]');
+              const flow = document.querySelector('[data-testid="energy-flow"]');
+              const rect = (el) => el ? {
+                x: Math.round(el.getBoundingClientRect().x),
+                y: Math.round(el.getBoundingClientRect().y),
+                width: Math.round(el.getBoundingClientRect().width),
+                height: Math.round(el.getBoundingClientRect().height),
+              } : null;
+              return {
+                viewportWidth: innerWidth,
+                scrollWidth: root.scrollWidth,
+                horizontalOverflow: root.scrollWidth > innerWidth,
+                vehicleCard: rect(card),
+                energyFlow: rect(flow),
+                bodyBackground: getComputedStyle(document.body).backgroundColor,
+              };
+            });
+
+            if (metrics.horizontalOverflow) {
+              throw new Error(`${item.name}: horizontal overflow ${metrics.scrollWidth}px > ${metrics.viewportWidth}px`);
+            }
+            if (!metrics.vehicleCard || !metrics.energyFlow) {
+              throw new Error(`${item.name}: core Home component missing`);
+            }
+            if (metrics.vehicleCard.x < 0 || metrics.vehicleCard.x + metrics.vehicleCard.width > item.width) {
+              throw new Error(`${item.name}: vehicle card outside viewport`);
+            }
+
+            const screenshot = `/tmp/evsolar-screenshots/${item.name}.png`;
+            await page.screenshot({ path: screenshot, fullPage: true });
+            report.push({ ...item, ...metrics, screenshot });
+            await context.close();
+          }
+
+          await browser.close();
+          fs.writeFileSync(
+            "/tmp/evsolar-screenshots/report.json",
+            JSON.stringify(report, null, 2),
+          );
+          console.log(JSON.stringify(report, null, 2));
+          EOF
+          cd /tmp/evsolar-visual
+          node capture.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: premium-home-browser-captures
+          path: /tmp/evsolar-screenshots
+          if-no-files-found: error

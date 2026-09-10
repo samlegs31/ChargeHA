@@ -43,7 +43,7 @@ function GridVoltageFields() {
   return (
     <div className={styles.stepContainer}>
       <Text size="2" color="gray">
-        ChargeHA converts available solar watts into charging amps using your
+        E.V. Solar converts available solar watts into charging amps using your
         grid voltage. It reads this from your vehicle or inverter when available
         — this setting is used as a fallback when neither reports a valid
         reading.
@@ -92,7 +92,7 @@ function GridVoltageFields() {
       {hasHighVoltage && (
         <Text size="1" color="gray">
           Australia's nominal voltage is 230V but can vary up to 240V in
-          practice. ChargeHA reads live voltage from your inverter or vehicle
+          practice. E.V. Solar reads live voltage from your inverter or vehicle
           when available, so this setting only applies as a fallback.
         </Text>
       )}

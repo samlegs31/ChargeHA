@@ -163,7 +163,7 @@ describe("VirtualKeyPairingStep", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Virtual key paired successfully/),
+        screen.getByText(/Virtual key paired/),
       ).toBeInTheDocument();
     });
   });

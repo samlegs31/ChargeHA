@@ -109,7 +109,7 @@ function ChoiceCards(
         }}
       >
         <Text size="3" weight="medium">
-          Yes — ChargeHA is internet-accessible
+          Yes — E.V. Solar is internet-accessible
         </Text>
         <Text size="2" color="gray">
           Tesla can fetch the key directly from your server.
@@ -128,7 +128,7 @@ function ChoiceCards(
         }}
       >
         <Text size="3" weight="medium">
-          No — ChargeHA runs on my local network only
+          No — E.V. Solar runs on my local network only
         </Text>
         <Text size="2" color="gray">
           You'll need to host the key somewhere publicly accessible.
@@ -315,7 +315,7 @@ function UnreachableOriginCallout(
   return (
     <Callout.Root color="amber">
       <Callout.Text>
-        You're accessing ChargeHA at <strong>{browserOrigin}</strong>{" "}
+        You're accessing E.V. Solar at <strong>{browserOrigin}</strong>{" "}
         — Tesla's servers likely can't fetch the key from this address, so "No"
         with a hosting method (the tunnel is the quickest) is the usual choice
         here.

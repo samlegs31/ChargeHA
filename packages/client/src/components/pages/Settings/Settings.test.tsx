@@ -313,9 +313,9 @@ describe("Settings", () => {
     expect(screen.getByTestId("solarweb-history-import")).toBeInTheDocument();
     expect(screen.queryByTestId("vehicle-settings")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Solar Prediction/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Solar forecast/i }));
 
-    expect(screen.getByRole("button", { name: /Solar Prediction/i }))
+    expect(screen.getByRole("button", { name: /Solar forecast/i }))
       .toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("solar-forecast-settings"))
       .toBeInTheDocument();

@@ -184,7 +184,7 @@ export function TariffPeriodsSection({
           marginBottom: 8,
         }}
       >
-        <Text size="2" weight="bold">Tariff Periods</Text>
+        <Text size="2" weight="bold">Tariff periods</Text>
         <Button size="1" variant="soft" onClick={onStartAdd}>
           <Plus size={14} /> Add Period
         </Button>

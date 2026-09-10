@@ -162,8 +162,8 @@ export function HostingMethodCards(
         <Text as="p" size="1" color="gray">
           Static hosting is unavailable from this address — Tesla sign-in can't
           use a plain http address, so the tunnel is required anyway and covers
-          key hosting too. Alternatively, open ChargeHA via localhost (forward a
-          port from your machine:{" "}
+          key hosting too. Alternatively, open E.V. Solar via localhost (forward
+          a port from your machine:{" "}
           <code>
             ssh -L 8000:&lt;this host&gt;:&lt;port&gt; user@&lt;this host&gt;
           </code>) and these options unlock.

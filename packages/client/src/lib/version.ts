@@ -9,6 +9,6 @@ export const version = {
   sha: fullSha ? fullSha.slice(0, 7) : "dev",
   /** GitHub commit URL for this build, or null when unknown. */
   commitUrl: fullSha
-    ? `https://github.com/startswithaj/ChargeHA/commit/${fullSha}`
+    ? `https://github.com/samlegs31/ChargeHA/commit/${fullSha}`
     : null,
 };

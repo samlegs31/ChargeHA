@@ -135,9 +135,9 @@ describe("formatTime12h", () => {
 });
 
 describe("formatDays", () => {
-  it('returns "Every Day" for all 7 days', () => {
+  it('returns "Every day" for all 7 days', () => {
     expect(formatDays(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])).toBe(
-      "Every Day",
+      "Every day",
     );
   });
 

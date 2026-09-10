@@ -136,7 +136,7 @@ describe("VehicleSettings", () => {
     expect(screen.getByText("Model 3")).toBeInTheDocument();
     expect(screen.getByText("VIN1")).toBeInTheDocument();
     expect(screen.getByText("tesla")).toBeInTheDocument();
-    expect(screen.getByText("Old home charges")).toBeInTheDocument();
+    expect(screen.getByText("Home charging history")).toBeInTheDocument();
   });
 
   it("renders car-order controls when multiple vehicles", () => {
@@ -147,10 +147,10 @@ describe("VehicleSettings", () => {
       ],
     });
     renderWithProviders(<VehicleSettings />);
-    expect(screen.getByText("Car #1")).toBeInTheDocument();
-    expect(screen.getByText("Car #2")).toBeInTheDocument();
+    expect(screen.getByText("Priority #1")).toBeInTheDocument();
+    expect(screen.getByText("Priority #2")).toBeInTheDocument();
     expect(
-      screen.getByText(/Use the arrows to choose which car is #1/),
+      screen.getByText(/Use the arrows to set charging priority/),
     ).toBeInTheDocument();
   });
 
@@ -161,7 +161,7 @@ describe("VehicleSettings", () => {
       ],
     });
     renderWithProviders(<VehicleSettings />);
-    expect(screen.queryByText("Car #1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Priority #1")).not.toBeInTheDocument();
   });
 
   it("calls handleDelete when delete button clicked", () => {

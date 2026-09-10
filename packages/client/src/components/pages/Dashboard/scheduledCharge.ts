@@ -102,7 +102,7 @@ function scheduledDetail(
   const window =
     `${schedule.startTime}–${schedule.endTime} · Target ${schedule.chargeLimitPct}%`;
   return status === "inactive_mode"
-    ? `${window} · Turn on Smart Charge`
+    ? `${window} · Select Solar + Off-Peak`
     : window;
 }
 

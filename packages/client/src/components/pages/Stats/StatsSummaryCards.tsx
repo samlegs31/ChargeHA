@@ -114,7 +114,7 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
         </div>
         <div className={styles.overviewDivider} aria-hidden="true" />
         <div className={styles.totalOverview}>
-          <Text color="gray" className={styles.totalLabel}>Total Charged</Text>
+          <Text color="gray" className={styles.totalLabel}>Total charged</Text>
           <span className={styles.totalValue}>
             {loading ? "—" : kwhValue(data?.totalChargedWh ?? 0)}
           </span>
@@ -126,19 +126,19 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
         aria-label="Charging energy sources"
       >
         <SourceMetric
-          label="From Solar"
+          label="From solar"
           value={loading ? "—" : kwhValue(data?.totalSolarWh ?? 0)}
           icon={Sun}
           tone="solar"
         />
         <SourceMetric
-          label="From Battery"
+          label="From home battery"
           value={loading ? "—" : kwhValue(data?.totalBatteryWh ?? 0)}
           icon={BatteryMedium}
           tone="battery"
         />
         <SourceMetric
-          label="From Grid"
+          label="From grid"
           value={loading ? "—" : kwhValue(data?.totalGridWh ?? 0)}
           icon={Zap}
           tone="grid"
@@ -147,7 +147,7 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
 
       <Card className={styles.secondarySummary}>
         <CompactMetric
-          label="Charged at Home"
+          label="Charged at home"
           value={loading ? "—" : kwhValue(homeWh)}
           icon={Home}
         />
@@ -161,11 +161,11 @@ export function StatsSummaryCards({ data, loading }: StatsSummaryCardsProps) {
       {hasFinancialData && (
         <Card className={styles.costSummary}>
           <CompactMetric
-            label="Grid Cost"
+            label="Grid cost"
             value={formatCost(gridCostCents, currencySymbol)}
           />
           <CompactMetric
-            label="Solar Savings"
+            label="Solar savings"
             value={formatCost(solarSavingsCents, currencySymbol)}
           />
         </Card>

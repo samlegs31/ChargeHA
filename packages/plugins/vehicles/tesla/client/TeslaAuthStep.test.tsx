@@ -106,7 +106,9 @@ describe("TeslaAuthStep", () => {
     expect(
       screen.getByRole("button", { name: /Authorize with Tesla/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Authorize ChargeHA to access your Tesla account/))
+    expect(
+      screen.getByText(/Authorize E.V. Solar to access your Tesla account/),
+    )
       .toBeInTheDocument();
   });
 
@@ -140,7 +142,7 @@ describe("TeslaAuthStep", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Tesla account authorized successfully/),
+        screen.getByText(/Tesla account connected/),
       ).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
     });
@@ -167,7 +169,7 @@ describe("TeslaAuthStep", () => {
         .toBeInTheDocument();
     });
 
-    expect(screen.getByRole("button", { name: /Try Again/ }))
+    expect(screen.getByRole("button", { name: /Try again/ }))
       .toBeInTheDocument();
   });
 
@@ -194,7 +196,7 @@ describe("TeslaAuthStep", () => {
     });
   });
 
-  it("Try Again button retries the auth flow", async () => {
+  it("Try again button retries the auth flow", async () => {
     // First call triggers error
     mocks.getAuthUrlMutate.mockImplementationOnce(() => {
       mocks.capturedOnError.current?.();
@@ -207,12 +209,12 @@ describe("TeslaAuthStep", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Try Again/ }))
+      expect(screen.getByRole("button", { name: /Try again/ }))
         .toBeInTheDocument();
     });
 
     // Retry calls mutate again
-    fireEvent.click(screen.getByRole("button", { name: /Try Again/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Try again/ }));
 
     await waitFor(() => {
       expect(mocks.getAuthUrlMutate).toHaveBeenCalledTimes(2);

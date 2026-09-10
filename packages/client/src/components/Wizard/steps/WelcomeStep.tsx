@@ -7,7 +7,7 @@ import styles from "./steps.module.css";
 export const welcomeStep: StepDef = {
   id: "welcome",
   label: "Welcome",
-  // The step's own button drives it; Next is just "Full Setup" by another name.
+  // The step's own button drives it; Next is just "Set up" by another name.
   useStep: (props) => ({
     next: { kind: "ready", hint: null, onNext: advanceOnly },
     view: <WelcomeContent {...props} />,
@@ -19,29 +19,21 @@ function WelcomeContent({ onAdvance }: StepProps) {
     <div className={styles.stepContainer}>
       <img
         src={logoSrc}
-        alt="ChargeHA"
+        alt="E.V. Solar"
         style={{ width: 80, height: 80, borderRadius: 16, alignSelf: "center" }}
       />
 
       <Text as="p" size="3" color="gray">
-        ChargeHA is a smart home charging controller that optimises your
-        electric vehicle charging using solar production data from your
-        inverter. It automatically adjusts charge rates to maximise
-        self-consumption and minimise grid usage.
+        Charge your car with available solar and scheduled grid power. Connect
+        your car and home energy system to get started.
       </Text>
 
       <div className={styles.welcomeButtons}>
         <Button size="3" onClick={() => onAdvance()}>
           <Zap size={18} />
-          Full Setup
+          Set up
         </Button>
       </div>
-
-      <Text as="p" size="2" color="gray">
-        <strong>Full Setup</strong>{" "}
-        walks you through authentication, timezone, your vehicle, energy source,
-        and home location — step by step.
-      </Text>
     </div>
   );
 }

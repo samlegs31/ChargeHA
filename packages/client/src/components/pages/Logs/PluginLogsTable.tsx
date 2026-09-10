@@ -411,7 +411,7 @@ export function PluginLogsTable({
     return (
       <Card className={styles.emptyState}>
         <FileText size={20} style={{ marginRight: 8 }} />
-        <Text color="gray">No plugin logs yet.</Text>
+        <Text color="gray">No integration logs yet.</Text>
       </Card>
     );
   }

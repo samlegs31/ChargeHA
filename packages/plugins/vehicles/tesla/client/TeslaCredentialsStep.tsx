@@ -133,7 +133,7 @@ function DeveloperPortalInstructions(
         </li>
         <li>
           <Text as="span" size="2">
-            App Name: whatever you like (e.g., "ChargeHA")
+            App Name: whatever you like (e.g., "E.V. Solar")
           </Text>
         </li>
         <li>

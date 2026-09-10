@@ -175,17 +175,17 @@ describe("Schedules", () => {
 
     renderWithProviders(<Schedules />);
 
-    expect(screen.getByText("No vehicles configured")).toBeInTheDocument();
-    expect(screen.getByText("Add Vehicle")).toBeInTheDocument();
+    expect(screen.getByText("No cars connected")).toBeInTheDocument();
+    expect(screen.getByText("Add car")).toBeInTheDocument();
   });
 
-  it("calls onNavigateSettings when Add Vehicle button is clicked", () => {
+  it("calls onNavigateSettings when Add car button is clicked", () => {
     setVehicles({ vehicles: [] });
 
     const onNavigateSettings = vi.fn();
     renderWithProviders(<Schedules onNavigateSettings={onNavigateSettings} />);
 
-    fireEvent.click(screen.getByText("Add Vehicle"));
+    fireEvent.click(screen.getByText("Add car"));
 
     expect(onNavigateSettings).toHaveBeenCalledOnce();
   });
@@ -197,7 +197,7 @@ describe("Schedules", () => {
 
     expect(
       screen.getByText(
-        /Add a vehicle in Settings to start creating charge and blockout schedules/,
+        /Add a car in Settings to create charging schedules/,
       ),
     ).toBeInTheDocument();
   });
@@ -244,12 +244,12 @@ describe("Schedules", () => {
     ).not.toBeInTheDocument();
   });
 
-  // ---- Add Schedule button ----
+  // ---- Add schedule button ----
 
-  it("shows inline schedule form when Add Schedule is clicked", () => {
+  it("shows inline schedule form when Add schedule is clicked", () => {
     renderWithProviders(<Schedules />);
 
-    fireEvent.click(screen.getByText("Add Schedule"));
+    fireEvent.click(screen.getByText("Add schedule"));
 
     expect(screen.getByTestId("schedule-form")).toBeInTheDocument();
     expect(screen.getByTestId("schedule-form")).toHaveAttribute(
@@ -261,14 +261,14 @@ describe("Schedules", () => {
   it("closes the charge form when cancel is clicked", () => {
     renderWithProviders(<Schedules />);
 
-    fireEvent.click(screen.getByText("Add Schedule"));
+    fireEvent.click(screen.getByText("Add schedule"));
     expect(screen.getByTestId("schedule-form")).toBeInTheDocument();
-    expect(screen.queryByText("Add Schedule")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add schedule")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Cancel Form"));
 
     expect(screen.queryByTestId("schedule-form")).not.toBeInTheDocument();
-    expect(screen.getByText("Add Schedule")).toBeInTheDocument();
+    expect(screen.getByText("Add schedule")).toBeInTheDocument();
   });
 
   // ---- No-charge periods section ----
@@ -278,7 +278,7 @@ describe("Schedules", () => {
 
     expect(
       screen.getByText(
-        /No no-charge periods yet. Add one to pause charging during selected times/,
+        /No pauses scheduled/,
       ),
     ).toBeInTheDocument();
   });
@@ -304,7 +304,7 @@ describe("Schedules", () => {
       ),
     ).toBeDefined();
     expect(
-      screen.queryByText(/No no-charge periods yet/),
+      screen.queryByText(/No pauses scheduled/),
     ).not.toBeInTheDocument();
   });
 
@@ -340,7 +340,7 @@ describe("Schedules", () => {
 
     expect(
       screen.getByText(
-        /Schedules work with Smart Charge only/,
+        /Solar Only ignores charge schedules/,
       ),
     ).toBeInTheDocument();
     expect(
@@ -348,7 +348,7 @@ describe("Schedules", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Smart Charge follows these schedules/,
+        /Solar \+ Off-Peak charges at the selected current/,
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(/Times shown in/)).toBeInTheDocument();
@@ -373,7 +373,7 @@ describe("Schedules", () => {
     ).toHaveLength(2);
   });
 
-  it("renders an Add Schedule button per vehicle", () => {
+  it("renders an Add schedule button per vehicle", () => {
     setVehicles({
       vehicles: [
         makeVehicle({ id: "VIN1", name: "Model 3", priority: 1 }),
@@ -383,7 +383,7 @@ describe("Schedules", () => {
 
     renderWithProviders(<Schedules />);
 
-    expect(screen.getAllByText("Add Schedule")).toHaveLength(2);
+    expect(screen.getAllByText("Add schedule")).toHaveLength(2);
   });
 
   // ---- Edit flow for charge schedules ----
@@ -420,7 +420,7 @@ describe("Schedules", () => {
     expect(screen.getByTestId("schedule-form")).toBeInTheDocument();
   });
 
-  it("hides Add Schedule button when editing a charge schedule for that vehicle", () => {
+  it("hides Add schedule button when editing a charge schedule for that vehicle", () => {
     setSchedules({
       schedules: [chargeSchedule],
       chargeSchedules: [chargeSchedule],
@@ -430,7 +430,7 @@ describe("Schedules", () => {
 
     fireEvent.click(screen.getByTestId("edit-sched-1"));
 
-    expect(screen.queryByText("Add Schedule")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add schedule")).not.toBeInTheDocument();
   });
 
   it("closes edit form and shows schedule card again when cancel is clicked", () => {
@@ -538,7 +538,7 @@ describe("Schedules", () => {
 
     renderWithProviders(<Schedules />);
 
-    fireEvent.click(screen.getByText("Add Schedule"));
+    fireEvent.click(screen.getByText("Add schedule"));
     fireEvent.click(screen.getByText("Save Form"));
 
     expect(addSchedule).toHaveBeenCalled();
@@ -607,7 +607,7 @@ describe("Schedules", () => {
     expect(screen.getByText("Add no-charge period")).toBeInTheDocument();
   });
 
-  it("does not hide Add Schedule when editing a blockout schedule", () => {
+  it("does not hide Add schedule when editing a blockout schedule", () => {
     setSchedules({
       schedules: [chargeSchedule, blockoutSchedule],
       chargeSchedules: [chargeSchedule],
@@ -618,6 +618,6 @@ describe("Schedules", () => {
 
     fireEvent.click(screen.getByTestId("edit-sched-blockout-1"));
 
-    expect(screen.getByText("Add Schedule")).toBeInTheDocument();
+    expect(screen.getByText("Add schedule")).toBeInTheDocument();
   });
 });
