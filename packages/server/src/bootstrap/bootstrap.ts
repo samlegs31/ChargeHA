@@ -422,6 +422,12 @@ function buildHttpApp(
     trpcLogger,
   });
 
+  registerStaticAssets(app);
+
+  return app;
+}
+
+function registerStaticAssets(app: Hono) {
   const staticRoot = "./packages/server/dist";
   app.use(
     "/*",
@@ -445,8 +451,6 @@ function buildHttpApp(
       onFound: (_path, c) => c.header("Cache-Control", "no-cache"),
     }),
   );
-
-  return app;
 }
 
 function setupTrpcEndpoint(
