@@ -422,10 +422,28 @@ function buildHttpApp(
     trpcLogger,
   });
 
-  app.use("/*", serveStatic({ root: "./packages/server/dist" }));
+  const staticRoot = "./packages/server/dist";
   app.use(
     "/*",
-    serveStatic({ root: "./packages/server/dist", path: "index.html" }),
+    serveStatic({
+      root: staticRoot,
+      precompressed: true,
+      onFound: (_path, c) => {
+        const cacheControl = c.req.path.startsWith("/assets/")
+          ? "public, max-age=31536000, immutable"
+          : "no-cache";
+        c.header("Cache-Control", cacheControl);
+      },
+    }),
+  );
+  app.use(
+    "/*",
+    serveStatic({
+      root: staticRoot,
+      path: "index.html",
+      precompressed: true,
+      onFound: (_path, c) => c.header("Cache-Control", "no-cache"),
+    }),
   );
 
   return app;
