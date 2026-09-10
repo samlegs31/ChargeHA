@@ -1,4 +1,3 @@
-// EVSOLAR_BATCH5
 import type { Hono } from "hono";
 import type { PluginTunnelRoute } from "@chargeha/plugins";
 
