@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button, Card, Text } from "@radix-ui/themes";
+import { useEnergyData } from "../../../hooks/useEnergyData.ts";
 import { useToast } from "../../../hooks/useToast.tsx";
 import { formatRelativeTime } from "../../../utils/Format.ts";
 import { trpc } from "../../../trpc.ts";
@@ -96,21 +97,20 @@ export function Dashboard({ onNavigateSettings }: DashboardProps) {
 /** Keep the high-frequency energy timestamp subscription at the leaf. This
  * prevents each inverter update from re-rendering the whole Dashboard tree. */
 function LastUpdated() {
-  const { data: timestamp } = trpc.energy.realtime.useQuery(undefined, {
-    select: (data) => data.timestamp,
-  });
+  const { data: energyData } = useEnergyData();
+  const at = energyData?.lastUpdated ?? null;
   const [, setTick] = useState(0);
 
   useEffect(() => {
-    if (!timestamp) return;
+    if (!at) return;
     const id = setInterval(() => setTick((tick) => tick + 1), 10_000);
     return () => clearInterval(id);
-  }, [timestamp]);
+  }, [at]);
 
-  if (!timestamp) return null;
+  if (!at) return null;
   return (
     <Text size="1" color="gray" className={styles.lastUpdated}>
-      Updated {formatRelativeTime(new Date(timestamp))}
+      Updated {formatRelativeTime(at)}
     </Text>
   );
 }
