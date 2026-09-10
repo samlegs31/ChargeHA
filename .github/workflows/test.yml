@@ -57,31 +57,27 @@ jobs:
         run: |
           python3 <<'PY'
           from pathlib import Path
+          import re
 
           vehicle_path = Path("packages/client/src/components/pages/Dashboard/VehicleList.tsx")
           vehicle = vehicle_path.read_text()
-          vehicle = vehicle.replace(
-              '  useChargingConfig,\n  useHomeConfig,\n  useSystemConfig,\n',
-              '  useChargingConfig,\n  useSystemConfig,\n',
-          )
+          vehicle = vehicle.replace("  useHomeConfig,\n", "")
           vehicle = vehicle.replace(
               'import { useVehicleSolarGrid } from "./energyHelpers.ts";',
               'import {\n  useConfiguredHomeLocation,\n  useVehicleSolarGrid,\n} from "./energyHelpers.ts";',
           )
           vehicle = vehicle.replace('  const { data: homeConfig } = useHomeConfig();\n', '')
-          old_home = '''  const homeLat = homeConfig?.homeLatitude;
-          const homeLng = homeConfig?.homeLongitude;
-          const home = useMemo(
-            () =>
-              homeLat != null && homeLng != null
-                ? { lat: homeLat, lng: homeLng }
-                : null,
-            [homeLat, homeLng],
-          );
-          '''
-          if old_home not in vehicle:
-              raise SystemExit("VehicleList home-location block not found")
-          vehicle = vehicle.replace(old_home, '  const home = useConfiguredHomeLocation();\n')
+          vehicle, count = re.subn(
+              r'  const homeLat = homeConfig\?\.homeLatitude;\n'
+              r'  const homeLng = homeConfig\?\.homeLongitude;\n'
+              r'  const home = useMemo\([\s\S]*?\n  \);\n'
+              r'(?=  const timezone =)',
+              '  const home = useConfiguredHomeLocation();\n',
+              vehicle,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit(f"VehicleList home-location replacement count={count}")
           vehicle_path.write_text(vehicle)
 
           bootstrap_path = Path("packages/server/src/bootstrap/bootstrap.ts")
