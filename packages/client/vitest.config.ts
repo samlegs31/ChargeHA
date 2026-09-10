@@ -24,7 +24,6 @@ export default defineConfig({
     },
     coverage: {
       provider: "v8",
-      all: true,
       include: ["src/**/*.{ts,tsx}", "../plugins/**/client/**/*.{ts,tsx}"],
       exclude: ["src/main.tsx", "src/test-setup.ts", "**/*.test.{ts,tsx}"],
       reporter: ["text", "html"],
