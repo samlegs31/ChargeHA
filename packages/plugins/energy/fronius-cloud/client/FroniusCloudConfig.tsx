@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { Badge, Button, Text, TextField } from "@radix-ui/themes";
 import { trpc } from "./trpc.ts";
 import { SettingsRow } from "../../../hostUi.ts";
