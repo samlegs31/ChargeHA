@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "exports": {
     ".": "./types.ts",
+    "./types": "./types.ts",
     "./PluginDbLogger": "./PluginDbLogger.ts",
     "./registerPlugins": "./registerPlugins.ts",
     "./vehicles/tesla/server/TeslaAdapter": "./vehicles/tesla/server/TeslaAdapter.ts",
