@@ -3,7 +3,8 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import deno from "@deno/vite-plugin";
 
-const COMPRESSIBLE_ASSET_RE = /\.(?:css|html|js|json|svg|txt|webmanifest|xml)$/i;
+const COMPRESSIBLE_ASSET_RE =
+  /\.(?:css|html|js|json|svg|txt|webmanifest|xml)$/i;
 const MIN_PRECOMPRESS_BYTES = 1024;
 
 function toBytes(source: string | Uint8Array): Uint8Array {
