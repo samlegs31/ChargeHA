@@ -1,6 +1,47 @@
+import { brotliCompressSync, constants, gzipSync } from "node:zlib";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import deno from "@deno/vite-plugin";
+
+const COMPRESSIBLE_ASSET_RE = /\.(?:css|html|js|json|svg|txt|webmanifest|xml)$/i;
+const MIN_PRECOMPRESS_BYTES = 1024;
+
+function toBytes(source: string | Uint8Array): Uint8Array {
+  return typeof source === "string" ? new TextEncoder().encode(source) : source;
+}
+
+/** Build Brotli/Gzip sidecars once in CI so the Raspberry only serves bytes. */
+function precompressAssets(): Plugin {
+  return {
+    name: "precompress-assets",
+    apply: "build",
+    generateBundle(_options, bundle) {
+      Object.values(bundle).forEach((output) => {
+        const fileName = output.fileName;
+        if (!COMPRESSIBLE_ASSET_RE.test(fileName)) return;
+
+        const source = output.type === "chunk" ? output.code : output.source;
+        const bytes = toBytes(source);
+        if (bytes.byteLength < MIN_PRECOMPRESS_BYTES) return;
+
+        this.emitFile({
+          type: "asset",
+          fileName: `${fileName}.br`,
+          source: brotliCompressSync(bytes, {
+            params: {
+              [constants.BROTLI_PARAM_QUALITY]: 11,
+            },
+          }),
+        });
+        this.emitFile({
+          type: "asset",
+          fileName: `${fileName}.gz`,
+          source: gzipSync(bytes, { level: 9 }),
+        });
+      });
+    },
+  };
+}
 
 /** Dev-only plugin: catches browser errors/unhandled rejections and
  *  logs them to the Vite terminal so they're visible without DevTools. */
@@ -112,7 +153,7 @@ globalThis.addEventListener("unhandledrejection", (e) => {
 });
 
 export default defineConfig({
-  plugins: [browserErrorRelay(), deno(), react()],
+  plugins: [browserErrorRelay(), deno(), react(), precompressAssets()],
   server: {
     port: 5175,
     proxy: {
