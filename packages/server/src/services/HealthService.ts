@@ -3,7 +3,7 @@ import type { EnergyPluginRegistry } from "@chargeha/server/bootstrap/EnergyPlug
 import type {
   HealthCheckResult,
   PluginHealthCheck,
-} from "@chargeha/plugins/types";
+} from "@chargeha/plugins";
 
 const DEFAULT_TIMEOUT_MS = 5000;
 
