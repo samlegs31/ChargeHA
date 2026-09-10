@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { Code, Text } from "@radix-ui/themes";
 
 interface TeslaSetupInstructionsProps {
