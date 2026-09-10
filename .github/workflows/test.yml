@@ -56,7 +56,10 @@ jobs:
         run: deno task check:deployment
 
       - name: Server tests
-        run: deno task test:server
+        shell: bash
+        run: |
+          set -o pipefail
+          deno task test:server 2>&1 | tee server-tests.log
 
       - name: Client tests
         shell: bash
@@ -80,6 +83,7 @@ jobs:
           retention-days: 3
           path: |
             deno.lock
+            server-tests.log
             client-tests.log
             migration.patch
             migration-stat.txt
