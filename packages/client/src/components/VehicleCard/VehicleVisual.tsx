@@ -34,26 +34,11 @@ export function vehicleImageSource(
   return images[key] ?? null;
 }
 
-function readableConfig(value?: string | null) {
-  const labels: Record<string, string> = {
-    DeepBlue: "Deep Blue",
-    PearlWhite: "Pearl White",
-    StilettoRefresh19: "19″ Sport",
-    Induction20Black: "20″ Induction",
-  };
-  if (value && labels[value]) return labels[value];
-  return value?.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ");
-}
-
 /** Local illustrative renders. Never infer a model or paint from a vehicle name. */
 export function VehicleVisual({ state }: { state: VehicleChargeState }) {
   const source = vehicleImageSource(state);
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const showImage = source !== null && failedSource !== source;
-  const configuration = [
-    readableConfig(state.exteriorColor),
-    readableConfig(state.wheelType),
-  ].filter(Boolean).join(" · ");
 
   return (
     <div className={styles.visual} data-testid="vehicle-visual">
@@ -80,10 +65,6 @@ export function VehicleVisual({ state }: { state: VehicleChargeState }) {
             <VehicleSilhouetteIcon size={240} />
           </div>
         )}
-      </div>
-      <div className={styles.caption}>
-        <span>{configuration}</span>
-        {showImage && <span>Illustration</span>}
       </div>
     </div>
   );

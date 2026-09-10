@@ -39,7 +39,7 @@ describe("vehicle visual fallback", () => {
       wheelType: "StilettoRefresh19",
     } as VehicleChargeState;
     render(<VehicleVisual state={state} />);
-    expect(screen.getByText("Deep Blue · 19″ Sport")).toBeInTheDocument();
+    expect(screen.queryByText("Deep Blue · 19″ Sport")).not.toBeInTheDocument();
     fireEvent.error(screen.getByAltText(/three-quarter view/));
     expect(screen.getByRole("img", { name: "Vehicle silhouette" }))
       .toBeInTheDocument();

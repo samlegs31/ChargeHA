@@ -43,24 +43,6 @@
   color: var(--gray-8);
 }
 
-.caption {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 10px;
-  color: var(--gray-10);
-  font-size: 0.65rem;
-  line-height: 1.4;
-}
-
-.caption span:first-child {
-  overflow-wrap: anywhere;
-}
-
-.caption span:last-child {
-  flex-shrink: 0;
-}
-
 .thumbnail {
   width: 96px;
   max-width: 100%;
