@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { JSX } from "react";
 import { Button, Card, Switch, Text } from "@radix-ui/themes";
 import type { VehicleChargeState } from "@chargeha/shared";
 import { LocationField } from "./LocationField.tsx";
