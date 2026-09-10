@@ -214,7 +214,7 @@ export class NotificationListener {
     );
     this.notificationService.notify(
       "external_charge_detected",
-      "External Charging Detected",
+      "Charging started elsewhere",
       `${data.vehicleName} started charging outside E.V. Solar control.`,
       vehicleOpts(data),
     );
@@ -225,7 +225,7 @@ export class NotificationListener {
   ): void {
     this.notificationService.notify(
       "external_charge_detected",
-      "Charging During Blockout",
+      "Charging during a no-charge period",
       `${data.vehicleName} is charging during a no-charge period (${data.startTime}-${data.endTime}). Charging was not started by E.V. Solar.`,
       vehicleOpts(data),
     );

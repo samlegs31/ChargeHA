@@ -221,7 +221,7 @@ describe("NotificationListener", () => {
       eventEmitter.emit("controller_external_charge", VEH);
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("external_charge_detected");
-      expect(n.title).toBe("External Charging Detected");
+      expect(n.title).toBe("Charging started elsewhere");
     });
 
     it("blockout_charge piggybacks on external_charge_detected", () => {
@@ -232,7 +232,7 @@ describe("NotificationListener", () => {
       });
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("external_charge_detected");
-      expect(n.title).toBe("Charging During Blockout");
+      expect(n.title).toBe("Charging during a no-charge period");
     });
 
     it("low_solar includes grace period minutes", () => {
