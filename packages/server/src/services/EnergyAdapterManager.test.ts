@@ -7,7 +7,7 @@ import type {
 } from "@chargeha/shared";
 import { EnergyAdapterManager } from "./EnergyAdapterManager.ts";
 import { EnergyPluginRegistry } from "@chargeha/server/bootstrap/EnergyPluginRegistry";
-import type { EnergyPlugin } from "@chargeha/plugins/types";
+import type { EnergyPlugin } from "@chargeha/plugins";
 import { Logger } from "../lib/Logger.ts";
 import type { AppDatabase } from "../db/AppDatabase.ts";
 import { throwingMock } from "../test-helpers/throwingMock.ts";
@@ -381,6 +381,7 @@ describe("EnergyAdapterManager", () => {
         testLogger,
       );
       await mgr.reconfigure();
+      expect(mgr.isRelevantConfigKey("energy_adapter_type")).toBe(true);
       expect(mgr.isRelevantConfigKey("test-energy.host")).toBe(true);
       expect(mgr.isRelevantConfigKey("other-plugin.host")).toBe(false);
     });
