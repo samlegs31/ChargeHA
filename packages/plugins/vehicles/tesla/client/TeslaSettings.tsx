@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { JSX } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   AlertTriangle,
