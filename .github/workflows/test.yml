@@ -67,6 +67,27 @@ jobs:
           set -o pipefail
           deno task test:client 2>&1 | tee client-tests.log
 
+      # Temporary diagnostic: regenerate the production-only lockfile from the
+      # exact runtime manifests instead of hand-editing a generated lockfile.
+      - name: Generate runtime lock diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_dir="$(mktemp -d)"
+          mkdir -p "$runtime_dir/packages"
+          cp -a packages/shared "$runtime_dir/packages/shared"
+          cp -a packages/server "$runtime_dir/packages/server"
+          cp -a packages/plugins "$runtime_dir/packages/plugins"
+          cp docker/deno.runtime.json "$runtime_dir/deno.json"
+          cp docker/deno.runtime.lock "$runtime_dir/deno.lock"
+          cp docker/plugins.runtime.deno.json "$runtime_dir/packages/plugins/deno.json"
+          cp docker/deno.runtime.lock docker-deno-runtime-before.lock
+          (
+            cd "$runtime_dir"
+            deno install --frozen=false
+          )
+          cp "$runtime_dir/deno.lock" docker-deno-runtime-generated.lock
+
       - name: Capture migration worktree
         if: always()
         run: |
@@ -85,6 +106,8 @@ jobs:
             deno.lock
             server-tests.log
             client-tests.log
+            docker-deno-runtime-before.lock
+            docker-deno-runtime-generated.lock
             migration.patch
             migration-stat.txt
             migration-status.txt
