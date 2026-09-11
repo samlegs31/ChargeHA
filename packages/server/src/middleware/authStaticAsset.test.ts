@@ -25,11 +25,13 @@ describe("static asset auth exemptions", () => {
   it("does not bypass auth for API-like paths ending in a static extension", async () => {
     const { app } = setupStaticAuthApp();
 
-    for (const path of [
-      "/api/private.js",
-      "/trpc/private.js",
-      "/auth/private.js",
-    ]) {
+    for (
+      const path of [
+        "/api/private.js",
+        "/trpc/private.js",
+        "/auth/private.js",
+      ]
+    ) {
       const res = await app.request(path);
       expect(res.status).toBe(401);
     }
