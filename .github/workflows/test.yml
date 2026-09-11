@@ -59,15 +59,4 @@ jobs:
         run: deno task test:server
 
       - name: Client tests
-        id: client_tests
-        run: |
-          set -o pipefail
-          deno task test:client 2>&1 | tee client-tests.log
-
-      - name: Upload client test failure log
-        if: always() && steps.client_tests.outcome == 'failure'
-        uses: actions/upload-artifact@v6
-        with:
-          name: strict-client-test-failure
-          path: client-tests.log
-          if-no-files-found: error
+        run: deno task test:client
