@@ -28,28 +28,6 @@ jobs:
       - name: Print Deno version
         run: deno --version
 
-      # One-time repair for the dependency migration. The connector cannot
-      # safely transfer the generated 120+ KiB lockfile byte-for-byte, so Deno
-      # regenerates it on the actual PR branch and commits it only if changed.
-      - name: Regenerate migrated lockfile once
-        if: github.event_name == 'pull_request' && github.head_ref == 'perf-security-2026'
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin "$GITHUB_HEAD_REF"
-          git checkout -B "$GITHUB_HEAD_REF" "origin/$GITHUB_HEAD_REF"
-          rm -f deno.lock
-          deno install
-          if git diff --quiet -- deno.lock; then
-            echo "deno.lock is already current"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add deno.lock
-            git commit -m "build: regenerate Deno lockfile with 2.9.6"
-            git push origin "HEAD:$GITHUB_HEAD_REF"
-          fi
-
       - name: Install locked dependencies
         run: deno ci
 
