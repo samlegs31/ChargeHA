@@ -28,13 +28,10 @@ jobs:
       - name: Print Deno version
         run: deno --version
 
-      # Temporary until the regenerated lockfile is committed and the remaining
-      # high-severity advisories are resolved.
-      - name: Resolve dependency migration
-        run: deno install
+      - name: Install locked dependencies
+        run: deno ci
 
       - name: Dependency security audit
-        continue-on-error: true
         run: deno audit --level=high
 
       - name: Format check
@@ -56,58 +53,7 @@ jobs:
         run: deno task check:deployment
 
       - name: Server tests
-        shell: bash
-        run: |
-          set -o pipefail
-          deno task test:server 2>&1 | tee server-tests.log
+        run: deno task test:server
 
       - name: Client tests
-        shell: bash
-        run: |
-          set -o pipefail
-          deno task test:client 2>&1 | tee client-tests.log
-
-      # Temporary diagnostic: regenerate the production-only lockfile from the
-      # exact runtime manifests instead of hand-editing a generated lockfile.
-      - name: Generate runtime lock diagnostic
-        shell: bash
-        run: |
-          set -euo pipefail
-          runtime_dir="$(mktemp -d)"
-          mkdir -p "$runtime_dir/packages"
-          cp -a packages/shared "$runtime_dir/packages/shared"
-          cp -a packages/server "$runtime_dir/packages/server"
-          cp -a packages/plugins "$runtime_dir/packages/plugins"
-          cp docker/deno.runtime.json "$runtime_dir/deno.json"
-          cp docker/deno.runtime.lock "$runtime_dir/deno.lock"
-          cp docker/plugins.runtime.deno.json "$runtime_dir/packages/plugins/deno.json"
-          cp docker/deno.runtime.lock docker-deno-runtime-before.lock
-          (
-            cd "$runtime_dir"
-            deno install --frozen=false
-          )
-          cp "$runtime_dir/deno.lock" docker-deno-runtime-generated.lock
-
-      - name: Capture migration worktree
-        if: always()
-        run: |
-          git diff --binary > migration.patch
-          git diff --stat > migration-stat.txt
-          git status --short > migration-status.txt
-
-      - name: Upload migration diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-migration-${{ github.run_id }}
-          if-no-files-found: error
-          retention-days: 3
-          path: |
-            deno.lock
-            server-tests.log
-            client-tests.log
-            docker-deno-runtime-before.lock
-            docker-deno-runtime-generated.lock
-            migration.patch
-            migration-stat.txt
-            migration-status.txt
+        run: deno task test:client
