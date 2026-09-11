@@ -34,6 +34,9 @@ jobs:
       - name: Dependency security audit
         run: deno audit --level=high
 
+      - name: Runtime dependency security audit
+        run: deno audit --lock docker/deno.runtime.lock --level=high
+
       - name: Format check
         run: deno fmt --check
 
