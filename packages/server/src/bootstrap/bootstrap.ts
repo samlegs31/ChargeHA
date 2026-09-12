@@ -422,13 +422,35 @@ function buildHttpApp(
     trpcLogger,
   });
 
-  app.use("/*", serveStatic({ root: "./packages/server/dist" }));
-  app.use(
-    "/*",
-    serveStatic({ root: "./packages/server/dist", path: "index.html" }),
-  );
+  registerStaticAssets(app);
 
   return app;
+}
+
+function registerStaticAssets(app: Hono) {
+  const staticRoot = "./packages/server/dist";
+  app.use(
+    "/*",
+    serveStatic({
+      root: staticRoot,
+      precompressed: true,
+      onFound: (_path, c) => {
+        const cacheControl = c.req.path.startsWith("/assets/")
+          ? "public, max-age=31536000, immutable"
+          : "no-cache";
+        c.header("Cache-Control", cacheControl);
+      },
+    }),
+  );
+  app.use(
+    "/*",
+    serveStatic({
+      root: staticRoot,
+      path: "index.html",
+      precompressed: true,
+      onFound: (_path, c) => c.header("Cache-Control", "no-cache"),
+    }),
+  );
 }
 
 function setupTrpcEndpoint(

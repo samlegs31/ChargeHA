@@ -1,9 +1,6 @@
 import type { VehiclePluginRegistry } from "@chargeha/server/bootstrap/VehiclePluginRegistry";
 import type { EnergyPluginRegistry } from "@chargeha/server/bootstrap/EnergyPluginRegistry";
-import type {
-  HealthCheckResult,
-  PluginHealthCheck,
-} from "@chargeha/plugins/types";
+import type { HealthCheckResult, PluginHealthCheck } from "@chargeha/plugins";
 
 const DEFAULT_TIMEOUT_MS = 5000;
 

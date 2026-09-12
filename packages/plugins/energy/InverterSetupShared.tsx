@@ -1,3 +1,4 @@
+import type { JSX } from "react";
 import { Badge, Text } from "@radix-ui/themes";
 import { CheckCircle, XCircle } from "lucide-react";
 

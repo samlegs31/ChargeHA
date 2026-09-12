@@ -347,7 +347,7 @@ describe("Dashboard", () => {
   });
 
   it("shows a saved programmed charge on the home vehicle card", () => {
-    h.setVehicles();
+    h.setVehicles([makeVehicle({ mode: "manual" })]);
     h.setSchedules([{
       id: "night-charge",
       vehicleId: "VIN1",

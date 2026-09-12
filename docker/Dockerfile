@@ -43,7 +43,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # ------------------------------------------------------------
 # Stage 2 — Client build
 # ------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM denoland/deno:2.9.4 AS client-builder
+FROM --platform=$BUILDPLATFORM denoland/deno:2.9.6 AS client-builder
 
 ARG GIT_SHA
 ENV VITE_GIT_SHA=$GIT_SHA
@@ -58,7 +58,7 @@ COPY packages/plugins/ packages/plugins/
 COPY packages/client/ packages/client/
 
 RUN --mount=type=cache,target=/deno-dir \
-    deno install
+    deno ci
 
 RUN --mount=type=cache,target=/deno-dir \
     deno task build
@@ -67,7 +67,7 @@ RUN --mount=type=cache,target=/deno-dir \
 # ------------------------------------------------------------
 # Stage 3 — Production runtime
 # ------------------------------------------------------------
-FROM denoland/deno:2.9.4
+FROM denoland/deno:2.9.6
 
 ARG TARGETARCH
 ARG BUILDARCH

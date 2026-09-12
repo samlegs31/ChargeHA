@@ -3,7 +3,7 @@ import type { AppDatabase } from "../db/AppDatabase.ts";
 import type { UpsertVehicleInput, VehicleRow } from "../db/types.ts";
 import type { VehicleManager } from "../services/VehicleManager.ts";
 import type { VehicleChargeState } from "@chargeha/shared";
-import type { VehicleRequestContext } from "@chargeha/plugins/types";
+import type { VehicleRequestContext } from "@chargeha/plugins";
 import type { EnergyAdapterManager } from "../services/EnergyAdapterManager.ts";
 import {
   enrichVehicleRows,

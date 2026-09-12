@@ -1,8 +1,7 @@
-// EVSOLAR_BATCH5
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { Hono } from "hono";
-import type { PluginTunnelRoute } from "@chargeha/plugins/types";
+import type { PluginTunnelRoute } from "@chargeha/plugins";
 import { registerPublicPluginRoutes } from "./publicPluginRoutes.ts";
 
 describe("registerPublicPluginRoutes", () => {

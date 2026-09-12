@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { type JSX, useMemo, useState } from "react";
 import { Button, Code, Text, TextField } from "@radix-ui/themes";
 import { Loader2, Search } from "lucide-react";
 import { trpc } from "./trpc.ts";

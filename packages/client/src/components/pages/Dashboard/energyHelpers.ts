@@ -9,7 +9,7 @@ import { calculateSolarAttribution } from "@chargeha/shared/solarAttribution";
 import { useHomeConfig } from "../../../hooks/useSectionConfig.ts";
 import type { ChargingVehicleFlow } from "../../EnergyFlowDiagram/EnergyFlowDiagram.tsx";
 
-type HomeLocation = { lat: number; lng: number } | null;
+export type HomeLocation = { lat: number; lng: number } | null;
 
 /** Format minutes until a future time as a human-readable string (e.g., "2h 15m", "45m"). */
 export function formatTimeUntil(isoString: string): string {
@@ -21,7 +21,7 @@ export function formatTimeUntil(isoString: string): string {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
 }
 
-function useConfiguredHomeLocation(): HomeLocation {
+export function useConfiguredHomeLocation(): HomeLocation {
   const { data: homeConfig } = useHomeConfig();
   const homeLat = homeConfig?.homeLatitude;
   const homeLng = homeConfig?.homeLongitude;
@@ -66,29 +66,39 @@ export function vehicleChargePowerW(state: VehicleChargeState): number {
     : Math.max(0, state.chargePowerKw * 1000);
 }
 
+function getChargingVehiclesAtHome(
+  vehicles: VehicleWithState[],
+  home: HomeLocation,
+) {
+  return vehicles.filter((vehicle) => isChargingVehicleAtHome(vehicle, home));
+}
+
+function getTotalChargePowerW(
+  vehicles: Array<VehicleWithState & { state: VehicleChargeState }>,
+): number {
+  return vehicles.reduce(
+    (sum, vehicle) => sum + vehicleChargePowerW(vehicle.state),
+    0,
+  );
+}
+
 /** Per-vehicle source attribution for currently-charging vehicles at home. */
 export function useVehicleSolarGrid(
   realtime: EnergyData | null,
   vehicles: VehicleWithState[],
+  home: HomeLocation,
 ): Record<string, { solarW: number; batteryW: number; gridW: number }> {
-  const home = useConfiguredHomeLocation();
-
   return useMemo(() => {
     if (!realtime) return {};
 
-    const chargingVehicles = vehicles.filter((v) =>
-      isChargingVehicleAtHome(v, home)
-    );
-    const totalChargePowerW = chargingVehicles.reduce(
-      (sum, v) => sum + vehicleChargePowerW(v.state),
-      0,
-    );
+    const chargingVehicles = getChargingVehiclesAtHome(vehicles, home);
+    const totalChargePowerW = getTotalChargePowerW(chargingVehicles);
 
     return Object.fromEntries(
-      chargingVehicles.map((v) => {
-        const chargePowerW = vehicleChargePowerW(v.state);
+      chargingVehicles.map((vehicle) => {
+        const chargePowerW = vehicleChargePowerW(vehicle.state);
         return [
-          v.id,
+          vehicle.id,
           calculateSolarAttribution(
             chargePowerW,
             totalChargePowerW,
@@ -112,19 +122,30 @@ export function useChargingVehicleFlows(
   vehicles: VehicleWithState[],
 ): ChargingVehicleFlow[] {
   const home = useConfiguredHomeLocation();
-  const vehicleSolarGrid = useVehicleSolarGrid(realtime, vehicles);
 
-  // Build charging-at-home vehicles list for the energy flow diagram
   return useMemo(() => {
-    return vehicles
-      .filter((v) => isChargingVehicleAtHome(v, home))
-      .map((v) => ({
-        id: v.id,
-        name: v.name || v.state.vehicleName,
-        chargePowerW: vehicleChargePowerW(v.state),
-        solarW: vehicleSolarGrid[v.id]?.solarW ?? 0,
-        batteryW: vehicleSolarGrid[v.id]?.batteryW ?? 0,
-        gridW: vehicleSolarGrid[v.id]?.gridW ?? 0,
-      }));
-  }, [vehicles, vehicleSolarGrid, home]);
+    if (!realtime) return [];
+
+    const chargingVehicles = getChargingVehiclesAtHome(vehicles, home);
+    const totalChargePowerW = getTotalChargePowerW(chargingVehicles);
+
+    return chargingVehicles.map((vehicle) => {
+      const chargePowerW = vehicleChargePowerW(vehicle.state);
+      const attribution = calculateSolarAttribution(
+        chargePowerW,
+        totalChargePowerW,
+        realtime.solarProductionW,
+        realtime.homeConsumptionW,
+        realtime.batteryPowerW ?? 0,
+      );
+      return {
+        id: vehicle.id,
+        name: vehicle.name || vehicle.state.vehicleName,
+        chargePowerW,
+        solarW: attribution.solarW,
+        batteryW: attribution.batteryW,
+        gridW: attribution.gridW,
+      };
+    });
+  }, [realtime, vehicles, home]);
 }

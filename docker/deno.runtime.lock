@@ -350,7 +350,8 @@
         "dependencies": [
           "jsr:@hono/hono@4",
           "jsr:@std/dotenv@0.225",
-          "npm:@trpc/server@11"
+          "npm:@trpc/server@11",
+          "npm:better-sqlite3@11.10.0"
         ]
       }
     }

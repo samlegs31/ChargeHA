@@ -19,7 +19,8 @@
     "hono": "jsr:@hono/hono@^4",
     "hono/deno": "jsr:@hono/hono@^4/deno",
     "@std/dotenv": "jsr:@std/dotenv@^0.225",
-    "@trpc/server": "npm:@trpc/server@^11"
+    "@trpc/server": "npm:@trpc/server@^11",
+    "better-sqlite3": "npm:better-sqlite3@11.10.0"
   },
   "tasks": {
   }

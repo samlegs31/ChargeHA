@@ -1,6 +1,5 @@
-// EVSOLAR_BATCH5
 import type { Hono } from "hono";
-import type { PluginTunnelRoute } from "@chargeha/plugins/types";
+import type { PluginTunnelRoute } from "@chargeha/plugins";
 
 /**
  * Expose plugin-provided custom public handlers on the main HTTP server.

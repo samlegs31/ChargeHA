@@ -22,7 +22,6 @@ interface DashboardProps {
 
 export function Dashboard({ onNavigateSettings }: DashboardProps) {
   const { addToast } = useToast();
-  const { data: energyData } = useEnergyData();
   const utils = trpc.useUtils();
 
   // Derive system alert from config query
@@ -90,13 +89,18 @@ export function Dashboard({ onNavigateSettings }: DashboardProps) {
 
       <EnergyOverview pluginWarnings={pluginWarnings ?? []} />
 
-      <LastUpdated at={energyData?.lastUpdated ?? null} />
+      <LastUpdated />
     </div>
   );
 }
 
-function LastUpdated({ at }: { at: Date | null }) {
+/** Keep the high-frequency energy timestamp subscription at the leaf. This
+ * prevents each inverter update from re-rendering the whole Dashboard tree. */
+function LastUpdated() {
+  const { data: energyData } = useEnergyData();
+  const at = energyData?.lastUpdated ?? null;
   const [, setTick] = useState(0);
+
   useEffect(() => {
     if (!at) return;
     const id = setInterval(() => setTick((tick) => tick + 1), 10_000);

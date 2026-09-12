@@ -10,28 +10,24 @@ export interface AuthMiddlewareDeps {
   logger: Logger;
 }
 
-/** Paths that bypass auth checks entirely. */
+/** Route families that bypass auth checks entirely. */
 const EXEMPT_PREFIXES = [
   "GET /auth/oidc/",
   "GET /.well-known/",
-  "GET /health",
 ] as const;
 
-/** Exact paths that bypass auth: the SPA shell and the login page — without
- *  these an unauthenticated browser can never reach the login form. */
+/** Exact paths that bypass auth. */
 const EXEMPT_EXACT = [
   "GET /",
   "GET /login",
   "GET /manifest.json",
+  "GET /health",
 ] as const;
 
-/** tRPC procedure paths that bypass auth. */
-const EXEMPT_TRPC_PATHS = [
-  "/trpc/auth.login",
-  "/trpc/auth.session",
-] as const;
+/** Exact tRPC procedures that may be called without a session. */
+const PUBLIC_TRPC_PROCEDURES = new Set(["auth.login", "auth.session"]);
 
-/** Static asset extensions that bypass auth. */
+/** Static asset extensions that bypass auth for non-API GET requests. */
 const STATIC_EXTENSIONS = [
   ".js",
   ".css",
@@ -83,6 +79,30 @@ function isVehiclePluginCallback(method: string, path: string): boolean {
     segments[1] === "vehicle" && segments[3] === "callback";
 }
 
+/**
+ * A tRPC batch is public only when every requested procedure is explicitly
+ * public. Exact matching prevents both mixed public/private batches and names
+ * that merely start with a public procedure such as `auth.sessionPrivate`.
+ */
+function isPublicTrpcPath(path: string): boolean {
+  const trpcPrefix = "/trpc/";
+  if (!path.startsWith(trpcPrefix)) return false;
+  const procedures = path.slice(trpcPrefix.length).split(",");
+  return procedures.length > 0 &&
+    procedures.every((procedure) => PUBLIC_TRPC_PROCEDURES.has(procedure));
+}
+
+function isStaticAssetRequest(method: string, path: string): boolean {
+  if (method !== "GET") return false;
+  if (
+    path.startsWith("/api/") || path.startsWith("/trpc/") ||
+    path.startsWith("/auth/")
+  ) {
+    return false;
+  }
+  return STATIC_EXTENSIONS.some((ext) => path.endsWith(ext));
+}
+
 /** Check whether a path is exempt from auth. */
 function isExemptPath(method: string, path: string): boolean {
   if (EXEMPT_EXACT.some((exact) => exact === `${method} ${path}`)) {
@@ -90,23 +110,17 @@ function isExemptPath(method: string, path: string): boolean {
   }
   if (isVehiclePluginCallback(method, path)) return true;
 
-  // Check method+path prefixes
   const matchesPrefix = EXEMPT_PREFIXES.some((prefix) => {
     const [exemptMethod, exemptPath] = prefix.split(" ", 2);
     return method === exemptMethod && path.startsWith(exemptPath);
   });
   if (matchesPrefix) return true;
 
-  // Check tRPC exempt paths (any method — tRPC uses GET for queries, POST for mutations)
-  if (EXEMPT_TRPC_PATHS.some((trpcPath) => path.startsWith(trpcPath))) {
-    return true;
-  }
+  // tRPC uses GET for queries and POST for mutations, so the exemption is
+  // method-agnostic but procedure-exact.
+  if (isPublicTrpcPath(path)) return true;
 
-  // Check static asset extensions
-  const pathWithoutQuery = path.split("?")[0];
-  if (STATIC_EXTENSIONS.some((ext) => pathWithoutQuery.endsWith(ext))) {
-    return true;
-  }
+  if (isStaticAssetRequest(method, path)) return true;
 
   return false;
 }

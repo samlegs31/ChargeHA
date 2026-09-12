@@ -1,5 +1,5 @@
 import type { AnyRouter } from "@trpc/server";
-import type { PluginHealthCheck, VehiclePlugin } from "@chargeha/plugins/types";
+import type { PluginHealthCheck, VehiclePlugin } from "@chargeha/plugins";
 
 /**
  * Thin container for vehicle plugins. Starts empty; plugins are constructed

@@ -113,7 +113,7 @@ describe("StaticMap", () => {
 
       const wrapper = findMapRoot(container);
       expect(wrapper.style.position).toBe("absolute");
-      expect(wrapper.style.inset).toBe("0");
+      expect(wrapper.style.inset).toBe("0px");
       expect(wrapper.style.overflow).toBe("hidden");
       expect(wrapper.style.pointerEvents).toBe("none");
     });
