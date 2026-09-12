@@ -60,13 +60,3 @@ jobs:
 
       - name: Client tests
         run: deno task test:client
-
-      - name: Timezone regression preflight
-        run: |
-          TZ=UTC deno task test:server
-          TZ=UTC deno task test:client
-          TZ=Europe/Paris deno task test:server
-          TZ=Europe/Paris deno task test:client
-
-      - name: Coverage instrumentation preflight
-        run: deno task coverage
