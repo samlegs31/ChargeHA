@@ -47,7 +47,6 @@ function buildVehicleConfigs(opts: SimulationOptions): VehicleConfig[] {
 function buildControllerConfig(opts: SimulationOptions): ControllerConfig {
   return {
     chargingEnabled: true,
-    chargingDisabledReason: "none",
     controllerLoopSeconds: 60,
     solarTrackingEnabled: true,
     solarTrackingMode: "solar_only",

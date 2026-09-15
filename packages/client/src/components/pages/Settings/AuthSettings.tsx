@@ -133,7 +133,7 @@ function OidcConfigFields(
         aria-label="Base URL"
       />
       <Text as="p" size="1" color="gray">
-        The URL you use to access ChargeHA in your browser.
+        The URL you use to access E.V. Solar in your browser.
       </Text>
       {oidcForm.issuerUrl.startsWith("http://") && (
         <Text as="p" size="2" color="orange">
@@ -325,7 +325,7 @@ function ChangePasswordForm({
 
       {success && (
         <Text as="p" size="2" color="green" data-testid="password-success">
-          Password changed successfully
+          Password changed.
         </Text>
       )}
 
@@ -866,7 +866,7 @@ export function AuthSettings() {
     <SettingsSection
       icon={<Shield size={18} />}
       title="Authentication"
-      description="Manage how users access ChargeHA."
+      description="Choose how to sign in to E.V. Solar."
     >
       <AuthModeRow
         value={targetMode ?? currentMode}

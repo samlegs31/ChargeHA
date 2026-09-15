@@ -22,7 +22,7 @@ const { mockNotificationSetMutate, h, MOCK_PROVIDERS } = vi.hoisted(() => ({
     telegram: [
       {
         key: "notification_telegram_bot_token",
-        label: "Bot Token",
+        label: "Bot token",
         help: "Your Telegram bot token",
         type: "text",
       },
@@ -189,7 +189,7 @@ describe("NotificationSettings", () => {
 
     renderWithProviders(<NotificationSettings />);
 
-    expect(screen.getByText("Send Test Notification")).toBeInTheDocument();
+    expect(screen.getByText("Send test notification")).toBeInTheDocument();
   });
 
   // ---- toggleEvent tests ----
@@ -328,7 +328,7 @@ describe("NotificationSettings", () => {
     renderWithProviders(<NotificationSettings />);
 
     await waitFor(() => {
-      expect(screen.getByText("Bot Token")).toBeInTheDocument();
+      expect(screen.getByText("Bot token")).toBeInTheDocument();
     });
   });
 
@@ -362,7 +362,7 @@ describe("NotificationSettings", () => {
     renderWithProviders(<NotificationSettings />);
 
     await waitFor(() => {
-      expect(screen.getByText("Bot Token")).toBeInTheDocument();
+      expect(screen.getByText("Bot token")).toBeInTheDocument();
     });
 
     // The text field input should be present
@@ -370,7 +370,7 @@ describe("NotificationSettings", () => {
     const tokenInput = inputs.find(
       (el) =>
         el.getAttribute("placeholder") !== null ||
-        el.closest("div")?.textContent?.includes("Bot Token"),
+        el.closest("div")?.textContent?.includes("Bot token"),
     );
     if (tokenInput) {
       fireEvent.change(tokenInput, { target: { value: "my-bot-token" } });
@@ -404,7 +404,7 @@ describe("NotificationSettings", () => {
 
     renderWithProviders(<NotificationSettings />);
 
-    fireEvent.click(screen.getByText("Send Test Notification"));
+    fireEvent.click(screen.getByText("Send test notification"));
 
     expect(h.testMutate).toHaveBeenCalled();
   });
@@ -467,15 +467,15 @@ describe("NotificationSettings", () => {
 
   it.each([
     "Errors",
-    "Charge Started",
-    "Charge Stopped",
-    "Charge Complete",
-    "External Charge Detected",
-    "Vehicle Plugged In",
-    "Vehicle Unplugged",
-    "Low Solar",
-    "Schedule Activated",
-    "Safety Trip",
+    "Charging started",
+    "Charging stopped",
+    "Charging complete",
+    "Charging started elsewhere",
+    "Car plugged in",
+    "Car unplugged",
+    "Low solar",
+    "Schedule started",
+    "Charging safety stop",
   ])("renders %s event toggle when provider is selected", (label) => {
     vi.mocked(trpc.config.notification.get.useQuery).mockReturnValue({
       data: {
@@ -497,7 +497,7 @@ describe("NotificationSettings", () => {
     expect(screen.queryByText("Events")).not.toBeInTheDocument();
     expect(screen.queryByText("Errors")).not.toBeInTheDocument();
     expect(
-      screen.queryByText("Send Test Notification"),
+      screen.queryByText("Send test notification"),
     ).not.toBeInTheDocument();
   });
 });

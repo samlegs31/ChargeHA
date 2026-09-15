@@ -68,10 +68,10 @@ describe("DayPicker", () => {
 
   describe("presets", () => {
     it.each<[string, DayOfWeek[], DayOfWeek[]]>([
-      ["Every Day", [], ALL_DAYS],
+      ["Every day", [], ALL_DAYS],
       ["Weekdays", [], WEEKDAYS],
       ["Weekends", [], WEEKENDS],
-      ["Every Day", ALL_DAYS, []],
+      ["Every day", ALL_DAYS, []],
       ["Weekdays", WEEKDAYS, []],
       ["Weekends", WEEKENDS, []],
     ])(

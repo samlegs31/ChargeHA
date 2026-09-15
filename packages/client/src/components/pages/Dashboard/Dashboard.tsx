@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { Button, Card, Text } from "@radix-ui/themes";
 import { useEnergyData } from "../../../hooks/useEnergyData.ts";
-import { useChargingConfig } from "../../../hooks/useSectionConfig.ts";
 import { useToast } from "../../../hooks/useToast.tsx";
 import { formatRelativeTime } from "../../../utils/Format.ts";
 import { trpc } from "../../../trpc.ts";
@@ -24,7 +23,6 @@ interface DashboardProps {
 export function Dashboard({ onNavigateSettings }: DashboardProps) {
   const { addToast } = useToast();
   const { data: energyData } = useEnergyData();
-  const { data: chargingConfig } = useChargingConfig();
   const utils = trpc.useUtils();
 
   // Derive system alert from config query
@@ -41,8 +39,6 @@ export function Dashboard({ onNavigateSettings }: DashboardProps) {
       return null;
     }
   }, [systemAlertRaw]);
-  const safetyTripActive =
-    chargingConfig?.chargingDisabledReason === "safety_trip";
 
   const dismissAlertMutation = trpc.config.dismissSystemAlert.useMutation({
     onSuccess: () => {
@@ -61,7 +57,7 @@ export function Dashboard({ onNavigateSettings }: DashboardProps) {
 
   return (
     <div className={styles.dashboard}>
-      {(systemAlert || safetyTripActive) && (
+      {systemAlert && (
         <Card style={{ borderLeft: "3px solid var(--red-9)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <AlertTriangle
@@ -70,33 +66,20 @@ export function Dashboard({ onNavigateSettings }: DashboardProps) {
             />
             <div style={{ flex: 1 }}>
               <Text size="2" weight="bold" style={{ display: "block" }}>
-                Safety stop {safetyTripActive ? "active" : "alert"}
+                Safety Alert
               </Text>
               <Text size="2" color="gray">
-                {systemAlert?.message ??
-                  "Automatic solar charging remains stopped after repeated start/stop cycles. Review the cause, then re-enable it in Settings."}
+                {systemAlert.message}
               </Text>
             </div>
-            {systemAlert && (
-              <Button
-                variant="soft"
-                color="red"
-                size="2"
-                onClick={() => dismissAlertMutation.mutate()}
-              >
-                Dismiss message
-              </Button>
-            )}
-            {safetyTripActive && onNavigateSettings && (
-              <Button
-                variant="soft"
-                color="red"
-                size="2"
-                onClick={onNavigateSettings}
-              >
-                Review settings
-              </Button>
-            )}
+            <Button
+              variant="soft"
+              color="red"
+              size="2"
+              onClick={() => dismissAlertMutation.mutate()}
+            >
+              Dismiss
+            </Button>
           </div>
         </Card>
       )}

@@ -130,10 +130,10 @@ describe("PublicKeyHostingStep", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(/Yes — ChargeHA is internet-accessible/),
+        screen.getByText(/Yes — E.V. Solar is internet-accessible/),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/No — ChargeHA runs on my local network only/),
+        screen.getByText(/No — E.V. Solar runs on my local network only/),
       ).toBeInTheDocument();
     });
   });
@@ -243,7 +243,7 @@ describe("PublicKeyHostingStep", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Public key verified successfully."),
+        screen.getByText("Public key verified."),
       ).toBeInTheDocument();
     });
   });

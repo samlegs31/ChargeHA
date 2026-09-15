@@ -167,11 +167,11 @@ function DoneSummary({ onSkipTo }: StepProps) {
     <div className={styles.stepContainer}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <PartyPopper size={24} />
-        <Text size="4" weight="bold">Setup Complete!</Text>
+        <Text size="4" weight="bold">Setup complete</Text>
       </div>
 
       <Text size="2" color="gray">
-        Here&apos;s a summary of your ChargeHA configuration.
+        Here&apos;s a summary of your E.V. Solar configuration.
       </Text>
 
       <ChecklistView checklist={checklist} onSkipTo={onSkipTo} />

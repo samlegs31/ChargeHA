@@ -86,10 +86,7 @@ const {
   }),
   mockSetBulkMutate: vi.fn(),
   mockConfigGetAllUseQuery: vi.fn((): {
-    data: {
-      chargingEnabled: boolean;
-      chargingDisabledReason?: "none" | "user" | "safety_trip";
-    } | undefined;
+    data: { chargingEnabled: boolean } | undefined;
     isLoading: boolean;
     error: Error | null;
   } => ({
@@ -246,7 +243,6 @@ import { Settings } from "./Settings.tsx";
 describe("Settings", () => {
   const defaultConfig = {
     chargingEnabled: true,
-    chargingDisabledReason: "none" as const,
   };
 
   beforeEach(() => {
@@ -297,23 +293,6 @@ describe("Settings", () => {
     });
   });
 
-  it("explains how to reset an active safety stop", async () => {
-    mockConfigGetAllUseQuery.mockReturnValue({
-      data: {
-        chargingEnabled: false,
-        chargingDisabledReason: "safety_trip",
-      },
-      isLoading: false,
-      error: null,
-    });
-
-    renderWithProviders(<Settings />);
-
-    expect(await screen.findByText(/Safety stop active/)).toBeInTheDocument();
-    expect(screen.getByText(/Turn automatic charging on and save/))
-      .toBeInTheDocument();
-  });
-
   it("shows one simple Settings topic at a time", () => {
     renderWithProviders(<Settings />);
     expect(screen.getByRole("heading", { name: "Settings" }))
@@ -334,9 +313,9 @@ describe("Settings", () => {
     expect(screen.getByTestId("solarweb-history-import")).toBeInTheDocument();
     expect(screen.queryByTestId("vehicle-settings")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Solar Prediction/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Solar forecast/i }));
 
-    expect(screen.getByRole("button", { name: /Solar Prediction/i }))
+    expect(screen.getByRole("button", { name: /Solar forecast/i }))
       .toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("solar-forecast-settings"))
       .toBeInTheDocument();

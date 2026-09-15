@@ -28,7 +28,7 @@ export function PresetTemplates({
       }}
     >
       <Text size="2" weight="bold" style={{ display: "block" }}>
-        Quick Setup
+        Tariff presets
       </Text>
       <Text
         size="1"

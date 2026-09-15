@@ -190,7 +190,7 @@ function VehicleSimRow(
         >
           <Select.Trigger variant="ghost" style={{ minWidth: 100 }} />
           <Select.Content>
-            <Select.Item value="auto">Solar + clock</Select.Item>
+            <Select.Item value="auto">Solar + Off-Peak</Select.Item>
             <Select.Item value="vacation">Solar Only</Select.Item>
             <Select.Item value="charge_now">Charge Now</Select.Item>
             <Select.Item value="stop">Stop</Select.Item>
@@ -311,16 +311,20 @@ function SummaryBar(
         </Text>
       </div>
       {!result.meetsMinSolarGeneration && (
-        <Badge color="red" size="1" variant="soft">Below min solar</Badge>
+        <Badge color="red" size="1" variant="soft">
+          Below production threshold
+        </Badge>
       )}
       {!result.meetsMinExcessSolar && (
-        <Badge color="red" size="1" variant="soft">Below min excess</Badge>
+        <Badge color="red" size="1" variant="soft">
+          Below surplus threshold
+        </Badge>
       )}
       {result.batteryPriorityBlocking && (
         <Badge color="orange" size="1" variant="soft">Battery priority</Badge>
       )}
       {result.blockoutActive && (
-        <Badge color="red" size="1" variant="soft">Blockout active</Badge>
+        <Badge color="red" size="1" variant="soft">No-charge period</Badge>
       )}
     </div>
   );
@@ -375,7 +379,7 @@ function InputControls(
       />
       {hasBattery && (
         <SliderRow
-          label="Battery SOC"
+          label="Battery level"
           value={batterySoc ?? 0}
           min={0}
           max={100}
@@ -545,7 +549,7 @@ export function SolarSimulation(props: SolarSimulationProps) {
             justifyContent: "space-between",
           }}
         >
-          <Text size="3" weight="bold">Solar Charging Simulation</Text>
+          <Text size="3" weight="bold">Solar charging simulation</Text>
           <Button size="1" variant="ghost" onClick={handleReset}>
             <RotateCcw size={12} />
             Reset

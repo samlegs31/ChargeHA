@@ -41,7 +41,7 @@ export function GeneralSettings(
         <SettingsSection
           icon={<Server size={18} />}
           title="System"
-          description="Technical timing, storage and timezone settings."
+          description="Update intervals, data retention and timezone."
           saveStatus={saveStatus}
           isDirty={isDirty}
           onSave={save}
@@ -70,7 +70,7 @@ export function GeneralSettings(
 
           <SettingsRow
             label="Data retention"
-            help="How long energy and charge readings are kept before purging."
+            help="Older energy and charging readings are deleted automatically."
           >
             <NumberInput
               value={String(fields.dataRetentionDays)}
@@ -85,7 +85,7 @@ export function GeneralSettings(
 
           <SettingsRow
             label="Log retention"
-            help="How long controller decision logs are kept."
+            help="Older charging decision logs are deleted automatically."
           >
             <NumberInput
               value={String(fields.logRetentionDays)}
@@ -99,7 +99,7 @@ export function GeneralSettings(
 
           <SettingsRow
             label="Timezone"
-            help="Used for schedule evaluation and stats display."
+            help="Used for schedules and Stats."
           >
             <Select.Root
               value={fields.timezone ||

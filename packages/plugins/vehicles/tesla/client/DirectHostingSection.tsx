@@ -9,7 +9,7 @@ interface DirectHostingSectionProps {
   publicKey: string;
 }
 
-/** Shown when ChargeHA is internet-accessible — displays the URL and a verify button. */
+/** Shown when E.V. Solar is internet-accessible — displays the URL and a verify button. */
 export function DirectHostingSection(
   { publicKeyUrl, publicKey }: DirectHostingSectionProps,
 ) {
@@ -70,7 +70,7 @@ export function DirectHostingSection(
             <Callout.Icon>
               <CheckCircle size={14} />
             </Callout.Icon>
-            <Callout.Text>Public key verified successfully.</Callout.Text>
+            <Callout.Text>Public key verified.</Callout.Text>
           </Callout.Root>
         )}
         {verifyMutation.isError && (

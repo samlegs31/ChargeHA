@@ -206,7 +206,7 @@ describe("DoneStep", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Setup Complete!")).toBeInTheDocument();
+      expect(screen.getByText("Setup complete")).toBeInTheDocument();
     });
 
     // All items completed — no warning callout
@@ -241,7 +241,7 @@ describe("DoneStep", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Setup Complete!")).toBeInTheDocument();
+      expect(screen.getByText("Setup complete")).toBeInTheDocument();
     });
 
     // Should show warning about skipped steps
@@ -355,7 +355,7 @@ describe("DoneStep", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Setup Complete!")).toBeInTheDocument();
+      expect(screen.getByText("Setup complete")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole("button", { name: /Go to Dashboard/ }));

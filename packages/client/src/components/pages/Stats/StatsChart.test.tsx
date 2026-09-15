@@ -185,7 +185,7 @@ describe("StatsChart", () => {
       <StatsChart {...defaultProps} data={makeStatsData()} />,
     );
     expect(screen.getByRole("heading", {
-      name: "Where your charging came from",
+      name: "Charging sources",
     })).toBeInTheDocument();
     expect(screen.getByText("Solar")).toBeInTheDocument();
     expect(screen.getByText("Home battery")).toBeInTheDocument();

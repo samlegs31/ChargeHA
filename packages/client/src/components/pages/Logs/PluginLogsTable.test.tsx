@@ -40,7 +40,7 @@ describe("PluginLogsTable", () => {
 
   it("shows empty state when no logs", () => {
     renderWithProviders(<PluginLogsTable {...defaultProps} />);
-    expect(screen.getByText("No plugin logs yet.")).toBeTruthy();
+    expect(screen.getByText("No integration logs yet.")).toBeTruthy();
   });
 
   it("renders fixed table headers plus dynamic payload columns", () => {

@@ -78,7 +78,7 @@ describe("TariffPeriodsSection", () => {
 
   it("renders section title and Add Period button", () => {
     renderWithProviders(<TariffPeriodsSection {...defaultProps} />);
-    expect(screen.getByText("Tariff Periods")).toBeInTheDocument();
+    expect(screen.getByText("Tariff periods")).toBeInTheDocument();
     expect(screen.getByText("Add Period")).toBeInTheDocument();
   });
 

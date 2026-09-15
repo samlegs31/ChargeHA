@@ -86,7 +86,7 @@ function ResetBlock(
         }}
       >
         <RotateCcw size={14} />
-        <Text size="2" weight="medium">Reset Tesla Setup</Text>
+        <Text size="2" weight="medium">Reset Tesla setup</Text>
       </div>
       <AlertDialog.Root>
         <AlertDialog.Trigger>
@@ -97,7 +97,7 @@ function ResetBlock(
             disabled={resetting}
             style={{ marginBottom: 8 }}
           >
-            Reset Tesla Setup
+            Reset Tesla setup
           </Button>
         </AlertDialog.Trigger>
         <AlertDialog.Content maxWidth="420px">
@@ -144,7 +144,7 @@ function ProxyDownBanner() {
         />
         <div>
           <Text size="2" weight="bold" style={{ display: "block" }}>
-            Tesla Proxy Unreachable
+            Tesla proxy unavailable
           </Text>
           <Text size="2" color="gray">
             Vehicle commands will fail. Make sure <code>tesla-http-proxy</code>
@@ -294,9 +294,9 @@ function KeyPairingBlock(
         }}
       >
         <Key size={14} />
-        <Text size="2" weight="medium">Vehicle Key Pairing</Text>
+        <Text size="2" weight="medium">Vehicle key pairing</Text>
         {keyPaired === true && <Badge color="green" size="1">Paired</Badge>}
-        {keyPaired === false && <Badge color="red" size="1">Not Paired</Badge>}
+        {keyPaired === false && <Badge color="red" size="1">Not paired</Badge>}
       </div>
 
       {keyPaired === false && (
@@ -340,7 +340,7 @@ function KeyPairingBlock(
 
       {keyPaired === true && (
         <Text size="1" color="gray">
-          Your public key is paired with the vehicle. Commands are working.
+          Your public key is paired with the vehicle.
         </Text>
       )}
 

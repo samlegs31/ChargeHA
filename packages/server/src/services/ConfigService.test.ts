@@ -31,23 +31,12 @@ describe("ConfigService", () => {
     it("returns defaults when no config is set", async () => {
       const result = await service.getCharging();
       expect(result.chargingEnabled).toBe(true);
-      expect(result.chargingDisabledReason).toBe("none");
     });
 
     it("returns stored value when config is set", async () => {
       await db.setConfig("charging_enabled", "false");
       const result = await service.getCharging();
       expect(result.chargingEnabled).toBe(false);
-      expect(result.chargingDisabledReason).toBe("user");
-    });
-
-    it("recognizes a pre-upgrade Overseer trip", async () => {
-      await db.setConfig("charging_enabled", "false");
-      await db.setConfig("oscillation_trip_at", "2026-09-14 16:55:26");
-
-      const result = await service.getCharging();
-
-      expect(result.chargingDisabledReason).toBe("safety_trip");
     });
   });
 
@@ -146,18 +135,6 @@ describe("ConfigService", () => {
       await service.setCharging({ chargingEnabled: false });
       const result = await service.getCharging();
       expect(result.chargingEnabled).toBe(false);
-      expect(result.chargingDisabledReason).toBe("user");
-    });
-
-    it("clears an active safety stop when charging is explicitly re-enabled", async () => {
-      await db.setConfig("charging_enabled", "false");
-      await db.setConfig("charging_disabled_reason", "safety_trip");
-
-      await service.setCharging({ chargingEnabled: true });
-
-      const result = await service.getCharging();
-      expect(result.chargingEnabled).toBe(true);
-      expect(result.chargingDisabledReason).toBe("none");
     });
   });
 
@@ -377,17 +354,6 @@ describe("ConfigService", () => {
       expect(result).toEqual({ success: true });
       const alert = await service.getSystemAlert();
       expect(alert).toBe("");
-    });
-
-    it("does not clear an active safety stop", async () => {
-      await db.setConfig("system_alert", "alert to dismiss");
-      await db.setConfig("charging_disabled_reason", "safety_trip");
-
-      await service.dismissSystemAlert();
-
-      expect(await db.getConfig("system_alert")).toBe("");
-      expect(await db.getConfig("charging_disabled_reason"))
-        .toBe("safety_trip");
     });
   });
 
