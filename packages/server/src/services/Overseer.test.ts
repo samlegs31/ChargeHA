@@ -86,6 +86,8 @@ describe("Overseer", () => {
       // Should have disabled charging
       const enabled = await db.getConfig("charging_enabled");
       expect(enabled).toBe("false");
+      expect(await db.getConfig("charging_disabled_reason"))
+        .toBe("safety_trip");
 
       // Should have set system alert
       const alertRaw = await db.getConfig("system_alert");

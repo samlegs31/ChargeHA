@@ -96,6 +96,10 @@ export class Overseer {
       `SAFETY TRIP — ${vehicleName} (${vehicleId}) had ${cycles} start/stop cycles in the last ${WINDOW_MINUTES} minutes. Disabling charging.`,
     );
 
+    // Persist the cause before disabling the controller. The engine treats a
+    // safety trip as a fail-safe state in its own right, so a loop racing these
+    // writes can only become more restrictive, never less restrictive.
+    await this.db.setConfig("charging_disabled_reason", "safety_trip");
     await this.db.setConfig("charging_enabled", "false");
     // Use SQLite datetime format to match controller_logs.timestamp
     await this.db.setConfig(

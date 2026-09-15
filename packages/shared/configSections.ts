@@ -349,6 +349,11 @@ export const internalConfigDef = defineSection({
     schema: z.string(),
     default: "",
   },
+  chargingDisabledReason: {
+    key: "charging_disabled_reason",
+    schema: z.enum(["none", "user", "safety_trip"]),
+    default: "none" as const,
+  },
   wizardStep: {
     key: "wizard_step",
     schema: z.string(),

@@ -177,6 +177,8 @@ function AutomaticChargingSettings() {
 
   if (isLoading) return <Text size="2" color="gray">Loading charging...</Text>;
 
+  const safetyTripActive = charging?.chargingDisabledReason === "safety_trip";
+
   return (
     <SettingsSection
       icon={<Zap size={18} />}
@@ -188,7 +190,9 @@ function AutomaticChargingSettings() {
     >
       <SettingsRow
         label="Automatic charging"
-        help="Off pauses automatic start, stop and current changes. Your other settings are kept."
+        help={safetyTripActive
+          ? "Safety stop active after repeated start/stop cycles. Turn automatic charging on and save only after checking the cause."
+          : "Off pauses automatic start, stop and current changes. Manual Charge Now and Stop remain available."}
       >
         <Switch
           size="2"

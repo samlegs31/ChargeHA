@@ -40,6 +40,7 @@ describe("SolarAllocator", () => {
 
   const BASE_CONFIG: ControllerConfig = {
     chargingEnabled: true,
+    chargingDisabledReason: "none",
     controllerLoopSeconds: 60,
     solarTrackingEnabled: true,
     solarTrackingMode: "solar_only",
