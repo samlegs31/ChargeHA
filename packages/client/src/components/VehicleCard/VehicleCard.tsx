@@ -16,7 +16,7 @@ import type { VehicleChargeState, VehicleMode } from "@chargeha/shared";
 import { Spinner } from "../ui/Spinner.tsx";
 import { ErrorBanner } from "../ui/ErrorBanner.tsx";
 import { VehicleBatterySection } from "./VehicleBatterySection.tsx";
-import { VehicleSilhouetteIcon } from "../icons/VehicleSilhouetteIcon.tsx";
+import { VehicleVisual } from "./VehicleVisual.tsx";
 import styles from "./VehicleCard.module.css";
 import type { ScheduledChargeDisplay } from "../pages/Dashboard/scheduledCharge.ts";
 
@@ -534,15 +534,12 @@ export function VehicleCard({
     <Card className={styles.card}>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
-          <VehicleSilhouetteIcon
-            size={34}
-            style={{ color: "var(--color-vehicle)" }}
-            aria-hidden="true"
-          />
           <Text size="3" weight="bold">{name}</Text>
         </div>
         <ActiveMode mode={mode} />
       </div>
+
+      <VehicleVisual state={state} />
 
       <VehicleCardBanners
         commandsDisabled={commandsDisabled}

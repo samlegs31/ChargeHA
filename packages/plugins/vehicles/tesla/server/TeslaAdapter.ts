@@ -70,6 +70,9 @@ type TeslaAdapterChargeState = AdapterVehicleChargeState & {
   chargeAmpsActual: number;
   /** Exterior paint reported by Tesla vehicle_config. */
   exteriorColor: string | null;
+  /** Tesla model and wheel configuration used for local vehicle artwork. */
+  carType: string | null;
+  wheelType: string | null;
 };
 
 /** Tesla Fleet API vehicle_state fields used by this adapter. */
@@ -80,7 +83,9 @@ interface TeslaVehicleState {
 
 /** Tesla Fleet API vehicle_config fields used by this adapter. */
 interface TeslaVehicleConfig {
+  car_type?: string;
   exterior_color?: string;
+  wheel_type?: string;
 }
 
 /** Tesla Fleet API drive_state fields used by this adapter. */
@@ -213,6 +218,8 @@ export class TeslaAdapter implements VehicleAdapter {
       chargePortOpen: charge.charge_port_door_open ?? false,
       vehicleName: vehicle?.vehicle_name ?? "Tesla",
       exteriorColor: vehicleConfig?.exterior_color ?? null,
+      carType: vehicleConfig?.car_type ?? vehicle?.car_type ?? null,
+      wheelType: vehicleConfig?.wheel_type ?? null,
       lastUpdated: new Date().toISOString(),
       latitude: drive?.latitude ?? null,
       longitude: drive?.longitude ?? null,

@@ -27,8 +27,11 @@ describe("TeslaAdapter exterior color", () => {
               charge_limit_soc: 80,
               charging_state: "Disconnected",
             },
-            vehicle_state: { vehicle_name: "Friday" },
-            vehicle_config: { exterior_color: "RedMulticoat" },
+            vehicle_state: { vehicle_name: "Friday", car_type: "model3" },
+            vehicle_config: {
+              exterior_color: "RedMulticoat",
+              wheel_type: "StilettoRefresh19",
+            },
             state: "online",
           },
         });
@@ -60,6 +63,8 @@ describe("TeslaAdapter exterior color", () => {
     const state = await adapter.getChargeState(context);
 
     expect(state.exteriorColor).toBe("RedMulticoat");
+    expect(state.carType).toBe("model3");
+    expect(state.wheelType).toBe("StilettoRefresh19");
     expect(requestedEndpoints).toContain("vehicle_config");
     expect(requestedEndpoints).toContain("charge_state");
   });
