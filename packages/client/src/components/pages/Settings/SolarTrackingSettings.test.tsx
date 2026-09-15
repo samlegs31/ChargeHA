@@ -96,18 +96,18 @@ describe("SolarTrackingSettings", () => {
   it("returns null when config not loaded", () => {
     st.solarConfigData = null;
     renderWithProviders(<SolarTrackingSettings />);
-    expect(screen.queryByText("Solar Tracking")).not.toBeInTheDocument();
+    expect(screen.queryByText("Solar charging")).not.toBeInTheDocument();
   });
 
   it("renders section title", () => {
     renderWithProviders(<SolarTrackingSettings />);
-    expect(screen.getByText("Solar Tracking")).toBeInTheDocument();
+    expect(screen.getByText("Solar charging")).toBeInTheDocument();
   });
 
   it.each([
     "Solar margin",
-    "Min solar generation",
-    "Min excess solar",
+    "Minimum solar production",
+    "Minimum solar surplus",
     "Grace period",
     "Cooldown period",
     "Grid voltage",

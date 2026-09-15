@@ -4,6 +4,7 @@ import { useEnergyData } from "../../../hooks/useEnergyData.ts";
 import { useVehicles } from "../../../hooks/useVehicles.ts";
 import { EnergyFlowDiagram } from "../../EnergyFlowDiagram/EnergyFlowDiagram.tsx";
 import { useChargingVehicleFlows } from "./energyHelpers.ts";
+import { OffPeakStatus } from "./OffPeakStatus.tsx";
 
 interface PluginWarning {
   title: string;
@@ -50,6 +51,8 @@ export function EnergyOverview({ pluginWarnings }: EnergyOverviewProps) {
         loading={loading}
         chargingVehicles={chargingVehicles}
       />
+
+      <OffPeakStatus />
 
       {realtime?.pollFailed && (
         <PluginWarningCard

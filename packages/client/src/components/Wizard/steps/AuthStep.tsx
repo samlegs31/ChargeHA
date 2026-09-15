@@ -178,7 +178,7 @@ function OidcFormFields(
         aria-label="Base URL"
       />
       <Text as="p" size="1" color="gray">
-        The URL you use to access ChargeHA in your browser.
+        The URL you use to access E.V. Solar in your browser.
       </Text>
       {oidcForm.issuerUrl.startsWith("http://") && (
         <Text as="p" size="2" color="orange">
@@ -381,7 +381,7 @@ function AuthModes(
   return (
     <div className={styles.stepContainer}>
       <Text as="p" size="3" color="gray">
-        Choose how you want to protect access to ChargeHA. You can change this
+        Choose how you want to protect access to E.V. Solar. You can change this
         later in Settings.
       </Text>
 
@@ -391,7 +391,7 @@ function AuthModes(
           selected={selectedMode === "none"}
           icon={<ShieldOff size={18} />}
           title="No Authentication"
-          description="Anyone on your network can access ChargeHA without logging in."
+          description="Anyone on your network can access E.V. Solar without logging in."
           onSelect={selectMode}
         />
         <ModeCard

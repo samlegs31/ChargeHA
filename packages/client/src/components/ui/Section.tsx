@@ -8,7 +8,7 @@ export interface SectionProps {
   icon: ReactNode;
   title: string;
   badge?: string;
-  description: string;
+  description?: string;
   action?: ReactNode;
   saveStatus?: SaveStatus;
   isDirty?: boolean;
@@ -74,7 +74,7 @@ export function Section({
               </div>
             )}
           </div>
-          <Text size="2" color="gray">{description}</Text>
+          {description && <Text size="2" color="gray">{description}</Text>}
           {saveStatus?.state === "error" && (
             <Text
               size="2"

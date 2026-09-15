@@ -130,7 +130,7 @@ describe("SolarSimulation", () => {
   it("renders simulation heading", () => {
     renderWithProviders(<SolarSimulation {...defaultProps} />);
 
-    expect(screen.getByText("Solar Charging Simulation")).toBeInTheDocument();
+    expect(screen.getByText("Solar charging simulation")).toBeInTheDocument();
     expect(screen.getByText("Reset")).toBeInTheDocument();
   });
 
@@ -165,7 +165,7 @@ describe("SolarSimulation", () => {
       />,
     );
 
-    expect(screen.getByText("Solar Charging Simulation")).toBeInTheDocument();
+    expect(screen.getByText("Solar charging simulation")).toBeInTheDocument();
   });
 
   // ---- day buttons ----
@@ -197,10 +197,10 @@ describe("SolarSimulation", () => {
   // ---- result badges ----
 
   it.each<[Partial<SimulationResult>, string]>([
-    [{ meetsMinSolarGeneration: false }, "Below min solar"],
-    [{ meetsMinExcessSolar: false }, "Below min excess"],
+    [{ meetsMinSolarGeneration: false }, "Below production threshold"],
+    [{ meetsMinExcessSolar: false }, "Below surplus threshold"],
     [{ batteryPriorityBlocking: true }, "Battery priority"],
-    [{ blockoutActive: true }, "Blockout active"],
+    [{ blockoutActive: true }, "No-charge period"],
   ])("shows %o result badge", (flags, badge) => {
     mockSolarResult({ vehicles: [], ...flags });
 
@@ -283,7 +283,7 @@ describe("SolarSimulation", () => {
 
   // ---- battery SOC slider ----
 
-  it("renders Battery SOC slider when batterySoc is not null", () => {
+  it("renders Battery level slider when batterySoc is not null", () => {
     renderWithProviders(
       <SolarSimulation
         {...defaultProps}
@@ -299,7 +299,7 @@ describe("SolarSimulation", () => {
       />,
     );
 
-    expect(screen.getByText("Battery SOC")).toBeInTheDocument();
+    expect(screen.getByText("Battery level")).toBeInTheDocument();
   });
 
   // ---- SliderRow labels ----

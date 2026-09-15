@@ -157,12 +157,12 @@ describe("Stats", () => {
     cleanup();
   });
 
-  it("renders period navigation including Total", () => {
+  it("renders period navigation including All time", () => {
     renderStats();
     expect(screen.getAllByText("Day").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Month").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Year").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Total").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("All time").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByLabelText("Previous period")).toBeInTheDocument();
     expect(screen.getByLabelText("Next period")).toBeInTheDocument();
   });
@@ -179,11 +179,11 @@ describe("Stats", () => {
     renderStats();
     expect(screen.getByRole("heading", { name: "Charging stats" }))
       .toBeInTheDocument();
-    expect(screen.getByText("Total Charged")).toBeInTheDocument();
-    expect(screen.getByText("Charged at Home")).toBeInTheDocument();
-    expect(screen.getByText("From Solar")).toBeInTheDocument();
-    expect(screen.getByText("From Battery")).toBeInTheDocument();
-    expect(screen.getByText("From Grid")).toBeInTheDocument();
+    expect(screen.getByText("Total charged")).toBeInTheDocument();
+    expect(screen.getByText("Charged at home")).toBeInTheDocument();
+    expect(screen.getByText("From solar")).toBeInTheDocument();
+    expect(screen.getByText("From home battery")).toBeInTheDocument();
+    expect(screen.getByText("From grid")).toBeInTheDocument();
     expect(screen.getAllByText("Away").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Self-powered charging")).toBeInTheDocument();
     expect(
@@ -246,7 +246,7 @@ describe("Stats", () => {
   it("renders only EV charging flow legend labels", () => {
     renderStats();
     expect(screen.getByRole("heading", {
-      name: "Where your charging came from",
+      name: "Charging sources",
     })).toBeInTheDocument();
     expect(screen.getByText("Solar")).toBeInTheDocument();
     expect(screen.getByText("Home battery")).toBeInTheDocument();
@@ -278,9 +278,9 @@ describe("Stats", () => {
       },
     });
     renderStats();
-    expect(screen.getAllByText("Grid Cost").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Grid cost").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("$12.50").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("Solar Savings").length).toBeGreaterThanOrEqual(
+    expect(screen.getAllByText("Solar savings").length).toBeGreaterThanOrEqual(
       1,
     );
     expect(screen.getAllByText("$2.50").length).toBeGreaterThanOrEqual(1);
@@ -300,8 +300,8 @@ describe("Stats", () => {
       },
     });
     renderStats();
-    expect(screen.queryByText("Grid Cost")).not.toBeInTheDocument();
-    expect(screen.queryByText("Solar Savings")).not.toBeInTheDocument();
+    expect(screen.queryByText("Grid cost")).not.toBeInTheDocument();
+    expect(screen.queryByText("Solar savings")).not.toBeInTheDocument();
   });
 
   it.each<

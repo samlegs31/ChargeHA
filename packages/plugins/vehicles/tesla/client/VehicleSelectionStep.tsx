@@ -283,8 +283,8 @@ function VehicleSelectionView(
   return (
     <div className={styles.stepContainer}>
       <Text as="p" size="3" color="gray">
-        Select the vehicles you want ChargeHA to manage. The vehicles below were
-        found on your Tesla account.
+        Select the vehicles you want E.V. Solar to manage. The vehicles below
+        were found on your Tesla account.
       </Text>
 
       <StatusCallouts

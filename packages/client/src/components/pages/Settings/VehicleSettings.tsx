@@ -23,12 +23,6 @@ type VehiclePlugin = ReturnType<
   typeof useVehicleSettings
 >["vehiclePlugins"][number];
 
-function sourceLabel(source: HomeChargingSource | null): string {
-  if (source === "chargehq") return "ChargeHQ file";
-  if (source === "solarweb") return "Wattpilot";
-  return "Not chosen yet";
-}
-
 function HomeChargingData({
   vehicle,
   pending,
@@ -52,14 +46,13 @@ function HomeChargingData({
       }}
     >
       <div style={{ minWidth: 190, flex: "1 1 260px" }}>
-        <Text size="2" weight="medium">Old home charges</Text>
+        <Text size="2" weight="medium">Home charging history</Text>
         <Text size="1" color="gray" style={{ display: "block", marginTop: 2 }}>
-          Where should E.V. Solar look to recognise this car's old charges at
-          home? Current: {sourceLabel(vehicle.homeChargingSource)}.
+          Choose the source used to identify imported home charging.
         </Text>
       </div>
       <select
-        aria-label={`${vehicle.name} old home charges`}
+        aria-label={`${vehicle.name} home charging history`}
         value={vehicle.homeChargingSource ?? ""}
         disabled={pending}
         onChange={(event) => {
@@ -80,7 +73,7 @@ function HomeChargingData({
           padding: "0 9px",
         }}
       >
-        <option value="">Choose later</option>
+        <option value="">Not selected</option>
         <option value="chargehq">ChargeHQ file</option>
         <option value="solarweb">Wattpilot (Solar.web)</option>
       </select>
@@ -149,7 +142,7 @@ function VehicleRow(
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {vehiclesLength > 1 && (
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <Text size="1" color="gray">Car #{v.priority}</Text>
+              <Text size="1" color="gray">Priority #{v.priority}</Text>
               <Button
                 variant="soft"
                 size="1"
@@ -267,7 +260,7 @@ function PriorityChargingHeader(
     <>
       <SettingsRow
         label="Charge one car first"
-        help="On: car #1 gets spare solar first. Off: spare solar is shared between eligible cars."
+        help="On: the first car gets solar surplus first. Off: surplus is shared between eligible cars."
       >
         <Switch
           size="2"
@@ -280,7 +273,7 @@ function PriorityChargingHeader(
         color="gray"
         style={{ display: "block", marginBottom: 4 }}
       >
-        Use the arrows to choose which car is #1.
+        Use the arrows to set charging priority.
       </Text>
     </>
   );
@@ -361,7 +354,6 @@ export function VehicleSettings() {
       <SettingsSection
         icon={<Car size={18} />}
         title="My cars"
-        description="Cars connected to E.V. Solar."
       >
         <Text size="2" color="gray">Loading cars...</Text>
       </SettingsSection>
@@ -392,7 +384,7 @@ export function VehicleSettings() {
       <SettingsSection
         icon={<Car size={18} />}
         title="My cars"
-        description="See your cars, choose which one charges first, and tell Stats where old home charges come from."
+        description="Set charging priority and the history source for each car."
       >
         {vehicles.length > 1 && (
           <PriorityChargingHeader

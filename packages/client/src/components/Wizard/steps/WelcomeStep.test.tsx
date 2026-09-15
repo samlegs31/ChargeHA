@@ -19,21 +19,19 @@ describe("WelcomeStep", () => {
     cleanup();
   });
 
-  it("renders welcome content and Full Setup only", () => {
+  it("renders welcome content and Set up only", () => {
     renderWithProviders(
       <StepNextHarness def={welcomeStep} stepProps={makeStepProps()} />,
     );
 
-    expect(screen.getByAltText("ChargeHA")).toBeInTheDocument();
-    expect(screen.getByText(/ChargeHA is a smart home charging controller/))
+    expect(screen.getByAltText("E.V. Solar")).toBeInTheDocument();
+    expect(screen.getByText(/Charge your car with available solar/))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Full Setup/ }))
-      .toBeInTheDocument();
-    expect(screen.getByText(/walks you through authentication/))
+    expect(screen.getByRole("button", { name: /Set up/ }))
       .toBeInTheDocument();
   });
 
-  it("clicking 'Full Setup' calls onAdvance callback", () => {
+  it("clicking 'Set up' calls onAdvance callback", () => {
     const onAdvance = vi.fn();
     renderWithProviders(
       <StepNextHarness
@@ -42,7 +40,7 @@ describe("WelcomeStep", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Full Setup/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Set up/ }));
 
     expect(onAdvance).toHaveBeenCalledTimes(1);
   });

@@ -205,8 +205,8 @@ function VirtualKeyPairingView(
   return (
     <div className={styles.stepContainer}>
       <Text as="p" size="3" color="gray">
-        A virtual key allows ChargeHA to send commands to your vehicle. Complete
-        the pairing for each vehicle below.
+        A virtual key allows E.V. Solar to send commands to your vehicle.
+        Complete the pairing for each vehicle below.
       </Text>
 
       {vehicles.map((vehicle) => (
@@ -234,7 +234,7 @@ function VirtualKeyPairingView(
           <Callout.Icon>
             <CheckCircle size={16} />
           </Callout.Icon>
-          <Callout.Text>Virtual key paired successfully!</Callout.Text>
+          <Callout.Text>Virtual key paired.</Callout.Text>
         </Callout.Root>
       )}
 

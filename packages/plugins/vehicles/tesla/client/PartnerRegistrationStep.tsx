@@ -65,7 +65,7 @@ function PartnerRegistrationView(
     <div className={styles.stepContainer}>
       <Text as="p" size="3" color="gray">
         Registering your Tesla Developer App as a Fleet API partner. This allows
-        ChargeHA to communicate with Tesla&apos;s servers on your behalf.
+        E.V. Solar to communicate with Tesla&apos;s servers on your behalf.
       </Text>
 
       {isPending && (

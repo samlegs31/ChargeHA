@@ -27,7 +27,7 @@ describe("PresetTemplates", () => {
 
   it("renders section title and description", () => {
     renderWithProviders(<PresetTemplates {...defaultProps} />);
-    expect(screen.getByText("Quick Setup")).toBeInTheDocument();
+    expect(screen.getByText("Tariff presets")).toBeInTheDocument();
     expect(
       screen.getByText(
         "Load a preset tariff template. This replaces all existing periods.",

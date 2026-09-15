@@ -149,16 +149,15 @@ function NoVehiclesEmptyState(
           <Car size={24} style={{ color: "var(--gray-9)" }} />
           <div className={styles.noVehiclesText}>
             <Text size="3" weight="bold" style={{ display: "block" }}>
-              No vehicles configured
+              No cars connected
             </Text>
             <Text size="2" color="gray">
-              Add a vehicle in Settings to start creating charge and blockout
-              schedules.
+              Add a car in Settings to create charging schedules.
             </Text>
           </div>
           <Button variant="soft" size="2" onClick={onNavigateSettings}>
             <Settings size={16} />
-            Add Vehicle
+            Add car
           </Button>
         </div>
       </Card>
@@ -180,10 +179,9 @@ function PageHeader(
       </div>
       <div>
         <Text size="2" color="gray">
-          Smart Charge follows these schedules. During a scheduled time, E.V.
-          Solar charges at the selected speed up to your target battery level.
-          Outside these times, Smart Charge automatically returns to solar-first
-          charging.
+          Solar + Off-Peak charges at the selected current and target during
+          these periods, then returns to solar charging. Set periods to match
+          your tariff; they can also run outside off-peak hours.
         </Text>
       </div>
       {activeScheduleNotes.map((note) => (
@@ -244,7 +242,7 @@ function BlockoutSection(
       {blockoutSchedules.length === 0 && !isFormForBlockout && (
         <EmptyState
           icon={<Ban size={20} />}
-          message="No no-charge periods yet. Add one to pause charging during selected times."
+          message="No pauses scheduled."
         />
       )}
       <div className={styles.scheduleList}>
@@ -296,10 +294,9 @@ function ScheduleBehaviorNote() {
           style={{ color: "var(--gray-9)", flexShrink: 0, marginTop: 2 }}
         />
         <Text size="1" color="gray">
-          Schedules work with Smart Charge only. Solar uses available solar and
-          ignores charge schedules. No-charge periods pause Smart and Solar.
-          Pause stops charging. Now starts charging immediately and ignores
-          schedules.
+          Solar Only ignores charge schedules. No-charge periods pause both
+          solar modes. Charge Now ignores schedules and no-charge periods. Stop
+          prevents charging.
         </Text>
       </div>
     </Card>

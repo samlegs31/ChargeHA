@@ -46,7 +46,7 @@ export function CurrencyConfig({
       {/* Default rate */}
       <SettingsRow
         label="Default rate"
-        help="Fallback rate when no tariff period matches the current time."
+        help="Rate used outside the periods below."
       >
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <TextField.Root

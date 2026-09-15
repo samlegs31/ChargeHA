@@ -240,14 +240,14 @@ describe("KeyGenerationStep", () => {
     },
   );
 
-  it("Try Again button from error resets mutations", () => {
+  it("Try again button from error resets mutations", () => {
     setGenerateState({ error: { message: "Key generation failed" } });
 
     renderWithProviders(<StepNextHarness def={keyGenerationStep} />);
 
     expect(screen.getByText("Key generation failed")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Try Again/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Try again/ }));
 
     expect(mocks.generateReset).toHaveBeenCalled();
   });

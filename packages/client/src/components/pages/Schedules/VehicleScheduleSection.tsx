@@ -57,7 +57,7 @@ export function VehicleScheduleSection({
             onClick={() => onAddSchedule(vehicle.id)}
           >
             <Plus size={14} />
-            Add Schedule
+            Add schedule
           </Button>
         )}
       </div>
