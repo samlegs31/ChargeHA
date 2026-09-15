@@ -15,6 +15,15 @@ type ConfigGetAllReturn = {
   error: null;
 };
 
+type ChargingConfigReturn = {
+  data: {
+    chargingEnabled: boolean;
+    chargingDisabledReason: "none" | "user" | "safety_trip";
+  } | null;
+  isLoading: boolean;
+  error: null;
+};
+
 type PluginWarningsReturn = {
   data: Array<{ title: string; message: string }>;
   isLoading: boolean;
@@ -49,6 +58,11 @@ export const dashboardMocks = {
   invalidateConfig: vi.fn() as Mock,
   configGetAllUseQuery: vi.fn<() => ConfigGetAllReturn>(() => ({
     data: null,
+    isLoading: false,
+    error: null,
+  })),
+  chargingConfigUseQuery: vi.fn<() => ChargingConfigReturn>(() => ({
+    data: { chargingEnabled: true, chargingDisabledReason: "none" },
     isLoading: false,
     error: null,
   })),
@@ -210,6 +224,9 @@ export interface DashboardHarness {
   setVehicles: (vehicles?: Array<Record<string, unknown>>) => void;
   setVehiclesRaw: (returnValue: ReturnType<typeof useVehicles>) => void;
   setSystemAlert: (alert: Record<string, unknown> | null) => void;
+  setChargingDisabledReason: (
+    reason: "none" | "user" | "safety_trip",
+  ) => void;
   setPluginWarnings: (
     warnings: Array<{ title: string; message: string }>,
   ) => void;
@@ -238,6 +255,11 @@ function resetDashboardHookMocks() {
   });
   dashboardMocks.configGetAllUseQuery.mockReturnValue({
     data: null,
+    isLoading: false,
+    error: null,
+  });
+  dashboardMocks.chargingConfigUseQuery.mockReturnValue({
+    data: { chargingEnabled: true, chargingDisabledReason: "none" },
     isLoading: false,
     error: null,
   });
@@ -293,6 +315,16 @@ export function setupDashboard(): DashboardHarness {
     setSystemAlert(alert) {
       dashboardMocks.configGetAllUseQuery.mockReturnValue({
         data: alert ? JSON.stringify(alert) : null,
+        isLoading: false,
+        error: null,
+      });
+    },
+    setChargingDisabledReason(reason) {
+      dashboardMocks.chargingConfigUseQuery.mockReturnValue({
+        data: {
+          chargingEnabled: reason === "none",
+          chargingDisabledReason: reason,
+        },
         isLoading: false,
         error: null,
       });

@@ -46,6 +46,10 @@ export class ControllerEngine {
       runtimeConfigOverrides,
       blockedChargeScheduleIdsByVehicle,
     } = input;
+    if (config.chargingDisabledReason === "safety_trip") {
+      return this.decideSafetyTrip(input);
+    }
+
     if (!config.chargingEnabled) {
       const decisions = new Map(
         vehicles.map((vehicle): [string, VehicleDecision] => {
@@ -59,7 +63,7 @@ export class ControllerEngine {
             reason: enforceStop ? "mode_stop" : "charging_disabled",
             detail: enforceStop
               ? "Stop — mode set to stop"
-              : "Charging disabled",
+              : "Automatic charging paused by user",
             targetAmps: null,
             checks: [],
           }];
@@ -130,6 +134,52 @@ export class ControllerEngine {
     return {
       decisions: applyElectricalLimits(input, decisions),
       controlStates: this.controlStates,
+    };
+  }
+
+  private decideSafetyTrip(input: EngineInput): EngineOutput {
+    const decisions = new Map(
+      input.vehicles.map((vehicle): [string, VehicleDecision] => [
+        vehicle.id,
+        this.safetyTripDecision(vehicle),
+      ]),
+    );
+    return {
+      decisions: applyElectricalLimits(input, decisions),
+      controlStates: this.controlStates,
+    };
+  }
+
+  private safetyTripDecision(vehicle: EngineVehicleInput): VehicleDecision {
+    const isCharging = vehicle.state?.isCharging === true;
+    if (vehicle.mode === "stop") {
+      return {
+        action: isCharging ? "stop" : "none",
+        reason: "mode_stop",
+        detail: "Stop — mode set to stop",
+        targetAmps: null,
+        checks: [],
+      };
+    }
+
+    if (vehicle.mode === "auto" || vehicle.mode === "vacation") {
+      return {
+        action: isCharging ? "stop" : "none",
+        reason: "safety_trip",
+        detail: isCharging
+          ? "Safety stop — automatic solar charging interrupted"
+          : "Safety stop active — automatic solar charging paused",
+        targetAmps: null,
+        checks: [],
+      };
+    }
+
+    return {
+      action: "none",
+      reason: "safety_trip",
+      detail: "Safety stop active — manual Charge Now remains in control",
+      targetAmps: null,
+      checks: [],
     };
   }
 

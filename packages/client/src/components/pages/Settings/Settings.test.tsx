@@ -86,7 +86,10 @@ const {
   }),
   mockSetBulkMutate: vi.fn(),
   mockConfigGetAllUseQuery: vi.fn((): {
-    data: { chargingEnabled: boolean } | undefined;
+    data: {
+      chargingEnabled: boolean;
+      chargingDisabledReason?: "none" | "user" | "safety_trip";
+    } | undefined;
     isLoading: boolean;
     error: Error | null;
   } => ({
@@ -243,6 +246,7 @@ import { Settings } from "./Settings.tsx";
 describe("Settings", () => {
   const defaultConfig = {
     chargingEnabled: true,
+    chargingDisabledReason: "none" as const,
   };
 
   beforeEach(() => {
@@ -291,6 +295,23 @@ describe("Settings", () => {
         );
       });
     });
+  });
+
+  it("explains how to reset an active safety stop", async () => {
+    mockConfigGetAllUseQuery.mockReturnValue({
+      data: {
+        chargingEnabled: false,
+        chargingDisabledReason: "safety_trip",
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    renderWithProviders(<Settings />);
+
+    expect(await screen.findByText(/Safety stop active/)).toBeInTheDocument();
+    expect(screen.getByText(/Turn automatic charging on and save/))
+      .toBeInTheDocument();
   });
 
   it("shows one simple Settings topic at a time", () => {

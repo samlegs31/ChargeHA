@@ -180,6 +180,7 @@ Deno.test("SolarForecastService stops below the vehicle minimum amps", () => {
 Deno.test("SolarForecastService reuses named off-peak tariff hours", () => {
   const controllerConfig: ControllerConfig = {
     chargingEnabled: true,
+    chargingDisabledReason: "none",
     controllerLoopSeconds: 30,
     solarTrackingEnabled: true,
     solarTrackingMode: "solar_only",
@@ -230,6 +231,7 @@ Deno.test("SolarForecastService reuses named off-peak tariff hours", () => {
 Deno.test("SolarForecastService ignores a single flat tariff period", () => {
   const controllerConfig: ControllerConfig = {
     chargingEnabled: true,
+    chargingDisabledReason: "none",
     controllerLoopSeconds: 30,
     solarTrackingEnabled: true,
     solarTrackingMode: "solar_only",
