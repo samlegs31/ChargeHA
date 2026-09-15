@@ -19,9 +19,6 @@ export interface ControllerConfig {
   vehicleCurrentLimits?: Record<string, number>;
   maxGridImportKw?: number | null;
   chargingEnabled: boolean;
-  /** Persists why automatic charging is disabled. A safety trip remains
-   *  authoritative even if its dismissible alert has been cleared. */
-  chargingDisabledReason: "none" | "user" | "safety_trip";
   controllerLoopSeconds: number;
   solarTrackingEnabled: boolean;
   solarTrackingMode: SolarTrackingMode;
@@ -144,7 +141,6 @@ export type DecisionReason =
   | "no_solar"
   | "energy_unavailable"
   | "charging_disabled"
-  | "safety_trip"
   | "battery_at_limit"
   | "not_plugged_in"
   | "away_from_home"

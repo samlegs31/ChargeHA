@@ -53,11 +53,11 @@ const WEEKENDS = ["sat", "sun"];
 
 /**
  * Format an array of day codes to a human-readable string.
- * e.g. all 7 → "Every Day", mon-fri → "Weekdays", sat+sun → "Weekends"
+ * e.g. all 7 → "Every day", mon-fri → "Weekdays", sat+sun → "Weekends"
  */
 export function formatDays(days: string[]): string {
   const sorted = ALL_DAYS.filter((d) => days.includes(d));
-  if (sorted.length === 7) return "Every Day";
+  if (sorted.length === 7) return "Every day";
   if (
     sorted.length === 5 &&
     WEEKDAYS.every((d) => sorted.includes(d))

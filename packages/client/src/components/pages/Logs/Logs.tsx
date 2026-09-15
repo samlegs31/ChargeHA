@@ -442,10 +442,10 @@ export function Logs() {
         onValueChange={(v) => setActiveTab(v as LogTab)}
       >
         <Tabs.List>
-          <Tabs.Trigger value="charge-control">Charge Control</Tabs.Trigger>
-          <Tabs.Trigger value="energy-reads">Energy Reads</Tabs.Trigger>
-          <Tabs.Trigger value="vehicle-updates">Vehicle Updates</Tabs.Trigger>
-          <Tabs.Trigger value="plugin-logs">Plugin Logs</Tabs.Trigger>
+          <Tabs.Trigger value="charge-control">Charging decisions</Tabs.Trigger>
+          <Tabs.Trigger value="energy-reads">Energy readings</Tabs.Trigger>
+          <Tabs.Trigger value="vehicle-updates">Vehicle updates</Tabs.Trigger>
+          <Tabs.Trigger value="plugin-logs">Integration logs</Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content value="charge-control">

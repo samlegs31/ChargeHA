@@ -14,7 +14,7 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ProviderConfigField[]> = {
   telegram: [
     {
       key: "notificationTelegramBotToken",
-      label: "Bot Token",
+      label: "Bot token",
       help: "Create a bot via @BotFather on Telegram to get a token.",
       type: "text",
       placeholder: "123456:ABC-DEF...",
@@ -36,7 +36,7 @@ export const PROVIDER_CONFIG_FIELDS: Record<string, ProviderConfigField[]> = {
     },
     {
       key: "notificationTelegramSilent",
-      label: "Send Silently",
+      label: "Send silently",
       help: "Send notifications without sound on the recipient's device.",
       type: "toggle",
     },

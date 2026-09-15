@@ -65,7 +65,11 @@ vi.mock("../../../trpc.ts", () => ({
     config: {
       charging: {
         get: {
-          useQuery: () => dashboardMocks.chargingConfigUseQuery(),
+          useQuery: vi.fn(() => ({
+            data: null,
+            isLoading: false,
+            error: null,
+          })),
         },
         set: {
           useMutation: vi.fn(() => ({
@@ -329,7 +333,7 @@ describe("Dashboard", () => {
   it("renders no vehicles state when vehicles array is empty", () => {
     h.render();
 
-    expect(screen.getByText("No vehicles configured")).toBeInTheDocument();
+    expect(screen.getByText("No cars connected")).toBeInTheDocument();
   });
 
   it("renders vehicle cards when vehicles have state", () => {
@@ -338,7 +342,7 @@ describe("Dashboard", () => {
     h.render();
 
     expect(screen.getByTestId("vehicle-card")).toBeInTheDocument();
-    expect(screen.queryByText("No vehicles configured")).not
+    expect(screen.queryByText("No cars connected")).not
       .toBeInTheDocument();
   });
 
@@ -418,11 +422,11 @@ describe("Dashboard", () => {
     h.render();
 
     await waitFor(() => {
-      expect(screen.getByText("Safety stop alert")).toBeInTheDocument();
+      expect(screen.getByText("Safety Alert")).toBeInTheDocument();
     });
     expect(screen.getByText("Overcurrent detected on VIN1"))
       .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Dismiss message/i }))
+    expect(screen.getByRole("button", { name: /Dismiss/i }))
       .toBeInTheDocument();
   });
 
@@ -437,11 +441,11 @@ describe("Dashboard", () => {
     const { rerender } = h.render();
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Dismiss message/i }))
+      expect(screen.getByRole("button", { name: /Dismiss/i }))
         .toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Dismiss message/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Dismiss/i }));
 
     await waitFor(() => {
       expect(dashboardMocks.dismissMutate).toHaveBeenCalled();
@@ -451,20 +455,7 @@ describe("Dashboard", () => {
     h.setSystemAlert(null);
     rerender(<Dashboard />);
 
-    expect(screen.queryByText("Safety stop alert")).not.toBeInTheDocument();
-  });
-
-  it("keeps the safety stop visible after its message is dismissed", () => {
-    h.setSystemAlert(null);
-    h.setChargingDisabledReason("safety_trip");
-
-    h.render({ onNavigateSettings: vi.fn() });
-
-    expect(screen.getByText("Safety stop active")).toBeInTheDocument();
-    expect(screen.getByText(/Automatic solar charging remains stopped/))
-      .toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Review settings/i }))
-      .toBeInTheDocument();
+    expect(screen.queryByText("Safety Alert")).not.toBeInTheDocument();
   });
 
   // ---- Plugin warnings ----
@@ -759,12 +750,12 @@ describe("Dashboard", () => {
 
   // ---- No vehicles CTA ----
 
-  it("renders Add Vehicle CTA when no vehicles configured", () => {
+  it("renders Add car CTA when no vehicles configured", () => {
     h.setVehicles([]);
 
     h.render();
 
-    expect(screen.getByText("No vehicles configured")).toBeInTheDocument();
+    expect(screen.getByText("No cars connected")).toBeInTheDocument();
     expect(
       screen.getByText(
         /Add a vehicle to monitor charging and control solar allocation/,
@@ -790,7 +781,7 @@ describe("Dashboard", () => {
 
     h.render();
 
-    expect(screen.queryByText("No vehicles configured")).not
+    expect(screen.queryByText("No cars connected")).not
       .toBeInTheDocument();
   });
 

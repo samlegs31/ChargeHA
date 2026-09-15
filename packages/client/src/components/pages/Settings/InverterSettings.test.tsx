@@ -99,12 +99,12 @@ describe("InverterSettings", () => {
   it("returns null when config not loaded", () => {
     st.equipmentConfigData = null;
     renderWithProviders(<InverterSettings />);
-    expect(screen.queryByText("My Equipment")).not.toBeInTheDocument();
+    expect(screen.queryByText("Energy equipment")).not.toBeInTheDocument();
   });
 
   it("renders section title", () => {
     renderWithProviders(<InverterSettings />);
-    expect(screen.getByText("My Equipment")).toBeInTheDocument();
+    expect(screen.getByText("Energy equipment")).toBeInTheDocument();
   });
 
   it("shows unconfigured message when no adapter selected", () => {

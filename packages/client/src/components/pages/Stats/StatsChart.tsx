@@ -309,10 +309,7 @@ export function StatsChart({
     <Card className={styles.chartCard}>
       <div className={styles.chartHeader}>
         <div className={styles.chartTitleGroup}>
-          <h2 className={styles.chartTitle}>Where your charging came from</h2>
-          <p className={styles.chartDescription}>
-            Each color shows the energy source used by your car.
-          </p>
+          <h2 className={styles.chartTitle}>Charging sources</h2>
         </div>
         {period === "day" && (
           <div className={styles.resolutionToggle}>

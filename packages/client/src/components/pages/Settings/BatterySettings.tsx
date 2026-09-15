@@ -81,7 +81,7 @@ function BatteryReserveRows({
     <>
       <SettingsRow
         label="Protect home battery"
-        help="Keep some battery energy for the house instead of giving it to the car."
+        help="Prioritise the home battery up to its reserve level."
       >
         <Switch
           size="2"
@@ -92,7 +92,7 @@ function BatteryReserveRows({
 
       <SettingsRow
         label="Keep at least"
-        help="The home battery charges first up to this level. Once reached, available solar goes to the car, starting at minimum current. Car charging pauses if the battery falls below this level."
+        help="Solar charging can start once this reserve is reached, if enough solar is available. It pauses below the reserve."
       >
         <div
           style={{
@@ -137,7 +137,7 @@ function BatteryAdvancedRows({
     <>
       <ProtectionSlider
         label="Allowed battery discharge"
-        help="How much brief battery discharge is allowed while the car is charging. Use 0 W for the strictest protection."
+        help="Battery discharge tolerated while charging. Use 0 W for the strictest protection."
         enabled={fields.batteryPriorityEnabled}
         value={fields.batteryDischargeToleranceW}
         min={0}

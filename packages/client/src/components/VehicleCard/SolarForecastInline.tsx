@@ -51,14 +51,16 @@ function unavailableStatus(data: SolarChargeForecastResult): string | null {
 
 function solarForecastTitle(data: SolarChargeForecast): string {
   if (data.solarEndAt) {
-    return `About ${Math.round(data.socAtSolarEnd)}% from today's sun`;
+    return `About ${
+      Math.round(data.socAtSolarEnd)
+    }% by the end of solar charging`;
   }
   return `About ${Math.round(data.socAtSolarEnd)}% this evening`;
 }
 
 function solarForecastDetail(data: SolarChargeForecast): string {
   if (!data.solarEndAt || data.solarChargeRemainingKwh <= 0.05) {
-    return "No more useful solar is expected today.";
+    return "No further solar charging expected today.";
   }
   return `${
     data.solarChargeRemainingKwh.toFixed(1)
@@ -120,12 +122,11 @@ export function SolarForecastInline({
     <div
       data-testid="solar-forecast-inline"
       className={styles.panel}
-      aria-label="Local and explainable charging forecast"
+      aria-label="Charging forecast"
     >
       <div className={styles.header}>
         <div>
           <Text size="1" color="gray" weight="bold">Charging forecast</Text>
-          <Text size="1" color="gray">Local estimate</Text>
         </div>
         <span className={styles.confidence}>{confidenceText(data)}</span>
       </div>

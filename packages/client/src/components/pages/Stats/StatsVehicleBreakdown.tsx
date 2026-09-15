@@ -99,7 +99,7 @@ function ChargingCostRows({
       {costCents > 0 && (
         <div className={styles.breakdownRow}>
           <DollarSign size={16} style={{ color: "var(--gray-11)" }} />
-          <Text size="2" className={styles.breakdownLabel}>Grid Cost</Text>
+          <Text size="2" className={styles.breakdownLabel}>Grid cost</Text>
           <Text size="2" className={styles.breakdownValue}>
             {formatCost(costCents, currencySymbol)}
           </Text>
@@ -110,7 +110,7 @@ function ChargingCostRows({
         <div className={styles.breakdownRow}>
           <Sun size={16} style={{ color: SOURCE_COLORS.solar }} />
           <Text size="2" className={styles.breakdownLabel}>
-            Solar Savings
+            Solar savings
           </Text>
           <Text size="2" color="green" className={styles.breakdownValue}>
             {formatCost(solarSavingsCents, currencySymbol)}
@@ -178,21 +178,21 @@ function SourceRows({
   return (
     <>
       <EnergyBreakdownRow
-        label="Home Solar"
+        label="Home solar"
         valueWh={solarWh}
         pct={pct.solar}
         color={SOURCE_COLORS.solar}
         icon={<Sun size={16} style={{ color: SOURCE_COLORS.solar }} />}
       />
       <EnergyBreakdownRow
-        label="Home Battery"
+        label="Home battery"
         valueWh={batteryWh}
         pct={pct.battery}
         color={SOURCE_COLORS.battery}
         icon={<Battery size={16} style={{ color: SOURCE_COLORS.battery }} />}
       />
       <EnergyBreakdownRow
-        label="Home Grid"
+        label="Home grid"
         valueWh={gridWh}
         pct={pct.grid}
         color={SOURCE_COLORS.grid}
@@ -246,7 +246,7 @@ function VehicleChargingCard({
       />
       <div className={styles.breakdownRow}>
         <Text size="2" color="gray" className={styles.breakdownLabel}>
-          Total Charged
+          Total charged
         </Text>
         <Text size="2" className={styles.breakdownValue}>
           {kwhValue(totalWh)}
@@ -288,15 +288,15 @@ function UnassignedHistoryCard({ data }: { data: UnassignedBreakdown }) {
           <Text size="2" weight="bold">Unassigned history</Text>
         </div>
         <Badge variant="soft" color="gray" size="1">
-          Legacy / unattributed
+          No car assigned
         </Badge>
       </div>
       <Text size="1" color="gray">
-        Included in the global totals but not linked to a configured vehicle.
+        Included in totals; not assigned to a car.
       </Text>
       <div className={styles.breakdownRow}>
         <Text size="2" color="gray" className={styles.breakdownLabel}>
-          Total Charged
+          Total charged
         </Text>
         <Text size="2" className={styles.breakdownValue}>
           {kwhValue(data.totalChargedWh)}

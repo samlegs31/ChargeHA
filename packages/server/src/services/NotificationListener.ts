@@ -83,7 +83,7 @@ export class NotificationListener {
     this.logger.info(`${data.vehicleName} ${action} — sending notification`);
     this.notificationService.notify(
       data.isPluggedIn ? "vehicle_plugged_in" : "vehicle_unplugged",
-      data.isPluggedIn ? "Vehicle Plugged In" : "Vehicle Unplugged",
+      data.isPluggedIn ? "Car plugged in" : "Car unplugged",
       `${data.vehicleName} has been ${action}${locationSuffix(data.isHome)}.`,
       vehicleOpts(data),
     );
@@ -121,7 +121,7 @@ export class NotificationListener {
       );
       this.notificationService.notify(
         "vehicle_sleep",
-        "Vehicle Asleep",
+        "Car asleep",
         `${data.vehicleName} is asleep or offline.`,
         opts,
       );
@@ -134,7 +134,7 @@ export class NotificationListener {
       );
       this.notificationService.notify(
         "error",
-        "Vehicle Fetch Failed",
+        "Vehicle update failed",
         `Failed to fetch state for ${data.vehicleName}: ${data.error}`,
         opts,
       );
@@ -146,7 +146,7 @@ export class NotificationListener {
     );
     this.notificationService.notify(
       "error",
-      "Vehicle Command Failed",
+      "Vehicle command failed",
       `Command failed for ${data.vehicleName}: ${data.error}`,
       opts,
     );
@@ -187,7 +187,7 @@ export class NotificationListener {
     ) {
       this.notificationService.notify(
         "charge_complete",
-        "Charge Complete",
+        "Charging complete",
         `${data.vehicleName} reached its charge limit of ${data.chargeLimit}% (currently ${data.batteryLevel}%).`,
         vehicleOpts(data),
       );
@@ -214,8 +214,8 @@ export class NotificationListener {
     );
     this.notificationService.notify(
       "external_charge_detected",
-      "External Charging Detected",
-      `${data.vehicleName} started charging outside of ChargeHA control.`,
+      "Charging started elsewhere",
+      `${data.vehicleName} started charging outside E.V. Solar control.`,
       vehicleOpts(data),
     );
   }
@@ -225,8 +225,8 @@ export class NotificationListener {
   ): void {
     this.notificationService.notify(
       "external_charge_detected",
-      "Charging During Blockout",
-      `${data.vehicleName} is charging during a blockout period (${data.startTime}-${data.endTime}). Charging was not started by ChargeHA.`,
+      "Charging during a no-charge period",
+      `${data.vehicleName} is charging during a no-charge period (${data.startTime}-${data.endTime}). Charging was not started by E.V. Solar.`,
       vehicleOpts(data),
     );
   }
@@ -234,7 +234,7 @@ export class NotificationListener {
   private onLowSolar(data: EventMap["controller_low_solar"]): void {
     this.notificationService.notify(
       "low_solar",
-      "Grace Period Started — Low Solar",
+      "Low solar — grace period started",
       `${data.vehicleName} is entering a ${data.gracePeriodMinutes}-minute grace period. If solar does not return above the minimum amps, charging will stop.`,
       vehicleOpts(data),
     );
@@ -285,10 +285,8 @@ export class NotificationListener {
       );
       this.notificationService.notify(
         "battery_target_reached",
-        "Home Battery Ready",
-        `Home battery reached ${
-          Math.round(soc)
-        }%. Priority target ${limit}% is satisfied.`,
+        "Home battery reserve reached",
+        `Home battery reached ${Math.round(soc)}%. Reserve: ${limit}%.`,
       );
     }
 
@@ -348,7 +346,7 @@ export class NotificationListener {
   private onSafetyTrip(data: EventMap["safety_trip"]): void {
     this.notificationService.notify(
       "safety_trip",
-      "Safety Trip — Charging Disabled",
+      "Charging disabled — repeated starts and stops",
       `${data.vehicleName} had ${data.cycles} start/stop cycles in ${data.windowMinutes} minutes. Charging has been automatically disabled to prevent oscillation. Re-enable from Settings when ready.`,
       { vehicleName: data.vehicleName, vehicleId: data.vehicleId },
     );
@@ -371,27 +369,27 @@ function modeNotification(
   switch (mode) {
     case "charge_now":
       return {
-        title: "Charge Now Activated",
+        title: "Charge Now selected",
         message:
-          `${vehicleName} will charge at full rate until unplugged. Schedules and solar tracking are bypassed.`,
+          `${vehicleName} will start charging now, subject to charging limits. You can adjust the current manually. Schedules are bypassed.`,
       };
     case "vacation":
       return {
-        title: "Vacation Mode Activated",
+        title: "Solar Only selected",
         message:
-          `${vehicleName} will remain plugged in and charge only from available solar surplus. Grid supplementation is disabled.`,
+          `${vehicleName} will use available solar, subject to your solar margin and home battery settings.`,
       };
     case "stop":
       return {
-        title: "Stop Mode Activated",
+        title: "Stop selected",
         message:
-          `${vehicleName} will not charge until it is next unplugged and replugged. Schedules and solar tracking are bypassed.`,
+          `${vehicleName} will stay stopped until you change mode or unplug and reconnect.`,
       };
     case "auto":
       return {
-        title: "Auto Mode Activated",
+        title: "Solar + Off-Peak selected",
         message:
-          `${vehicleName} is back on auto. Schedules and solar tracking will resume.`,
+          `${vehicleName} will follow charging schedules and use solar outside scheduled periods.`,
       };
   }
 }

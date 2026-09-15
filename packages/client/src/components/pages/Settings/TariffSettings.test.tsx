@@ -208,7 +208,7 @@ describe("TariffSettings", () => {
 
   it("renders tariff section with title when data is loaded", () => {
     renderWithProviders(<TariffSettings />);
-    expect(screen.getByText("Electricity Tariffs")).toBeInTheDocument();
+    expect(screen.getByText("Electricity tariff")).toBeInTheDocument();
   });
 
   it("renders currency config fields from query data", () => {

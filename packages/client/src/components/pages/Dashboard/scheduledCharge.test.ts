@@ -98,7 +98,7 @@ describe("getScheduledChargeDisplay", () => {
       status: "inactive_mode",
       title: "Programmed charge is saved",
     });
-    expect(display?.detail).toContain("Turn on Smart Charge");
+    expect(display?.detail).toContain("Select Solar + Off-Peak");
   });
 
   it("returns null when no enabled charge exists", () => {

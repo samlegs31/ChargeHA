@@ -67,41 +67,9 @@ export class ConfigService {
 
   // ── Typed section getters ──────────────────────────────────────────────
 
-  async getCharging(): Promise<
-    ChargingConfig & {
-      chargingDisabledReason: InternalConfig["chargingDisabledReason"];
-    }
-  > {
-    const [raw, disabledReasonRaw, legacyTripAt] = await Promise.all([
-      this.readSectionRaw(sectionDbKeys(chargingConfigDef)),
-      this.db.getConfig("charging_disabled_reason"),
-      this.db.getConfig("oscillation_trip_at"),
-    ]);
-    const charging = deserializeSection(chargingConfigDef, raw);
-    const internal = deserializeSection(internalConfigDef, {
-      charging_disabled_reason: disabledReasonRaw,
-    });
-    const chargingDisabledReason = this.resolveChargingDisabledReason(
-      charging.chargingEnabled,
-      disabledReasonRaw,
-      legacyTripAt,
-      internal.chargingDisabledReason,
-    );
-    return {
-      ...charging,
-      chargingDisabledReason,
-    };
-  }
-
-  private resolveChargingDisabledReason(
-    chargingEnabled: boolean,
-    disabledReasonRaw: string | null,
-    legacyTripAt: string | null,
-    parsedReason: InternalConfig["chargingDisabledReason"],
-  ): InternalConfig["chargingDisabledReason"] {
-    if (disabledReasonRaw !== null || chargingEnabled) return parsedReason;
-    if (legacyTripAt) return "safety_trip";
-    return "user";
+  async getCharging(): Promise<ChargingConfig> {
+    const raw = await this.readSectionRaw(sectionDbKeys(chargingConfigDef));
+    return deserializeSection(chargingConfigDef, raw);
   }
 
   async getSolar(): Promise<SolarConfig> {
@@ -158,25 +126,9 @@ export class ConfigService {
 
   // ── Typed section setters ──────────────────────────────────────────────
 
-  async setCharging(input: Partial<ChargingConfig>): Promise<void> {
+  setCharging(input: Partial<ChargingConfig>): Promise<void> {
     const kvPairs = serializeSection(chargingConfigDef, input);
-    if (input.chargingEnabled === undefined) {
-      await this.writeSectionRaw(kvPairs);
-      return;
-    }
-
-    if (input.chargingEnabled) {
-      // Re-enabling is the explicit acknowledgement/reset of a safety stop.
-      // Keep the trip authoritative until charging_enabled is safely restored.
-      await this.writeSectionRaw(kvPairs);
-      await this.db.setConfig("charging_disabled_reason", "none");
-      return;
-    }
-
-    // Record a voluntary pause before disabling automation. A concurrent
-    // controller loop still sees charging enabled until the pause is stored.
-    await this.db.setConfig("charging_disabled_reason", "user");
-    await this.writeSectionRaw(kvPairs);
+    return this.writeSectionRaw(kvPairs);
   }
 
   setSolar(input: Partial<SolarConfig>): Promise<void> {
@@ -259,11 +211,6 @@ export class ConfigService {
         await this.db.storeSecret(key, value);
       }
       return { key, value: value ? SECRET_MASK : "" };
-    }
-
-    if (key === "charging_enabled") {
-      await this.setCharging({ chargingEnabled: value === "true" });
-      return { key, value };
     }
 
     await this.db.setConfig(key, value);
