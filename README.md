@@ -47,6 +47,26 @@ Home-battery discharge is excluded from usable solar surplus. Charging away from
 home is kept separate from home automation and energy accounting. Missing, stale
 or invalid energy readings trigger protective controller behaviour.
 
+### Variable-current charging and battery wear
+
+E.V. Solar follows changing photovoltaic surplus by progressively adjusting the
+AC charging current instead of forcing a fixed charging power. Published
+lithium-ion research on dynamic and pulse-current charging does not identify
+moderate current variation itself as a major battery-degradation mechanism; some
+controlled studies have even reported improved cycling stability compared with
+constant-current charging under their specific test conditions. Research on
+PV-aware smart charging likewise treats battery temperature, state of charge,
+charge rate and time spent at high SOC as more important ageing factors than
+small current adjustments.
+
+E.V. Solar therefore uses minimum-current starts, margins and delays so it does
+not chase every short cloud-induced power fluctuation. This should not be read as
+a claim that E.V. Solar extends battery life: the real effect depends on battery
+chemistry, temperature, SOC, the vehicle BMS and the charging hardware.
+
+Further reading: [Guo et al., *Advanced Energy Materials* (2024)](https://doi.org/10.1002/aenm.202400190)
+and [Real-Time Building Smart Charging System Based on PV Forecast and Li-Ion Battery Degradation (2020)](https://doi.org/10.3390/en13133415).
+
 See the [charging-controller documentation](docs/charge-controller.md) for rule
 precedence and technical details.
 
