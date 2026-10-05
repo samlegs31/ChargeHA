@@ -1,0 +1,27 @@
+name: Exact Raspberry recovery checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/recovery/**
+      - scripts/restore-exact-evsolar.sh
+      - .github/workflows/exact-recovery.yml
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.6
+      - name: Install locked test dependencies
+        run: deno install --frozen
+      - name: Check recovery shell syntax
+        run: bash -n scripts/restore-exact-evsolar.sh
+      - name: Test deployment failure recovery
+        run: python3 scripts/recovery/deployment.test.py
+      - name: Test exact-version safety correction
+        run: python3 scripts/recovery/check.py

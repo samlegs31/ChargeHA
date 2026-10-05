@@ -13,6 +13,7 @@
   "exclude": [
     "devtools/sim/browser/",
     "devtools/output/",
+    "scripts/recovery/",
     "packages/server/dist/"
   ],
   "tasks": {
