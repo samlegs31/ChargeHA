@@ -74,7 +74,7 @@ export function Dashboard({ onNavigateSettings }: DashboardProps) {
               </Text>
               <Text size="2" color="gray">
                 {systemAlert?.message ??
-                  "Automatic solar charging remains stopped after repeated start/stop cycles. Review the cause, then re-enable it in Settings."}
+                  "Automatic solar charging remains stopped after repeated start/stop cycles. Your Automatic charging setting is unchanged. Review the cause, then reset the safety stop in Settings."}
               </Text>
             </div>
             {systemAlert && (

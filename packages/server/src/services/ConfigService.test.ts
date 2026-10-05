@@ -391,6 +391,47 @@ describe("ConfigService", () => {
     });
   });
 
+  describe("resetSafetyStop", () => {
+    [true, false].forEach((enabled) => {
+      it(`resets a trip while preserving chargingEnabled=${enabled}`, async () => {
+        await db.setConfig("charging_enabled", String(enabled));
+        await db.setConfig("charging_disabled_reason", "safety_trip");
+        await db.setConfig("system_alert", "safety alert");
+        await db.setConfig("oscillation_trip_at", "2026-09-14 16:55:26");
+
+        expect(await service.resetSafetyStop()).toEqual({ success: true });
+
+        const charging = await service.getCharging();
+        expect(charging.chargingEnabled).toBe(enabled);
+        expect(charging.chargingDisabledReason).toBe(enabled ? "none" : "user");
+        expect(await db.getConfig("system_alert")).toBe("");
+        expect(await db.getConfig("oscillation_trip_at"))
+          .toBe("2026-09-14 16:55:26");
+      });
+    });
+
+    it("leaves an unrelated alert and voluntary pause intact", async () => {
+      await service.setCharging({ chargingEnabled: false });
+      await db.setConfig("system_alert", "unrelated alert");
+
+      await service.resetSafetyStop();
+
+      expect((await service.getCharging()).chargingDisabledReason).toBe("user");
+      expect(await db.getConfig("charging_enabled")).toBe("false");
+      expect(await db.getConfig("system_alert")).toBe("unrelated alert");
+    });
+
+    it("resets a legacy trip without automatically enabling charging", async () => {
+      await db.setConfig("charging_enabled", "false");
+      await db.setConfig("oscillation_trip_at", "2026-09-14 16:55:26");
+
+      await service.resetSafetyStop();
+
+      expect((await service.getCharging()).chargingDisabledReason).toBe("user");
+      expect(await db.getConfig("charging_enabled")).toBe("false");
+    });
+  });
+
   // ── setConfigValue ─────────────────────────────────────────────────────
 
   describe("setConfigValue", () => {

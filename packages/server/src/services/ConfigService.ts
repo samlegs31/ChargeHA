@@ -244,6 +244,19 @@ export class ConfigService {
     return { success: true };
   }
 
+  /** Explicitly acknowledge a safety stop without changing the user's switch. */
+  async resetSafetyStop(): Promise<{ success: boolean }> {
+    const charging = await this.getCharging();
+    if (charging.chargingDisabledReason === "safety_trip") {
+      await this.db.setConfig(
+        "charging_disabled_reason",
+        charging.chargingEnabled ? "none" : "user",
+      );
+      await this.db.setConfig("system_alert", "");
+    }
+    return { success: true };
+  }
+
   /** Set a single config value. The EnergyPoller subscribes to
    *  config_changed and drives any adapter rebuild itself. */
   async setConfigValue(

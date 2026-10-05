@@ -5,7 +5,7 @@ logs for signs of oscillation — rapid start/stop cycling that could damage
 vehicle charging hardware or the electrical system. It runs independently from
 the controller on its own timer.
 
-Source: `server/src/services/Overseer.ts`
+Source: `packages/server/src/services/Overseer.ts`
 
 ## How it works
 
@@ -32,19 +32,21 @@ A transition is when consecutive entries for the same vehicle alternate:
 - `stop` → `stop` = 0 transitions (duplicate, no change)
 
 So a sequence of `start, stop, start, stop` = 3 transitions, which is within the
-limit. Add one more (`start, stop, start, stop, start`) = 4 transitions, which
-triggers a trip.
+limit. Six alternating entries ending in `stop` give 5 transitions and trigger a
+trip; a sequence ending in `start` waits for the safety gate below.
 
 ### Safety gate
 
 The overseer only trips when the last logged action for the vehicle is `stop`.
 If the vehicle is mid-charge (last action is `start`), it waits for the
-controller to stop it naturally, then trips on the next check cycle. This avoids
-disabling the controller while a vehicle is actively drawing power.
+controller to stop it naturally, then trips on the next check cycle. The safety
+latch still makes the engine stop an active solar-mode charge if that logged
+stop did not actually stop the vehicle.
 
 ## What happens when it trips
 
-The overseer writes four config values to the database:
+The overseer writes three config values to the database. It never writes
+`charging_enabled`: the **Automatic charging** switch belongs to the user.
 
 1. **`charging_disabled_reason` = `"safety_trip"`** — Persists the safety state
    independently from the dismissible alert. The decision engine checks this
@@ -52,18 +54,14 @@ The overseer writes four config values to the database:
    restarted outside E.V. Solar after the trip. Explicit `charge_now` remains
    under manual control and explicit `stop` remains absolute.
 
-2. **`charging_enabled` = `"false"`** — Pauses automatic charging. Unlike a
-   voluntary pause, the persisted safety reason makes the controller actively
-   stop a solar-mode vehicle that is still charging or is restarted externally.
-
-3. **`oscillation_trip_at`** — Timestamp of the trip. On subsequent checks, the
+2. **`oscillation_trip_at`** — Timestamp of the trip. On subsequent checks, the
    overseer ignores transitions before this time, so re-enabling charging
    doesn't immediately re-trip.
 
-4. **`system_alert`** — A JSON payload stored in the config table:
+3. **`system_alert`** — A JSON payload stored in the config table:
    ```json
    {
-     "message": "Charging disabled: Model 3 had 3 start/stop cycles in 60 minutes, which may indicate oscillation. Re-enable charging from Settings when ready.",
+     "message": "Automatic charging suspended: Model 3 had 3 start/stop cycles in 60 minutes, which may indicate oscillation. Your Automatic charging setting is unchanged. Review the cause, then reset the safety stop in Settings.",
      "timestamp": "2026-03-02T10:30:00.000Z",
      "vehicleId": "LRW3E7EK...",
      "vehicleName": "Model 3"
@@ -87,21 +85,20 @@ reason and ends this compatibility inference.
 
 Two independent actions are available to the user:
 
-1. **Re-enable charging** — Toggle the charging switch in the Settings UI. This
-   sets `charging_enabled` back to `"true"`, then clears
-   `charging_disabled_reason`. Keeping the safety reason until the final write
-   makes recovery fail-safe if a controller loop runs between those writes.
+1. **Reset safety stop** — After reviewing the cause, use the dedicated button
+   under Settings → My cars → Automatic charging. This calls
+   `trpc.config.charging.resetSafetyStop` and clears the safety latch and its
+   message. The switch keeps its current value: an enabled controller resumes,
+   while a controller voluntarily disabled by the user stays disabled. The trip
+   timestamp remains stored so the same history cannot immediately trip again.
 
-2. **Dismiss the alert banner** — Click "Dismiss" on the red alert banner shown
-   at the top of the Dashboard. This calls
-   `trpc.config.dismissSystemAlert.useMutation()` which clears the
-   `system_alert` config value via `ConfigService`. The detailed message
-   disappears, but the persistent "Safety stop active" state remains visible
-   until automatic charging is explicitly re-enabled.
+2. **Dismiss the alert message** — This clears only `system_alert`. The safety
+   latch stays active and the Dashboard still shows “Safety stop active”.
 
-These are intentionally independent — dismissing the banner does not re-enable
-charging, and re-enabling charging does not dismiss the banner. This ensures the
-user makes a conscious decision about both.
+Explicitly turning Automatic charging on and saving also acknowledges a safety
+stop, preserving compatibility with older installations. Existing switches that
+were already turned off by an older Overseer stay off after the update until
+explicitly enabled by the user.
 
 ## Dashboard alert banner
 

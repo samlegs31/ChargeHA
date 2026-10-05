@@ -70,8 +70,8 @@ export class Overseer {
         })
         .find(({ actions, transitions }) => {
           if (transitions <= MAX_TRANSITIONS) return false;
-          // Only trip when the last logged action is "stop" so the vehicle
-          // is already stopped before we disable the charge controller.
+          // Only trip when the last logged action is "stop". The engine
+          // enforces the safety stop independently of the user's switch.
           // If the vehicle is mid-charge (last action "start"), wait for the
           // controller to stop it naturally, then trip on the next check.
           const lastAction = actions[actions.length - 1].action;
@@ -93,14 +93,12 @@ export class Overseer {
     cycles: number,
   ): Promise<void> {
     this.logger.error(
-      `SAFETY TRIP — ${vehicleName} (${vehicleId}) had ${cycles} start/stop cycles in the last ${WINDOW_MINUTES} minutes. Disabling charging.`,
+      `SAFETY TRIP — ${vehicleName} (${vehicleId}) had ${cycles} start/stop cycles in the last ${WINDOW_MINUTES} minutes. Suspending automatic charging.`,
     );
 
-    // Persist the cause before disabling the controller. The engine treats a
-    // safety trip as a fail-safe state in its own right, so a loop racing these
-    // writes can only become more restrictive, never less restrictive.
+    // Safety stops are independent of the user's automatic charging preference.
+    // The engine enforces this latch even while charging_enabled remains true.
     await this.db.setConfig("charging_disabled_reason", "safety_trip");
-    await this.db.setConfig("charging_enabled", "false");
     // Use SQLite datetime format to match controller_logs.timestamp
     await this.db.setConfig(
       "oscillation_trip_at",
@@ -108,7 +106,7 @@ export class Overseer {
     );
     const alert: SystemAlert = {
       message:
-        `Charging disabled: ${vehicleName} had ${cycles} start/stop cycles in ${WINDOW_MINUTES} minutes, which may indicate oscillation. Re-enable charging from Settings when ready.`,
+        `Automatic charging suspended: ${vehicleName} had ${cycles} start/stop cycles in ${WINDOW_MINUTES} minutes, which may indicate oscillation. Your Automatic charging setting is unchanged. Review the cause, then reset the safety stop in Settings.`,
       timestamp: new Date().toISOString(),
       vehicleId,
       vehicleName,

@@ -83,9 +83,9 @@ describe("Overseer", () => {
 
       await testable(overseer).check();
 
-      // Should have disabled charging
+      // The safety latch must not alter the default automatic charging preference
       const enabled = await db.getConfig("charging_enabled");
-      expect(enabled).toBe("false");
+      expect(enabled).toBeNull();
       expect(await db.getConfig("charging_disabled_reason"))
         .toBe("safety_trip");
 
@@ -101,6 +101,27 @@ describe("Overseer", () => {
       expect(safetyTrips[0].vehicleId).toBe("VIN1");
       expect(safetyTrips[0].vehicleName).toBe("Car 1");
       expect(safetyTrips[0].cycles).toBeGreaterThan(0);
+    });
+
+    ["true", "false"].forEach((preference) => {
+      it(`preserves the explicit ${preference} switch during a safety trip`, async () => {
+        await db.setConfig("charging_enabled", preference);
+        await seedStateChanges("VIN1", "Car 1", [
+          "start",
+          "stop",
+          "start",
+          "stop",
+          "start",
+          "stop",
+        ]);
+
+        await testable(overseer).check();
+
+        expect(await db.getConfig("charging_enabled")).toBe(preference);
+        expect(await db.getConfig("charging_disabled_reason"))
+          .toBe("safety_trip");
+        expect(safetyTrips).toHaveLength(1);
+      });
     });
 
     it("does not trip when transitions exceed limit but last action is start", async () => {
@@ -156,7 +177,7 @@ describe("Overseer", () => {
         "stop",
       ]);
       await testable(overseer).check();
-      expect(await db.getConfig("charging_enabled")).toBe("false");
+      expect(await db.getConfig("charging_enabled")).toBeNull();
       expect(safetyTrips).toHaveLength(1);
 
       // User re-enables charging from Settings
@@ -179,7 +200,7 @@ describe("Overseer", () => {
         "stop",
       ]);
       await testable(overseer).check();
-      expect(await db.getConfig("charging_enabled")).toBe("false");
+      expect(await db.getConfig("charging_enabled")).toBeNull();
 
       // User re-enables charging
       await db.setConfig("charging_enabled", "true");
@@ -200,8 +221,8 @@ describe("Overseer", () => {
       ]);
       await testable(overseer).check();
 
-      // Should trip again on the new transitions
-      expect(await db.getConfig("charging_enabled")).toBe("false");
+      // A new trip still must not turn off the user's switch
+      expect(await db.getConfig("charging_enabled")).toBe("true");
       expect(safetyTrips).toHaveLength(2);
     });
 
