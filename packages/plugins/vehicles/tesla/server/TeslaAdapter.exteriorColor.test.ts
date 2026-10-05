@@ -14,12 +14,19 @@ describe("TeslaAdapter exterior color", () => {
   let server: Deno.HttpServer;
   let adapter: TeslaAdapter;
   let requestedEndpoints = "";
+  let includeVisualConfig = true;
 
   beforeEach(() => {
+    includeVisualConfig = true;
     server = Deno.serve({ port: 0, onListen: () => {} }, (req) => {
       const url = new URL(req.url);
       if (url.pathname === `/api/1/vehicles/${VIN}/vehicle_data`) {
         requestedEndpoints = url.searchParams.get("endpoints") ?? "";
+        const visualConfig = {
+          exterior_color: "RedMulticoat",
+          car_type: "model3",
+          wheel_type: "Aero18",
+        };
         return Response.json({
           response: {
             charge_state: {
@@ -28,7 +35,7 @@ describe("TeslaAdapter exterior color", () => {
               charging_state: "Disconnected",
             },
             vehicle_state: { vehicle_name: "Friday" },
-            vehicle_config: { exterior_color: "RedMulticoat" },
+            vehicle_config: includeVisualConfig ? visualConfig : undefined,
             state: "online",
           },
         });
@@ -56,10 +63,21 @@ describe("TeslaAdapter exterior color", () => {
     await server.shutdown();
   });
 
+  it("leaves unavailable visual configuration unknown", async () => {
+    includeVisualConfig = false;
+    const state = await adapter.getChargeState(context);
+    expect(state.carType).toBeNull();
+    expect(state.exteriorColor).toBeNull();
+    expect(state.wheelType).toBeNull();
+    expect(state.batteryLevel).toBe(50);
+  });
+
   it("returns exterior color from the existing vehicle_data request", async () => {
     const state = await adapter.getChargeState(context);
 
     expect(state.exteriorColor).toBe("RedMulticoat");
+    expect(state.carType).toBe("model3");
+    expect(state.wheelType).toBe("Aero18");
     expect(requestedEndpoints).toContain("vehicle_config");
     expect(requestedEndpoints).toContain("charge_state");
   });

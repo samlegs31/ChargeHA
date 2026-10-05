@@ -329,7 +329,7 @@ describe("Dashboard", () => {
   it("renders no vehicles state when vehicles array is empty", () => {
     h.render();
 
-    expect(screen.getByText("No vehicles configured")).toBeInTheDocument();
+    expect(screen.getByText("No cars connected")).toBeInTheDocument();
   });
 
   it("renders vehicle cards when vehicles have state", () => {
@@ -338,7 +338,7 @@ describe("Dashboard", () => {
     h.render();
 
     expect(screen.getByTestId("vehicle-card")).toBeInTheDocument();
-    expect(screen.queryByText("No vehicles configured")).not
+    expect(screen.queryByText("No cars connected")).not
       .toBeInTheDocument();
   });
 
@@ -764,7 +764,7 @@ describe("Dashboard", () => {
 
     h.render();
 
-    expect(screen.getByText("No vehicles configured")).toBeInTheDocument();
+    expect(screen.getByText("No cars connected")).toBeInTheDocument();
     expect(
       screen.getByText(
         /Add a vehicle to monitor charging and control solar allocation/,
@@ -790,7 +790,7 @@ describe("Dashboard", () => {
 
     h.render();
 
-    expect(screen.queryByText("No vehicles configured")).not
+    expect(screen.queryByText("No cars connected")).not
       .toBeInTheDocument();
   });
 

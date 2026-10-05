@@ -34,7 +34,7 @@ describe("SolarForecastInline", () => {
       />,
     );
 
-    expect(screen.getByText("About 67% from today's sun"))
+    expect(screen.getByText("About 67% by the end of solar charging"))
       .toBeInTheDocument();
     expect(screen.getByText(/3\.7 kWh of solar charging expected by/))
       .toBeInTheDocument();

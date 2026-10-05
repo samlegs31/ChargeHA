@@ -1,0 +1,81 @@
+import { Moon } from "lucide-react";
+import { Skeleton } from "@radix-ui/themes";
+import { trpc } from "../../../trpc.ts";
+import styles from "./OffPeakStatus.module.css";
+
+function isOffPeakLabel(label: string | undefined): boolean {
+  return /off[\s-]?peak/i.test(label ?? "");
+}
+
+function formatClock(iso: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+function offPeakTiming(
+  label: string,
+  nextRate: { label: string; startsAt: string } | null | undefined,
+): string {
+  const active = isOffPeakLabel(label);
+  if (active && nextRate) return `Until ${formatClock(nextRate.startsAt)}`;
+  if (!active && nextRate && isOffPeakLabel(nextRate.label)) {
+    return `Starts ${formatClock(nextRate.startsAt)}`;
+  }
+  return label;
+}
+
+export function OffPeakStatus() {
+  const { data, isLoading } = trpc.tariff.currentRate.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div className={styles.card} aria-label="Off-Peak loading">
+        <Skeleton width="100%" height="54px" />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <section
+        className={styles.card}
+        data-active="false"
+        aria-label="Off-Peak not configured"
+      >
+        <span className={styles.icon} aria-hidden="true">
+          <Moon size={20} />
+        </span>
+        <span className={styles.copy}>
+          <strong>Off-Peak</strong>
+          <span>Not configured</span>
+        </span>
+        <span className={styles.state}>Inactive</span>
+      </section>
+    );
+  }
+
+  const active = isOffPeakLabel(data.label);
+  const timing = offPeakTiming(data.label, data.nextRate);
+
+  return (
+    <section
+      className={styles.card}
+      data-active={active}
+      aria-label={`Off-Peak ${active ? "active" : "inactive"}`}
+      data-testid="off-peak-status"
+    >
+      <span className={styles.icon} aria-hidden="true">
+        <Moon size={20} />
+      </span>
+      <span className={styles.copy}>
+        <strong>Off-Peak</strong>
+        <span>{timing}</span>
+      </span>
+      <span className={styles.state}>{active ? "Active" : "Inactive"}</span>
+    </section>
+  );
+}

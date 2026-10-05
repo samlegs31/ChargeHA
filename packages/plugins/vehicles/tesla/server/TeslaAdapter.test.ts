@@ -30,6 +30,8 @@ describe("TeslaAdapter", () => {
     response: {
       charge_state: {
         battery_level: 72,
+        est_battery_range: 215.6,
+        battery_range: 210,
         charge_limit_soc: 80,
         charging_state: "Charging",
         charge_amps: 16,
@@ -119,6 +121,7 @@ describe("TeslaAdapter", () => {
 
       expect(state.vehicleId).toBe(VIN);
       expect(state.batteryLevel).toBe(72);
+      expect(state.rangeKm).toBe(347);
       expect(state.chargeLimit).toBe(80);
       expect(state.isCharging).toBe(true);
       expect(state.isPluggedIn).toBe(true);
@@ -132,6 +135,25 @@ describe("TeslaAdapter", () => {
       expect(state.minutesToFull).toBe(45);
       expect(state.chargePortOpen).toBe(true);
       expect(state.vehicleName).toBe("My Model 3");
+    });
+
+    it("falls back to rated range when estimated range is unavailable", async () => {
+      responseOverrides.set(`/api/1/vehicles/${VIN}/vehicle_data`, {
+        status: 200,
+        body: {
+          response: {
+            ...MOCK_VEHICLE_DATA.response,
+            charge_state: {
+              ...MOCK_VEHICLE_DATA.response.charge_state,
+              est_battery_range: undefined,
+              battery_range: 200,
+            },
+          },
+        },
+      });
+
+      const state = await adapter.getChargeState(c("test:charge-state"));
+      expect(state.rangeKm).toBe(322);
     });
 
     it("sets isCharging to false when not charging", async () => {

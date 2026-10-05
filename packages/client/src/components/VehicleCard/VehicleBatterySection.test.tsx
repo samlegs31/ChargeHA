@@ -25,6 +25,13 @@ describe("VehicleBatterySection", () => {
     };
   };
 
+  it("shows vehicle range when available", () => {
+    renderBattery({ rangeKm: 347 });
+
+    expect(screen.getByText("347 km")).toBeInTheDocument();
+    expect(screen.queryByText("Battery")).not.toBeInTheDocument();
+  });
+
   it("keeps the existing battery bar read-only when unplugged", () => {
     renderBattery({ isPluggedIn: false });
 
