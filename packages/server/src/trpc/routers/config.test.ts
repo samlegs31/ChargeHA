@@ -95,6 +95,22 @@ describe("Config tRPC Router", () => {
       expect(data.chargingEnabled).toBe(true);
     });
 
+    it("resetSafetyStop clears the latch without changing the switch", async () => {
+      await db.setConfig("charging_enabled", "true");
+      await db.setConfig("charging_disabled_reason", "safety_trip");
+      await db.setConfig("system_alert", "safety alert");
+
+      expect(await caller.config.charging.resetSafetyStop())
+        .toEqual({ success: true });
+      expect(await caller.config.charging.get()).toEqual(
+        expect.objectContaining({
+          chargingEnabled: true,
+          chargingDisabledReason: "none",
+        }),
+      );
+      expect(await caller.config.systemAlert()).toBe("");
+    });
+
     it("set persists typed values", async () => {
       await caller.config.charging.set({ chargingEnabled: false });
       const data = await caller.config.charging.get();

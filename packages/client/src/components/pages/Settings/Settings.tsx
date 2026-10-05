@@ -10,7 +10,7 @@ import {
   Sun,
   Zap,
 } from "lucide-react";
-import { Card, Link, Switch, Text } from "@radix-ui/themes";
+import { Button, Card, Link, Switch, Text } from "@radix-ui/themes";
 import { trpc } from "../../../trpc.ts";
 import { version } from "../../../lib/version.ts";
 import {
@@ -191,8 +191,8 @@ function AutomaticChargingSettings() {
       <SettingsRow
         label="Automatic charging"
         help={safetyTripActive
-          ? "Safety stop active after repeated start/stop cycles. Turn automatic charging on and save only after checking the cause."
-          : "Off pauses automatic start, stop and current changes. Manual Charge Now and Stop remain available."}
+          ? "Safety stop active after repeated start/stop cycles. Your switch stays as you set it. Check the cause before resetting the safety stop."
+          : "Only you change this switch. Off pauses automatic start, stop and current changes. Manual Charge Now and Stop remain available."}
       >
         <Switch
           size="2"
@@ -200,7 +200,36 @@ function AutomaticChargingSettings() {
           onCheckedChange={(value) => setField("chargingEnabled", value)}
         />
       </SettingsRow>
+      {safetyTripActive && <SafetyStopReset disabled={isDirty} />}
     </SettingsSection>
+  );
+}
+
+function SafetyStopReset({ disabled }: { disabled: boolean }) {
+  const utils = trpc.useUtils();
+  const reset = trpc.config.charging.resetSafetyStop.useMutation({
+    onSuccess: () => {
+      utils.config.charging.get.invalidate();
+      utils.config.systemAlert.invalidate();
+    },
+  });
+
+  return (
+    <SettingsRow
+      label="Safety stop"
+      help="Reset resumes automatic charging if your saved switch is on. If it is off, it stays off. Save any switch changes first."
+    >
+      <Button
+        color="red"
+        variant="soft"
+        loading={reset.isPending}
+        disabled={disabled}
+        onClick={() => reset.mutate()}
+      >
+        Reset safety stop
+      </Button>
+      {reset.error && <Text color="red" size="2">{reset.error.message}</Text>}
+    </SettingsRow>
   );
 }
 

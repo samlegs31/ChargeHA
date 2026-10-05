@@ -19,6 +19,9 @@ import {
 
 const chargingRouter = router({
   get: publicProcedure.query(({ ctx }) => ctx.configService.getCharging()),
+  resetSafetyStop: publicProcedure.mutation(({ ctx }) =>
+    ctx.configService.resetSafetyStop()
+  ),
   set: publicProcedure
     .input(chargingConfigInput)
     .mutation(({ ctx, input }) => ctx.configService.setCharging(input)),

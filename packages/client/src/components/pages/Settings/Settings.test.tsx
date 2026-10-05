@@ -75,6 +75,7 @@ vi.mock("./SolarWebHistoryImport.tsx", () => ({
 const {
   mockLocationFetch,
   mockSetBulkMutate,
+  mockResetSafetyStop,
   mockConfigGetAllUseQuery,
   mockInvalidateConfig,
   mockWizardStatusUseQuery,
@@ -85,6 +86,7 @@ const {
     longitude: 151.20929,
   }),
   mockSetBulkMutate: vi.fn(),
+  mockResetSafetyStop: vi.fn(),
   mockConfigGetAllUseQuery: vi.fn((): {
     data: {
       chargingEnabled: boolean;
@@ -120,6 +122,16 @@ vi.mock("../../../trpc.ts", () => ({
     },
     config: {
       charging: {
+        resetSafetyStop: {
+          useMutation: vi.fn((opts?: { onSuccess?: () => void }) => ({
+            mutate: () => {
+              mockResetSafetyStop();
+              opts?.onSuccess?.();
+            },
+            isPending: false,
+            error: null,
+          })),
+        },
         get: {
           useQuery: () => mockConfigGetAllUseQuery(),
         },
@@ -155,6 +167,7 @@ vi.mock("../../../trpc.ts", () => ({
     },
     useUtils: vi.fn(() => ({
       config: {
+        systemAlert: { invalidate: mockInvalidateConfig },
         charging: {
           get: {
             invalidate: mockInvalidateConfig,
@@ -297,21 +310,35 @@ describe("Settings", () => {
     });
   });
 
-  it("explains how to reset an active safety stop", async () => {
-    mockConfigGetAllUseQuery.mockReturnValue({
-      data: {
-        chargingEnabled: false,
-        chargingDisabledReason: "safety_trip",
-      },
-      isLoading: false,
-      error: null,
+  [true, false].forEach((enabled) => {
+    it(`resets a safety stop without changing the ${enabled} switch`, async () => {
+      mockConfigGetAllUseQuery.mockReturnValue({
+        data: {
+          chargingEnabled: enabled,
+          chargingDisabledReason: "safety_trip",
+        },
+        isLoading: false,
+        error: null,
+      });
+
+      renderWithProviders(<Settings />);
+
+      expect(await screen.findByText(/Safety stop active/)).toBeInTheDocument();
+      expect(screen.getByRole("switch"))
+        .toHaveAttribute("aria-checked", String(enabled));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Reset safety stop" }),
+      );
+      expect(mockResetSafetyStop).toHaveBeenCalled();
+      expect(mockSetBulkMutate).not.toHaveBeenCalled();
+      expect(screen.getByRole("switch"))
+        .toHaveAttribute("aria-checked", String(enabled));
+      expect(mockInvalidateConfig).toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("switch"));
+      expect(screen.getByRole("button", { name: "Reset safety stop" }))
+        .toBeDisabled();
     });
-
-    renderWithProviders(<Settings />);
-
-    expect(await screen.findByText(/Safety stop active/)).toBeInTheDocument();
-    expect(screen.getByText(/Turn automatic charging on and save/))
-      .toBeInTheDocument();
   });
 
   it("shows one simple Settings topic at a time", () => {
