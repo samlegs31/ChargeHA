@@ -200,12 +200,12 @@ function AutomaticChargingSettings() {
           onCheckedChange={(value) => setField("chargingEnabled", value)}
         />
       </SettingsRow>
-      {safetyTripActive && <SafetyStopReset />}
+      {safetyTripActive && <SafetyStopReset disabled={isDirty} />}
     </SettingsSection>
   );
 }
 
-function SafetyStopReset() {
+function SafetyStopReset({ disabled }: { disabled: boolean }) {
   const utils = trpc.useUtils();
   const reset = trpc.config.charging.resetSafetyStop.useMutation({
     onSuccess: () => {
@@ -217,12 +217,13 @@ function SafetyStopReset() {
   return (
     <SettingsRow
       label="Safety stop"
-      help="Reset resumes automatic charging if your switch is on. If it is off, it stays off."
+      help="Reset resumes automatic charging if your saved switch is on. If it is off, it stays off. Save any switch changes first."
     >
       <Button
         color="red"
         variant="soft"
         loading={reset.isPending}
+        disabled={disabled}
         onClick={() => reset.mutate()}
       >
         Reset safety stop

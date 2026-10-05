@@ -348,8 +348,8 @@ export class NotificationListener {
   private onSafetyTrip(data: EventMap["safety_trip"]): void {
     this.notificationService.notify(
       "safety_trip",
-      "Safety Trip — Charging Disabled",
-      `${data.vehicleName} had ${data.cycles} start/stop cycles in ${data.windowMinutes} minutes. Charging has been automatically disabled to prevent oscillation. Re-enable from Settings when ready.`,
+      "Safety Trip — Automatic Charging Suspended",
+      `${data.vehicleName} had ${data.cycles} start/stop cycles in ${data.windowMinutes} minutes. Automatic charging is suspended; your Automatic charging setting is unchanged. Review the cause, then reset the safety stop in Settings.`,
       { vehicleName: data.vehicleName, vehicleId: data.vehicleId },
     );
   }

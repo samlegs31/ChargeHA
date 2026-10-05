@@ -334,6 +334,10 @@ describe("Settings", () => {
       expect(screen.getByRole("switch"))
         .toHaveAttribute("aria-checked", String(enabled));
       expect(mockInvalidateConfig).toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("switch"));
+      expect(screen.getByRole("button", { name: "Reset safety stop" }))
+        .toBeDisabled();
     });
   });
 
