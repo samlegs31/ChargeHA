@@ -1,7 +1,9 @@
+import { externalChargingVehicles } from "./ExternalCharging.ts";
 import type { AppDatabase } from "../db/AppDatabase.ts";
 import type { SystemAlert } from "../db/types.ts";
 import type { TypedEventEmitter } from "./TypedEventEmitter.ts";
 import type { Logger } from "../lib/Logger.ts";
+import type { VehicleManager } from "./VehicleManager.ts";
 
 const CHECK_INTERVAL_MS = 60_000;
 const WINDOW_MINUTES = 60;
@@ -11,16 +13,22 @@ export class Overseer {
   private readonly db: AppDatabase;
   private readonly eventEmitter: TypedEventEmitter;
   private readonly logger: Logger;
+  private readonly vehicleManager: Pick<
+    VehicleManager,
+    "getState" | "stopCharging"
+  >;
   private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     db: AppDatabase,
     eventEmitter: TypedEventEmitter,
     logger: Logger,
+    vehicleManager: Pick<VehicleManager, "getState" | "stopCharging">,
   ) {
     this.db = db;
     this.eventEmitter = eventEmitter;
     this.logger = logger;
+    this.vehicleManager = vehicleManager;
     this.start();
   }
 
@@ -38,14 +46,16 @@ export class Overseer {
 
   private async check(): Promise<void> {
     try {
+      if (await this.db.getConfig("oscillation_paused") === "true") return;
       // Ignore transitions that already caused a previous trip.
       // Without this, re-enabling charging would immediately re-trip
       // because the same transitions are still within the window.
       const tripAt = await this.db.getConfig("oscillation_trip_at");
-      const rows = await this.db.getRecentStateChanges(
+      const external = await externalChargingVehicles(this.db);
+      const rows = (await this.db.getRecentStateChanges(
         WINDOW_MINUTES,
         tripAt ?? undefined,
-      );
+      )).filter((row) => !external.has(row.vehicleId));
       if (rows.length === 0) return;
 
       // Group by vehicle
@@ -68,15 +78,7 @@ export class Overseer {
           );
           return { vehicleId, actions, transitions, cycles };
         })
-        .find(({ actions, transitions }) => {
-          if (transitions <= MAX_TRANSITIONS) return false;
-          // Only trip when the last logged action is "stop". The engine
-          // enforces the safety stop independently of the user's switch.
-          // If the vehicle is mid-charge (last action "start"), wait for the
-          // controller to stop it naturally, then trip on the next check.
-          const lastAction = actions[actions.length - 1].action;
-          return lastAction === "stop";
-        });
+        .find(({ transitions }) => transitions > MAX_TRANSITIONS);
 
       if (trippable) {
         const vehicleName = trippable.actions[0].vehicleName;
@@ -93,12 +95,19 @@ export class Overseer {
     cycles: number,
   ): Promise<void> {
     this.logger.error(
-      `SAFETY TRIP — ${vehicleName} (${vehicleId}) had ${cycles} start/stop cycles in the last ${WINDOW_MINUTES} minutes. Suspending automatic charging.`,
+      `SAFETY TRIP — ${vehicleName} (${vehicleId}) had ${cycles} start/stop cycles in the last ${WINDOW_MINUTES} minutes. Pausing automation without changing the user switch.`,
     );
 
-    // Safety stops are independent of the user's automatic charging preference.
-    // The engine enforces this latch even while charging_enabled remains true.
-    await this.db.setConfig("charging_disabled_reason", "safety_trip");
+    // Persist the safety latch before attempting STOP, including on failure.
+    await this.db.setConfig("oscillation_paused", "true");
+    const stopResult = await this.emergencyStop(vehicleId).catch((error) => ({
+      success: false,
+      error: String(error),
+    }));
+    const stopFailure = stopResult?.success === false
+      ? ` Emergency STOP failed: ${stopResult.error ?? "unknown error"}.`
+      : "";
+
     // Use SQLite datetime format to match controller_logs.timestamp
     await this.db.setConfig(
       "oscillation_trip_at",
@@ -106,7 +115,7 @@ export class Overseer {
     );
     const alert: SystemAlert = {
       message:
-        `Automatic charging suspended: ${vehicleName} had ${cycles} start/stop cycles in ${WINDOW_MINUTES} minutes, which may indicate oscillation. Your Automatic charging setting is unchanged. Review the cause, then reset the safety stop in Settings.`,
+        `Safety pause: ${vehicleName} had ${cycles} start/stop cycles in ${WINDOW_MINUTES} minutes, which may indicate oscillation.${stopFailure} Your Automatic charging switch is unchanged. Dismiss this alert when ready to release the safety pause; automation resumes only if your switch is ON.`,
       timestamp: new Date().toISOString(),
       vehicleId,
       vehicleName,
@@ -119,5 +128,18 @@ export class Overseer {
       cycles,
       windowMinutes: WINDOW_MINUTES,
     });
+  }
+
+  private async emergencyStop(
+    vehicleId: string,
+  ): Promise<Awaited<ReturnType<VehicleManager["stopCharging"]>> | null> {
+    const state = await this.vehicleManager.getState(vehicleId);
+    if (!state?.isCharging) return null;
+    return await this.vehicleManager.stopCharging(
+      vehicleId,
+      { origin: "overseer:safety-trip", traceId: crypto.randomUUID() },
+      state,
+      { force: true },
+    );
   }
 }

@@ -17,6 +17,7 @@ import type { VehicleRequestContext } from "../../../types.ts";
 
 const NO_STATE_MS = 3 * 60 * 1000;
 const ONLINE_UNPLUGGED_MS = 5 * 60 * 1000;
+const CHARGING_MS = 60 * 1000;
 const CAN_CHARGE_MS = 10 * 60 * 1000;
 const CANT_CHARGE_MS = 20 * 60 * 1000;
 
@@ -91,6 +92,9 @@ export class TeslaApiStrategy {
     if (cachedState.isOnline && !cachedState.isPluggedIn) {
       return ONLINE_UNPLUGGED_MS;
     }
+    // While power is flowing, current, charge state and external app changes
+    // are safety-critical inputs. Do not regulate from a ten-minute-old view.
+    if (cachedState.isCharging) return CHARGING_MS;
     // Keep daytime state reasonably current even before surplus reaches the
     // charging threshold. The longer idle window is reserved for nighttime.
     if (context.hasDaylight || context.hasSolar || context.hasSchedule) {

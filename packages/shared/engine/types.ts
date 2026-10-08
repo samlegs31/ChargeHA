@@ -19,9 +19,8 @@ export interface ControllerConfig {
   vehicleCurrentLimits?: Record<string, number>;
   maxGridImportKw?: number | null;
   chargingEnabled: boolean;
-  /** Persists a voluntary pause or an independent safety stop. A safety trip
-   *  overrides chargingEnabled even if its dismissible alert has been cleared. */
-  chargingDisabledReason: "none" | "user" | "safety_trip";
+  /** Independent safety latch; never changes the user's charging switch. */
+  oscillationPaused?: boolean;
   controllerLoopSeconds: number;
   solarTrackingEnabled: boolean;
   solarTrackingMode: SolarTrackingMode;
@@ -143,8 +142,8 @@ export type DecisionReason =
   | "cooldown"
   | "no_solar"
   | "energy_unavailable"
+  | "vehicle_unavailable"
   | "charging_disabled"
-  | "safety_trip"
   | "battery_at_limit"
   | "not_plugged_in"
   | "away_from_home"

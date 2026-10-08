@@ -2,91 +2,21 @@
   "workspace": [
     "./packages/shared",
     "./packages/server",
-    "./packages/client",
     "./packages/plugins"
   ],
-  "nodeModulesDir": "auto",
+  "nodeModulesDir": "none",
   "minimumDependencyAge": "P14D",
   "compilerOptions": {
     "strict": true
   },
-  "exclude": [
-    "devtools/sim/browser/",
-    "devtools/output/",
-    "packages/server/dist/"
-  ],
-  "tasks": {
-    "dev": "deno task dev:server & deno task dev:client & wait",
-    "dev:server": "deno run --watch --unsafely-ignore-certificate-errors=localhost --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-run --allow-sys=networkInterfaces --unstable-ffi packages/server/src/main.ts",
-    "dev:client": "deno task --filter client dev",
-    "build": "deno task --filter client build",
-    "start": "deno run --allow-net --allow-read --allow-write --allow-env --allow-ffi --allow-run --allow-sys=networkInterfaces --unstable-ffi --unsafely-ignore-certificate-errors=localhost packages/server/src/main.ts",
-    "test": "deno check && deno task test:server && deno task test:client",
-    "test:server": "deno test --allow-net --allow-read --allow-write --allow-env --allow-ffi --unstable-ffi --ignore='**/client/**,**/*.test.tsx' packages/server/ packages/plugins/ devtools/ packages/shared/",
-    "test:server:coverage": "deno test --coverage=coverage/ --allow-net --allow-read --allow-write --allow-env --allow-ffi --unstable-ffi --ignore='**/client/**,**/*.test.tsx' packages/server/ packages/plugins/ devtools/ packages/shared/",
-    "test:client:coverage": "deno task --filter client test:coverage",
-    "coverage": "deno task test:server:coverage && deno coverage coverage/ --exclude=test && deno task test:client:coverage",
-    "coverage:report": "deno coverage coverage/ --exclude=test",
-    "coverage:lcov": "deno coverage coverage/ --lcov --output=coverage/lcov.info",
-    "test:client": "deno task --filter client test",
-    "db:cli": "deno run -A --unstable-ffi devtools/db/db-cli.ts",
-    "db:generate": "deno -A --node-modules-dir npm:drizzle-kit generate --config drizzle/drizzle.config.ts",
-    "check:unused": "bash devtools/quality/check-unused-files.sh",
-    "check:packument": "bash devtools/quality/check-packument-bloat.sh",
-    "check:deployment": "python3 devtools/quality/test-update-evsolar.py",
-    "check:all": "deno fmt --check && deno lint && deno check && deno task check:unused && deno task check:packument && deno task check:deployment && deno task test:server && deno task test:client"
-  },
   "imports": {
     "@db/sqlite": "jsr:@db/sqlite@^0.12",
-    "@std/assert": "jsr:@std/assert@^1",
-    "@std/expect": "jsr:@std/expect@^1.0.18",
-    "@std/testing": "jsr:@std/testing@^1.0.17",
     "drizzle-orm": "npm:drizzle-orm@^0.45.1",
-    "drizzle-kit": "npm:drizzle-kit@^0.31.1",
+    "better-sqlite3": "npm:better-sqlite3@11.10.0",
+    "typescript": "npm:typescript@5.9.3",
     "@ts-rex/argon2": "jsr:@ts-rex/argon2@^1.0.3",
     "jsmodbus": "npm:jsmodbus@^4",
     "oauth4webapi": "npm:oauth4webapi@^3",
     "zod": "npm:zod@^3.24"
-  },
-  "lint": {
-    "plugins": [
-      "./devtools/lint-plugins/function-length.ts",
-      "./devtools/lint-plugins/expression-complexity.ts",
-      "./devtools/lint-plugins/no-swallowed-catch.ts",
-      "./devtools/lint-plugins/no-select-side-effects.ts",
-      "./devtools/lint-plugins/no-param-mutation.ts",
-      "./devtools/lint-plugins/no-imperative-loops.ts",
-      "./devtools/lint-plugins/no-let.ts",
-      "./devtools/lint-plugins/no-foreach-mutation.ts",
-      "./devtools/lint-plugins/no-plugin-refs.ts",
-      "./devtools/lint-plugins/no-main-trpc.ts",
-      "./devtools/lint-plugins/no-main-imports.ts",
-      "./devtools/lint-plugins/no-trailing-underscore-param.ts",
-      "./devtools/lint-plugins/no-server-trpc-caller.ts",
-      "./devtools/lint-plugins/no-test-globals.ts",
-      "./devtools/lint-plugins/test-file-length.ts"
-    ],
-    "rules": {
-      "tags": ["recommended"],
-      "include": ["no-non-null-assertion"]
-    },
-    "exclude": [
-      "**/coverage/",
-      "**/dist/",
-      "**/node_modules/",
-      "scripts/",
-      "**/.vite/",
-      "devtools/",
-      "packages/shared/engine/ControllerEngine.test.ts"
-    ]
-  },
-  "fmt": {
-    "exclude": [
-      "**/coverage/",
-      "**/dist/",
-      "**/node_modules/",
-      "scripts/",
-      "**/.vite/"
-    ]
   }
 }

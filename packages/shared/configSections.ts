@@ -344,15 +344,20 @@ export const internalConfigDef = defineSection({
     schema: z.enum(["none", "local", "oidc"]),
     default: "none" as const,
   },
+  externalChargingVehicles: {
+    key: "external_charging_vehicles",
+    schema: z.record(z.boolean()),
+    default: {} as Record<string, boolean>,
+  },
+  oscillationPaused: {
+    key: "oscillation_paused",
+    schema: z.boolean(),
+    default: false,
+  },
   oscillationTripAt: {
     key: "oscillation_trip_at",
     schema: z.string(),
     default: "",
-  },
-  chargingDisabledReason: {
-    key: "charging_disabled_reason",
-    schema: z.enum(["none", "user", "safety_trip"]),
-    default: "none" as const,
   },
   wizardStep: {
     key: "wizard_step",

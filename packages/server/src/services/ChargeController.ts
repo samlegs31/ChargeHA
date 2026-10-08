@@ -1,3 +1,4 @@
+import { externalChargingVehicles } from "./ExternalCharging.ts";
 import { BatteryScheduleMemory } from "./BatteryScheduleMemory.ts";
 import {
   type ControllerAction,
@@ -26,7 +27,7 @@ import type {
   ScheduleRow,
   VehicleRow,
 } from "../db/types.ts";
-import type { VehicleManager } from "./VehicleManager.ts";
+import type { CommandResult, VehicleManager } from "./VehicleManager.ts";
 import type { EnergyPoller } from "./EnergyPoller.ts";
 import type { TypedEventEmitter } from "./TypedEventEmitter.ts";
 import type { ConfigService } from "./ConfigService.ts";
@@ -155,7 +156,10 @@ export class ChargeController {
     const traceId = createTraceId();
     const timestamp = Date.now();
     const config = await this.loadConfig();
-    const vehicles = await this.db.getVehicles();
+    const external = await externalChargingVehicles(this.db);
+    const vehicles = (await this.db.getVehicles()).filter((v) =>
+      !external.has(v.id)
+    );
     const schedules = await this.db.getSchedules();
     const energySnapshot = this.poller.tryGetRealtimeSnapshot();
     const now = new Date(timestamp);
@@ -217,7 +221,7 @@ export class ChargeController {
       }),
     );
 
-    const output = this.decideWithRuntimeProtection(
+    const engineOutput = this.decideWithRuntimeProtection(
       config,
       schedules,
       engineVehicles,
@@ -225,6 +229,10 @@ export class ChargeController {
       now,
       timestamp,
       energyAvailability,
+    );
+    const output = this.applyVehicleAvailabilityStops(
+      engineOutput,
+      engineVehicles,
     );
 
     await this.scheduleMemory.persist(
@@ -234,7 +242,6 @@ export class ChargeController {
       config.timezone,
     );
 
-    // Execute decisions, build log entries, emit events
     const logEntries: ControllerLogInput[] = await vehicles.reduce(
       async (prevPromise, vehicle) => {
         const acc = await prevPromise;
@@ -257,6 +264,35 @@ export class ChargeController {
 
     await this.finishLoop(logEntries);
     return config;
+  }
+
+  /** A failed vehicle refresh must not leave an automatic charge running from
+   *  an indefinitely stale snapshot. Explicit Charge Now remains authoritative. */
+  private applyVehicleAvailabilityStops(
+    output: EngineOutput,
+    vehicles: EngineVehicleInput[],
+  ): EngineOutput {
+    const decisions = vehicles.reduce((acc, vehicle) => {
+      const error = this.vehicleManager.getVehicleError(vehicle.id);
+      const automaticMode = vehicle.mode === "auto" ||
+        vehicle.mode === "vacation";
+      if (
+        !this.vehicleManager.hasVehicleFetchError(vehicle.id) || !error ||
+        !automaticMode ||
+        vehicle.state?.isCharging !== true
+      ) return acc;
+
+      const previous = output.decisions.get(vehicle.id);
+      acc.set(vehicle.id, {
+        action: "stop",
+        reason: "vehicle_unavailable",
+        detail: `Stop — vehicle state refresh failed: ${error.message}`,
+        targetAmps: null,
+        checks: previous?.checks ?? [],
+      });
+      return acc;
+    }, new Map(output.decisions));
+    return { ...output, decisions };
   }
 
   private logLoop(
@@ -605,29 +641,34 @@ export class ChargeController {
     decision: VehicleDecision,
     state: VehicleChargeState | null,
     traceId: string,
-  ): Promise<void> {
-    if (!state) return;
+  ): Promise<CommandResult | null> {
+    if (decision.action === "none") return null;
+    if (!state) {
+      return { success: false, error: "Vehicle state unavailable" };
+    }
 
     const ctx = { origin: `controller:${decision.reason}`, traceId };
     switch (decision.action) {
       case "start":
       case "adjust_amps":
         if (decision.targetAmps !== null) {
-          await this.vehicleManager.startChargingAt(
+          return await this.vehicleManager.startChargingAt(
             vehicleId,
             decision.targetAmps,
             ctx,
             state,
           );
         }
-        break;
+        return { success: false, error: "Missing target amperage" };
       case "stop":
-        await this.vehicleManager.stopCharging(
+        // Safety STOPs must bypass a backoff created by an earlier START or
+        // SET failure. The stop command maintains its own failure reporting.
+        return await this.vehicleManager.stopCharging(
           vehicleId,
           ctx,
           state,
+          { force: true },
         );
-        break;
     }
   }
 
@@ -647,7 +688,17 @@ export class ChargeController {
     const state = await this.vehicleManager.getState(vehicle.id);
     const preState = state;
 
-    await this.executeDecision(vehicle.id, decision, state, traceId);
+    const commandResult = await this.executeDecision(
+      vehicle.id,
+      decision,
+      state,
+      traceId,
+    );
+    const commandFailed = commandResult?.success === false;
+    const commandFailureDetail = `Command not executed — ${
+      commandResult?.error ?? "unknown error"
+    }; ${decision.detail}`;
+    const actionDetail = commandFailed ? commandFailureDetail : decision.detail;
 
     const inputs = this.buildInputsSnapshot(
       state,
@@ -679,9 +730,9 @@ export class ChargeController {
       mode: vehicle.mode,
       inputs,
       checks,
-      action: decision.action,
+      action: commandFailed ? "none" : decision.action,
       reason: decision.reason,
-      actionDetail: decision.detail,
+      actionDetail,
       targetAmps: decision.targetAmps,
       suspendable: decision.suspendable,
       scheduleLimitContext: decision.scheduleLimitContext,
@@ -932,18 +983,20 @@ export class ChargeController {
   }
 
   private async loadConfig(): Promise<ControllerConfig> {
-    const [charging, solar, battery, system] = await Promise.all([
-      this.configService.getCharging(),
-      this.configService.getSolar(),
-      this.configService.getBattery(),
-      this.configService.getSystem(),
-    ]);
+    const [charging, solar, battery, system, oscillationPaused] = await Promise
+      .all([
+        this.configService.getCharging(),
+        this.configService.getSolar(),
+        this.configService.getBattery(),
+        this.configService.getSystem(),
+        this.db.getConfig("oscillation_paused"),
+      ]);
 
     return {
       vehicleCurrentLimits: charging.vehicleCurrentLimits,
       maxGridImportKw: charging.maxGridImportKw,
       chargingEnabled: charging.chargingEnabled,
-      chargingDisabledReason: charging.chargingDisabledReason,
+      oscillationPaused: oscillationPaused === "true",
       controllerLoopSeconds: system.controllerLoopSeconds,
       solarTrackingEnabled: solar.solarTrackingEnabled,
       solarTrackingMode: solar.solarTrackingMode,

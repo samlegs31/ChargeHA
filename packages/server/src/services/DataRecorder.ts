@@ -1,3 +1,4 @@
+import { externalChargingVehicles } from "./ExternalCharging.ts";
 import type { EnergyData } from "@chargeha/shared";
 import type { AppDatabase } from "../db/AppDatabase.ts";
 import type { VehicleManager } from "./VehicleManager.ts";
@@ -120,8 +121,15 @@ export class DataRecorder {
     const allStates = await this.vehicleManager.getAllStates();
     if (allStates.size === 0) return;
 
+    const external = await externalChargingVehicles(this.db);
+    // Never extrapolate old cached power for a car we deliberately do not poll.
+    const observedStates = [...allStates].filter(([id, state]) =>
+      !external.has(id) || (Number.isFinite(Date.parse(state.lastUpdated)) &&
+        Date.now() - Date.parse(state.lastUpdated) <= 120_000)
+    );
+
     // Collect charging vehicles and their power
-    const activeStates = [...allStates]
+    const activeStates = observedStates
       .filter(([_, state]) => state.isCharging && state.chargePowerKw > 0);
     if (activeStates.length === 0) return;
 

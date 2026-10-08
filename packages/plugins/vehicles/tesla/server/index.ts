@@ -1,3 +1,4 @@
+import { probeTeslaProxy } from "./ProxyHealth.ts";
 /// <reference lib="deno.ns" />
 import { TRPCError } from "@trpc/server";
 import type { Hono } from "hono";
@@ -41,11 +42,9 @@ export async function checkTeslaProxyHealth(
   try {
     const proxyUrlStr = (await deps.getConfig("proxy_url")) ??
       DEFAULT_PROXY_URL;
-    const url = new URL(proxyUrlStr);
-    const port = parseInt(url.port || "4443", 10);
-    const conn = await Deno.connect({ hostname: url.hostname, port });
-    conn.close();
-    return { status: "ok" };
+    return await probeTeslaProxy(proxyUrlStr)
+      ? { status: "ok" }
+      : { status: "error", message: "Tesla proxy not reachable" };
   } catch {
     return { status: "error", message: "Tesla proxy not reachable" };
   }

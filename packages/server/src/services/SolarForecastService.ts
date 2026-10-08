@@ -395,7 +395,6 @@ export class SolarForecastService {
       vehicleCurrentLimits: charging.vehicleCurrentLimits,
       maxGridImportKw: charging.maxGridImportKw,
       chargingEnabled: charging.chargingEnabled,
-      chargingDisabledReason: charging.chargingDisabledReason,
       controllerLoopSeconds: system.controllerLoopSeconds,
       solarTrackingEnabled: solar.solarTrackingEnabled,
       solarTrackingMode: solar.solarTrackingMode,
