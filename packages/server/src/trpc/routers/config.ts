@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { publicProcedure, router } from "../trpc.ts";
 import {
   batteryConfigInput,
@@ -19,9 +20,6 @@ import {
 
 const chargingRouter = router({
   get: publicProcedure.query(({ ctx }) => ctx.configService.getCharging()),
-  resetSafetyStop: publicProcedure.mutation(({ ctx }) =>
-    ctx.configService.resetSafetyStop()
-  ),
   set: publicProcedure
     .input(chargingConfigInput)
     .mutation(({ ctx, input }) => ctx.configService.setCharging(input)),
@@ -88,6 +86,19 @@ export const configRouter = router({
   equipment: equipmentRouter,
   system: systemRouter,
   notification: notificationRouter,
+
+  externalCharging: router({
+    get: publicProcedure.input(z.object({ vehicleId: z.string().min(1) }))
+      .query(({ ctx, input }) =>
+        ctx.configService.getExternalCharging(input.vehicleId)
+      ),
+    set: publicProcedure.input(
+      z.object({ vehicleId: z.string().min(1), external: z.boolean() }),
+    )
+      .mutation(({ ctx, input }) =>
+        ctx.configService.setExternalCharging(input.vehicleId, input.external)
+      ),
+  }),
 
   // System alert (from internal config section)
   systemAlert: publicProcedure.query(({ ctx }) =>

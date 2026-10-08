@@ -1,3 +1,5 @@
+import { externalChargingVehicles } from "./ExternalCharging.ts";
+import { ServiceError } from "../lib/ServiceError.ts";
 import type { AppDatabase } from "../db/AppDatabase.ts";
 import {
   type BatteryConfig,
@@ -38,6 +40,38 @@ export class ConfigService {
     private logger: Logger,
   ) {}
 
+  private ownershipWrites: Promise<unknown> = Promise.resolve();
+
+  async getExternalCharging(vehicleId: string) {
+    const vehicle = await this.db.getVehicle(vehicleId);
+    if (!vehicle) throw new ServiceError("Vehicle not found", "NOT_FOUND");
+    const external = (await externalChargingVehicles(this.db)).has(vehicleId);
+    return {
+      external,
+      label: external
+        ? "Controlled by an external charger"
+        : "Controlled by E.V. Solar",
+    };
+  }
+
+  setExternalCharging(vehicleId: string, external: boolean) {
+    const write = this.ownershipWrites.then(async () => {
+      if (!await this.db.getVehicle(vehicleId)) {
+        throw new ServiceError("Vehicle not found", "NOT_FOUND");
+      }
+      const ids = await externalChargingVehicles(this.db);
+      if (external) ids.add(vehicleId);
+      else ids.delete(vehicleId);
+      await this.db.setConfig(
+        "external_charging_vehicles",
+        JSON.stringify(Object.fromEntries([...ids].map((id) => [id, true]))),
+      );
+      return this.getExternalCharging(vehicleId);
+    });
+    this.ownershipWrites = write.catch(() => undefined);
+    return write;
+  }
+
   // ── Generic section helpers ────────────────────────────────────────────
 
   /** Read raw string values for a section's DB keys. */
@@ -67,41 +101,9 @@ export class ConfigService {
 
   // ── Typed section getters ──────────────────────────────────────────────
 
-  async getCharging(): Promise<
-    ChargingConfig & {
-      chargingDisabledReason: InternalConfig["chargingDisabledReason"];
-    }
-  > {
-    const [raw, disabledReasonRaw, legacyTripAt] = await Promise.all([
-      this.readSectionRaw(sectionDbKeys(chargingConfigDef)),
-      this.db.getConfig("charging_disabled_reason"),
-      this.db.getConfig("oscillation_trip_at"),
-    ]);
-    const charging = deserializeSection(chargingConfigDef, raw);
-    const internal = deserializeSection(internalConfigDef, {
-      charging_disabled_reason: disabledReasonRaw,
-    });
-    const chargingDisabledReason = this.resolveChargingDisabledReason(
-      charging.chargingEnabled,
-      disabledReasonRaw,
-      legacyTripAt,
-      internal.chargingDisabledReason,
-    );
-    return {
-      ...charging,
-      chargingDisabledReason,
-    };
-  }
-
-  private resolveChargingDisabledReason(
-    chargingEnabled: boolean,
-    disabledReasonRaw: string | null,
-    legacyTripAt: string | null,
-    parsedReason: InternalConfig["chargingDisabledReason"],
-  ): InternalConfig["chargingDisabledReason"] {
-    if (disabledReasonRaw !== null || chargingEnabled) return parsedReason;
-    if (legacyTripAt) return "safety_trip";
-    return "user";
+  async getCharging(): Promise<ChargingConfig> {
+    const raw = await this.readSectionRaw(sectionDbKeys(chargingConfigDef));
+    return deserializeSection(chargingConfigDef, raw);
   }
 
   async getSolar(): Promise<SolarConfig> {
@@ -158,25 +160,9 @@ export class ConfigService {
 
   // ── Typed section setters ──────────────────────────────────────────────
 
-  async setCharging(input: Partial<ChargingConfig>): Promise<void> {
+  setCharging(input: Partial<ChargingConfig>): Promise<void> {
     const kvPairs = serializeSection(chargingConfigDef, input);
-    if (input.chargingEnabled === undefined) {
-      await this.writeSectionRaw(kvPairs);
-      return;
-    }
-
-    if (input.chargingEnabled) {
-      // Re-enabling is the explicit acknowledgement/reset of a safety stop.
-      // Keep the trip authoritative until charging_enabled is safely restored.
-      await this.writeSectionRaw(kvPairs);
-      await this.db.setConfig("charging_disabled_reason", "none");
-      return;
-    }
-
-    // Record a voluntary pause before disabling automation. A concurrent
-    // controller loop still sees charging enabled until the pause is stored.
-    await this.db.setConfig("charging_disabled_reason", "user");
-    await this.writeSectionRaw(kvPairs);
+    return this.writeSectionRaw(kvPairs);
   }
 
   setSolar(input: Partial<SolarConfig>): Promise<void> {
@@ -238,20 +224,17 @@ export class ConfigService {
     return internal.systemAlert;
   }
 
-  /** Clear the system alert. */
+  /** Acknowledge the safety pause without changing the user charging switch. */
   async dismissSystemAlert(): Promise<{ success: boolean }> {
-    await this.db.setConfig("system_alert", "");
-    return { success: true };
-  }
-
-  /** Explicitly acknowledge a safety stop without changing the user's switch. */
-  async resetSafetyStop(): Promise<{ success: boolean }> {
-    const charging = await this.getCharging();
-    if (charging.chargingDisabledReason === "safety_trip") {
+    if (await this.db.getConfig("oscillation_paused") === "true") {
+      // Ignore transitions made during the pause when acknowledging it.
       await this.db.setConfig(
-        "charging_disabled_reason",
-        charging.chargingEnabled ? "none" : "user",
+        "oscillation_trip_at",
+        new Date().toISOString().replace("T", " ").replace(/\.\d+Z$/, ""),
       );
+      await this.db.setConfig("system_alert", "");
+      await this.db.setConfig("oscillation_paused", "false");
+    } else {
       await this.db.setConfig("system_alert", "");
     }
     return { success: true };
@@ -272,11 +255,6 @@ export class ConfigService {
         await this.db.storeSecret(key, value);
       }
       return { key, value: value ? SECRET_MASK : "" };
-    }
-
-    if (key === "charging_enabled") {
-      await this.setCharging({ chargingEnabled: value === "true" });
-      return { key, value };
     }
 
     await this.db.setConfig(key, value);

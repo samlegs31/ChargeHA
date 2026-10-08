@@ -1,3 +1,4 @@
+import { isExternallyControlled } from "./ExternalCharging.ts";
 import { CommandPowerGuard, type GuardEnergy } from "./CommandPowerGuard.ts";
 import type {
   AdapterVehicleChargeState,
@@ -220,6 +221,14 @@ export class VehicleManager {
     const entry = this.vehicles.get(vehicleId);
     if (!entry) return null;
 
+    // Background observation must not wake or keep an externally managed car awake.
+    if (
+      !(context.origin.startsWith("user:") && context.forceRefresh) &&
+      await isExternallyControlled(this.db, vehicleId)
+    ) {
+      return this.getState(vehicleId);
+    }
+
     try {
       const raw = await entry.middleware.requestState(context);
       if (!raw) return null;
@@ -317,6 +326,15 @@ export class VehicleManager {
     state: VehicleChargeState,
     { force = false } = {},
   ): Promise<CommandResult> {
+    if (
+      !ctx.origin.startsWith("user:") &&
+      await isExternallyControlled(this.db, vehicleId)
+    ) {
+      return {
+        success: false,
+        error: "Charging is controlled by an external charger",
+      };
+    }
     const entry = this.vehicles.get(vehicleId);
     if (!entry) return { success: false, error: "Vehicle not registered" };
 
@@ -349,7 +367,12 @@ export class VehicleManager {
       }
       const clampedAmps = permitted;
 
-      const ampsChanged = state.chargeAmps !== clampedAmps;
+      const actualAmps = state.chargeAmpsActual;
+      const measuredAmpsAvailable = actualAmps !== undefined && actualAmps > 0;
+      const measuredAmpsMismatch = measuredAmpsAvailable &&
+        actualAmps !== clampedAmps;
+      const ampsChanged = state.chargeAmps !== clampedAmps ||
+        measuredAmpsMismatch;
 
       // Set amps first (whether or not currently charging)
       if (ampsChanged) {
@@ -415,6 +438,15 @@ export class VehicleManager {
     state: VehicleChargeState,
     { force = false } = {},
   ): Promise<CommandResult> {
+    if (
+      !ctx.origin.startsWith("user:") &&
+      await isExternallyControlled(this.db, vehicleId)
+    ) {
+      return {
+        success: false,
+        error: "Charging is controlled by an external charger",
+      };
+    }
     const entry = this.vehicles.get(vehicleId);
     if (!entry) return { success: false, error: "Vehicle not registered" };
 
@@ -462,6 +494,15 @@ export class VehicleManager {
     percent: number,
     ctx: CallContext,
   ): Promise<CommandResult> {
+    if (
+      !ctx.origin.startsWith("user:") &&
+      await isExternallyControlled(this.db, vehicleId)
+    ) {
+      return {
+        success: false,
+        error: "Charging is controlled by an external charger",
+      };
+    }
     const entry = this.vehicles.get(vehicleId);
     if (!entry) return { success: false, error: "Vehicle not registered" };
 
@@ -582,6 +623,10 @@ export class VehicleManager {
     const stored = this.vehicleErrors.get(vehicleId);
     if (!stored) return null;
     return { message: stored.message, at: stored.at };
+  }
+
+  hasVehicleFetchError(vehicleId: string): boolean {
+    return this.vehicleErrors.get(vehicleId)?.source === "fetch";
   }
 
   /** Check whether commands for this vehicle are backed off due to repeated failures. */

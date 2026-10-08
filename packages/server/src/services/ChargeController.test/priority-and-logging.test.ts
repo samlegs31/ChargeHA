@@ -94,7 +94,7 @@ describe("ChargeController — priority + logging + lifecycle", () => {
       });
     });
 
-    it("logs a voluntary pause when charging is disabled by the user", async () => {
+    it("logs 'Charging disabled' when charging is disabled", async () => {
       ctx = await setupController({}, "auto", BASE_ENERGY, {
         charging_enabled: "false",
       });
@@ -102,7 +102,7 @@ describe("ChargeController — priority + logging + lifecycle", () => {
 
       const log = await ctx.getLastLogParsed();
       expect(log?.action).toBe("none");
-      expect(log?.actionDetail).toBe("Automatic charging paused by user");
+      expect(log?.actionDetail).toBe("Charging disabled");
     });
   });
 

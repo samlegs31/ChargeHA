@@ -46,24 +46,30 @@ export class ControllerEngine {
       runtimeConfigOverrides,
       blockedChargeScheduleIdsByVehicle,
     } = input;
-    if (config.chargingDisabledReason === "safety_trip") {
-      return this.decideSafetyTrip(input);
-    }
-
-    if (!config.chargingEnabled) {
+    if (!config.chargingEnabled || config.oscillationPaused) {
+      const pauseDetail = config.oscillationPaused
+        ? "Safety pause — acknowledge the Dashboard alert to resume"
+        : "Charging disabled";
       const decisions = new Map(
         vehicles.map((vehicle): [string, VehicleDecision] => {
           // The global switch disables automation, but it must never weaken an
-          // explicit STOP. This also catches a charge restarted externally
-          // while E.V Solar automation is disabled.
-          const enforceStop = vehicle.mode === "stop" &&
+          // explicit STOP or leave an automatic solar charge running.
+          const automaticMode = vehicle.mode === "auto" ||
+            vehicle.mode === "vacation";
+          const enforceStop = (vehicle.mode === "stop" || automaticMode) &&
             vehicle.state?.isCharging === true;
+          const stopReason = vehicle.mode === "stop"
+            ? "mode_stop" as const
+            : "charging_disabled" as const;
+          const stopDetail = vehicle.mode === "stop"
+            ? "Stop — mode set to stop"
+            : config.oscillationPaused
+            ? `Stop — ${pauseDetail}`
+            : "Stop — automatic charging disabled";
           return [vehicle.id, {
             action: enforceStop ? "stop" : "none",
-            reason: enforceStop ? "mode_stop" : "charging_disabled",
-            detail: enforceStop
-              ? "Stop — mode set to stop"
-              : "Automatic charging paused by user",
+            reason: enforceStop ? stopReason : "charging_disabled",
+            detail: enforceStop ? stopDetail : pauseDetail,
             targetAmps: null,
             checks: [],
           }];
@@ -134,52 +140,6 @@ export class ControllerEngine {
     return {
       decisions: applyElectricalLimits(input, decisions),
       controlStates: this.controlStates,
-    };
-  }
-
-  private decideSafetyTrip(input: EngineInput): EngineOutput {
-    const decisions = new Map(
-      input.vehicles.map((vehicle): [string, VehicleDecision] => [
-        vehicle.id,
-        this.safetyTripDecision(vehicle),
-      ]),
-    );
-    return {
-      decisions: applyElectricalLimits(input, decisions),
-      controlStates: this.controlStates,
-    };
-  }
-
-  private safetyTripDecision(vehicle: EngineVehicleInput): VehicleDecision {
-    const isCharging = vehicle.state?.isCharging === true;
-    if (vehicle.mode === "stop") {
-      return {
-        action: isCharging ? "stop" : "none",
-        reason: "mode_stop",
-        detail: "Stop — mode set to stop",
-        targetAmps: null,
-        checks: [],
-      };
-    }
-
-    if (vehicle.mode === "auto" || vehicle.mode === "vacation") {
-      return {
-        action: isCharging ? "stop" : "none",
-        reason: "safety_trip",
-        detail: isCharging
-          ? "Safety stop — automatic solar charging interrupted"
-          : "Safety stop active — automatic solar charging paused",
-        targetAmps: null,
-        checks: [],
-      };
-    }
-
-    return {
-      action: "none",
-      reason: "safety_trip",
-      detail: "Safety stop active — manual Charge Now remains in control",
-      targetAmps: null,
-      checks: [],
     };
   }
 
@@ -977,7 +937,11 @@ export class ControllerEngine {
         stateUpdates,
       };
     }
-    if (state.chargeAmps !== debouncedAmps) {
+    const actualAmps = state.chargeAmpsActual;
+    const measuredAmpsAvailable = actualAmps !== undefined && actualAmps > 0;
+    const measuredAmpsMismatch = measuredAmpsAvailable &&
+      actualAmps !== debouncedAmps;
+    if (state.chargeAmps !== debouncedAmps || measuredAmpsMismatch) {
       return {
         decision: {
           action: "adjust_amps",
@@ -1268,26 +1232,30 @@ export class ControllerEngine {
       return { amps: targetAmps, pendingAmps: null, pendingSince: null };
     }
 
-    // Small change — debounce until target is stable
-    if (controlState.pendingAmps !== targetAmps) {
-      return {
-        amps: currentAmps,
-        pendingAmps: targetAmps,
-        pendingSince: timestamp,
-      };
-    }
+    // Small change — debounce the direction of travel rather than requiring
+    // one exact target. Solar targets commonly alternate by 1A; restarting the
+    // timer for every such step could otherwise hold the vehicle indefinitely.
+    const pendingDelta = (controlState.pendingAmps ?? currentAmps) -
+      currentAmps;
+    const targetDelta = targetAmps - currentAmps;
+    const samePendingDirection = controlState.pendingAmps !== null &&
+      Math.sign(pendingDelta) === Math.sign(targetDelta);
+    const pendingSince = samePendingDirection
+      ? controlState.pendingSince ?? timestamp
+      : timestamp;
 
-    // Target has been stable — check if long enough
+    // The target has stayed on the same side of the current setting — check
+    // whether that demand has lasted long enough.
     const settleMs = config.ampDebounceSettleMinutes * 60_000;
-    const elapsed = timestamp - (controlState.pendingSince ?? timestamp);
+    const elapsed = timestamp - pendingSince;
     if (elapsed >= settleMs) {
       return { amps: targetAmps, pendingAmps: null, pendingSince: null };
     }
 
     return {
       amps: currentAmps,
-      pendingAmps: controlState.pendingAmps,
-      pendingSince: controlState.pendingSince,
+      pendingAmps: targetAmps,
+      pendingSince,
     };
   }
 }

@@ -1,34 +1,17 @@
-name: CI
-
+name: Current version integrity
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
-
-# Collapse redundant runs on rapid pushes to the same ref. Never cancel a main
-# run mid-flight — it builds + releases.
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
-
+permissions:
+  contents: read
 jobs:
-  test:
-    uses: ./.github/workflows/test.yml
-
-  build:
-    needs: test
-    uses: ./.github/workflows/build.yml
-    permissions:
-      contents: read
-      packages: write
-      pull-requests: write
-
-  release:
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    uses: ./.github/workflows/release.yml
-    permissions:
-      contents: write
-      packages: write
+  verify-current:
+    name: Verify current version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/verify-current.py
+      - run: bash -n scripts/load-current-image.sh

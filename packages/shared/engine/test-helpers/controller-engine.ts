@@ -9,7 +9,6 @@ export const makeConfig = (
   overrides?: Partial<ControllerConfig>,
 ): ControllerConfig => ({
   chargingEnabled: true,
-  chargingDisabledReason: "none",
   controllerLoopSeconds: 10,
   solarTrackingEnabled: true,
   solarTrackingMode: "solar_only",

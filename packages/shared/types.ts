@@ -48,6 +48,9 @@ export interface VehicleChargeState {
   isPluggedIn: boolean; // Cable connected
   isOnline: boolean; // Vehicle is reachable
   chargeAmps: number; // Current charge amperage
+  /** Measured AC input current when the adapter exposes it. `chargeAmps`
+   *  remains the requested control setting. */
+  chargeAmpsActual?: number;
   chargeAmpsMax: number; // Maximum available amps
   chargeAmpsMin: number; // Minimum charge amps (hardware limit)
   chargePowerKw: number; // Current charge power in kW

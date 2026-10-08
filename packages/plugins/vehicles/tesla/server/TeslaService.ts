@@ -1,3 +1,4 @@
+import { createProxyHealthProbe, probeTeslaProxy } from "./ProxyHealth.ts";
 /// <reference lib="deno.ns" />
 import { TRPCError } from "@trpc/server";
 import { inSequence, sleep } from "@chargeha/shared/async";
@@ -30,6 +31,7 @@ export class TeslaService {
   private readonly tokenManager: TeslaTokenManager;
   private readonly logger: Logger;
   private readonly io: TeslaServiceIo;
+  private readonly probeProxy: (url: string) => Promise<boolean>;
 
   constructor(
     deps: PluginDependencies,
@@ -41,6 +43,7 @@ export class TeslaService {
     this.tokenManager = tokenManager;
     this.logger = logger;
     this.io = io;
+    this.probeProxy = io.fetch === globalThis.fetch ? probeTeslaProxy : createProxyHealthProbe(io.fetch);
   }
 
   /** List vehicles from Tesla Fleet API. */
@@ -260,16 +263,7 @@ export class TeslaService {
     }
     const proxyUrlStr = (await this.deps.getConfig("proxy_url")) ??
       "https://localhost:4443";
-    const proxyUrl = new URL(proxyUrlStr);
-    const hostname = proxyUrl.hostname;
-    const port = parseInt(proxyUrl.port || "4443", 10);
-    try {
-      const conn = await this.io.connect({ hostname, port });
-      conn.close();
-      return { teslaConfigured: true, proxyReachable: true };
-    } catch {
-      return { teslaConfigured: true, proxyReachable: false };
-    }
+    return { teslaConfigured: true, proxyReachable: await this.probeProxy(proxyUrlStr) };
   }
 
   private async readChargeLimit(
@@ -330,15 +324,7 @@ export class TeslaService {
     const proxyUrl = (await this.deps.getConfig("proxy_url")) ??
       "https://localhost:4443";
 
-    // Check proxy is reachable first
-    const proxyUrlParsed = new URL(proxyUrl);
-    try {
-      const conn = await this.io.connect({
-        hostname: proxyUrlParsed.hostname,
-        port: parseInt(proxyUrlParsed.port || "4443", 10),
-      });
-      conn.close();
-    } catch {
+    if (!await this.probeProxy(proxyUrl)) {
       return { paired: null, error: "Proxy not reachable" };
     }
 
