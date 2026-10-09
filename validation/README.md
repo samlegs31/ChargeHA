@@ -1,4 +1,19 @@
-# Dernière étape : revue consolidée
+# État actuel : déployé sur Raspberry et publié sur GitHub
+
+[Déploiement du 9 octobre](DEPLOYMENT-20261009.md) explicitement autorisé : backend
+`352986b`, image ARM64 assemblée depuis la base exacte, frontend conservé.
+Contrôle natif Deno 2.9.4 et démarrage isolé réussis ; production healthy, base OK,
+465 empreintes conformes. Friday configuré à **22 A en solaire**, modes et choix
+manuels préservés. Sauvegardes privées et ancien conteneur conservés.
+
+[PR #87](https://github.com/samlegs31/ChargeHA/pull/87) publiée en **Draft**, aucun
+merge. Le contrôle candidat passe ; le contrôle de la version figée reste rouge.
+Le champ du plafond solaire à l'écran reste à ajouter. Les bilans ci-dessous
+correspondent aux étapes antérieures au déploiement.
+
+---
+
+# Étape précédente : revue consolidée
 
 Voir [la revue complète du 9 octobre](REVIEW-20261009.md) : changements relus,
 protections vérifiées, deux journées simulées et limites restantes explicites.
