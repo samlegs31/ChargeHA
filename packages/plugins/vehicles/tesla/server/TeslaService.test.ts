@@ -87,8 +87,15 @@ describe("TeslaService", () => {
       ? () => Promise.resolve({ close: () => {} })
       : () => Promise.reject(new Error("Connection refused"));
     return {
-      fetch: (input: string | URL | Request, init?: RequestInit) =>
-        Promise.resolve(fetchHandler(extractUrl(input), init)),
+      fetch: (input: string | URL | Request, init?: RequestInit) => {
+        const url = extractUrl(input);
+        if (url === "https://localhost:4443/health") {
+          return connectResult === "success"
+            ? Promise.resolve(new Response("ok", { status: 200 }))
+            : Promise.reject(new Error("Health probe failed"));
+        }
+        return Promise.resolve(fetchHandler(url, init));
+      },
       connect: mockConnect as unknown as typeof Deno.connect,
       wakePollDelayMs: 0,
       wakePollAttempts: 3,
@@ -425,7 +432,7 @@ describe("TeslaService", () => {
       expect(result).toEqual({ teslaConfigured: false, proxyReachable: false });
     });
 
-    it("returns reachable when connect succeeds", async () => {
+    it("returns reachable when HTTP health succeeds", async () => {
       const service = makeService({
         deps: {
           getVehicleRows: () => Promise.resolve([VEHICLE_ROW]),
@@ -440,7 +447,7 @@ describe("TeslaService", () => {
       expect(result).toEqual({ teslaConfigured: true, proxyReachable: true });
     });
 
-    it("returns not reachable when connect fails", async () => {
+    it("returns not reachable when HTTP health fails", async () => {
       const service = makeService({
         deps: {
           getVehicleRows: () => Promise.resolve([VEHICLE_ROW]),
@@ -474,7 +481,7 @@ describe("TeslaService", () => {
       expect(result.error).toBe("No Tesla vehicle configured");
     });
 
-    it("returns proxy not reachable when connect fails", async () => {
+    it("returns proxy not reachable when HTTP health fails", async () => {
       const service = makeService({
         deps: depsWithVehicle(),
         io: mockIo(() => new Response("", { status: 200 }), "fail"),

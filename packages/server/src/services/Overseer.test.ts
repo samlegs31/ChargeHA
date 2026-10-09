@@ -7,6 +7,7 @@ import { TypedEventEmitter } from "./TypedEventEmitter.ts";
 import type { EventMap } from "./TypedEventEmitter.ts";
 import { Overseer } from "./Overseer.ts";
 import { Logger } from "../lib/Logger.ts";
+import { makeState } from "../../../shared/engine/test-helpers/controller-engine.ts";
 import { testable } from "../test-helpers/Testable.ts";
 
 describe("Overseer", () => {
@@ -16,6 +17,9 @@ describe("Overseer", () => {
   let eventEmitter: TypedEventEmitter;
   let safetyTrips: Array<EventMap["safety_trip"]>;
   let overseer: Overseer;
+  let stopCalls: number;
+  let stopSuccess: boolean;
+  let missingState: boolean;
 
   beforeEach(async () => {
     db = new AppDatabase(":memory:");
@@ -23,7 +27,22 @@ describe("Overseer", () => {
     eventEmitter = new TypedEventEmitter();
     safetyTrips = [];
     eventEmitter.subscribe("safety_trip", (data) => safetyTrips.push(data));
-    overseer = new Overseer(db, eventEmitter, testLogger);
+    stopCalls = 0;
+    stopSuccess = true;
+    missingState = false;
+    await db.setConfig("charging_enabled", "true");
+    overseer = new Overseer(db, eventEmitter, testLogger, {
+      getState: () =>
+        Promise.resolve(missingState ? null : makeState({ isCharging: true })),
+      stopCharging: (_id, _ctx, _state, options) => {
+        expect(options?.force).toBe(true);
+        stopCalls++;
+        return Promise.resolve({
+          success: stopSuccess,
+          error: stopSuccess ? undefined : "Tesla refused STOP",
+        });
+      },
+    });
   });
 
   afterEach(() => {
@@ -67,7 +86,7 @@ describe("Overseer", () => {
 
       // Charging should still be enabled
       const enabled = await db.getConfig("charging_enabled");
-      expect(enabled).toBeNull(); // not set means default true
+      expect(enabled).toBe("true");
     });
 
     it("trips when transitions exceed limit and last action is stop", async () => {
@@ -83,9 +102,10 @@ describe("Overseer", () => {
 
       await testable(overseer).check();
 
-      // Should have disabled charging
+      // Safety latch must not change the user switch
       const enabled = await db.getConfig("charging_enabled");
-      expect(enabled).toBe("false");
+      expect(enabled).toBe("true");
+      expect(await db.getConfig("oscillation_paused")).toBe("true");
 
       // Should have set system alert
       const alertRaw = await db.getConfig("system_alert");
@@ -101,8 +121,8 @@ describe("Overseer", () => {
       expect(safetyTrips[0].cycles).toBeGreaterThan(0);
     });
 
-    it("does not trip when transitions exceed limit but last action is start", async () => {
-      // Oscillating but vehicle is currently charging — wait for it to stop
+    it("stops an actively charging vehicle when oscillation trips", async () => {
+      // Oscillation requires a real STOP even when the last action was START.
       await seedStateChanges("VIN1", "Car 1", [
         "start",
         "stop",
@@ -113,10 +133,11 @@ describe("Overseer", () => {
 
       await testable(overseer).check();
 
-      // Should NOT have disabled charging — vehicle is still charging
+      // The switch stays enabled; the safety latch and real STOP protect the car.
       const enabled = await db.getConfig("charging_enabled");
-      expect(enabled).toBeNull();
-      expect(safetyTrips).toHaveLength(0);
+      expect(enabled).toBe("true");
+      expect(stopCalls).toBe(1);
+      expect(safetyTrips).toHaveLength(1);
     });
 
     it("only trips once per check even with multiple oscillating vehicles", async () => {
@@ -154,11 +175,12 @@ describe("Overseer", () => {
         "stop",
       ]);
       await testable(overseer).check();
-      expect(await db.getConfig("charging_enabled")).toBe("false");
+      expect(await db.getConfig("charging_enabled")).toBe("true");
+      expect(await db.getConfig("oscillation_paused")).toBe("true");
       expect(safetyTrips).toHaveLength(1);
 
-      // User re-enables charging from Settings
-      await db.setConfig("charging_enabled", "true");
+      // User dismisses the safety pause.
+      await db.setConfig("oscillation_paused", "false");
 
       // Next check should NOT re-trip — same transitions are before the trip timestamp
       await testable(overseer).check();
@@ -177,10 +199,11 @@ describe("Overseer", () => {
         "stop",
       ]);
       await testable(overseer).check();
-      expect(await db.getConfig("charging_enabled")).toBe("false");
+      expect(await db.getConfig("charging_enabled")).toBe("true");
+      expect(await db.getConfig("oscillation_paused")).toBe("true");
 
-      // User re-enables charging
-      await db.setConfig("charging_enabled", "true");
+      // User dismisses the safety pause.
+      await db.setConfig("oscillation_paused", "false");
 
       // Backdate the trip marker so new entries (at datetime('now')) come after it.
       // In production there's always a real time gap; in tests everything is
@@ -199,8 +222,60 @@ describe("Overseer", () => {
       await testable(overseer).check();
 
       // Should trip again on the new transitions
-      expect(await db.getConfig("charging_enabled")).toBe("false");
+      expect(await db.getConfig("charging_enabled")).toBe("true");
+      expect(await db.getConfig("oscillation_paused")).toBe("true");
       expect(safetyTrips).toHaveLength(2);
+    });
+
+    it("reports rejected STOP and retains the latch and manual switch", async () => {
+      stopSuccess = false;
+      await seedStateChanges("VIN1", "Car 1", [
+        "start",
+        "stop",
+        "start",
+        "stop",
+        "start",
+      ]);
+      await testable(overseer).check();
+      expect(stopCalls).toBe(1);
+      expect(await db.getConfig("system_alert")).toContain(
+        "Emergency STOP failed: Tesla refused STOP",
+      );
+      expect(await db.getConfig("oscillation_paused")).toBe("true");
+      expect(await db.getConfig("charging_enabled")).toBe("true");
+    });
+
+    it("reports unavailable state rather than implying STOP succeeded", async () => {
+      missingState = true;
+      await seedStateChanges("VIN1", "Car 1", [
+        "start",
+        "stop",
+        "start",
+        "stop",
+        "start",
+      ]);
+      await testable(overseer).check();
+      expect(await db.getConfig("system_alert")).toContain(
+        "Emergency STOP failed:",
+      );
+      expect(stopCalls).toBe(0);
+    });
+
+    it("excludes vehicles controlled by an external charger", async () => {
+      await db.setConfig(
+        "external_charging_vehicles",
+        JSON.stringify({ VIN1: true }),
+      );
+      await seedStateChanges("VIN1", "Car 1", [
+        "start",
+        "stop",
+        "start",
+        "stop",
+        "start",
+      ]);
+      await testable(overseer).check();
+      expect(stopCalls).toBe(0);
+      expect(safetyTrips).toHaveLength(0);
     });
 
     it("logs error when check throws", async () => {

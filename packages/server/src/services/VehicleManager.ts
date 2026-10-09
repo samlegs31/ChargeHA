@@ -230,6 +230,7 @@ export class VehicleManager {
     }
 
     try {
+      const previousUpdatedAt = entry.middleware.getCachedState()?.lastUpdated;
       const raw = await entry.middleware.requestState(context);
       if (!raw) return null;
       const state = await this.wrapWithIsHome(raw);
@@ -241,9 +242,12 @@ export class VehicleManager {
         this.eventEmitter.emit("vehicle_update", state);
       }
 
-      // Clear fetch errors on successful state fetch
+      // A cached response is not evidence that a failed telemetry fetch
+      // recovered. Keep the safety signal until a newer snapshot arrives.
       const stored = this.vehicleErrors.get(vehicleId);
-      if (stored?.source === "fetch") {
+      if (
+        stored?.source === "fetch" && state.lastUpdated !== previousUpdatedAt
+      ) {
         this.clearVehicleError(vehicleId);
       }
 

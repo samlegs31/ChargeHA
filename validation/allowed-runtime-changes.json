@@ -1,0 +1,18 @@
+[
+  "packages/plugins/vehicles/tesla/server/TeslaApiStrategy.test.ts",
+  "packages/plugins/vehicles/tesla/server/TeslaService.test.ts",
+  "packages/server/src/lib/AsyncQueue.test.ts",
+  "packages/server/src/lib/AsyncQueue.ts",
+  "packages/server/src/middleware/auth.ts",
+  "packages/server/src/middleware/authBatch.test.ts",
+  "packages/server/src/middleware/authStaticAsset.test.ts",
+  "packages/server/src/services/ChargeController.test/commands.test.ts",
+  "packages/server/src/services/ChargeController.test/grace-and-rejection.test.ts",
+  "packages/server/src/services/ChargeController.test/safety-preservation.test.ts",
+  "packages/server/src/services/NotificationListener.test.ts",
+  "packages/server/src/services/Overseer.test.ts",
+  "packages/server/src/services/Overseer.ts",
+  "packages/server/src/services/VehicleManager.test.ts",
+  "packages/server/src/services/VehicleManager.ts",
+  "packages/shared/engine/ControllerEngine.test/amp-sequences.test.ts"
+]
