@@ -1,4 +1,18 @@
-# Dernière étape : plafond solaire propre à Friday
+# Dernière vérification : plafond solaire modifiable
+
+Le plafond est enregistré en configuration, sans constante à 22 A. Modification
+à chaud validée sur le même contrôleur : 22→18→26→22 A. Tests API : persistance,
+valeurs invalides refusées, suppression et compatibilité des sauvegardes du frontend
+actuel. Le champ dédié à l'écran reste à réaliser avec les sources frontend exactes.
+
+**199 tests, 2 149 sous-tests et 10 tests d'intégrité passent**. Format, lint et
+type-check passent. Candidate : 465 fichiers ; 418 fichiers installés inchangés,
+47 écarts listés ; design et manifeste intacts. Aucun changement de production.
+Détails dans [le réglage Friday](FRIDAY-SOLAR-LIMIT.md).
+
+---
+
+# Étape précédente : plafond solaire propre à Friday
 
 [Préparation du réglage 22 A](FRIDAY-SOLAR-LIMIT.md) : nouveau plafond par véhicule
 limité au suivi solaire, sans modifier charge forcée ni plages programmées.

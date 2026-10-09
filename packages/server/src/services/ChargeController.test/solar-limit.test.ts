@@ -40,3 +40,38 @@ for (const mode of ["auto", "vacation", "charge_now"] as const) {
     }
   });
 }
+
+Deno.test("solar limit edits apply to the running controller without restart", async () => {
+  const ctx = await setupController(
+    {
+      isCharging: true,
+      chargeAmps: 22,
+      chargeAmpsActual: 22,
+      chargeAmpsMax: 32,
+      chargePowerKw: 5.06,
+    },
+    "auto",
+    { ...BASE_ENERGY, solarProductionW: 15000, gridPowerW: -10000 },
+    { vehicle_solar_current_limits: JSON.stringify({ [VIN]: 22 }) },
+  );
+  try {
+    for (const amps of [18, 26, 22]) {
+      await ctx.db.setConfig(
+        "vehicle_solar_current_limits",
+        JSON.stringify({ [VIN]: amps }),
+      );
+      ctx.adapter.commands = [];
+      await ctx.runOneLoop();
+      expect(ctx.adapter.commands).toContainEqual({
+        cmd: "setAmps",
+        args: amps,
+      });
+      expect(ctx.adapter.state.chargeAmps).toBe(amps);
+      ctx.adapter.state.chargeAmpsActual = amps;
+      ctx.adapter.state.chargePowerKw = amps * 0.23;
+    }
+  } finally {
+    ctx.controller.stop();
+    ctx.db.close();
+  }
+});

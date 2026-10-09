@@ -34,6 +34,7 @@
   "packages/server/src/services/VehicleManager.test.ts",
   "packages/server/src/services/VehicleManager.ts",
   "packages/server/src/services/VehicleService.ts",
+  "packages/server/src/trpc/routers/config.test.ts",
   "packages/server/src/trpc/routers/subscriptions.test.ts",
   "packages/shared/configSections.ts",
   "packages/shared/engine/ControllerEngine.test/amp-sequences.test.ts",

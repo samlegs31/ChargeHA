@@ -45,3 +45,24 @@ modes solaires, limites inférieures, maintien de 32 A en charge forcée ou prog
 redistribution vers un autre véhicule, arrêt si le plafond est inférieur au minimum
 matériel, et lecture réelle de la configuration avec commande à l'adaptateur factice.
 La suite complète, l'intégrité et les contrôles backend sont consignés dans README.md.
+
+## Modification ultérieure
+
+Le plafond n'est pas une constante : la configuration authentifiée
+`config.charging.get` / `config.charging.set` permet de le lire et de le modifier
+sans redémarrer le serveur. `vehicleSolarCurrentLimits` accepte des ampères entiers
+de 1 à 80 ; le matériel et les protections peuvent imposer moins. Une valeur sous
+le minimum matériel empêche la charge solaire. Supprimer l'entrée du véhicule
+retire ce plafond spécifique. Préserver les autres entrées lors de l'enregistrement.
+
+Les baisses s'appliquent au prochain cycle ; les hausses restent soumises au surplus
+et à la stabilisation normale. Le test dynamique vérifie 22→18→26→22 A avec le même
+contrôleur. Les tests API vérifient la persistance, le refus des valeurs invalides,
+la suppression et la conservation du plafond quand l'ancienne interface sauvegarde
+ses autres champs sans connaître ce nouveau réglage.
+
+L'interface installée possède un champ de limite générale, qui touche aussi la
+charge forcée. Elle ne possède pas le champ de plafond solaire distinct.
+Un futur champ « Courant maximum en solaire (A) » devra être relié à ce réglage
+quand les sources exactes du frontend seront disponibles. Aucun champ visible n'a
+été ajouté et les bundles installés n'ont pas été réécrits.
