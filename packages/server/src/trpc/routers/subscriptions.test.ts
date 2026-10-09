@@ -119,6 +119,52 @@ describe("Subscriptions tRPC Router", () => {
     return results;
   };
 
+  it("cleans up multiplexed subscribers after repeated burst/abort cycles", async () => {
+    const emitter = new TypedEventEmitter();
+    let active = 0;
+    const subscribe = emitter.subscribe.bind(emitter);
+    emitter.subscribe = ((...args: Parameters<typeof emitter.subscribe>) => {
+      active++;
+      const unsubscribe = subscribe(...args);
+      let removed = false;
+      return () => {
+        if (!removed) {
+          active--;
+          removed = true;
+        }
+        unsubscribe();
+      };
+    }) as typeof emitter.subscribe;
+    for (let round = 0; round < 20; round++) {
+      const clients = await Promise.all(Array.from({ length: 12 }, async () => {
+        const controller = new AbortController();
+        const caller = makeContext(
+          emitter,
+          new MockPoller(),
+          new MockVehicleManager(),
+          controller.signal,
+        );
+        const source = await caller.subscription.onEvents();
+        const iterator = (source as AsyncIterable<SSEEvent>)
+          [Symbol.asyncIterator]();
+        const first = iterator.next();
+        return { controller, iterator, first };
+      }));
+      // Allow getAllStates() and generator startup to complete.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(active).toBe(12 * 5);
+      for (let event = 0; event < 100; event++) {
+        emitter.emit("vehicles_changed", {});
+      }
+      await Promise.all(clients.map(async ({ controller, iterator, first }) => {
+        expect((await first).value?.type).toBe("vehicles_changed");
+        controller.abort();
+        expect((await iterator.next()).done).toBe(true);
+      }));
+      expect(active).toBe(0);
+    }
+  });
+
   describe("subscription.onEvents", () => {
     it("emits initial energy snapshot", async () => {
       const eventEmitter = new TypedEventEmitter();

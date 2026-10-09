@@ -1,4 +1,19 @@
-# État actuel — validation de la version candidate
+# Dernière étape : simulation intégrée et pannes combinées
+
+Voir [le rapport de simulation](SIMULATION.md) pour les trois défauts de sécurité
+reproduits et corrigés, la journée complète, les campagnes multi-véhicules,
+Overseer, planning de nuit et reconnexions SSE.
+
+Résultat actuel : **184 tests, 2 146 sous-tests et 10 tests d'intégrité passent**.
+Format/lint/type-check et compilation backend passent également. Design installé
+et manifeste préservés, aucune opération de production.
+
+Les sections ci-dessous conservent les bilans des étapes précédentes ; leurs
+comptages et archives décrivent ces étapes, pas la dernière candidate.
+
+---
+
+# Étape précédente — validation de la version candidate
 
 La poursuite du développement conserve la base installée et le commit de reprise
 `698e22d`. Aucun changement de comportement de régulation dans cette étape :

@@ -273,20 +273,20 @@ export class ChargeController {
     vehicles: EngineVehicleInput[],
   ): EngineOutput {
     const decisions = vehicles.reduce((acc, vehicle) => {
-      const error = this.vehicleManager.getVehicleError(vehicle.id);
+      const error = this.vehicleManager.getVehicleFetchError(vehicle.id);
       const automaticMode = vehicle.mode === "auto" ||
         vehicle.mode === "vacation";
       if (
-        !this.vehicleManager.hasVehicleFetchError(vehicle.id) || !error ||
-        !automaticMode ||
-        vehicle.state?.isCharging !== true
+        !error || !automaticMode
       ) return acc;
 
       const previous = output.decisions.get(vehicle.id);
       acc.set(vehicle.id, {
-        action: "stop",
+        action: vehicle.state?.isCharging ? "stop" : "none",
         reason: "vehicle_unavailable",
-        detail: `Stop — vehicle state refresh failed: ${error.message}`,
+        detail: `${
+          vehicle.state?.isCharging ? "Stop" : "Wait"
+        } — vehicle state refresh failed: ${error.message}`,
         targetAmps: null,
         checks: previous?.checks ?? [],
       });

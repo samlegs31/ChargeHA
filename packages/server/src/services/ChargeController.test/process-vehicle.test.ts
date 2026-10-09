@@ -22,7 +22,7 @@ describe("ChargeController — processVehicle", () => {
   });
 
   describe("processVehicle — no vehicle state", () => {
-    it("returns none with 'No vehicle state available' when state is null", async () => {
+    it("waits with the telemetry failure when initial state cannot be fetched", async () => {
       // skipInitialState leaves the middleware cache empty; with the adapter
       // also rejecting, the controller's first loop sees getState() === null.
       ctx = await setupController({}, "auto", BASE_ENERGY, {}, {
@@ -36,7 +36,9 @@ describe("ChargeController — processVehicle", () => {
       const log = await ctx.getLastLogParsed();
       assertExists(log);
       expect(log?.action).toBe("none");
-      expect(log?.actionDetail).toContain("No vehicle state available");
+      expect(log?.actionDetail).toContain(
+        "Wait — vehicle state refresh failed: adapter offline",
+      );
       expect(
         log.checks.some(
           (c) =>
