@@ -6,7 +6,7 @@ import {
 } from "./configSections.ts";
 
 // Re-export config types from configSections (single source of truth)
-export { type ConfigKey, type CoreConfigKey };
+export type { ConfigKey, CoreConfigKey };
 
 // ---- Shared enums / primitives ----
 

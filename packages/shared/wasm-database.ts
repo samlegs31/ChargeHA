@@ -39,12 +39,12 @@ class WasmStatement implements DatabaseStatement {
     const stmt = this.db.prepare(this.sql);
     if (params.length > 0) stmt.bind(params as unknown[]);
     const results: Record<string, unknown>[] = [];
-    // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
+
     while (stmt.step()) {
       const row: Record<string, unknown> = {};
       const cols = stmt.getColumnNames();
       const vals = stmt.get();
-      // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
+
       for (let i = 0; i < cols.length; i++) {
         row[cols[i]] = vals[i];
       }
@@ -82,7 +82,7 @@ class WasmRawStatement implements DatabaseRawStatement {
     const stmt = this.db.prepare(this.sql);
     if (params.length > 0) stmt.bind(params as unknown[]);
     const results: unknown[][] = [];
-    // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
+
     while (stmt.step()) {
       results.push(stmt.get());
     }

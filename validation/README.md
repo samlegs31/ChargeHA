@@ -1,4 +1,75 @@
-# Reprise backend E.V. Solar — 9 octobre 2026
+# État actuel — validation de la version candidate
+
+La poursuite du développement conserve la base installée et le commit de reprise
+`698e22d`. Aucun changement de comportement de régulation dans cette étape :
+nettoyage des directives obsolètes, types explicites et format backend uniquement.
+Les fragments frontend restent inchangés.
+
+## Résultats actuels
+
+- **Format backend : OK**, 337 fichiers, sans reformater les bundles ou TSX.
+- **Lint backend : OK**, 335 fichiers, aucune règle désactivée. Les directives de
+  plugins supprimés ont été retirées ; imports/exports purement typés et signatures
+  publiques précisés. Les fichiers frontend non certifiés sont hors de ce périmètre.
+- **Type-check : OK**, entrée serveur avec lock runtime figé.
+- **Compilation native backend : OK**, binaire macOS ARM64 de validation non exécuté
+  (`/tmp/chargeha-backend-validation-next`). Aucun build Linux/Raspberry revendiqué.
+- **Suite backend : 179 tests, 2 141 sous-tests, aucun échec** après ces changements.
+- **10 tests Python : OK** : altération de source, UI ou manifeste, ajout/retrait
+  de fichier, symlink, provenance incorrecte, restauration du client retiré,
+  assemblage reproductible et contenu de l'archive vérifié par SHA256.
+- **Intégrité candidate : OK**, 457 fichiers, incluant les 36 bundles/fichiers dist
+  inchangés. 426 fichiers installés restent identiques ; 26 fichiers backend/tests
+  changés et 5 tests ajoutés sont explicitement listés par rapport au manifeste.
+- `current/manifest.json`, dépendances runtime, migrations et entrypoint intacts.
+
+## Contrôle distinct et assemblage local
+
+`candidate.py verify` compare chaque fichier au nouveau
+`candidate-manifest.json`, puis vérifie les protections de la version installée.
+L'empreinte du manifeste installé est fixée dans le vérificateur. La commande
+`record` est une action explicite après revue des changements autorisés ; elle
+n'est jamais appelée par la CI. Les empreintes détectent la dérive, elles ne sont
+pas une signature d'authenticité indépendante du dépôt.
+
+Le nouveau workflow **Verify backend candidate** vérifie uniquement l'intégrité
+et les tests Python. Il ne compile, ne publie et ne déploie aucune image. Il a été
+ajouté localement ; aucune exécution GitHub n'est revendiquée.
+Le contrôle requis **Verify current version** et ses règles restent inchangés :
+il continuera de refuser les différences avec la version installée. La validation
+candidate ne contourne pas cette protection et ne rend pas la branche fusionnable.
+
+L'assemblage produit une archive déterministe des sources backend présentes et
+des bundles installés exacts, avec leurs deux manifestes. Il exclut les fichiers
+non listés, notamment secrets, `.env`, base utilisateur et `.git`, et refuse
+l'écrasement d'un fichier de sortie existant. L'archive inclut les fragments de
+sources conservés dans la capture ; elle ne reconstitue pas les sources frontend
+manquantes.
+
+```sh
+bash validation/check-backend.sh
+python3 validation/candidate.py verify
+python3 validation/candidate.py assemble --output /tmp/evsolar-candidate.tar.gz
+```
+
+Archive locale produite : `/tmp/chargeha-backend-candidate-20261009.tar.gz`.
+SHA256 : `b148bf308ac276f989136d49e0131352c5d93d53e739451695ea47e4429b064d`.
+Ce fichier est une archive de sources et d'assets, **pas une image Raspberry**.
+Aucune exécution applicative, migration de base réelle, commande Tesla, connexion
+Raspberry ni publication n'a été effectuée.
+
+La prochaine étape avant un déploiement serait de définir et valider séparément
+l'environnement Linux ARM64 (Deno, SQLite FFI, proxy Tesla, fichiers runtime),
+puis une procédure de release candidate approuvée. Le rebuild du frontend complet
+reste impossible à certifier sans retrouver ses sources exactes. Aucun ancien
+Dockerfile ni automatisme de publication n'est restauré.
+
+---
+
+Le bilan ci-dessous décrit l'étape initiale, avant le nettoyage format/lint et
+le contrôle candidat ajoutés ci-dessus.
+
+# Bilan initial de la reprise backend — 9 octobre 2026
 
 Base : `46e10d950896689aa84a113c78d1f1d2921da017` (main distant vérifié).
 Branche isolée : `reprise/backend-security-sse-20261008`.
@@ -84,7 +155,7 @@ HTTP factices ; réseau d'exécution des tests limité à localhost/127.0.0.1/0.
   certification d'un paquet déployable : fichiers dist/migrations et environnement
   d'exécution resteraient à assembler et vérifier séparément.
 - Format des fichiers changés et `git diff --check` : **OK**.
-- Format général : **2 fichiers préexistants non formatés**, `proxyHealth.ts` et
+- Format général : **2 fichiers préexistants non formatés**, `ProxyHealth.ts` et
   `TeslaService.ts`, également présents dans l'archive intacte de la base.
 - Lint général : **38 problèmes contre 40 dans la base intacte**. Les anciens
   plugins de lint ont disparu mais leurs directives subsistent ; autres écarts

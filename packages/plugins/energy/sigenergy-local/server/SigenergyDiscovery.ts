@@ -1,5 +1,5 @@
 /// <reference lib="deno.ns" />
-import { Buffer } from "node:buffer";
+import type { Buffer } from "node:buffer";
 import type { Logger } from "@chargeha/server/lib/Logger";
 import { NetworkDiscovery } from "../../NetworkDiscovery.ts";
 import {

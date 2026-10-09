@@ -15,7 +15,7 @@ import type {
 } from "../../../types.ts";
 import { TeslaAdapter } from "./TeslaAdapter.ts";
 import { TeslaVehicleMiddleware } from "./TeslaVehicleMiddleware.ts";
-import { TeslaProxyManager } from "./TeslaProxyManager.ts";
+import type { TeslaProxyManager } from "./TeslaProxyManager.ts";
 import { TeslaService, type TeslaServiceIo } from "./TeslaService.ts";
 import { TeslaTokenManager } from "./TeslaTokenManager.ts";
 import { TESLA_SECRET_KEYS, teslaConfigDef } from "./config.ts";

@@ -135,7 +135,6 @@ export function hstsMiddleware(): MiddlewareHandler {
   return async function hsts(c, next) {
     await next();
     if (isHttps(c.req.raw)) {
-      // deno-lint-ignore custom-no-param-mutation/no-param-mutation -- Hono middleware API
       c.res.headers.set(
         "Strict-Transport-Security",
         "max-age=63072000; includeSubDomains",
@@ -171,7 +170,7 @@ export function createAuthMiddleware(
     const resetAuth = Deno.env.get("RESET_AUTH");
     if (resetAuth === "true") {
       await next();
-      // deno-lint-ignore custom-no-param-mutation/no-param-mutation -- Hono middleware API
+
       c.res.headers.set("X-Auth-Warning", "disabled");
       return;
     }
@@ -191,7 +190,7 @@ export function createAuthMiddleware(
       const session = await authService.validateSession(sessionId);
       if (session) {
         // Attach session to Hono context for downstream handlers
-        // deno-lint-ignore custom-no-param-mutation/no-param-mutation -- Hono middleware API
+
         c.set("session", session);
         return next();
       }

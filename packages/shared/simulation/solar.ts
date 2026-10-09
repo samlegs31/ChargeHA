@@ -31,11 +31,11 @@ export function generateSolarDay(config: SolarConfig): EnergyReading[] {
   const random = new Rng(config.seed);
   const readings: EnergyReading[] = [];
   // iterative cloud simulation state, each tick depends on previous
-  // deno-lint-ignore custom-no-let/no-let
+
   let cloudFactor = 1.0;
-  // deno-lint-ignore custom-no-let/no-let
+
   let cloudTarget = 1.0;
-  // deno-lint-ignore custom-no-let/no-let
+
   let cloudVelocity = 0;
   const minutes = 24 * 60;
 
@@ -50,7 +50,7 @@ export function generateSolarDay(config: SolarConfig): EnergyReading[] {
   if (config.storms > 0) {
     const solarMinutes = (config.sunset - config.sunrise) * 60;
     const slotSize = Math.floor(solarMinutes / (config.storms + 1));
-    // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
+
     for (let i = 0; i < config.storms; i++) {
       const center = Math.floor(
         (config.sunrise * 60) + slotSize * (i + 1) +
@@ -64,7 +64,6 @@ export function generateSolarDay(config: SolarConfig): EnergyReading[] {
     }
   }
 
-  // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
   for (let m = 0; m < minutes; m++) {
     const hourFrac = m / 60;
     const hour = Math.floor(hourFrac);
@@ -74,7 +73,7 @@ export function generateSolarDay(config: SolarConfig): EnergyReading[] {
     }`;
 
     // conditional assignment in solar curve calculation
-    // deno-lint-ignore custom-no-let/no-let
+
     let baseSolarW = 0;
     if (hourFrac > config.sunrise && hourFrac < config.sunset) {
       const solarNoon = (config.sunrise + config.sunset) / 2;

@@ -1,0 +1,18 @@
+name: Backend candidate integrity
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-candidate:
+    name: Verify backend candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify candidate fingerprints and preserved frontend
+        run: python3 validation/candidate.py verify
+      - name: Test drift detection and reproducible assembly
+        run: python3 -m unittest discover -s validation -p 'test_*.py' -v
