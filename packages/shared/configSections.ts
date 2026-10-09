@@ -30,6 +30,11 @@ export function defineSection<const T extends SectionDef>(def: T): T {
 // ── Core section definitions ────────────────────────────────────────────────
 
 export const chargingConfigDef = defineSection({
+  vehicleSolarCurrentLimits: {
+    key: "vehicle_solar_current_limits",
+    schema: z.record(z.number().int().min(1).max(80)),
+    default: {} as Record<string, number>,
+  },
   vehicleCurrentLimits: {
     key: "vehicle_current_limits",
     schema: z.record(z.number().int().min(1).max(80)),

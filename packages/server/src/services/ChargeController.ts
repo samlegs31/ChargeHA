@@ -993,6 +993,7 @@ export class ChargeController {
       ]);
 
     return {
+      vehicleSolarCurrentLimits: charging.vehicleSolarCurrentLimits,
       vehicleCurrentLimits: charging.vehicleCurrentLimits,
       maxGridImportKw: charging.maxGridImportKw,
       chargingEnabled: charging.chargingEnabled,

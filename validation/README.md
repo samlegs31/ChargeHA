@@ -1,4 +1,20 @@
-# Dernière étape : réactivité solaire
+# Dernière étape : plafond solaire propre à Friday
+
+[Préparation du réglage 22 A](FRIDAY-SOLAR-LIMIT.md) : nouveau plafond par véhicule
+limité au suivi solaire, sans modifier charge forcée ni plages programmées.
+L'exemple de réglage doit recevoir l'identifiant réel de Friday avant une future
+activation autorisée. Aucun réglage de production n'a été écrit.
+
+Validation : **198 tests, 2 146 sous-tests et 10 tests d'intégrité passent**.
+Format (345 fichiers), lint (343 fichiers), type-check et compilation native
+backend passent. Binaire non exécuté. Dépendances inchangées depuis l'audit vert
+de l'étape précédente. Intégrité : 465 fichiers candidat, 419 fichiers installés
+identiques, 46 écarts explicitement listés ; manifeste installé et design intacts.
+Frontend complet et image Raspberry toujours non reconstructibles avec certitude.
+
+---
+
+# Étape précédente : réactivité solaire
 
 Voir [le rapport avant/après](SOLAR-RESPONSE.md). Les baisses de courant solaire
 s'appliquent au prochain cycle, sans les trois minutes de stabilisation des

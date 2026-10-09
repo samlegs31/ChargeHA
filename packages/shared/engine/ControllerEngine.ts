@@ -98,7 +98,11 @@ export class ControllerEngine {
           ...v,
           state: {
             ...v.state,
-            chargeAmpsMax: Math.min(v.state.chargeAmpsMax, maximum),
+            chargeAmpsMax: Math.min(
+              v.state.chargeAmpsMax,
+              maximum,
+              config.vehicleSolarCurrentLimits?.[v.id] ?? v.state.chargeAmpsMax,
+            ),
           },
         };
       }),
@@ -766,8 +770,27 @@ export class ControllerEngine {
       return { decision: null, checks };
     }
 
+    // Apply this ceiling only after explicit modes and charge schedules have
+    // been resolved. Keep measured current intact for power accounting.
+    const solarMax = Math.min(
+      state.chargeAmpsMax,
+      config.vehicleSolarCurrentLimits?.[state.vehicleId] ??
+        state.chargeAmpsMax,
+    );
+    if (solarMax < state.chargeAmpsMin) {
+      return {
+        decision: {
+          action: state.isCharging ? "stop" : "none",
+          reason: "power_limit",
+          detail: "Solar current limit is below the vehicle minimum",
+          targetAmps: null,
+        },
+        checks,
+        stateUpdates: { pendingAmps: null, pendingSince: null },
+      };
+    }
     const result = this.processSolarTracking(
-      state,
+      { ...state, chargeAmpsMax: solarMax },
       config,
       energy,
       timestamp,
