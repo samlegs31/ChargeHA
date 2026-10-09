@@ -81,3 +81,59 @@ Deno.test("a solar cap below hardware minimum stops instead of exceeding the cap
   expect(result?.action).toBe("stop");
   expect(result?.targetAmps).toBeNull();
 });
+
+Deno.test("every integer solar ceiling from 5 to 32A works independently of phase count", () => {
+  for (const phases of [1, 3]) {
+    for (let amps = 5; amps <= 32; amps++) {
+      const result = new ControllerEngine().decide(makeInput({
+        configOverrides: {
+          vehicleSolarCurrentLimits: { V1: amps },
+          threePhaseCharger: phases === 3,
+        },
+        vehicle: {
+          state: {
+            isCharging: true,
+            chargeAmps: 32,
+            chargeAmpsActual: 32,
+            chargerPhases: phases,
+          },
+        },
+        energyOverrides: { solarProductionW: 30000, gridPowerW: -30000 },
+      })).decisions.get("V1");
+      expect(result?.targetAmps).toBe(amps);
+    }
+  }
+});
+
+Deno.test("leaving a 32A charge schedule restores the solar cap at the next decision", () => {
+  const engine = new ControllerEngine();
+  let amps = 22;
+  for (const [hour, expected] of [[12, 32], [13, 22]]) {
+    const now = new Date(`2026-01-01T${hour}:00:00Z`);
+    const result = engine.decide(makeInput({
+      now,
+      timestamp: now.getTime(),
+      configOverrides: {
+        timezone: "UTC",
+        vehicleSolarCurrentLimits: { V1: 22 },
+      },
+      vehicle: {
+        state: { isCharging: true, chargeAmps: amps, chargeAmpsActual: amps },
+      },
+      energyOverrides: { solarProductionW: 12000, gridPowerW: -10000 },
+      schedules: [{
+        id: "s1",
+        vehicleId: "V1",
+        scheduleType: "charge",
+        startTime: "12:00",
+        endTime: "13:00",
+        days: ["thu"],
+        chargeAmps: 32,
+        chargeLimitPct: null,
+        enabled: true,
+      }],
+    })).decisions.get("V1");
+    expect(result?.targetAmps).toBe(expected);
+    amps = expected;
+  }
+});

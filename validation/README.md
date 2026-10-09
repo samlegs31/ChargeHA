@@ -1,4 +1,20 @@
-# Dernière vérification : plafond solaire modifiable
+# Dernière étape : revue consolidée
+
+Voir [la revue complète du 9 octobre](REVIEW-20261009.md) : changements relus,
+protections vérifiées, deux journées simulées et limites restantes explicites.
+
+**202 tests, 2 149 sous-tests et 10 tests d'intégrité passent**. Format, lint,
+type-check, audit et compilation backend passent. 13 tests ciblés passent dans
+chacun des fuseaux UTC et Europe/Paris. Pas de nouvelle correction runtime dans
+cette passe ; ajout d'une journée réellement plafonnée à 22 A sur matériel 32 A,
+des frontières par pas de 1 A et de la transition programme 32 A → solaire 22 A.
+
+Le champ dans l'interface et l'activation du réglage réel de Friday restent à faire.
+Les bundles installés et leur manifeste restent intacts. Aucune production modifiée.
+
+---
+
+# Vérification précédente : plafond solaire modifiable
 
 Le plafond est enregistré en configuration, sans constante à 22 A. Modification
 à chaud validée sur le même contrôleur : 22→18→26→22 A. Tests API : persistance,
