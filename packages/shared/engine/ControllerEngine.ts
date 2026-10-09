@@ -1191,6 +1191,12 @@ export class ControllerEngine {
     targetAmps: number,
     timestamp: number,
   ): DebounceResult {
+    // A falling solar budget must not borrow from the grid for the upward
+    // settling period. Reduce at the next control tick, including 1A changes.
+    // Reset pending increases so a brief recovery still has to settle again.
+    if (state.isCharging && targetAmps < state.chargeAmps) {
+      return { amps: targetAmps, pendingAmps: null, pendingSince: null };
+    }
     const atSafeMinimum = state.isCharging &&
       state.chargeAmps === state.chargeAmpsMin;
     const controllerStartPending = controlState.solarSafeStartPending;

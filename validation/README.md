@@ -1,10 +1,31 @@
-# Dernière étape : simulation intégrée et pannes combinées
+# Dernière étape : réactivité solaire
+
+Voir [le rapport avant/après](SOLAR-RESPONSE.md). Les baisses de courant solaire
+s'appliquent au prochain cycle, sans les trois minutes de stabilisation des
+petites hausses. Les protections et le design installé sont conservés.
+
+- **190 tests et 2 146 sous-tests passent**, ainsi que 10 tests Python d'intégrité.
+- Format : 343 fichiers ; lint : 341 fichiers ; type-check serveur : OK.
+- Compilation native macOS ARM64 : OK, binaire non exécuté.
+- Audit des dépendances : aucune vulnérabilité connue signalée le 9 octobre 2026.
+- Candidate : 463 fichiers vérifiés ; 421 fichiers installés identiques et
+  42 écarts backend/tests explicitement listés. Tous les assets dist et le
+  manifeste installé sont inchangés.
+- Simulation 24 h : 1 440 cycles, 54 commandes, 552 lectures, un réveil simulé.
+
+Le contrôle original de version figée reste incompatible avec les changements
+backend. Aucune reconstruction frontend complète ou image Raspberry certifiée,
+aucun déploiement ni publication. Les bilans ci-dessous sont historiques.
+
+---
+
+# Étape précédente : simulation intégrée et pannes combinées
 
 Voir [le rapport de simulation](SIMULATION.md) pour les trois défauts de sécurité
 reproduits et corrigés, la journée complète, les campagnes multi-véhicules,
 Overseer, planning de nuit et reconnexions SSE.
 
-Résultat actuel : **184 tests, 2 146 sous-tests et 10 tests d'intégrité passent**.
+Résultat de cette étape : **184 tests, 2 146 sous-tests et 10 tests d'intégrité passent**.
 Format/lint/type-check et compilation backend passent également. Design installé
 et manifeste préservés, aucune opération de production.
 

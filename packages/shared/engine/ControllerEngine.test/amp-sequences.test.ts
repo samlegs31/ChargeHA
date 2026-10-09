@@ -5,8 +5,8 @@ import { makeInput } from "../test-helpers/controller-engine.ts";
 // One-minute samples, 3-minute settle, 2A threshold. Feedback reflects each
 // accepted command; grid export is chosen to request the exact target amps.
 const cases = [
-  { targets: [5, 6, 7, 6, 7, 6], commands: [5, 5, 5, 5, 7, 7] },
-  { targets: [5, 7, 6, 8, 7], commands: [5, 5, 5, 8, 8] },
+  { targets: [5, 6, 7, 6, 7, 6], commands: [5, 5, 5, 5, 7, 6] },
+  { targets: [5, 7, 6, 8, 7], commands: [5, 5, 5, 8, 7] },
   { targets: [5, 6, 5, 6, 5], commands: [5, 5, 5, 5, 5] },
   { targets: [5, 8], commands: [5, 8] },
   { targets: [5, 10], commands: [5, 10] },
