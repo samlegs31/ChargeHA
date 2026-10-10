@@ -20,6 +20,8 @@ describe("Overseer", () => {
   let stopCalls: number;
   let stopSuccess: boolean;
   let missingState: boolean;
+  let isCharging: boolean;
+  let staleState: boolean;
 
   beforeEach(async () => {
     db = new AppDatabase(":memory:");
@@ -30,10 +32,19 @@ describe("Overseer", () => {
     stopCalls = 0;
     stopSuccess = true;
     missingState = false;
+    isCharging = true;
+    staleState = false;
     await db.setConfig("charging_enabled", "true");
     overseer = new Overseer(db, eventEmitter, testLogger, {
       getState: () =>
-        Promise.resolve(missingState ? null : makeState({ isCharging: true })),
+        Promise.resolve(
+          missingState ? null : makeState({
+            isCharging,
+            lastUpdated: staleState
+              ? "2000-01-01T00:00:00Z"
+              : new Date().toISOString(),
+          }),
+        ),
       stopCharging: (_id, _ctx, _state, options) => {
         expect(options?.force).toBe(true);
         stopCalls++;
@@ -259,6 +270,59 @@ describe("Overseer", () => {
         "Emergency STOP failed:",
       );
       expect(stopCalls).toBe(0);
+    });
+
+    it("recovers an expired pause only after STOP confirmation without enabling charging", async () => {
+      await seedStateChanges("VIN1", "Car 1", [
+        "start",
+        "stop",
+        "start",
+        "stop",
+        "start",
+      ]);
+      await testable(overseer).check();
+      isCharging = false;
+      await testable(overseer).check();
+      expect(await db.getConfig("oscillation_paused")).toBe("true");
+      await db.setConfig("oscillation_trip_at", "2000-01-01 00:00:00");
+      missingState = true;
+      await testable(overseer).check();
+      expect(await db.getConfig("oscillation_paused")).toBe("true");
+      missingState = false;
+      isCharging = true;
+      await testable(overseer).check();
+      expect(await db.getConfig("oscillation_paused")).toBe("true");
+      isCharging = false;
+      staleState = true;
+      await testable(overseer).check();
+      expect(await db.getConfig("oscillation_paused")).toBe("true");
+      staleState = false;
+      await db.setConfig("charging_enabled", "false");
+      await testable(overseer).check();
+      expect(await db.getConfig("oscillation_paused")).toBe("false");
+      expect(await db.getConfig("charging_enabled")).toBe("false");
+      expect(await db.getConfig("system_alert")).toBe("");
+      await testable(overseer).check();
+      expect(safetyTrips).toHaveLength(1);
+    });
+
+    it("automatically releases a solar pause with automation still ON", async () => {
+      await seedStateChanges("VIN1", "Friday", [
+        "start",
+        "stop",
+        "start",
+        "stop",
+        "start",
+      ]);
+      await testable(overseer).check();
+      await db.setConfig("oscillation_trip_at", "2000-01-01 00:00:00");
+      isCharging = false;
+      await testable(overseer).check();
+      expect(await db.getConfig("oscillation_paused")).toBe("false");
+      expect(await db.getConfig("charging_enabled")).toBe("true");
+      await testable(overseer).check();
+      expect(safetyTrips).toHaveLength(1);
+      expect(stopCalls).toBe(1);
     });
 
     it("excludes vehicles controlled by an external charger", async () => {

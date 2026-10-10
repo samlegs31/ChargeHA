@@ -48,7 +48,7 @@ export class ControllerEngine {
     } = input;
     if (!config.chargingEnabled || config.oscillationPaused) {
       const pauseDetail = config.oscillationPaused
-        ? "Safety pause — acknowledge the Dashboard alert to resume"
+        ? "Stabilisation pause — automatic recovery after five minutes once STOP is confirmed"
         : "Charging disabled";
       const decisions = new Map(
         vehicles.map((vehicle): [string, VehicleDecision] => {

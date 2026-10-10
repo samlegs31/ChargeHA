@@ -37,6 +37,7 @@
   "packages/server/src/services/ChargeController.test/system-schedule.test.ts",
   "packages/server/src/services/ChargeController.ts",
   "packages/server/src/services/NotificationListener.test.ts",
+  "packages/server/src/services/NotificationListener.ts",
   "packages/server/src/services/Overseer.test.ts",
   "packages/server/src/services/Overseer.ts",
   "packages/server/src/services/SolarForecastService.ts",
