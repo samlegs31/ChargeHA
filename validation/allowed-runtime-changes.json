@@ -7,6 +7,7 @@
   "packages/plugins/vehicles/tesla/server/TeslaService.test.ts",
   "packages/plugins/vehicles/tesla/server/TeslaService.ts",
   "packages/plugins/vehicles/tesla/server/index.ts",
+  "packages/server/dist/assets/Settings-C2gay-IT.js",
   "packages/server/src/bootstrap/PluginDependencies.ts",
   "packages/server/src/db/MigrationRunner.ts",
   "packages/server/src/lib/AsyncQueue.test.ts",

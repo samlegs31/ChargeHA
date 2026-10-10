@@ -1,4 +1,5 @@
 import json
+import importlib.util
 from pathlib import Path
 import tempfile
 import tarfile
@@ -102,6 +103,26 @@ class CandidateIntegrityTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             assemble(ROOT, first)
         self.assertEqual(first.read_bytes(), before)
+
+
+
+    def test_allowlisted_settings_tampering_is_still_rejected(self):
+        from candidate import APPROVED_UI
+        asset = next(iter(APPROVED_UI))
+        self.write(asset, "tampered Settings")
+        self.allow([self.source, asset])
+        with self.assertRaisesRegex(ValueError, "Protected installed"):
+            self.check()
+
+class SettingsPatchTests(unittest.TestCase):
+    def test_settings_patch_reproduces_the_shipped_asset(self):
+        spec = importlib.util.spec_from_file_location("settings_patch", ROOT / "ui-current/settings/patch.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        asset, data = module.render(ROOT)
+        self.assertEqual((ROOT / asset).read_bytes(), data)
+        baseline = json.loads((ROOT / "current/manifest.json").read_text())["files"]
+        self.assertEqual(digest((ROOT / "ui-current/settings/Settings.original.js").read_bytes()), baseline[asset])
 
 
 if __name__ == "__main__":

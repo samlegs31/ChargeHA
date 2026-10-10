@@ -12,6 +12,9 @@ BASE = "46e10d950896689aa84a113c78d1f1d2921da017"
 BASE_MANIFEST_SHA256 = "b70d00efba3608ea321f38e9d4441da6767dfe6d21448cf4e5b4645aca16f053"
 ROOT = Path(__file__).resolve().parent.parent
 
+# User-authorized Settings addition. Every other installed asset stays immutable.
+APPROVED_UI = {"packages/server/dist/assets/Settings-C2gay-IT.js": "c54ddd58aeaa5dc91481c52b22d60bd8686dcb475fee77d6c23b958f06419598"}
+
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -56,7 +59,7 @@ def inventory(root, expected_digest=BASE_MANIFEST_SHA256):
     allowed = set(json.loads(read_file(root, "validation/allowed-runtime-changes.json")))
     if changed != allowed:
         raise ValueError(f"Unreviewed drift: {sorted(changed ^ allowed)}")
-    if any(protected(name) for name in changed):
+    if any(protected(name) and APPROVED_UI.get(name) != files[name] for name in changed):
         raise ValueError("Protected installed file changed")
     return files
 
@@ -112,7 +115,7 @@ def main():
     if args.action == "record":
         print(f"Recorded {len(record(ROOT)['files'])} candidate files")
     elif args.action == "verify":
-        print(f"Verified {len(verify(ROOT)['files'])} candidate files; installed UI preserved")
+        print(f"Verified {len(verify(ROOT)['files'])} candidate files; authorized Settings patch and remaining installed UI verified")
     elif args.output is None:
         parser.error("assemble requires --output (new local file)")
     else:

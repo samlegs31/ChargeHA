@@ -1,0 +1,9 @@
+{
+  "asset": "packages/server/dist/assets/Settings-C2gay-IT.js",
+  "base_sha256": "c8a00ac1a6dc7f579d87ff412e45e063746b455e498ebcf2f2f0c89d25900be1",
+  "original": "ui-current/settings/Settings.original.js",
+  "components": [
+    "ui-current/settings/SolarCurrentSettings.js",
+    "ui-current/settings/ElectricalSettings.js"
+  ]
+}
