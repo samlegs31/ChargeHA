@@ -120,3 +120,25 @@ Deno.test("FIFO survives compaction and interleaved pushes", async () => {
   controller.abort();
   expect((await pending).done).toBe(true);
 });
+
+Deno.test("bounded queue fails explicitly without throwing into the producer", async () => {
+  const queue = createAsyncQueue<number>(2);
+  expect(queue.push(1)).toBe(true);
+  expect(queue.push(2)).toBe(true);
+  expect(queue.push(3)).toBe(false);
+  for (let i = 0; i < 10000; i++) expect(queue.push(i)).toBe(false);
+  await expect(queue.drain().next()).rejects.toThrow("backlog exceeded");
+});
+
+Deno.test("capacity counts only pending items and closes after return", async () => {
+  const queue = createAsyncQueue<number>(2);
+  const iterator = queue.drain();
+  queue.push(1);
+  queue.push(2);
+  expect((await iterator.next()).value).toBe(1);
+  expect(queue.push(3)).toBe(true);
+  expect((await iterator.next()).value).toBe(2);
+  expect((await iterator.next()).value).toBe(3);
+  await iterator.return(undefined);
+  expect(queue.push(4)).toBe(false);
+});

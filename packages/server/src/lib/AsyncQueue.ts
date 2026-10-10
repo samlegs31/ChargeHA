@@ -1,5 +1,13 @@
 /** Single-consumer queue bridging push events to an async generator. */
-export function createAsyncQueue<T>() {
+export function createAsyncQueue<T>(maxPending = Infinity) {
+  if (
+    !(maxPending > 0) ||
+    (Number.isFinite(maxPending) && !Number.isInteger(maxPending))
+  ) {
+    throw new RangeError("Queue capacity must be a positive integer");
+  }
+  let overflowed = false;
+  let closed = false;
   const state: {
     items: (T | undefined)[];
     head: number;
@@ -8,15 +16,28 @@ export function createAsyncQueue<T>() {
 
   return {
     push(item: T) {
+      if (closed) return false;
+      if (state.items.length - state.head >= maxPending) {
+        overflowed = true;
+        closed = true;
+        state.items = [];
+        state.head = 0;
+        state.resolve?.();
+        return false;
+      }
       state.items.push(item);
       const resolve = state.resolve;
       state.resolve = null;
       resolve?.();
+      return true;
     },
 
     async *drain(signal?: AbortSignal): AsyncGenerator<T> {
       try {
         while (!signal?.aborted) {
+          if (overflowed) {
+            throw new Error("SSE backlog exceeded; reconnect to resynchronise");
+          }
           if (state.head === state.items.length) {
             state.items = [];
             state.head = 0;
@@ -32,6 +53,7 @@ export function createAsyncQueue<T>() {
               else signal?.addEventListener("abort", onAbort, { once: true });
             });
           }
+          if (overflowed) continue;
           while (!signal?.aborted && state.head < state.items.length) {
             const item = state.items[state.head] as T;
             // Release consumed payloads even when the producer never goes idle.
@@ -44,6 +66,7 @@ export function createAsyncQueue<T>() {
           }
         }
       } finally {
+        closed = true;
         state.resolve?.();
         state.items = [];
         state.head = 0;

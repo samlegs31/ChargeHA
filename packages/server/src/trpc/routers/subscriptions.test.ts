@@ -165,6 +165,85 @@ describe("Subscriptions tRPC Router", () => {
     }
   });
 
+  it("unsubscribes immediately when aborted while paused at the snapshot", async () => {
+    const emitter = new TypedEventEmitter();
+    let active = 0;
+    const subscribe = emitter.subscribe.bind(emitter);
+    emitter.subscribe = ((...args: Parameters<typeof emitter.subscribe>) => {
+      active++;
+      const unsubscribe = subscribe(...args);
+      let removed = false;
+      return () => {
+        if (!removed) {
+          active--;
+          removed = true;
+        }
+        unsubscribe();
+      };
+    }) as typeof emitter.subscribe;
+    const poller = new MockPoller();
+    poller.setSnapshot(REALTIME, CUMULATIVE);
+    const abort = new AbortController();
+    const source = await makeContext(
+      emitter,
+      poller,
+      new MockVehicleManager(),
+      abort.signal,
+    ).subscription.onEvents();
+    const iterator = (source as AsyncIterable<SSEEvent>)
+      [Symbol.asyncIterator]();
+    await iterator.next();
+    expect(active).toBe(5);
+    abort.abort();
+    expect(active).toBe(0);
+    await iterator.return?.();
+  });
+
+  it("captures updates while the initial snapshot is being consumed", async () => {
+    const emitter = new TypedEventEmitter();
+    const poller = new MockPoller();
+    poller.setSnapshot(REALTIME, CUMULATIVE);
+    const abort = new AbortController();
+    const source = await makeContext(
+      emitter,
+      poller,
+      new MockVehicleManager(),
+      abort.signal,
+    ).subscription.onEvents();
+    const iterator = (source as AsyncIterable<SSEEvent>)
+      [Symbol.asyncIterator]();
+    expect((await iterator.next()).value?.type).toBe("energy_update");
+    emitter.emit("energy_update", {
+      ...REALTIME,
+      ...CUMULATIVE,
+      solarProductionW: 9000,
+    });
+    const next = await iterator.next();
+    expect((next.value as { data: EnergyData }).data.solarProductionW).toBe(
+      9000,
+    );
+    abort.abort();
+    await iterator.next();
+  });
+
+  it("reports overload and allows a fresh snapshot on reconnect", async () => {
+    const emitter = new TypedEventEmitter();
+    const poller = new MockPoller();
+    poller.setSnapshot(REALTIME, CUMULATIVE);
+    const caller = makeContext(emitter, poller, new MockVehicleManager());
+    const source = await caller.subscription.onEvents();
+    const iterator = (source as AsyncIterable<SSEEvent>)
+      [Symbol.asyncIterator]();
+    await iterator.next();
+    for (let i = 0; i < 300; i++) emitter.emit("vehicles_changed", {});
+    await expect(iterator.next()).rejects.toThrow("backlog exceeded");
+    const retry =
+      (await caller.subscription.onEvents() as AsyncIterable<SSEEvent>)
+        [Symbol.asyncIterator]();
+    expect((await retry.next()).value?.type).toBe("energy_update");
+    await retry.return?.();
+  });
+
   describe("subscription.onEvents", () => {
     it("emits initial energy snapshot", async () => {
       const eventEmitter = new TypedEventEmitter();

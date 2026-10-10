@@ -1,3 +1,4 @@
+import { commandMetrics, controllerMetrics } from "../lib/RuntimeMetrics.ts";
 import { externalChargingVehicles } from "./ExternalCharging.ts";
 import { BatteryScheduleMemory } from "./BatteryScheduleMemory.ts";
 import {
@@ -153,6 +154,18 @@ export class ChargeController {
    *  Returns the loaded config so the loop scheduler can read controllerLoopSeconds
    *  without a redundant DB round-trip. */
   async runOnce(): Promise<ControllerConfig> {
+    const started = performance.now();
+    let success = false;
+    try {
+      const config = await this.runCycle();
+      success = true;
+      return config;
+    } finally {
+      controllerMetrics.record(performance.now() - started, success);
+    }
+  }
+
+  private async runCycle(): Promise<ControllerConfig> {
     const traceId = createTraceId();
     const timestamp = Date.now();
     const config = await this.loadConfig();
@@ -688,12 +701,23 @@ export class ChargeController {
     const state = await this.vehicleManager.getState(vehicle.id);
     const preState = state;
 
-    const commandResult = await this.executeDecision(
-      vehicle.id,
-      decision,
-      state,
-      traceId,
-    );
+    const commandStarted = performance.now();
+    let commandResult: CommandResult | null = null;
+    try {
+      commandResult = await this.executeDecision(
+        vehicle.id,
+        decision,
+        state,
+        traceId,
+      );
+    } finally {
+      if (decision.action !== "none") {
+        commandMetrics.record(
+          performance.now() - commandStarted,
+          commandResult?.success === true,
+        );
+      }
+    }
     const commandFailed = commandResult?.success === false;
     const commandFailureDetail = `Command not executed — ${
       commandResult?.error ?? "unknown error"
@@ -802,6 +826,7 @@ export class ChargeController {
       detail: entry.actionDetail,
       targetAmps: entry.targetAmps,
       checksJson: JSON.stringify(entry.checks),
+      observedAt: new Date().toISOString(),
     }, vehicleId);
   }
 

@@ -98,5 +98,21 @@
   {
     "before": "t.jsx(Zs,{}),t.jsx($e,{mode:\"advanced\"}),t.jsx(Ge,{mode:\"system\"}),t.jsx(Qr,{}),t.jsx(zs,{})",
     "after": "t.jsx(EVSettingsSection,{title:\"Solar regulation\",children:t.jsx(Zs,{})}),t.jsx(EVSettingsSection,{title:\"Home battery protection\",children:t.jsx($e,{mode:\"advanced\"})}),t.jsx(EVSettingsSection,{title:\"System and storage\",children:t.jsx(Ge,{mode:\"system\"})}),t.jsx(EVSettingsSection,{title:\"Notifications\",children:t.jsx(Qr,{})}),t.jsx(EVSettingsSection,{title:\"Authentication\",children:t.jsx(zs,{})})"
+  },
+  {
+    "before": "const[e,s]=g.useState(\"cars\"),{data:r}=v.health.encryption.useQuery()",
+    "after": "const[e,s]=g.useState(\"cars\"),[visited,setVisited]=g.useState([\"cars\"]),{data:r}=v.health.encryption.useQuery()"
+  },
+  {
+    "before": "t.jsx(ti,{page:e,onChange:s}),t.jsx(di,{page:e})",
+    "after": "t.jsx(ti,{page:e,onChange:page=>{setVisited(pages=>pages.includes(page)?pages:[...pages,page]);s(page)}}),visited.map(page=>t.jsx(\"div\",{hidden:page!==e,children:t.jsx(di,{page})},page))"
+  },
+  {
+    "before": "t.jsx(si,{}),t.jsx(Os,{})",
+    "after": "t.jsx(si,{}),t.jsx(Os,{}),t.jsx(EVSettingsSection,{title:\"Why is charging limited?\",children:t.jsx(EVRegulationDiagnostics,{})})"
+  },
+  {
+    "before": "a&&t.jsx(Za,{}),t.jsx(ti,",
+    "after": "a&&t.jsx(Za,{}),t.jsx(EVSettingsSearch,{onSelect:page=>{setVisited(pages=>pages.includes(page)?pages:[...pages,page]);s(page)}}),t.jsx(ti,"
   }
 ]

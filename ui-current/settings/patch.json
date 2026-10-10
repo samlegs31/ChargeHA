@@ -5,6 +5,8 @@
   "components": [
     "ui-current/settings/SolarCurrentSettings.js",
     "ui-current/settings/ElectricalSettings.js",
-    "ui-current/settings/Sections.js"
+    "ui-current/settings/Sections.js",
+    "ui-current/settings/Diagnostics.js",
+    "ui-current/settings/Search.js"
   ]
 }

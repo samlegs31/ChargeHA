@@ -14,7 +14,7 @@ fields='EVSH='+json.dumps({key:class_names[value] for key,value in (pair.split('
 
 html='''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'''+''.join('<link rel="stylesheet" href="/'+str(p.relative_to(ROOT))+'">' for p in (ROOT/'packages/server/dist/assets').glob('*.css'))+'''<style>body{margin:0;background:#111113;color:#eee}.preview{max-width:900px;margin:auto;padding:20px;display:flex;flex-direction:column;gap:24px}.preview>div{width:100%;box-sizing:border-box}.radix-themes{--default-font-family:Arial}p{margin:0}</style></head><body><div class="radix-themes dark" id="preview-root"></div><script type="module">
 import {j as t,r as g,m as dom} from '/packages/server/dist/assets/vendor-react-BYv-AQ32.js';
-import {b as M,p as c,h as D,o as w,u as C,R as Theme} from '/packages/server/dist/assets/vendor-radix-B-Qd10_a.js';
+import {b as M,p as c,h as D,o as w,u as C,u as P,R as Theme} from '/packages/server/dist/assets/vendor-radix-B-Qd10_a.js';
 import {W as Ft,Y as _e,_ as Mt,D as Dt} from '/packages/server/dist/assets/vendor-icons-DHujlvtW.js';
 let stored=JSON.parse(sessionStorage.getItem('settings-fixture')||'{"vehicleSolarCurrentLimits":{"friday":22,"edith":16},"vehicleCurrentLimits":{"friday":32},"maxGridImportKw":null,"chargingEnabled":true}');
 window.saved=[];window.failNext=false;window.queryFailure=new URL(location.href).searchParams.has("fail");const listeners=new Set();
@@ -37,7 +37,7 @@ path=ROOT/'validation/results/settings-preview.html';path.parent.mkdir(exist_ok=
 layout = fn(settings, 'ci') + fn(settings, 'li')
 stubs = """
 function G({title,description}){return t.jsxs('header',{children:[t.jsx('h2',{children:title}),t.jsx('p',{children:description})]})}
-function FixtureCard({name}){const [value,setValue]=g.useState('');return t.jsx(F,{title:name,children:t.jsx('input',{'aria-label':name,value,onChange:e=>setValue(e.target.value)})})}
+function FixtureCard({name}){g.useEffect(()=>{window.mounts ??={};window.mounts[name]=(window.mounts[name]??0)+1},[]);const [value,setValue]=g.useState('');return t.jsx(F,{title:name,children:t.jsx('input',{'aria-label':name,value,onChange:e=>setValue(e.target.value)})})}
 function Zs(){return t.jsx(FixtureCard,{name:'Solar draft'})}
 function $e(){return t.jsx(FixtureCard,{name:'Battery draft'})}
 function Ge(){return t.jsx(FixtureCard,{name:'System draft'})}
@@ -54,3 +54,14 @@ layout = layout.replace('C.settingsPage','layoutClasses.settingsPage')
 extra = 'const layoutClasses='+json.dumps(css_map)+';'+stubs+layout
 layout_html = html.replace('const vehicles=',extra+'\nconst vehicles=').replace('children:t.jsx(Ds,{vehicles})','children:t.jsxs(g.Fragment,{children:[t.jsx(ci,{}),t.jsx(li,{})]})')
 (ROOT/'validation/results/settings-layout-preview.html').write_text(layout_html)
+# Actual Settings root with mock navigation/data adapters; test drafts across pages.
+root_code = fn(settings, 'wi').split('export{')[0].replace('C.', 'layoutClasses.')
+root_mocks = '''
+window.mounts={};window.diagnosticReads=0;
+function ti({page,onChange}){return t.jsx('nav',{children:['cars','advanced'].map(name=>t.jsx(w,{onClick:()=>onChange(name),children:name},name))})}
+function di({page}){return page==='cars'?t.jsxs(g.Fragment,{children:[t.jsx(Ds,{vehicles}),t.jsx(EVSettingsSection,{title:'Why is charging limited?',children:t.jsx(EVRegulationDiagnostics,{})})]}):t.jsx(ci,{})}
+function Xa(){return null}function Za(){return null}
+const v={health:{encryption:{useQuery:()=>({data:{configured:true}})},regulation:{useQuery:()=>{g.useEffect(()=>{window.diagnosticReads++},[]);return {data:{chargingEnabled:true,energyAgeMs:65000,energyStale:true,gridPowerW:400,controller:{p95Ms:25},commands:{failures:1,count:3},vehicles:[{id:'friday',name:'F.R.I.D.A.Y.',reason:'grace_period',requestedAmps:22,actualAmps:null,telemetryAgeMs:120000,decisionAgeMs:5000,solarLimitAmps:22}]},refetch:()=>{window.diagnosticReads++}}}}}};
+'''
+root_html = layout_html.replace('const vehicles=',root_mocks+root_code+'\nconst vehicles=').replace("children:t.jsxs(g.Fragment,{children:[t.jsx(ci,{}),t.jsx(li,{})]})", "children:t.jsx(wi,{})")
+(ROOT/'validation/results/settings-root-preview.html').write_text(root_html)

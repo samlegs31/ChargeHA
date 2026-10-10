@@ -56,3 +56,13 @@ suite passed (202 tests, 2,149 steps). Original pinned-version verification rema
 expected to fail for the explicitly modified candidate. Production UI deployment
 stays pending after the earlier automatic approval refusal; no Raspberry files or
 saved vehicle settings were changed during this simplification.
+
+## Modernisation du 10 octobre — état courant
+
+Sections montées à la première ouverture ; catégories visitées conservées pour les
+brouillons. `Search.js` réutilise le champ texte Radix installé. `Diagnostics.js`
+interroge uniquement le cache via `health.regulation`, à l’ouverture et sur Refresh.
+Le diagnostic ne remplace jamais un courant mesuré absent par une consigne.
+Le scénario root utilise la vraie composition Settings et des adaptateurs simulés.
+Voir `validation/MODERNISATION-IMPLEMENTATION-20261010.md` pour les résultats actuels
+(206 tests / 2 152 étapes), les limites des mesures et les lots encore ouverts.
