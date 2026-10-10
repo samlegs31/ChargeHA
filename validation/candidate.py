@@ -13,7 +13,7 @@ BASE_MANIFEST_SHA256 = "b70d00efba3608ea321f38e9d4441da6767dfe6d21448cf4e5b4645a
 ROOT = Path(__file__).resolve().parent.parent
 
 # User-authorized Settings addition. Every other installed asset stays immutable.
-APPROVED_UI = {"packages/server/dist/assets/Settings-C2gay-IT.js": "c54ddd58aeaa5dc91481c52b22d60bd8686dcb475fee77d6c23b958f06419598"}
+APPROVED_UI = {"packages/server/dist/assets/Settings-C2gay-IT.js": "ba5f132839c4cfea014765f29d6c81683b6a4e8995239d161b735cc48add8131"}
 
 
 def digest(data):

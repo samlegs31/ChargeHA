@@ -15,7 +15,12 @@ def render(root=ROOT):
     start = text.index("function Ds(")
     end = text.index("function Rs(", start)
     replacement = "\n".join((root / path).read_text() for path in spec["components"])
-    return spec["asset"], (text[:start] + replacement + text[end:]).encode()
+    text = text[:start] + replacement + text[end:]
+    for change in json.loads((root / "ui-current/settings/simplification.json").read_text()):
+        if text.count(change["before"]) != 1:
+            raise ValueError("Settings simplification anchor is not unique: " + change["before"])
+        text = text.replace(change["before"], change["after"], 1)
+    return spec["asset"], text.encode()
 
 if __name__ == "__main__":
     asset, output = render()

@@ -35,7 +35,25 @@ const assert=require('node:assert/strict');
   await page.goto(url+'?fail');
   await solar.getByRole('button',{name:'Retry',exact:true}).click();
   await input.waitFor();assert.equal(await input.inputValue(),'22');
+  await page.goto(url.replace('settings-preview','settings-layout-preview'));
+  const groups=[['Solar regulation','Solar draft'],['Home battery protection','Battery draft'],['System and storage','System draft'],['Notifications','Notifications draft'],['Authentication','Authentication draft'],['Import from Charge HQ','Charge HQ import'],['Import from Wattpilot','Wattpilot import']];
+  for(const [title,label] of groups){
+   const toggle=page.getByRole('button',{name:title,exact:true});
+   const field=page.getByRole('textbox',{name:label,exact:true});
+   assert.equal(await toggle.getAttribute('aria-expanded'),'false');
+   assert.equal(await field.isVisible(),false);
+   await toggle.focus();await page.keyboard.press('Enter');
+   assert.equal(await toggle.getAttribute('aria-expanded'),'true');
+   await field.fill('unsaved draft');
+   await toggle.click();assert.equal(await field.isVisible(),false);
+   await toggle.click();assert.equal(await field.inputValue(),'unsaved draft');
+   await toggle.click();
+  }
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'sections mobile overflow');
+  await page.screenshot({path:'validation/results/settings-sections-mobile.png',fullPage:true});
+  await page.setViewportSize({width:1280,height:1050});
+  await page.screenshot({path:'validation/results/settings-sections-desktop.png',fullPage:true});
   assert.deepEqual(errors,[]);
-  console.log('PASS: 1 A steps, cancel, persistence/reload, validation, save failure/retry, removal, other vehicle preservation, desktop/mobile');
+  console.log('PASS: 1 A steps, cancel, persistence/reload, validation, save failure/retry, removal, other vehicle preservation, 7 collapsible sections, keyboard, draft retention, desktop/mobile');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});

@@ -4,6 +4,7 @@
   "original": "ui-current/settings/Settings.original.js",
   "components": [
     "ui-current/settings/SolarCurrentSettings.js",
-    "ui-current/settings/ElectricalSettings.js"
+    "ui-current/settings/ElectricalSettings.js",
+    "ui-current/settings/Sections.js"
   ]
 }

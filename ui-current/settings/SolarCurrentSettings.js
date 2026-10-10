@@ -18,13 +18,13 @@ function EVSolarCurrentSettings({ vehicles }) {
   return t.jsx(F, {
     icon: t.jsx(_e, { size: 18 }),
     title: "Solar current limit",
-    description: "A separate maximum for each vehicle when E.V. Solar follows the available solar surplus.",
+    description: "Maximum current per car while following solar surplus.",
     saveStatus,
     isDirty,
     onSave: !invalid && fields && !query.isError ? save : undefined,
     action: isDirty ? t.jsx(w, { size: "1", variant: "soft", disabled: saving, onClick: discard, children: "Cancel" }) : undefined,
     children: t.jsxs("fieldset", { disabled: saving, style: fieldStyle, children: [
-      t.jsx(c, { as: "p", size: "2", children: "Adjust in 1 A steps. Applies to Solar Only and Solar + Clock outside scheduled charging. Does not limit Charge Now, scheduled charging or direct manual commands." }),
+      t.jsx(c, { as: "p", size: "2", children: "Adjust by 1 A. Applies to Solar Only and Solar + Clock outside schedules." }),
       query.isError ? t.jsxs("div", { role: "alert", children: [
         t.jsx(c, { as: "p", size: "2", color: "red", children: "Could not load solar limits. Retry before making changes." }),
         t.jsx(w, { size: "1", onClick: () => query.refetch(), children: "Retry" }),
@@ -39,8 +39,8 @@ function EVSolarCurrentSettings({ vehicles }) {
         }),
       }, vehicle.id)),
       invalid && t.jsx(c, { role: "alert", size: "2", color: "red", children: "Use a whole number from 1 to 80 A, or leave the field empty. Changes have not been saved." }),
-      t.jsx(c, { as: "p", size: "1", color: "gray", children: "Use whole amps from 1 to 80 A. A value below the vehicle minimum pauses solar charging. Available surplus and lower electrical limits still apply. A lower ceiling takes effect at the next control cycle; increases follow normal solar stabilisation." }),
-      t.jsx(c, { as: "p", size: "1", color: "gray", children: "22 A is about 5.1 kW at 230 V on one phase (15.2 kW on three phases). This is not a whole-home or inverter power limit. Vehicles controlled by an external charger keep their external control." }),
+      t.jsx(c, { as: "p", size: "1", color: "gray", children: "1–80 A. Below the car’s minimum, solar charging pauses. Available solar and lower electrical limits still apply." }),
+      t.jsx(c, { as: "p", size: "1", color: "gray", children: "Charge Now, scheduled charging and manual commands are not capped here. External chargers retain control." }),
     ] }),
   });
 }

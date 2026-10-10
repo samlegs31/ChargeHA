@@ -1,0 +1,102 @@
+[
+  {
+    "before": "\"Choose a large category below.\"",
+    "after": "\"Cars, solar energy and preferences.\""
+  },
+  {
+    "before": "\"Choose the inverter or smart-meter integration that supplies live solar, grid, load, and battery data.\"",
+    "after": "\"Connect your inverter or energy meter.\""
+  },
+  {
+    "before": "\"This is the data source E.V Solar uses for monitoring and automatic charging decisions.\"",
+    "after": "\"Provides live energy data for automatic charging.\""
+  },
+  {
+    "before": "\"Reserve solar for your household before allocating to the car. Positive values keep a buffer for home use. Negative values allow a small amount of grid import.\"",
+    "after": "\"Positive: reserve solar for the home. Negative: allow some grid import.\""
+  },
+  {
+    "before": "\"Minimum total solar production before charging can start. Prevents charging during low-light periods like dawn and dusk. If production drops below this while charging, the grace period applies (drops to min amps, then stops if it doesn't recover). If solar drops to zero, charging stops immediately with no grace period.\"",
+    "after": "\"Production needed to start. Below this, the grace period applies; zero solar stops charging immediately.\""
+  },
+  {
+    "before": "\"Minimum surplus solar (after home consumption) required to start charging. Once charging, the normal grace period handles fluctuations. Leave empty to disable.\"",
+    "after": "\"Surplus needed to start, after home use. Leave empty to disable this threshold.\""
+  },
+  {
+    "before": "\"How long to tolerate a temporary solar drop before stopping. During this grace period E.V Solar may reduce charging to the minimum current, then stops if usable excess solar does not recover.\"",
+    "after": "\"Time at minimum current during a solar drop before stopping. May draw from the grid.\""
+  },
+  {
+    "before": "\"After stopping due to insufficient solar, wait this long before restarting. Prevents rapid on/off cycling when solar is fluctuating near the threshold.\"",
+    "after": "\"Wait after a solar stop before restarting, to avoid repeated starts and stops.\""
+  },
+  {
+    "before": "\"Your region's nominal mains voltage. Used to convert available solar watts to charging amps.\"",
+    "after": "\"Nominal mains voltage, used to convert solar power to amps.\""
+  },
+  {
+    "before": "\"Enable if your charger is wired for 3-phase power. The solar algorithm divides available watts by voltage x phases to calculate amps — if the car misreports phases as 1, the controller will overshoot by 3x without this setting.\"",
+    "after": "\"Enable only for a three-phase charger. An incorrect phase count can cause grid import.\""
+  },
+  {
+    "before": "\"Solar Only and Solar + 🕒 always use real excess solar outside scheduled charging windows. Configure the thresholds and response timing here.\"",
+    "after": "\"Solar thresholds and response timing, outside scheduled charging.\""
+  },
+  {
+    "before": "\"Tell E.V. Solar about your installation so it can predict available solar, home-battery energy and vehicle charging more accurately.\"",
+    "after": "\"Installation details used for the energy forecast.\""
+  },
+  {
+    "before": "\"The home battery charges first up to this level. Once reached, available solar goes to the car, starting at minimum current. Car charging pauses if the battery falls below this level.\"",
+    "after": "\"Charge the home battery to this level first. Car charging pauses below it.\""
+  },
+  {
+    "before": "\"How much brief battery discharge is allowed while the car is charging. Use 0 W for the strictest protection.\"",
+    "after": "\"Battery discharge allowed during car charging. Set 0 W for strict protection.\""
+  },
+  {
+    "before": "\"Turn E.V. Solar automatic charging on or off.\"",
+    "after": "\"\""
+  },
+  {
+    "before": "\"Off pauses automatic start, stop and current changes. Your other settings are kept.\"",
+    "after": "\"Off stops charging managed by E.V. Solar. Your settings are kept.\""
+  },
+  {
+    "before": "\"Configure your electricity rates to track charging costs and solar savings.\"",
+    "after": "\"Rates used for charging costs and savings.\""
+  },
+  {
+    "before": "\"Fine tuning. Most people can leave these settings alone.\"",
+    "after": "\"Open only the section you need. Save changes within each card.\""
+  },
+  {
+    "before": "\"Min solar generation\"",
+    "after": "\"Minimum solar production\""
+  },
+  {
+    "before": "\"Min excess solar\"",
+    "after": "\"Minimum surplus to start\""
+  },
+  {
+    "before": "\"Cooldown period\"",
+    "after": "\"Restart delay\""
+  },
+  {
+    "before": "\"Amp change threshold\"",
+    "after": "\"Current change threshold\""
+  },
+  {
+    "before": "\"Amp settle time\"",
+    "after": "\"Current stabilisation time\""
+  },
+  {
+    "before": "t.jsx(oi,{}),t.jsx(ha,{}),t.jsx(Ia,{})",
+    "after": "t.jsx(EVSettingsSection,{title:\"Import from Charge HQ\",children:t.jsx(ha,{})}),t.jsx(EVSettingsSection,{title:\"Import from Wattpilot\",children:t.jsx(Ia,{})})"
+  },
+  {
+    "before": "t.jsx(Zs,{}),t.jsx($e,{mode:\"advanced\"}),t.jsx(Ge,{mode:\"system\"}),t.jsx(Qr,{}),t.jsx(zs,{})",
+    "after": "t.jsx(EVSettingsSection,{title:\"Solar regulation\",children:t.jsx(Zs,{})}),t.jsx(EVSettingsSection,{title:\"Home battery protection\",children:t.jsx($e,{mode:\"advanced\"})}),t.jsx(EVSettingsSection,{title:\"System and storage\",children:t.jsx(Ge,{mode:\"system\"})}),t.jsx(EVSettingsSection,{title:\"Notifications\",children:t.jsx(Qr,{})}),t.jsx(EVSettingsSection,{title:\"Authentication\",children:t.jsx(zs,{})})"
+  }
+]
