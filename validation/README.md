@@ -1,3 +1,16 @@
+# Dernière modification : champ solaire dans Settings
+
+[Réglage visible et libellés clarifiés](SETTINGS-SOLAR-LIMIT.md), publié dans la PR
+Draft #87 : Settings → My cars → Solar current limit, pas de 1 A, Save / Cancel,
+validation et erreurs explicites. Un seul asset modifié par patch reproductible.
+
+202 tests backend / 2 149 sous-tests et 12 tests d'intégrité passent. Interactions
+navigateur et rendu mobile/bureau vérifiés. Le déploiement de cette interface est
+en attente de confirmation ciblée après blocage du contrôle automatique ; le
+backend précédent et le plafond de Friday à 22 A restent installés.
+
+---
+
 # État actuel : déployé sur Raspberry et publié sur GitHub
 
 [Déploiement du 9 octobre](DEPLOYMENT-20261009.md) explicitement autorisé : backend
