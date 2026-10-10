@@ -114,6 +114,13 @@ class CandidateIntegrityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Protected installed"):
             self.check()
 
+    def test_allowlisted_dependency_tampering_is_still_rejected(self):
+        dependency = "packages/server/deno.json"
+        self.write(dependency, '{"imports": {"unexpected": "npm:unexpected"}}')
+        self.allow([self.source, dependency])
+        with self.assertRaisesRegex(ValueError, "Protected installed"):
+            self.check()
+
 class SettingsPatchTests(unittest.TestCase):
     def test_settings_patch_reproduces_the_shipped_asset(self):
         spec = importlib.util.spec_from_file_location("settings_patch", ROOT / "ui-current/settings/patch.py")

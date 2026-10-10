@@ -10,9 +10,7 @@ export type { ConfigKey, CoreConfigKey };
 
 // ---- Shared enums / primitives ----
 
-const dayOfWeekSchema: z.ZodEnum<
-  ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-> = z.enum([
+const dayOfWeekSchema = z.enum([
   "mon",
   "tue",
   "wed",
@@ -23,25 +21,24 @@ const dayOfWeekSchema: z.ZodEnum<
 ]);
 export type DayOfWeekZ = z.infer<typeof dayOfWeekSchema>;
 
-const vehicleModeSchema: z.ZodEnum<["auto", "charge_now", "vacation", "stop"]> =
-  z.enum([
-    "auto",
-    "charge_now",
-    "vacation",
-    "stop",
-  ]);
+const vehicleModeSchema = z.enum([
+  "auto",
+  "charge_now",
+  "vacation",
+  "stop",
+]);
 export type VehicleModeZ = z.infer<typeof vehicleModeSchema>;
 
 const vehicleAdapterTypeSchema: z.ZodString = z.string().min(1);
 export type VehicleAdapterTypeZ = z.infer<typeof vehicleAdapterTypeSchema>;
 
-const scheduleTypeSchema: z.ZodEnum<["charge", "blockout"]> = z.enum([
+const scheduleTypeSchema = z.enum([
   "charge",
   "blockout",
 ]);
 export type ScheduleTypeZ = z.infer<typeof scheduleTypeSchema>;
 
-const statsPeriodSchema: z.ZodEnum<["day", "month", "year"]> = z.enum([
+const statsPeriodSchema = z.enum([
   "day",
   "month",
   "year",
@@ -235,7 +232,7 @@ export const tariffCreateInput: z.ZodType<{
   label: z.string().min(1),
   startTime: timeStringSchema,
   endTime: timeStringSchema,
-  days: z.array(dayOfWeekSchema).nonempty(),
+  days: z.tuple([dayOfWeekSchema]).rest(dayOfWeekSchema),
   ratePerKwh: z.number().min(0),
   enabled: z.boolean().optional(),
 });
@@ -254,7 +251,7 @@ export const tariffUpdateInput: z.ZodType<{
   label: z.string().min(1).optional(),
   startTime: timeStringSchema.optional(),
   endTime: timeStringSchema.optional(),
-  days: z.array(dayOfWeekSchema).nonempty().optional(),
+  days: z.tuple([dayOfWeekSchema]).rest(dayOfWeekSchema).optional(),
   ratePerKwh: z.number().min(0).optional(),
   enabled: z.boolean().optional(),
 });
@@ -299,7 +296,7 @@ export const scheduleCreateInput: z.ZodType<{
   scheduleType: scheduleTypeSchema,
   startTime: timeStringSchema,
   endTime: timeStringSchema,
-  days: z.array(dayOfWeekSchema).nonempty(),
+  days: z.tuple([dayOfWeekSchema]).rest(dayOfWeekSchema),
   vehicleId: z.string().nullable().optional(),
   chargeAmps: z.number().min(1).optional(),
   chargeLimitPct: z.number().min(1).max(100).optional(),
@@ -321,7 +318,7 @@ export const scheduleUpdateInput: z.ZodType<{
   scheduleType: scheduleTypeSchema.optional(),
   startTime: timeStringSchema.optional(),
   endTime: timeStringSchema.optional(),
-  days: z.array(dayOfWeekSchema).nonempty().optional(),
+  days: z.tuple([dayOfWeekSchema]).rest(dayOfWeekSchema).optional(),
   vehicleId: z.string().nullable().optional(),
   chargeAmps: z.number().min(1).optional(),
   chargeLimitPct: z.number().min(1).max(100).optional(),

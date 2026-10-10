@@ -16,6 +16,9 @@ ROOT = Path(__file__).resolve().parent.parent
 APPROVED_UI = {"packages/server/dist/assets/Settings-C2gay-IT.js": "b7208035c7dd781a06880ed2ad1b5bb2faf754d4f94f494e71d4fb65a1d05f34"}
 
 
+# Explicitly reviewed dependency update; installed baseline remains immutable.
+APPROVED_DEPENDENCIES = {'deno.json': '94638d13978b6be2f48ada1f21415872a46aa69c331d119477987d994f6ef214', 'deno.lock': '52fa399d027557346f59465c325a25342ac8e6051aa6b21e9ff9586a14072f00', 'packages/server/deno.json': '1a14de1deeb821bf0e22b7b407a91d891f43e7b15235a0bad589e7e198c478e7', 'packages/plugins/deno.json': '27ac269f5ac686b59b95596822a866c5d0ebcb06a5d56cc284087a110472ec81'}
+
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -33,8 +36,8 @@ def read_file(root, name):
 
 
 def protected(name):
-    # Only backend/shared .ts files can differ. UI, dependencies, entrypoint,
-    # migrations and installed assets remain exactly as captured.
+    # Runtime TypeScript changes require the reviewed allowlist. Other files
+    # require exact approved hashes; the installed baseline stays immutable.
     return not (
         name.startswith(("packages/server/src/", "packages/shared/", "packages/plugins/"))
         and name.endswith(".ts")
@@ -59,7 +62,7 @@ def inventory(root, expected_digest=BASE_MANIFEST_SHA256):
     allowed = set(json.loads(read_file(root, "validation/allowed-runtime-changes.json")))
     if changed != allowed:
         raise ValueError(f"Unreviewed drift: {sorted(changed ^ allowed)}")
-    if any(protected(name) and APPROVED_UI.get(name) != files[name] for name in changed):
+    if any(protected(name) and {**APPROVED_UI, **APPROVED_DEPENDENCIES}.get(name) != files[name] for name in changed):
         raise ValueError("Protected installed file changed")
     return files
 

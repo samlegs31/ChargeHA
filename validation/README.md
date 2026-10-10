@@ -1,3 +1,9 @@
+# Mise à jour actuelle : dépendances, sans déploiement
+
+Voir [la migration du 10 octobre](DEPENDENCY-UPGRADE-20261010.md). Les sections suivantes sont des comptes rendus historiques ; elles ne décrivent pas toutes la candidate actuelle.
+
+---
+
 # Dernière modification : champ solaire dans Settings
 
 [Réglage visible et libellés clarifiés](SETTINGS-SOLAR-LIMIT.md), publié dans la PR

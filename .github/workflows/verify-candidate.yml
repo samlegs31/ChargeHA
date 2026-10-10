@@ -16,3 +16,27 @@ jobs:
         run: python3 validation/candidate.py verify
       - name: Test drift detection and reproducible assembly
         run: python3 -m unittest discover -s validation -p 'test_*.py' -v
+
+  test-backend-updated:
+    name: Updated backend on Linux ARM64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.7
+      - name: Build verified SQLite for isolated tests
+        run: |
+          python3 validation/build-sqlite.py --output "$RUNNER_TEMP/libevsolar-sqlite.so"
+          echo "DENO_SQLITE_PATH=$RUNNER_TEMP/libevsolar-sqlite.so" >> "$GITHUB_ENV"
+      - name: Fetch locked dependencies
+        run: |
+          deno ci
+          deno install --frozen --import-map=validation/imports.json --lock=validation/deno.lock
+      - name: Cache native password hashing dependency
+        run: deno eval 'import { hash } from "@ts-rex/argon2"; await hash("isolated-ci-preflight");'
+      - name: Check backend and run tests
+        run: bash validation/check-backend.sh
+      - name: Audit locked dependencies
+        run: deno audit

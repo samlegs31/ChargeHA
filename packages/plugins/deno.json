@@ -7,7 +7,7 @@
     "./registerPlugins": "./registerPlugins.ts"
   },
   "imports": {
-    "hono": "jsr:@hono/hono@^4",
-    "@trpc/server": "npm:@trpc/server@^11"
+    "hono": "jsr:@hono/hono@4.13.9",
+    "@trpc/server": "npm:@trpc/server@11.19.0"
   }
 }
