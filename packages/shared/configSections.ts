@@ -30,9 +30,14 @@ export function defineSection<const T extends SectionDef>(def: T): T {
 // ── Core section definitions ────────────────────────────────────────────────
 
 export const chargingConfigDef = defineSection({
+  vehicleSolarCurrentLimits: {
+    key: "vehicle_solar_current_limits",
+    schema: z.record(z.string(), z.number().int().min(1).max(80)),
+    default: {} as Record<string, number>,
+  },
   vehicleCurrentLimits: {
     key: "vehicle_current_limits",
-    schema: z.record(z.number().int().min(1).max(80)),
+    schema: z.record(z.string(), z.number().int().min(1).max(80)),
     default: {} as Record<string, number>,
   },
   maxGridImportKw: {
@@ -346,7 +351,7 @@ export const internalConfigDef = defineSection({
   },
   externalChargingVehicles: {
     key: "external_charging_vehicles",
-    schema: z.record(z.boolean()),
+    schema: z.record(z.string(), z.boolean()),
     default: {} as Record<string, boolean>,
   },
   oscillationPaused: {
@@ -479,7 +484,7 @@ function deserializeValue<T extends z.ZodTypeAny>(
   const isNullable = innerSchema !== schema;
 
   // Handle nullable — empty string means null
-  if (isNullable && raw === "") return null;
+  if (isNullable && raw === "") return schema.parse(null);
 
   // Check inner type
   if (innerSchema instanceof z.ZodBoolean) {
@@ -507,8 +512,9 @@ function deserializeValue<T extends z.ZodTypeAny>(
       return defaultValue;
     }
   }
-  // String passthrough
-  return raw;
+  // Validate string output as well, preserving the declared schema type.
+  const result = schema.safeParse(raw);
+  return result.success ? result.data : defaultValue;
 }
 
 /**
@@ -516,7 +522,6 @@ function deserializeValue<T extends z.ZodTypeAny>(
  */
 function serializeValue<T extends z.ZodTypeAny>(
   value: z.infer<T>,
-  // deno-lint-ignore custom-trailing-underscore-param/no-trailing-underscore-param -- carries the generic so T is inferred at call sites
   _schema: T,
 ): string {
   if (value === null || value === undefined) return "";
@@ -528,7 +533,8 @@ function serializeValue<T extends z.ZodTypeAny>(
 /** Unwrap z.nullable() to get the inner schema, or return the schema itself. */
 function unwrapNullable(schema: z.ZodTypeAny): z.ZodTypeAny {
   if (schema instanceof z.ZodNullable) {
-    return schema.unwrap();
+    const inner = schema.unwrap();
+    return inner instanceof z.ZodType ? inner : schema;
   }
   return schema;
 }

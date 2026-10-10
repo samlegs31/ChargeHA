@@ -48,7 +48,7 @@ describe("ChargeController — commands + backoff", () => {
   });
 
   describe("stopCharging — command backoff", () => {
-    it("skips stop command when command backoff is active", async () => {
+    it("retries safety STOP even when command backoff is active", async () => {
       ctx = await setupController({ isCharging: true }, "stop");
       ctx.adapter.stopChargingResult = false;
       await ctx.runOneLoop();
@@ -62,7 +62,7 @@ describe("ChargeController — commands + backoff", () => {
 
       await ctx.runOneLoop();
 
-      expect(ctx.adapter.commands).not.toContainEqual({ cmd: "stop" });
+      expect(ctx.adapter.commands).toContainEqual({ cmd: "stop" });
     });
   });
 

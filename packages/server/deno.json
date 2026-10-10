@@ -16,10 +16,10 @@
     "./bootstrap/EnergyPluginRegistry": "./src/bootstrap/EnergyPluginRegistry.ts"
   },
   "imports": {
-    "hono": "jsr:@hono/hono@^4",
-    "hono/deno": "jsr:@hono/hono@^4/deno",
-    "@std/dotenv": "jsr:@std/dotenv@^0.225",
-    "@trpc/server": "npm:@trpc/server@^11"
+    "hono": "jsr:@hono/hono@4.13.9",
+    "hono/deno": "jsr:@hono/hono@4.13.9/deno",
+    "@std/dotenv": "jsr:@std/dotenv@0.225.8",
+    "@trpc/server": "npm:@trpc/server@11.19.0"
   },
   "tasks": {
   }

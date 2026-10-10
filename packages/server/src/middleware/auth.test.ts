@@ -205,8 +205,16 @@ describe("createAuthMiddleware()", () => {
     it("does not exempt non-auth tRPC paths", async () => {
       const { app } = setupAuthApp({ authMode: "local" });
 
-      const res = await app.request("/trpc/config.get");
-      expect(res.status).toBe(401);
+      for (
+        const path of [
+          "/trpc/config.get",
+          "/trpc/health.regulation",
+          "/trpc/auth.session,health.regulation",
+        ]
+      ) {
+        const res = await app.request(path);
+        expect(res.status).toBe(401);
+      }
     });
 
     it("allows static .js assets without auth", async () => {

@@ -392,6 +392,7 @@ export class SolarForecastService {
       this.configService.getSystem(),
     ]);
     return {
+      vehicleSolarCurrentLimits: charging.vehicleSolarCurrentLimits,
       vehicleCurrentLimits: charging.vehicleCurrentLimits,
       maxGridImportKw: charging.maxGridImportKw,
       chargingEnabled: charging.chargingEnabled,

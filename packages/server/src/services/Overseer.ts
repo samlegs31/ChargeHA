@@ -134,7 +134,13 @@ export class Overseer {
     vehicleId: string,
   ): Promise<Awaited<ReturnType<VehicleManager["stopCharging"]>> | null> {
     const state = await this.vehicleManager.getState(vehicleId);
-    if (!state?.isCharging) return null;
+    if (!state) {
+      return {
+        success: false,
+        error: "Vehicle state unavailable; STOP not confirmed",
+      };
+    }
+    if (!state.isCharging) return null;
     return await this.vehicleManager.stopCharging(
       vehicleId,
       { origin: "overseer:safety-trip", traceId: crypto.randomUUID() },
