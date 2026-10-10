@@ -36,6 +36,8 @@ jobs:
           deno install --frozen --import-map=validation/imports.json --lock=validation/deno.lock
       - name: Cache native password hashing dependency
         run: deno eval 'import { hash } from "@ts-rex/argon2"; await hash("isolated-ci-preflight");'
+      - name: Verify the loaded SQLite engine
+        run: deno run --frozen --allow-env --allow-read --allow-ffi validation/check-runtime.ts
       - name: Check backend and run tests
         run: bash validation/check-backend.sh
       - name: Audit locked dependencies

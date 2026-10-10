@@ -397,6 +397,7 @@
     "packages/server/src/test-helpers/authHarness.ts": "9db566192c02e726cfad1d0091bd559f994bbb4de1e38bbd484c0fdf18af343d",
     "packages/server/src/test-helpers/throwingMock.ts": "9c9a05c43323adf59080fb83c9bd40a1fb64577764ff81e2a0a14dad9f2a08f1",
     "packages/server/src/trpc/errorMiddleware.test.ts": "e3a9292f1e7fa97d810deb2b2db2d086003ac0bb9e2c355af94fc7561ba3bc1c",
+    "packages/server/src/trpc/httpCompatibility.test.ts": "a9c93162174bdd20d9befc70a3aa89ca6f2d589c4323d386a1c5cddd1bac3b57",
     "packages/server/src/trpc/root.ts": "d21bd5b5d77fa5821205487456b941ed3bd7dee83b7018b0ff87ad867b5e7d71",
     "packages/server/src/trpc/routers/auth.test.ts": "ed2f995040d7d9eb9d13bb6cbf22b767cc8780898cf8a5a0bb39cae85f8d67fc",
     "packages/server/src/trpc/routers/auth.ts": "4a9efcecb690e126f89da9ded9370494072b3b65c7f678f5ce09f221d49e7a43",
