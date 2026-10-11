@@ -107,6 +107,13 @@ export class ChargeController {
   private lastRecoveryReadingAt: string | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private loopCount = 0;
+  private stopped = true;
+  private looping = false;
+  private refreshPending = false;
+  private lastLoopStartedAt = 0;
+  private nextScheduledAt = 0;
+  private unsubscribeUpdates: Array<() => void> = [];
+  private inFlight: Promise<ControllerConfig> | null = null;
 
   constructor(
     vehicleManager: VehicleManager,
@@ -131,20 +138,64 @@ export class ChargeController {
   }
 
   private start(): void {
+    if (!this.stopped) return;
+    this.stopped = false;
+    this.unsubscribeUpdates = [
+      this.eventEmitter.subscribe(
+        "energy_update",
+        () => this.requestEarlyCycle(),
+      ),
+      this.eventEmitter.subscribe(
+        "vehicle_plug_changed",
+        () => this.requestEarlyCycle(),
+      ),
+      this.eventEmitter.subscribe(
+        "vehicle_mode_changed",
+        () => this.requestEarlyCycle(),
+      ),
+      this.eventEmitter.subscribe(
+        "config_changed",
+        () => this.requestEarlyCycle(),
+      ),
+    ];
     this.logger.info("Started");
     this.scheduleNext(DEFAULT_LOOP_MS);
   }
 
   stop(): void {
+    this.stopped = true;
+    this.refreshPending = false;
+    this.unsubscribeUpdates.forEach((unsubscribe) => unsubscribe());
+    this.unsubscribeUpdates = [];
     if (this.timer) {
       clearTimeout(this.timer);
       this.timer = null;
     }
   }
 
-  private scheduleNext(delayMs: number): void {
+  private requestEarlyCycle(): void {
+    if (this.stopped) return;
+    if (this.looping) {
+      this.refreshPending = true;
+      return;
+    }
+    this.scheduleNext(
+      Math.min(
+        5_000,
+        Math.max(0, 5_000 - (Date.now() - this.lastLoopStartedAt)),
+      ),
+      true,
+    );
+  }
+
+  private scheduleNext(delayMs: number, earlierOnly = false): void {
+    if (this.stopped) return;
+    const due = Date.now() + delayMs;
+    if (earlierOnly && this.timer && this.nextScheduledAt <= due) return;
+    this.nextScheduledAt = due;
     if (this.timer) clearTimeout(this.timer);
     this.timer = setTimeout(async () => {
+      this.timer = null;
       await this.loop();
     }, delayMs);
   }
@@ -153,7 +204,11 @@ export class ChargeController {
    *  Used by the simulator to step the controller one tick at a time.
    *  Returns the loaded config so the loop scheduler can read controllerLoopSeconds
    *  without a redundant DB round-trip. */
-  async runOnce(): Promise<ControllerConfig> {
+  runOnce(): Promise<ControllerConfig> {
+    return this.inFlight ??= this.runMeasuredCycle();
+  }
+
+  private async runMeasuredCycle(): Promise<ControllerConfig> {
     const started = performance.now();
     let success = false;
     try {
@@ -162,6 +217,7 @@ export class ChargeController {
       return config;
     } finally {
       controllerMetrics.record(performance.now() - started, success);
+      this.inFlight = null;
     }
   }
 
@@ -821,6 +877,12 @@ export class ChargeController {
   }
 
   private async loop(): Promise<void> {
+    if (this.looping) {
+      this.refreshPending = true;
+      return;
+    }
+    this.looping = true;
+    this.lastLoopStartedAt = Date.now();
     const nextIntervalMs = await this.runOnce()
       .then((config) => config.controllerLoopSeconds * 1000)
       .catch((error) => {
@@ -828,7 +890,11 @@ export class ChargeController {
         return DEFAULT_LOOP_MS;
       });
 
-    this.scheduleNext(nextIntervalMs);
+    this.looping = false;
+    const refresh = this.refreshPending;
+    this.refreshPending = false;
+    if (refresh) this.requestEarlyCycle();
+    else this.scheduleNext(nextIntervalMs);
   }
 
   /** Push the latest controller decision to the frontend via SSE. */

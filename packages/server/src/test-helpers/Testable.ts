@@ -39,6 +39,9 @@ export interface TestableEnergyPoller {
 }
 
 export interface TestableChargeController {
+  start(): void;
+  requestEarlyCycle(): void;
+  runCycle(): Promise<ControllerConfig>;
   loop(): Promise<void>;
   loadConfig(): Promise<ControllerConfig>;
   engine: { getControlState(vehicleId: string): VehicleControlState };

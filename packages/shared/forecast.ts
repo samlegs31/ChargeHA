@@ -57,7 +57,25 @@ export interface SolarPredictionSummary {
   solarChargeP90Kwh: number;
 }
 
+export interface ChargingConnectionOutlook {
+  vehicleId: string;
+  timezone: string;
+  generatedAt: string;
+  batterySoc: number | null;
+  advisory: true;
+  hours: Array<
+    {
+      at: string;
+      weather: "low_pv" | "high_pv" | "unknown";
+      probability: number | null;
+      samples: number;
+      confidence: "learning" | "low" | "medium";
+    }
+  >;
+}
+
 export interface SolarChargeForecast {
+  connectionOutlook?: ChargingConnectionOutlook;
   available: true;
   vehicleId: string;
   mode: Extract<VehicleMode, "vacation" | "auto">;
@@ -76,6 +94,7 @@ export interface SolarChargeForecast {
 }
 
 export interface SolarChargeForecastUnavailable {
+  connectionOutlook?: ChargingConnectionOutlook;
   available: false;
   reason:
     | "not_configured"
