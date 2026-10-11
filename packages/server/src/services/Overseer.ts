@@ -18,6 +18,7 @@ export class Overseer {
     VehicleManager,
     "getState" | "stopCharging"
   >;
+  private checking = false;
   private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -46,6 +47,8 @@ export class Overseer {
   }
 
   private async check(): Promise<void> {
+    if (this.checking) return;
+    this.checking = true;
     try {
       if (await this.db.getConfig("oscillation_paused") === "true") {
         await this.recoverPause();
@@ -90,6 +93,8 @@ export class Overseer {
       }
     } catch (error) {
       this.logger.error("Check error:", error);
+    } finally {
+      this.checking = false;
     }
   }
 

@@ -6,8 +6,13 @@ import {
   setupMultiVehicleController,
 } from "../../test-helpers/ChargeControllerHarness.ts";
 
-for (const priority of [false, true]) {
-  Deno.test(`seeded multi-vehicle electrical simulation, priority=${priority}`, async () => {
+for (
+  const scenario of [0, 1, 8731, 0xffffffff].flatMap((seed) =>
+    [false, true].map((priority) => ({ seed, priority }))
+  )
+) {
+  const { seed: initialSeed, priority } = scenario;
+  Deno.test(`seeded multi-vehicle electrical simulation, seed=${initialSeed}, priority=${priority}`, async () => {
     using time = new FakeTime(Date.UTC(2026, 5, 15, 10));
     const ctx = await setupMultiVehicleController(
       [
@@ -43,7 +48,7 @@ for (const priority of [false, true]) {
       "external_charging_vehicles",
       JSON.stringify({ EXTERNAL: true }),
     );
-    let seed = 8731;
+    let seed = initialSeed;
     const next = () => {
       seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
       return seed / 2 ** 32;
@@ -102,7 +107,7 @@ for (const priority of [false, true]) {
           vehicles: 3,
           priority,
           adjustments,
-          seed: 8731,
+          seed: initialSeed,
         }),
       );
     } finally {

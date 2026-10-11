@@ -556,6 +556,23 @@ export class ChargeController {
       return unavailable("Energy inverter poll failed");
     }
 
+    const required = [
+      energy.solarProductionW,
+      energy.gridPowerW,
+      energy.homeConsumptionW,
+    ];
+    const optional = [
+      energy.batteryPowerW,
+      energy.batterySoc,
+      energy.gridVoltageV,
+    ];
+    if (
+      required.some((value) => !Number.isFinite(value)) ||
+      optional.some((value) => value != null && !Number.isFinite(value))
+    ) {
+      return unavailable("Energy data contains non-finite measurements");
+    }
+
     const observedAt = Date.parse(energy.lastUpdated);
     const maxAgeMs = this.poller.getRealtimeMaxAgeMs();
     if (!Number.isFinite(observedAt)) {

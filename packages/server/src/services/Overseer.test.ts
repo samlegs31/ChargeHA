@@ -325,6 +325,22 @@ describe("Overseer", () => {
       expect(stopCalls).toBe(1);
     });
 
+    it("serializes overlapping checks without duplicate STOP or notifications", async () => {
+      await seedStateChanges("VIN1", "Friday", [
+        "start",
+        "stop",
+        "start",
+        "stop",
+        "start",
+      ]);
+      await Promise.all([
+        testable(overseer).check(),
+        testable(overseer).check(),
+      ]);
+      expect(stopCalls).toBe(1);
+      expect(safetyTrips).toHaveLength(1);
+    });
+
     it("excludes vehicles controlled by an external charger", async () => {
       await db.setConfig(
         "external_charging_vehicles",

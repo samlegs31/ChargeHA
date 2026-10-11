@@ -1,3 +1,9 @@
+# Audit fonctionnel actuel
+
+Voir [la campagne du 11 octobre](FUNCTIONAL-AUDIT-20261011.md) : scénarios étendus, mesures invalides, concurrence Overseer, reprise intégrée, limites de la vérification. Aucun déploiement dans cette passe.
+
+---
+
 # Mise à jour actuelle : dépendances, sans déploiement
 
 Voir [la migration du 10 octobre](DEPENDENCY-UPGRADE-20261010.md). Les sections suivantes sont des comptes rendus historiques ; elles ne décrivent pas toutes la candidate actuelle.
