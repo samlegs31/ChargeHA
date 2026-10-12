@@ -33,4 +33,4 @@ assert changed == allowed, f"Unexpected drift: {sorted(changed ^ allowed)}"
 assert not (ROOT / "packages/client").exists()
 assert not (ROOT / "devtools").exists()
 print(f"Preserved {len(manifest) - len(changed & set(manifest))} installed files; "
-      f"{len(changed)} explicitly listed edits. Installed manifest unchanged; only the authorized Settings asset may differ.")
+      f"{len(changed)} explicitly listed edits. Installed manifest unchanged; only explicitly authorized UI assets may differ.")

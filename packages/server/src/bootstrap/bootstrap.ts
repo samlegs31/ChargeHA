@@ -48,6 +48,7 @@ import {
 } from "../middleware/auth.ts";
 import { createOidcRoutes } from "../routes/oidcAuth.ts";
 import { registerPublicPluginRoutes } from "../routes/publicPluginRoutes.ts";
+import { createVersionRoutes } from "../routes/version.ts";
 import { createHealthRoutes } from "../routes/health.ts";
 import { createAppRouter } from "../trpc/root.ts";
 import type { TrpcContext } from "../trpc/trpc.ts";
@@ -370,6 +371,7 @@ function buildHttpApp(
 
   // Docker healthcheck: real endpoint, not the SPA fallback.
   app.route("/health", createHealthRoutes(db));
+  app.route("/version", createVersionRoutes());
 
   const authLogger = new Logger("Auth", logLevel);
   app.use(
