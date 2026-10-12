@@ -1,3 +1,4 @@
+import { parseAppearance } from "./TeslaAppearance.ts";
 import { probeTeslaProxy } from "./ProxyHealth.ts";
 /// <reference lib="deno.ns" />
 import { TRPCError } from "@trpc/server";
@@ -117,7 +118,12 @@ export class TeslaVehiclePlugin implements VehiclePlugin {
       this.deps.log,
       this.deps.dbLog,
     );
-    return new TeslaVehicleMiddleware(adapter, this.deps.log);
+    const key = `vehicle_appearance.${row.id}`;
+    return new TeslaVehicleMiddleware(adapter, this.deps.log, {
+      initial: parseAppearance(await this.deps.getConfig(key)),
+      save: (appearance) =>
+        this.deps.setConfig(key, JSON.stringify(appearance)),
+    });
   }
 
   async importChargingHistory(vehicleId: string, from: string, to: string) {

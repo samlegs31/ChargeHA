@@ -1,3 +1,8 @@
+import {
+  type AppearanceStore,
+  readAppearance,
+  type TeslaAppearance,
+} from "./TeslaAppearance.ts";
 import type {
   AdapterVehicleChargeState,
   CallContext,
@@ -40,7 +45,14 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
   private lastWakeAtMs = 0;
   private lastOnlineCheckAtMs = 0;
 
-  constructor(adapter: VehicleAdapter, logger: Logger) {
+  private appearance: TeslaAppearance;
+
+  constructor(
+    adapter: VehicleAdapter,
+    logger: Logger,
+    private appearanceStore?: AppearanceStore,
+  ) {
+    this.appearance = appearanceStore?.initial ?? {};
     this.adapter = adapter;
     this.logger = logger;
     this.strategy = new TeslaApiStrategy();
@@ -54,7 +66,11 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
 
   getCachedState(): AdapterVehicleChargeState | null {
     return this.cachedState
-      ? { ...this.cachedState, isOnline: this.lastKnownOnline }
+      ? {
+        ...this.cachedState,
+        ...this.appearance,
+        isOnline: this.lastKnownOnline,
+      }
       : null;
   }
 
@@ -389,6 +405,15 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     this.lastFetchAtMs = Date.now();
     const { isOnline: _isOnline, ...rest } = state;
     this.cachedState = rest;
+    const appearance = { ...this.appearance, ...readAppearance(state) };
+    if (JSON.stringify(appearance) !== JSON.stringify(this.appearance)) {
+      try {
+        await this.appearanceStore?.save(appearance);
+        this.appearance = appearance;
+      } catch (error) {
+        this.logger.debug("Could not persist vehicle appearance", error);
+      }
+    }
 
     return this.getCachedState();
   }
