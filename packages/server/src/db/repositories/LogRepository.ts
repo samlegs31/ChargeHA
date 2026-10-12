@@ -112,7 +112,7 @@ export class LogRepository {
       .select()
       .from(controllerLogs)
       .where(where)
-      .orderBy(desc(controllerLogs.timestamp))
+      .orderBy(desc(controllerLogs.timestamp), desc(controllerLogs.id))
       .limit(opts.limit)
       .offset(opts.offset)) as ControllerLogRow[];
 
@@ -148,7 +148,11 @@ export class LogRepository {
       })
       .from(controllerLogs)
       .where(and(...conditions))
-      .orderBy(asc(controllerLogs.vehicleId), asc(controllerLogs.timestamp));
+      .orderBy(
+        asc(controllerLogs.vehicleId),
+        asc(controllerLogs.timestamp),
+        asc(controllerLogs.id),
+      );
 
     return rows.map((row) => ({
       ...row,

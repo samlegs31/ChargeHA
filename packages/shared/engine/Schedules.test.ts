@@ -176,3 +176,32 @@ describe("isScheduleActiveNow", () => {
       .toBe(false);
   });
 });
+
+Deno.test("Paris DST skips nonexistent times and recognizes both repeated hours", () => {
+  const schedule: EngineSchedule = {
+    id: "dst",
+    vehicleId: "car",
+    scheduleType: "charge",
+    startTime: "02:15",
+    endTime: "02:45",
+    days: ["sun"],
+    chargeAmps: 8,
+    chargeLimitPct: 80,
+    enabled: true,
+  };
+  for (const instant of ["2026-03-29T00:30:00Z", "2026-03-29T01:30:00Z"]) {
+    expect(isScheduleActiveNow(schedule, new Date(instant), "Europe/Paris"))
+      .toBe(false);
+  }
+  for (const instant of ["2026-10-25T00:30:00Z", "2026-10-25T01:30:00Z"]) {
+    expect(isScheduleActiveNow(schedule, new Date(instant), "Europe/Paris"))
+      .toBe(true);
+  }
+  expect(
+    isScheduleActiveNow(
+      schedule,
+      new Date("2026-10-25T01:45:00Z"),
+      "Europe/Paris",
+    ),
+  ).toBe(false);
+});

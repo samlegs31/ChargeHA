@@ -19,7 +19,7 @@ describe("ChargeController — per-vehicle runtime protection", () => {
     ctx?.db.close();
   });
 
-  it("bypasses amp debounce only for the manually changed vehicle", async () => {
+  it("bypasses upward amp debounce only for the manually changed vehicle", async () => {
     ctx = await setupMultiVehicleController(
       [
         {
@@ -57,13 +57,13 @@ describe("ChargeController — per-vehicle runtime protection", () => {
     ctx.poller.snapshot.realtime = {
       ...BASE_ENERGY,
       solarProductionW: 7000,
-      gridPowerW: 690,
+      gridPowerW: -690,
     };
 
     await ctx.runOneLoop();
 
-    expect(adapterA.commands).toContainEqual({ cmd: "setAmps", args: 10 });
-    expect(adapterB.commands).not.toContainEqual({ cmd: "setAmps", args: 9 });
+    expect(adapterA.commands).toContainEqual({ cmd: "setAmps", args: 13 });
+    expect(adapterB.commands).not.toContainEqual({ cmd: "setAmps", args: 12 });
     const logB = await ctx.getLogForVehicle(VIN_B);
     expect(logB?.checks.some((check) => check.check === "amp_debounce"))
       .toBe(true);

@@ -21,6 +21,19 @@ describe("TeslaApiStrategy", () => {
   });
 
   describe("staleness", () => {
+    it("expires charging telemetry at exactly one minute", () => {
+      using time = new FakeTime();
+      const state = buildVehicleChargeState({
+        isCharging: true,
+        isPluggedIn: true,
+      });
+      const fetchedAt = Date.now();
+      expect(strategy.staleness(ctx(), state)).toBe(60_000);
+      time.tick(59_999);
+      expect(strategy.isCacheFresh(ctx(), state, fetchedAt)).toBe(true);
+      time.tick(1);
+      expect(strategy.isCacheFresh(ctx(), state, fetchedAt)).toBe(false);
+    });
     it("returns 3 min when no cached state", () => {
       expect(strategy.staleness(ctx(), null)).toBe(3 * 60 * 1000);
     });

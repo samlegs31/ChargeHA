@@ -48,6 +48,41 @@ describe("Config tRPC Router", () => {
     db.close();
   });
 
+  describe("editable solar current limits", () => {
+    it("persists edits and preserves solar limits when legacy UI saves other fields", async () => {
+      for (const amps of [22, 18, 26]) {
+        await caller.config.charging.set({
+          vehicleSolarCurrentLimits: { Friday: amps, Other: 16 },
+        });
+        expect((await caller.config.charging.get()).vehicleSolarCurrentLimits)
+          .toEqual({ Friday: amps, Other: 16 });
+      }
+      await caller.config.charging.set({
+        vehicleCurrentLimits: { Friday: 32 },
+      });
+      expect((await caller.config.charging.get()).vehicleSolarCurrentLimits)
+        .toEqual({ Friday: 26, Other: 16 });
+      await caller.config.charging.set({
+        vehicleSolarCurrentLimits: { Other: 16 },
+      });
+      expect((await caller.config.charging.get()).vehicleSolarCurrentLimits)
+        .toEqual({ Other: 16 });
+    });
+
+    it("rejects invalid edits without changing the saved limit", async () => {
+      await caller.config.charging.set({
+        vehicleSolarCurrentLimits: { Friday: 22 },
+      });
+      for (const amps of [0, -1, 22.5, 81, Infinity, NaN]) {
+        await expect(caller.config.charging.set({
+          vehicleSolarCurrentLimits: { Friday: amps },
+        })).rejects.toThrow();
+        expect((await caller.config.charging.get()).vehicleSolarCurrentLimits)
+          .toEqual({ Friday: 22 });
+      }
+    });
+  });
+
   describe("config.set", () => {
     it("sets a config value", async () => {
       const result = await caller.config.set({

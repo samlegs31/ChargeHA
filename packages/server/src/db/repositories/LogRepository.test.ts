@@ -1,3 +1,4 @@
+import { AppDatabase } from "../AppDatabase.ts";
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { parsePluginLogSearch } from "./LogRepository.ts";
@@ -49,4 +50,41 @@ describe("parsePluginLogSearch", () => {
       excludes: [],
     });
   });
+});
+
+Deno.test("latest controller log is deterministic when timestamps are equal", async () => {
+  const db = new AppDatabase(":memory:");
+  try {
+    await db.init();
+    await db.logs.insertControllerLogEntries(
+      ["older", "newer"].map((actionDetail) => ({
+        vehicleId: "car",
+        vehicleName: "Car",
+        mode: "auto" as const,
+        inputsJson: "{}",
+        checksJson: "[]",
+        action: "none" as const,
+        actionDetail,
+        targetAmps: null,
+        traceId: null,
+      })),
+    );
+    db.getDriver().exec(
+      "UPDATE controller_logs SET timestamp = '2026-10-10 12:00:00'",
+    );
+    const { rows } = await db.logs.getControllerLogs({
+      vehicleId: "car",
+      limit: 1,
+      offset: 0,
+    });
+    expect(rows[0].actionDetail).toBe("newer");
+    const older = await db.logs.getControllerLogs({
+      vehicleId: "car",
+      limit: 1,
+      offset: 1,
+    });
+    expect(older.rows[0].actionDetail).toBe("older");
+  } finally {
+    db.close();
+  }
 });

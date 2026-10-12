@@ -9,7 +9,7 @@ import {
   enrichVehicleRows,
   type VehicleWithLiveState,
 } from "../services/VehicleService.ts";
-import { createLogger, Logger } from "../lib/Logger.ts";
+import { createLogger, type Logger } from "../lib/Logger.ts";
 import { PluginDbLogger } from "@chargeha/plugins/PluginDbLogger";
 import {
   HistoryRepository,
@@ -187,7 +187,7 @@ export class PluginDependencies<K extends string = string> {
   async importVehicleChargeHistoryRows(
     vehicleId: string,
     rows: readonly VehicleChargeHistoryRowInput[],
-  ) {
+  ): ReturnType<HistoryRepository["importRows"]> {
     if (await this.getVehicleRow(vehicleId) === null) {
       throw new Error(
         `Vehicle ${vehicleId} does not belong to plugin ${this.pluginId}`,
@@ -198,7 +198,10 @@ export class PluginDependencies<K extends string = string> {
   }
 
   /** Read archive coverage for one of this plugin's vehicles. */
-  async getVehicleChargeHistoryCoverage(source: string, vehicleId: string) {
+  async getVehicleChargeHistoryCoverage(
+    source: string,
+    vehicleId: string,
+  ): ReturnType<HistoryRepository["getCoverage"]> {
     if (await this.getVehicleRow(vehicleId) === null) {
       throw new Error(
         `Vehicle ${vehicleId} does not belong to plugin ${this.pluginId}`,
@@ -215,12 +218,14 @@ export class PluginDependencies<K extends string = string> {
    */
   async importAggregateEvChargeHistoryRows(
     rows: readonly VehicleChargeHistoryRowInput[],
-  ) {
+  ): ReturnType<HistoryRepository["importAggregateRows"]> {
     const repository = new HistoryRepository(this.db.db);
     return await repository.importAggregateRows(rows);
   }
 
-  async getAggregateEvChargeHistoryCoverage(source: string) {
+  async getAggregateEvChargeHistoryCoverage(
+    source: string,
+  ): ReturnType<HistoryRepository["getAggregateCoverage"]> {
     const repository = new HistoryRepository(this.db.db);
     return await repository.getAggregateCoverage(source);
   }

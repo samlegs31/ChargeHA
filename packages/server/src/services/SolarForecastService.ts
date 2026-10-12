@@ -1,3 +1,11 @@
+import { ForecastCache } from "./ForecastCache.ts";
+import {
+  estimateHabit,
+  type HabitState,
+  type HabitWeather,
+  observeHabit,
+  parseHabits,
+} from "./ChargingHabitModel.ts";
 import type { AppDatabase } from "../db/AppDatabase.ts";
 import type { TariffPeriodRow } from "../db/types.ts";
 import type { Logger } from "../lib/Logger.ts";
@@ -201,6 +209,19 @@ interface SimulationResult {
 }
 
 export class SolarForecastService {
+  private readonly weatherCache = new ForecastCache<ProviderForecast[]>();
+  private readonly resultCache = new ForecastCache<SolarChargeForecastResult>(
+    15_000,
+    16,
+  );
+  private habitState: HabitState | null = null;
+  private habitLearning = false;
+  private habitSlot: number | null = null;
+  private habitWeather: {
+    points: PvPoint[];
+    nominalW: number;
+    fetchedAt: number;
+  } | null = null;
   private backgroundLearningInFlight = false;
   private backgroundLearningSlot: string | null = null;
   private backgroundLearningStarted = false;
@@ -221,7 +242,120 @@ export class SolarForecastService {
     this.backgroundLearningStarted = true;
     eventEmitter.subscribe("energy_update", (data) => {
       this.queueBackgroundLearning(data);
+      this.queueHabitLearning(data);
     });
+  }
+
+  private weatherAt(at: Date): HabitWeather {
+    const cached = this.habitWeather;
+    if (
+      !cached ||
+      Math.abs(this.nowFn().getTime() - cached.fetchedAt) > 30 * 60_000
+    ) return "unknown";
+    const point = closestPoint(cached.points, at);
+    if (!point || Math.abs(point.at.getTime() - at.getTime()) > 30 * 60_000) {
+      return "unknown";
+    }
+    return point.powerW >= cached.nominalW * 0.35 ? "high_pv" : "low_pv";
+  }
+
+  private async loadHabits(timezone: string): Promise<HabitState> {
+    if (!this.habitState || this.habitState.timezone !== timezone) {
+      const raw = await this.db.config.getConfig("runtime.charging_habits_v1");
+      if (!this.habitState || this.habitState.timezone !== timezone) {
+        this.habitState = parseHabits(raw, timezone);
+      }
+    }
+    return this.habitState;
+  }
+
+  private queueHabitLearning(energy: EnergyData): void {
+    const now = this.nowFn();
+    const slot = Math.floor(now.getTime() / (15 * 60_000));
+    const age = now.getTime() - Date.parse(energy.lastUpdated);
+    if (
+      this.habitLearning || this.habitSlot === slot || energy.pollFailed ||
+      !Number.isFinite(age) || age < 0 || age > 90_000
+    ) {
+      return;
+    }
+    this.habitLearning = true;
+    this.habitSlot = slot;
+    void this.learnHabits(energy, now).catch((error) =>
+      this.logger.debug("Habit learning skipped", error)
+    ).finally(() => {
+      this.habitLearning = false;
+    });
+  }
+
+  private async learnHabits(energy: EnergyData, now: Date): Promise<void> {
+    const system = await this.configService.getSystem();
+    const habits = await this.loadHabits(system.timezone || "UTC");
+    const states = await this.vehicleManager.getAllStates();
+    const liveIds = new Set(
+      (await this.db.getVehicles()).map((vehicle) => vehicle.id),
+    );
+    // Removed vehicles must not occupy the bounded local model forever.
+    let changed = false;
+    for (const id of Object.keys(habits.vehicles)) {
+      if (!liveIds.has(id)) {
+        delete habits.vehicles[id];
+        changed = true;
+      }
+    }
+    for (const [id, state] of states) {
+      const age = now.getTime() - Date.parse(state.lastUpdated);
+      if (
+        !Number.isFinite(age) || age < 0 || age > 10 * 60_000 ||
+        state.isHome == null
+      ) continue;
+      changed = observeHabit(
+        habits,
+        id,
+        now,
+        state.isHome && state.isPluggedIn,
+        this.weatherAt(now),
+        energy.batterySoc,
+      ) || changed;
+    }
+    if (changed) {
+      await this.db.config.setConfig(
+        "runtime.charging_habits_v1",
+        JSON.stringify(habits),
+      );
+    }
+  }
+
+  /** Advisory outlook only; never overrides observed plug state or charge controls. */
+  async getConnectionOutlook(vehicleId: string) {
+    const system = await this.configService.getSystem();
+    const timezone = system.timezone || "UTC";
+    const habits = await this.loadHabits(timezone);
+    const now = this.nowFn();
+    const energy = this.poller.tryGetRealtimeSnapshot()?.realtime;
+    const energyAge = energy
+      ? now.getTime() - Date.parse(energy.lastUpdated)
+      : Infinity;
+    const batterySoc =
+      energy && !energy.pollFailed && energyAge >= 0 && energyAge <= 90_000
+        ? energy.batterySoc
+        : null;
+    return {
+      vehicleId,
+      timezone,
+      generatedAt: now.toISOString(),
+      batterySoc,
+      advisory: true as const,
+      hours: Array.from({ length: 24 }, (_, index) => {
+        const at = new Date(now.getTime() + index * 60 * 60_000);
+        const weather = this.weatherAt(at);
+        return {
+          at: at.toISOString(),
+          weather,
+          ...estimateHabit(habits, vehicleId, at, weather, batterySoc),
+        };
+      }),
+    };
   }
 
   private queueBackgroundLearning(realtime: EnergyData): void {
@@ -270,7 +404,29 @@ export class SolarForecastService {
     );
   }
 
-  async getTodayForecast(
+  getTodayForecast(vehicleId: string): Promise<SolarChargeForecastResult> {
+    return this.resultCache.get(
+      vehicleId,
+      () => this.buildForecastWithHabits(vehicleId),
+    );
+  }
+
+  private async buildForecastWithHabits(
+    vehicleId: string,
+  ): Promise<SolarChargeForecastResult> {
+    const forecast = await this.getBaseForecast(vehicleId);
+    try {
+      return {
+        ...forecast,
+        connectionOutlook: await this.getConnectionOutlook(vehicleId),
+      };
+    } catch (error) {
+      this.logger.debug("Connection outlook unavailable", error);
+      return forecast;
+    }
+  }
+
+  private async getBaseForecast(
     vehicleId: string,
   ): Promise<SolarChargeForecastResult> {
     const now = this.nowFn();
@@ -392,6 +548,7 @@ export class SolarForecastService {
       this.configService.getSystem(),
     ]);
     return {
+      vehicleSolarCurrentLimits: charging.vehicleSolarCurrentLimits,
       vehicleCurrentLimits: charging.vehicleCurrentLimits,
       maxGridImportKw: charging.maxGridImportKw,
       chargingEnabled: charging.chargingEnabled,
@@ -454,12 +611,27 @@ export class SolarForecastService {
       inverterAcMaxKw: configuredInverterAcMaxKw,
     });
     const learningState = await this.loadPredictionLearning(fingerprint);
-    const providerForecasts = await this.fetchWeatherProviders(
+    const cacheKey = JSON.stringify({
       latitude,
       longitude,
       timezone,
       arrays,
-      ageFactor,
+      day: now.toISOString().slice(0, 10),
+      ageFactor: Math.round(ageFactor * 10000),
+    });
+    const providerForecasts = await this.weatherCache.get(
+      cacheKey,
+      async () => {
+        const forecasts = await this.fetchWeatherProviders(
+          latitude,
+          longitude,
+          timezone,
+          arrays,
+          ageFactor,
+        );
+        if (!forecasts.length) throw new Error("Weather forecast is empty");
+        return forecasts;
+      },
     );
     if (providerForecasts.length === 0) {
       throw new Error("Weather forecast is empty");
@@ -484,6 +656,11 @@ export class SolarForecastService {
       instantProviderForecasts(clippedProviders),
       initialWeights,
     );
+    this.habitWeather = {
+      points: instantEnsemble.points,
+      nominalW: inverterCapW,
+      fetchedAt: now.getTime(),
+    };
     const providerPredictionsW = providerPredictionAt(clippedProviders, now);
     const updatedLearningState = learnFromCurrentForecast(
       learningState,

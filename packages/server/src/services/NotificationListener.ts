@@ -349,7 +349,7 @@ export class NotificationListener {
     this.notificationService.notify(
       "safety_trip",
       "Safety Trip — Charging Paused",
-      `${data.vehicleName} had ${data.cycles} start/stop cycles in ${data.windowMinutes} minutes. Automation is paused to prevent oscillation. Your Automatic charging switch is unchanged. Dismiss the Dashboard safety alert when ready; automation resumes only if your switch is ON.`,
+      `${data.vehicleName} had ${data.cycles} start/stop cycles in ${data.windowMinutes} minutes. Automation is paused to prevent oscillation. Your Automatic charging switch is unchanged. Automatic recovery is checked after five minutes once STOP is confirmed; charging resumes only if your switch is ON and normal regulation permits it.`,
       { vehicleName: data.vehicleName, vehicleId: data.vehicleId },
     );
   }

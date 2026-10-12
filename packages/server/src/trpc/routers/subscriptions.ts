@@ -15,44 +15,8 @@ export const subscriptionsRouter = router({
    * See SSEEvent type in shared/types.ts for full explanation.
    */
   onEvents: publicProcedure.subscription(async function* ({ ctx, signal }) {
-    const snapshot = ctx.poller.tryGetRealtimeSnapshot();
-    if (snapshot) {
-      yield {
-        type: "energy_update",
-        data: { ...snapshot.realtime, ...snapshot.cumulative },
-      } satisfies SSEEvent;
-    }
-
-    // Emit initial vehicle states
-    const allStates = await ctx.vehicleManager.getAllStates();
-    yield* [...allStates.values()].map((state): SSEEvent => ({
-      type: "vehicle_update",
-      data: state,
-    }));
-
-    // Emit initial vehicle errors
-    const vehicleIds = ctx.vehicleManager.getVehicleIds();
-    yield* vehicleIds
-      .map((id) => ({
-        id,
-        error: ctx.vehicleManager.getVehicleError(id),
-      }))
-      .filter((
-        v,
-      ): v is { id: string; error: { message: string; at: string } } =>
-        v.error != null
-      )
-      .map((v): SSEEvent => ({
-        type: "vehicle_error",
-        data: {
-          vehicleId: v.id,
-          vehicleName: allStates.get(v.id)?.vehicleName ?? v.id,
-          error: v.error.message,
-        },
-      }));
-
     // Queue for live events — the generator pulls from this
-    const queue = createAsyncQueue<SSEEvent>();
+    const queue = createAsyncQueue<SSEEvent>(256);
 
     // Subscribe to live events via the shared EventEmitter
     const unsubs = [
@@ -79,10 +43,50 @@ export const subscriptionsRouter = router({
       ),
     ];
 
+    const cleanup = () => unsubs.forEach((unsub) => unsub());
+    signal?.addEventListener("abort", cleanup, { once: true });
     try {
+      if (signal?.aborted) return;
+      const snapshot = ctx.poller.tryGetRealtimeSnapshot();
+      if (snapshot) {
+        yield {
+          type: "energy_update",
+          data: { ...snapshot.realtime, ...snapshot.cumulative },
+        } satisfies SSEEvent;
+      }
+
+      // Emit initial vehicle states
+      const allStates = await ctx.vehicleManager.getAllStates();
+      yield* [...allStates.values()].map((state): SSEEvent => ({
+        type: "vehicle_update",
+        data: state,
+      }));
+
+      // Emit initial vehicle errors
+      const vehicleIds = ctx.vehicleManager.getVehicleIds();
+      yield* vehicleIds
+        .map((id) => ({
+          id,
+          error: ctx.vehicleManager.getVehicleError(id),
+        }))
+        .filter((
+          v,
+        ): v is { id: string; error: { message: string; at: string } } =>
+          v.error != null
+        )
+        .map((v): SSEEvent => ({
+          type: "vehicle_error",
+          data: {
+            vehicleId: v.id,
+            vehicleName: allStates.get(v.id)?.vehicleName ?? v.id,
+            error: v.error.message,
+          },
+        }));
+
       yield* queue.drain(signal);
     } finally {
-      unsubs.forEach((unsub) => unsub());
+      signal?.removeEventListener("abort", cleanup);
+      cleanup();
     }
   }),
 });

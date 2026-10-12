@@ -43,7 +43,9 @@ export class TeslaService {
     this.tokenManager = tokenManager;
     this.logger = logger;
     this.io = io;
-    this.probeProxy = io.fetch === globalThis.fetch ? probeTeslaProxy : createProxyHealthProbe(io.fetch);
+    this.probeProxy = io.fetch === globalThis.fetch
+      ? probeTeslaProxy
+      : createProxyHealthProbe(io.fetch);
   }
 
   /** List vehicles from Tesla Fleet API. */
@@ -263,7 +265,10 @@ export class TeslaService {
     }
     const proxyUrlStr = (await this.deps.getConfig("proxy_url")) ??
       "https://localhost:4443";
-    return { teslaConfigured: true, proxyReachable: await this.probeProxy(proxyUrlStr) };
+    return {
+      teslaConfigured: true,
+      proxyReachable: await this.probeProxy(proxyUrlStr),
+    };
   }
 
   private async readChargeLimit(
@@ -300,7 +305,7 @@ export class TeslaService {
     );
     const attempts = this.io.wakePollAttempts ?? 10;
     const delay = this.io.wakePollDelayMs ?? 3000;
-    // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops -- polling loop with early return
+
     for (const _ of Array.from({ length: attempts })) {
       await sleep(delay);
       const result = await this.readChargeLimit(vehicleId, fleetBase, token);

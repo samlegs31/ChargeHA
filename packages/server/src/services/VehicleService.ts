@@ -11,16 +11,19 @@ import type { TypedEventEmitter } from "./TypedEventEmitter.ts";
 import type { VehiclePluginRegistry } from "@chargeha/server/bootstrap/VehiclePluginRegistry";
 import type { Logger } from "../lib/Logger.ts";
 
-export type VehicleWithLiveState = Awaited<
-  ReturnType<typeof enrichVehicleRows>
->[number];
+export type VehicleWithLiveState = VehicleRow & {
+  state: Awaited<ReturnType<VehicleManager["getState"]>>;
+  lastLocation: { latitude: number; longitude: number } | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
+};
 
 /** Enrich vehicle rows with live state, location, and last error — shared by
  *  the main vehicle list and plugin-scoped lists so the shapes never drift. */
 export async function enrichVehicleRows(
   rows: VehicleRow[],
   vehicleManager: VehicleManager,
-) {
+): Promise<VehicleWithLiveState[]> {
   return await Promise.all(rows.map(async (v) => {
     const error = vehicleManager.getVehicleError(v.id);
     const state = await vehicleManager.getState(v.id);

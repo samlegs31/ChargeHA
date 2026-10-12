@@ -40,10 +40,9 @@ export function runMigrations(sqlite: DatabaseDriver, logger: Logger): void {
     "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
   );
 
-  // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
   for (const migration of migrations) {
     if (applied.has(migration.hash)) continue;
-    // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
+
     for (const stmt of migration.sql) {
       sqlite.exec(stmt);
     }

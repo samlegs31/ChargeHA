@@ -1,3 +1,4 @@
+import { parseAppearance } from "./TeslaAppearance.ts";
 import { probeTeslaProxy } from "./ProxyHealth.ts";
 /// <reference lib="deno.ns" />
 import { TRPCError } from "@trpc/server";
@@ -15,7 +16,7 @@ import type {
 } from "../../../types.ts";
 import { TeslaAdapter } from "./TeslaAdapter.ts";
 import { TeslaVehicleMiddleware } from "./TeslaVehicleMiddleware.ts";
-import { TeslaProxyManager } from "./TeslaProxyManager.ts";
+import type { TeslaProxyManager } from "./TeslaProxyManager.ts";
 import { TeslaService, type TeslaServiceIo } from "./TeslaService.ts";
 import { TeslaTokenManager } from "./TeslaTokenManager.ts";
 import { TESLA_SECRET_KEYS, teslaConfigDef } from "./config.ts";
@@ -117,7 +118,12 @@ export class TeslaVehiclePlugin implements VehiclePlugin {
       this.deps.log,
       this.deps.dbLog,
     );
-    return new TeslaVehicleMiddleware(adapter, this.deps.log);
+    const key = `vehicle_appearance.${row.id}`;
+    return new TeslaVehicleMiddleware(adapter, this.deps.log, {
+      initial: parseAppearance(await this.deps.getConfig(key)),
+      save: (appearance) =>
+        this.deps.setConfig(key, JSON.stringify(appearance)),
+    });
   }
 
   async importChargingHistory(vehicleId: string, from: string, to: string) {

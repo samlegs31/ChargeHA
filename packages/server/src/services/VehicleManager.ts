@@ -85,6 +85,13 @@ export class VehicleManager {
       source: "fetch" | "command";
     }
   >();
+  // Telemetry failure is a safety latch, independent of the latest command error.
+  private fetchErrors = new Map<string, {
+    message: string;
+    at: string;
+    vehicleName: string;
+    source: "fetch" | "command";
+  }>();
   private commandBackoff = new Map<string, CommandBackoffState>();
   private lastEmittedUpdatedAt = new Map<string, string>();
   private readonly db: AppDatabase;
@@ -198,6 +205,7 @@ export class VehicleManager {
     this.vehicles.delete(id);
     this.plugTrackers.delete(id);
     this.vehicleErrors.delete(id);
+    this.fetchErrors.delete(id);
     this.logger.info(`Vehicle removed: ${id}`);
   }
 
@@ -230,6 +238,7 @@ export class VehicleManager {
     }
 
     try {
+      const previousUpdatedAt = entry.middleware.getCachedState()?.lastUpdated;
       const raw = await entry.middleware.requestState(context);
       if (!raw) return null;
       const state = await this.wrapWithIsHome(raw);
@@ -241,10 +250,12 @@ export class VehicleManager {
         this.eventEmitter.emit("vehicle_update", state);
       }
 
-      // Clear fetch errors on successful state fetch
+      // A cached response is not evidence that a failed telemetry fetch
+      // recovered. Keep the safety signal until a newer snapshot arrives.
       const stored = this.vehicleErrors.get(vehicleId);
-      if (stored?.source === "fetch") {
-        this.clearVehicleError(vehicleId);
+      if (state.lastUpdated !== previousUpdatedAt) {
+        this.fetchErrors.delete(vehicleId);
+        if (stored?.source === "fetch") this.clearVehicleError(vehicleId);
       }
 
       return state;
@@ -450,8 +461,11 @@ export class VehicleManager {
     const entry = this.vehicles.get(vehicleId);
     if (!entry) return { success: false, error: "Vehicle not registered" };
 
-    if (!state.isCharging) {
-      return { success: true, state };
+    // A START may have completed while this STOP waited in the command queue.
+    // Consult command-updated state at execution time, not just the caller's snapshot.
+    const currentState = await this.getState(vehicleId) ?? state;
+    if (!currentState.isCharging && !state.isCharging) {
+      return { success: true, state: currentState };
     }
 
     const { backedOff, remainingMs } = this.isBackedOff(vehicleId);
@@ -590,12 +604,14 @@ export class VehicleManager {
     error: string,
     source: "fetch" | "command" = "command",
   ): void {
-    this.vehicleErrors.set(vehicleId, {
+    const record = {
       message: error,
       at: new Date().toISOString(),
       vehicleName,
       source,
-    });
+    };
+    this.vehicleErrors.set(vehicleId, record);
+    if (source === "fetch") this.fetchErrors.set(vehicleId, record);
     this.logger.debug(`${vehicleName}: ${source} error reported — ${error}`);
     this.eventEmitter.emit("vehicle_error", {
       vehicleId,
@@ -608,12 +624,14 @@ export class VehicleManager {
   clearVehicleError(vehicleId: string): void {
     const stored = this.vehicleErrors.get(vehicleId);
     if (!stored) return;
-    this.vehicleErrors.delete(vehicleId);
+    const fetchError = this.fetchErrors.get(vehicleId);
+    if (fetchError) this.vehicleErrors.set(vehicleId, fetchError);
+    else this.vehicleErrors.delete(vehicleId);
     this.eventEmitter.emit("vehicle_error", {
       vehicleId,
       vehicleName: stored.vehicleName,
-      error: null,
-      source: stored.source,
+      error: fetchError?.message ?? null,
+      source: fetchError?.source ?? stored.source,
     });
   }
 
@@ -626,7 +644,13 @@ export class VehicleManager {
   }
 
   hasVehicleFetchError(vehicleId: string): boolean {
-    return this.vehicleErrors.get(vehicleId)?.source === "fetch";
+    return this.fetchErrors.has(vehicleId);
+  }
+
+  getVehicleFetchError(
+    vehicleId: string,
+  ): { message: string; at: string } | null {
+    return this.fetchErrors.get(vehicleId) ?? null;
   }
 
   /** Check whether commands for this vehicle are backed off due to repeated failures. */

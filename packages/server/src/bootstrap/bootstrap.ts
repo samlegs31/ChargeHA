@@ -1,3 +1,4 @@
+import { createVehicleAppearanceRoutes } from "../routes/vehicleAppearance.ts";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { serveStatic } from "hono/deno";
@@ -427,6 +428,7 @@ function buildHttpApp(
     trpcLogger,
   });
 
+  app.route("/api/vehicle-appearance", createVehicleAppearanceRoutes(db));
   app.use("/*", serveStatic({ root: "./packages/server/dist" }));
   app.use(
     "/*",

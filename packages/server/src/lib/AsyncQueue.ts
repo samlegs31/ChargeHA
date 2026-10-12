@@ -1,43 +1,75 @@
-/** Async queue for bridging push-based events to pull-based async generators.
- *  Encapsulates the mutable state (buffer + resolver) in one place. */
-export function createAsyncQueue<T>() {
+/** Single-consumer queue bridging push events to an async generator. */
+export function createAsyncQueue<T>(maxPending = Infinity) {
+  if (
+    !(maxPending > 0) ||
+    (Number.isFinite(maxPending) && !Number.isInteger(maxPending))
+  ) {
+    throw new RangeError("Queue capacity must be a positive integer");
+  }
+  let overflowed = false;
+  let closed = false;
   const state: {
-    items: T[];
+    items: (T | undefined)[];
+    head: number;
     resolve: (() => void) | null;
-  } = {
-    items: [],
-    resolve: null,
-  };
+  } = { items: [], head: 0, resolve: null };
 
   return {
     push(item: T) {
-      state.items.push(item);
-      if (state.resolve) {
-        state.resolve();
-        state.resolve = null;
+      if (closed) return false;
+      if (state.items.length - state.head >= maxPending) {
+        overflowed = true;
+        closed = true;
+        state.items = [];
+        state.head = 0;
+        state.resolve?.();
+        return false;
       }
+      state.items.push(item);
+      const resolve = state.resolve;
+      state.resolve = null;
+      resolve?.();
+      return true;
     },
 
     async *drain(signal?: AbortSignal): AsyncGenerator<T> {
-      // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
-      while (!signal?.aborted) {
-        if (state.items.length === 0) {
-          await new Promise<void>((r) => {
-            state.resolve = r;
-            signal?.addEventListener("abort", () => r(), { once: true });
-          });
-        }
-
-        // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
-        while (state.items.length > 0) {
-          const item = state.items.shift();
-          if (item === undefined) {
-            throw new Error(
-              "Queue invariant violated: shift on non-empty array returned undefined",
-            );
+      try {
+        while (!signal?.aborted) {
+          if (overflowed) {
+            throw new Error("SSE backlog exceeded; reconnect to resynchronise");
           }
-          yield item;
+          if (state.head === state.items.length) {
+            state.items = [];
+            state.head = 0;
+            await new Promise<void>((resolve) => {
+              const onAbort = () => finish();
+              const finish = () => {
+                signal?.removeEventListener("abort", onAbort);
+                if (state.resolve === finish) state.resolve = null;
+                resolve();
+              };
+              state.resolve = finish;
+              if (signal?.aborted) finish();
+              else signal?.addEventListener("abort", onAbort, { once: true });
+            });
+          }
+          if (overflowed) continue;
+          while (!signal?.aborted && state.head < state.items.length) {
+            const item = state.items[state.head] as T;
+            // Release consumed payloads even when the producer never goes idle.
+            state.items[state.head++] = undefined;
+            if (state.head >= 1024 && state.head * 2 >= state.items.length) {
+              state.items = state.items.slice(state.head);
+              state.head = 0;
+            }
+            yield item;
+          }
         }
+      } finally {
+        closed = true;
+        state.resolve?.();
+        state.items = [];
+        state.head = 0;
       }
     },
   };

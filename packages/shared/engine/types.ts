@@ -16,6 +16,8 @@ import type { DecisionCheck } from "./DecisionChecks.ts";
  *  Assembled from the DB by ChargeController.loadConfig(), or constructed
  *  directly by the simulator. */
 export interface ControllerConfig {
+  /** Per-vehicle ceiling for solar tracking only, excluding charge schedules. */
+  vehicleSolarCurrentLimits?: Record<string, number>;
   vehicleCurrentLimits?: Record<string, number>;
   maxGridImportKw?: number | null;
   chargingEnabled: boolean;

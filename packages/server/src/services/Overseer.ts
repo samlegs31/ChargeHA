@@ -8,6 +8,7 @@ import type { VehicleManager } from "./VehicleManager.ts";
 const CHECK_INTERVAL_MS = 60_000;
 const WINDOW_MINUTES = 60;
 const MAX_TRANSITIONS = 3;
+const RECOVERY_DELAY_MS = 5 * 60_000;
 
 export class Overseer {
   private readonly db: AppDatabase;
@@ -17,6 +18,7 @@ export class Overseer {
     VehicleManager,
     "getState" | "stopCharging"
   >;
+  private checking = false;
   private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -45,8 +47,13 @@ export class Overseer {
   }
 
   private async check(): Promise<void> {
+    if (this.checking) return;
+    this.checking = true;
     try {
-      if (await this.db.getConfig("oscillation_paused") === "true") return;
+      if (await this.db.getConfig("oscillation_paused") === "true") {
+        await this.recoverPause();
+        return;
+      }
       // Ignore transitions that already caused a previous trip.
       // Without this, re-enabling charging would immediately re-trip
       // because the same transitions are still within the window.
@@ -86,7 +93,39 @@ export class Overseer {
       }
     } catch (error) {
       this.logger.error("Check error:", error);
+    } finally {
+      this.checking = false;
     }
+  }
+
+  /** Release only a confirmed stopped vehicle; never enable the user's switch. */
+  private async recoverPause(): Promise<void> {
+    const tripAt = await this.db.getConfig("oscillation_trip_at");
+    const timestamp = tripAt ? Date.parse(tripAt.replace(" ", "T") + "Z") : NaN;
+    if (!Number.isFinite(timestamp)) return;
+    if (Date.now() - timestamp < RECOVERY_DELAY_MS) return;
+    const raw = await this.db.getConfig("system_alert");
+    if (!raw) return;
+    const alert = JSON.parse(raw) as SystemAlert;
+    if (!alert.vehicleId) return;
+    const state = await this.vehicleManager.getState(alert.vehicleId);
+    if (!state || state.isCharging) return;
+    const telemetryAt = Date.parse(state.lastUpdated);
+    const age = Date.now() - telemetryAt;
+    if (
+      !Number.isFinite(age) || age < 0 || age > 90_000 ||
+      telemetryAt < timestamp
+    ) return;
+    // Exclude the safety STOP and all history during the pause from the next window.
+    await this.db.setConfig(
+      "oscillation_trip_at",
+      new Date().toISOString().replace("T", " ").replace(/\.\d+Z$/, ""),
+    );
+    await this.db.setConfig("oscillation_paused", "false");
+    await this.db.setConfig("system_alert", "");
+    this.logger.info(
+      "Oscillation cooldown completed; normal regulation may resume",
+    );
   }
 
   private async trip(
@@ -115,7 +154,7 @@ export class Overseer {
     );
     const alert: SystemAlert = {
       message:
-        `Safety pause: ${vehicleName} had ${cycles} start/stop cycles in ${WINDOW_MINUTES} minutes, which may indicate oscillation.${stopFailure} Your Automatic charging switch is unchanged. Dismiss this alert when ready to release the safety pause; automation resumes only if your switch is ON.`,
+        `Safety pause: ${vehicleName} had ${cycles} start/stop cycles in ${WINDOW_MINUTES} minutes, which may indicate oscillation.${stopFailure} Your Automatic charging switch is unchanged. Automatic recovery is checked after five minutes, once the vehicle is confirmed stopped. Charging resumes only if your switch is ON and normal regulation permits it.`,
       timestamp: new Date().toISOString(),
       vehicleId,
       vehicleName,
@@ -134,7 +173,13 @@ export class Overseer {
     vehicleId: string,
   ): Promise<Awaited<ReturnType<VehicleManager["stopCharging"]>> | null> {
     const state = await this.vehicleManager.getState(vehicleId);
-    if (!state?.isCharging) return null;
+    if (!state) {
+      return {
+        success: false,
+        error: "Vehicle state unavailable; STOP not confirmed",
+      };
+    }
+    if (!state.isCharging) return null;
     return await this.vehicleManager.stopCharging(
       vehicleId,
       { origin: "overseer:safety-trip", traceId: crypto.randomUUID() },

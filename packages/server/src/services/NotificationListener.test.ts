@@ -368,7 +368,10 @@ describe("NotificationListener", () => {
       });
       const n = notificationService.notifications[0];
       expect(n.eventType).toBe("safety_trip");
-      expect(n.title).toBe("Safety Trip — Charging Disabled");
+      expect(n.title).toBe("Safety Trip — Charging Paused");
+      expect(n.message).toContain(
+        "Your Automatic charging switch is unchanged",
+      );
       expect(n.message).toContain("4 start/stop cycles in 60 minutes");
     });
   });

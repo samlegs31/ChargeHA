@@ -85,6 +85,7 @@ export interface EventMap {
     endTime: string;
   };
   controller_status: {
+    observedAt?: string;
     vehicleId: string;
     action: string;
     reason: string;
@@ -103,6 +104,10 @@ export class TypedEventEmitter {
    *  with the latest state on connect. Written by emit() when a retainKey
    *  is provided. */
   private retained = new Map<EventType, Map<string, EventMap[EventType]>>();
+
+  getRetained<T extends EventType>(event: T): EventMap[T][] {
+    return [...(this.retained.get(event)?.values() ?? [])] as EventMap[T][];
+  }
 
   subscribe<T extends EventType>(
     event: T,

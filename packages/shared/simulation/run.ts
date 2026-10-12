@@ -119,9 +119,9 @@ function applyChargingEnergy(
   vehicleStates: Map<string, VehicleChargeState>,
 ): number {
   // accumulated across vehicles
-  // deno-lint-ignore custom-no-let/no-let
+
   let totalChargingW = 0;
-  // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
+
   for (const vc of vehicleConfigs) {
     const state = vehicleStates.get(vc.id);
     if (state && state.isCharging && state.chargeAmps > 0) {
@@ -268,10 +268,9 @@ export function runSimulation(
   // the real clock when the simulation is launched.
   const simDayStart = Date.UTC(2026, 0, 1, 0, 0, 0, 0);
   // home battery state of charge, tracked across ticks
-  // deno-lint-ignore custom-no-let/no-let
+
   let batterySoc = opts.batteryStartSoc;
 
-  // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
   for (const reading of solarDay) {
     const simTimestamp = simDayStart + reading.minute * 60_000;
 

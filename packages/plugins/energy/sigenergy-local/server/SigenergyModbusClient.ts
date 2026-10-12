@@ -1,4 +1,4 @@
-import { Buffer } from "node:buffer";
+import type { Buffer } from "node:buffer";
 import { Socket } from "node:net";
 import jsmodbus from "jsmodbus";
 import type { Logger } from "@chargeha/server/lib/Logger";

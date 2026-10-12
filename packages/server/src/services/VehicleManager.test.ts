@@ -236,6 +236,19 @@ describe("VehicleManager", () => {
       expect(manager.getVehicleError("VIN1")).toBeNull();
     });
 
+    it("keeps fetch errors when the middleware only returns cached telemetry", async () => {
+      await manager.addVehicle(VEHICLE_ROW);
+      await manager.requestState("VIN1", REQUEST_CONTEXT);
+      manager.reportVehicleError("VIN1", "Test Car", "telemetry lost", "fetch");
+      await manager.requestState("VIN1", REQUEST_CONTEXT);
+      expect(manager.hasVehicleFetchError("VIN1")).toBe(true);
+      const mw = middlewares.get("VIN1");
+      assertExists(mw);
+      mw.nextState.lastUpdated = "2026-10-09T12:00:00Z";
+      await manager.requestState("VIN1", REQUEST_CONTEXT);
+      expect(manager.hasVehicleFetchError("VIN1")).toBe(false);
+    });
+
     it("does not clear command errors on successful request", async () => {
       await manager.addVehicle(VEHICLE_ROW);
       manager.reportVehicleError("VIN1", "Test Car", "cmd error", "command");

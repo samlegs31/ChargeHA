@@ -120,7 +120,6 @@ export class TunnelManager {
       async (req: Request) => {
         const url = new URL(req.url);
 
-        // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
         for (const route of this.routes) {
           if (url.pathname !== route.path) continue;
 
@@ -244,7 +243,7 @@ export class TunnelManager {
       const decoder = new TextDecoder();
       const reader = process[this.provider.urlStream].getReader();
       // stream buffer accumulated across async reads
-      // deno-lint-ignore custom-no-let/no-let
+
       let buffer = "";
 
       const timeout = setTimeout(() => {
@@ -258,7 +257,6 @@ export class TunnelManager {
 
       const read = async () => {
         try {
-          // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -287,7 +285,6 @@ export class TunnelManager {
     const decoder = new TextDecoder();
     const reader = process[this.provider.urlStream].getReader();
     try {
-      // deno-lint-ignore custom-no-imperative-loops/no-imperative-loops
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
