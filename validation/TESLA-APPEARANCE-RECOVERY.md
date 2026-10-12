@@ -9,3 +9,9 @@ Une route derrière l'authentification restitue seulement ces trois champs. Le c
 Le pied de page de version est retiré, ainsi que son paramètre d'URL sur le module principal. Les imports des chunks doivent partager la même URL de module ; un test d'intégrité vérifie cette contrainte. La cause de la silhouette constatée était la perte des métadonnées ; le risque de double chargement du module était un autre défaut de la tentative de version.
 
 Validation : 230 tests / 2 155 étapes ; format, lint, types ; 14 tests d'intégrité. Navigateur mobile : rendu des deux PNG actuels avec état hors ligne, aucune erreur JavaScript, aucun débordement horizontal et batterie témoin inchangée. Ce test utilise les composants extraits du bundle et ne remplace pas une recette complète authentifiée.
+
+## Livraison corrective
+
+Commit 729cb60 installé sur Raspberry le 12 octobre. Image : sha256:7564d0c269f997dc56e401fd511cd3403d183851a5d43a6be1ba5fcf98a0f0ea. Les deux profils ont été récupérés des journaux et persistés, sans commande Tesla. Nouveau et ancien démarrages validés sur copie de base. Après livraison : healthy, zéro redémarrage automatique, 483 empreintes conformes et réglages protégés inchangés.
+
+Sauvegarde : /home/chargeha/evsolar-backups/backend-20261012-205300. Conteneur précédent arrêté : chargeha-rollback-20261012-205300. Procédure de retour au code précédent : python3 /home/chargeha/evsolar-release-729cb60/rollback.py. La base courante conserve les profils cosmétiques ; une restauration complète des données reste distincte. Les sauvegardes restent sur le Raspberry. Aucun merge de la PR Draft.
