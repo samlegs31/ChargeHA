@@ -10,4 +10,8 @@ Le composant ajouté au bundle est conservé lisiblement dans validation/version
 
 Validation : 229 tests serveur, 2 155 étapes, format/lint/types et treize tests d'intégrité. Aperçu navigateur mobile : version, commit au survol, absence de débordement horizontal, une seule requête, repli en cas d'erreur et absence d'erreur JavaScript. Cet aperçu teste le composant extrait, pas une recette authentifiée complète.
 
-Changement préparé dans le Draft #87, non déployé. Le Raspberry reste sur le commit applicatif 8617582.
+Déployé le 12 octobre 2026 après autorisation utilisateur. Commit applicatif : 8a1b267b5e2072748957bb1206303bf4dbdf22ab ; version affichée : 2026.10.12. Image : sha256:d02045508aeb31aa13c431d51506269605d0524393e5412f27f0318425d8435b.
+
+Essais sur une copie de la base, sans réseau : démarrage nouvelle image, endpoint /version, HTML/assets, puis redémarrage de l’ancienne image et intégrité SQLite validés. Après bascule : /version exact, serveur/base OK, healthy, zéro redémarrage automatique, 481 empreintes et réglages protégés conformes. Aucun changement de régulation ou de dépendances.
+
+Sauvegarde complète : /home/chargeha/evsolar-backups/backend-20261012-154422. Ancien conteneur arrêté : chargeha-rollback-20261012-154422. Retour au commit précédent 8617582 : exécuter sur Raspberry `python3 /home/chargeha/evsolar-release-8a1b267/rollback.py`. La procédure arrête le nouveau conteneur avant de redémarrer l’ancien et conserve les données courantes ; la compatibilité a été testée sur copie. La sauvegarde reste sur le Raspberry. La PR #87 reste Draft, sans merge.
