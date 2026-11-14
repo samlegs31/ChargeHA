@@ -1,3 +1,4 @@
+import { schedulesOverlap } from "../../../shared/engine/ScheduleOverlap.ts";
 import { ServiceError } from "../lib/ServiceError.ts";
 import type { DayOfWeek } from "@chargeha/shared";
 import type { AppDatabase } from "../db/AppDatabase.ts";
@@ -42,6 +43,18 @@ function rowToSchedule(
 }
 
 export class ScheduleService {
+  private writeQueue: Promise<unknown> = Promise.resolve();
+  private serialize<T>(action: () => Promise<T>): Promise<T> {
+    const result = this.writeQueue.then(action, action);
+    this.writeQueue = result.catch(() => undefined);
+    return result;
+  }
+  create(input: Parameters<ScheduleService["createUnlocked"]>[0]) {
+    return this.serialize(() => this.createUnlocked(input));
+  }
+  update(input: Parameters<ScheduleService["updateUnlocked"]>[0]) {
+    return this.serialize(() => this.updateUnlocked(input));
+  }
   constructor(
     private db: AppDatabase,
     private logger: Logger,
@@ -76,7 +89,7 @@ export class ScheduleService {
     return (await this.db.getConfig("timezone")) ?? "UTC";
   }
 
-  async create(input: {
+  private async createUnlocked(input: {
     scheduleType: "charge" | "blockout";
     vehicleId?: string | null;
     startTime: string;
@@ -110,6 +123,8 @@ export class ScheduleService {
       }
     }
 
+    await this.assertNoOverlap(input);
+
     const id = crypto.randomUUID();
     const isCharge = input.scheduleType === "charge";
     await this.db.createSchedule({
@@ -135,7 +150,7 @@ export class ScheduleService {
     return { schedule: rowToSchedule(row) };
   }
 
-  async update(input: {
+  private async updateUnlocked(input: {
     id: string;
     vehicleId?: string | null;
     scheduleType?: "charge" | "blockout";
@@ -149,6 +164,15 @@ export class ScheduleService {
     const existing = await this.db.getSchedule(input.id);
     if (!existing) {
       throw new ServiceError("Schedule not found", "NOT_FOUND");
+    }
+
+    if (
+      input.enabled !== false &&
+      (input.enabled === true || input.startTime !== undefined ||
+        input.endTime !== undefined || input.days !== undefined ||
+        input.vehicleId !== undefined || input.scheduleType !== undefined)
+    ) {
+      await this.assertNoOverlap({ ...existing, ...input }, input.id);
     }
 
     await this.db.updateSchedule(input.id, {
@@ -172,6 +196,28 @@ export class ScheduleService {
 
     this.logger.info(`Schedule updated: ${row.scheduleType} (${input.id})`);
     return { schedule: rowToSchedule(row) };
+  }
+
+  private async assertNoOverlap(input: {
+    scheduleType: string;
+    vehicleId?: string | null;
+    startTime: string;
+    endTime: string;
+    days: readonly string[];
+  }, excludeId?: string) {
+    if (input.scheduleType !== "charge") return;
+    const rows = await this.db.getSchedules();
+    if (
+      rows.some((row) =>
+        row.id !== excludeId && row.scheduleType === "charge" &&
+        row.vehicleId === input.vehicleId && schedulesOverlap(input, row)
+      )
+    ) {
+      throw new ServiceError(
+        "This schedule overlaps with an existing charge schedule for the same vehicle.",
+        "BAD_REQUEST",
+      );
+    }
   }
 
   async delete(id: string) {

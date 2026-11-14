@@ -77,7 +77,7 @@ describe("ChargeController — schedules", () => {
       expect(log?.targetAmps).toBe(16);
     });
 
-    it("blocks an active SOLAR + clock schedule when home-battery protection is triggered", async () => {
+    it("permits an active SOLAR + clock schedule even when home-battery protection is triggered", async () => {
       const { today, startTime, endTime } = currentScheduleWindow();
       ctx = await setupController(
         {},
@@ -104,14 +104,13 @@ describe("ChargeController — schedules", () => {
 
       await ctx.runOneLoop();
 
-      expect(ctx.adapter.commands).not.toContainEqual({ cmd: "start" });
+      expect(ctx.adapter.commands).toContainEqual({ cmd: "start" });
       const log = await ctx.getLastLogParsed();
-      expect(log?.action).toBe("none");
-      expect(log?.checks.some((check) => check.check === "battery_priority"))
-        .toBe(true);
+      expect(log?.action).toBe("start");
+      expect(log?.targetAmps).toBe(16);
     });
 
-    it("stops a scheduled charge immediately when the home battery starts discharging", async () => {
+    it("keeps a scheduled charge running when the home battery discharges during the window", async () => {
       const { today, startTime, endTime } = currentScheduleWindow();
       ctx = await setupController(
         { isCharging: true, chargeAmps: 16, chargePowerKw: 3.68 },
@@ -138,11 +137,10 @@ describe("ChargeController — schedules", () => {
 
       await ctx.runOneLoop();
 
-      expect(ctx.adapter.commands).toContainEqual({ cmd: "stop" });
+      expect(ctx.adapter.commands).not.toContainEqual({ cmd: "stop" });
       const log = await ctx.getLastLogParsed();
-      expect(log?.action).toBe("stop");
-      expect(log?.checks.some((check) => check.check === "battery_discharge"))
-        .toBe(true);
+      expect(log?.action).toBe("none");
+      expect(log?.targetAmps).toBe(16);
     });
 
     it("does not apply a charge schedule in SOLAR ONLY mode", async () => {
@@ -195,8 +193,16 @@ describe("ChargeController — schedules", () => {
       ctx = await setupController(
         { isCharging: true, chargeAmps: 16, chargePowerKw: 3.68 },
         "auto",
-        { ...BASE_ENERGY, solarProductionW: 500, gridPowerW: 3500 },
+        { ...BASE_ENERGY, solarProductionW: 5000, gridPowerW: -4000 },
       );
+      await ctx.runOneLoop();
+      ctx.adapter.commands = [];
+      assertExists(ctx.poller.snapshot);
+      ctx.poller.snapshot.realtime = {
+        ...BASE_ENERGY,
+        solarProductionW: 500,
+        gridPowerW: 3500,
+      };
       await ctx.runOneLoop();
 
       expect(ctx.adapter.commands).toContainEqual({
@@ -217,12 +223,21 @@ describe("ChargeController — schedules", () => {
         "auto",
         {
           ...BASE_ENERGY,
-          solarProductionW: 800,
-          gridPowerW: 2000,
-          homeConsumptionW: 2800,
+          solarProductionW: 4000,
+          gridPowerW: -2500,
+          homeConsumptionW: 1500,
         },
         { min_solar_generation_kw: "1", grace_period_minutes: "6" },
       );
+      await ctx.runOneLoop();
+      ctx.adapter.commands = [];
+      assertExists(ctx.poller.snapshot);
+      ctx.poller.snapshot.realtime = {
+        ...BASE_ENERGY,
+        solarProductionW: 800,
+        gridPowerW: 2000,
+        homeConsumptionW: 2800,
+      };
 
       await ctx.runOneLoop();
 
@@ -239,9 +254,9 @@ describe("ChargeController — schedules", () => {
         "auto",
         {
           ...BASE_ENERGY,
-          solarProductionW: 800,
-          gridPowerW: 2000,
-          homeConsumptionW: 2800,
+          solarProductionW: 4000,
+          gridPowerW: -2500,
+          homeConsumptionW: 1500,
         },
         {
           min_solar_generation_kw: "1",
@@ -251,6 +266,16 @@ describe("ChargeController — schedules", () => {
       );
 
       using fakeTime = new FakeTime();
+
+      await ctx.runOneLoop();
+      ctx.adapter.commands = [];
+      assertExists(ctx.poller.snapshot);
+      ctx.poller.snapshot.realtime = {
+        ...BASE_ENERGY,
+        solarProductionW: 800,
+        gridPowerW: 2000,
+        homeConsumptionW: 2800,
+      };
 
       // Loop 1: enters grace period
       await ctx.runOneLoop();

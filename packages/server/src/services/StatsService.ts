@@ -40,10 +40,11 @@ export class StatsService {
 
   async buildDayStats(
     date: string,
-    tz: number,
+    tz: number | string,
     vehicleId: string | undefined,
     detailed: boolean,
   ): Promise<StatsResponse> {
+    tz = (await this.db.getConfig("timezone")) || tz;
     return detailed
       ? await this.buildDetailedDayStats(date, tz, vehicleId)
       : await this.buildHourlyDayStats(date, tz, vehicleId);
@@ -52,9 +53,10 @@ export class StatsService {
   async buildMonthStats(
     year: number,
     month: number,
-    tz: number,
+    tz: number | string,
     vehicleId: string | undefined,
   ): Promise<StatsResponse> {
+    tz = (await this.db.getConfig("timezone")) || tz;
     const numDays = daysInMonth(year, month);
     const monthStr = String(month).padStart(2, "0");
     const startDate = `${year}-${monthStr}-01`;
@@ -102,9 +104,10 @@ export class StatsService {
 
   async buildYearStats(
     year: number,
-    tz: number,
+    tz: number | string,
     vehicleId: string | undefined,
   ): Promise<StatsResponse> {
+    tz = (await this.db.getConfig("timezone")) || tz;
     const startDate = `${year}-01-01`;
     const endDate = `${year}-12-31`;
 
@@ -148,7 +151,7 @@ export class StatsService {
   /** Build day stats with 15-minute resolution. */
   private async buildDetailedDayStats(
     date: string,
-    tz: number,
+    tz: number | string,
     vehicleId: string | undefined,
   ): Promise<StatsResponse> {
     const [energyRows, chargeRows, currency, tariffBreakdown, pollLogs] =
@@ -190,7 +193,7 @@ export class StatsService {
   /** Build day stats with 1-hour resolution. */
   private async buildHourlyDayStats(
     date: string,
-    tz: number,
+    tz: number | string,
     vehicleId: string | undefined,
   ): Promise<StatsResponse> {
     const [energyRows, chargeRows, currency, tariffBreakdown, pollLogs] =
@@ -261,6 +264,7 @@ export class StatsService {
       gridWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh?: number;
       solarSavingsCents: number;
     },
     C extends {
@@ -271,6 +275,7 @@ export class StatsService {
       awayWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh?: number;
     },
   >(
     energyRows: E[],
@@ -303,6 +308,7 @@ export class StatsService {
       gridWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh?: number;
       solarSavingsCents: number;
     },
     C extends {
@@ -312,6 +318,7 @@ export class StatsService {
       awayWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh?: number;
     },
   >(
     start: number,
@@ -326,6 +333,8 @@ export class StatsService {
       const e = energyMap.get(key);
       return {
         label,
+        hasData: !!e,
+        unpricedGridWh: e?.unpricedGridWh ?? 0,
         solarProductionWh: e?.solarProductionWh ?? 0,
         solarWh: e?.solarWh ?? 0,
         batteryChargeWh: e?.batteryChargeWh ?? 0,
@@ -343,6 +352,8 @@ export class StatsService {
       const v = chargeMap.get(key);
       return {
         label,
+        hasData: !!v,
+        unpricedGridWh: v?.unpricedGridWh ?? 0,
         solarWh: v?.solarWh ?? 0,
         batteryWh: v?.batteryWh ?? 0,
         gridWh: v?.gridWh ?? 0,
@@ -513,7 +524,7 @@ export class StatsService {
   private async buildTariffBreakdown(
     startDate: string,
     endDate: string,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
   ): Promise<TariffBreakdownEntry[]> {
     const [rateRows, periods, defaultRateStr, currencySymbolStr] = await Promise
       .all([

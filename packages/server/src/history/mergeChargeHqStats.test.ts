@@ -71,6 +71,7 @@ describe("mergeChargeHqStats", () => {
     }], "day");
 
     expect(merged.buckets[13]).toEqual({
+      hasData: true,
       label: "13",
       solarWh: 500,
       batteryWh: 100,

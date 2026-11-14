@@ -173,14 +173,26 @@ describe("ChargeController — processAutoMode", () => {
 
   describe("min excess solar", () => {
     it("does not stop charging immediately when excess drops below threshold", async () => {
-      // Vehicle at 5A (1150W). Grid imports 1500W. Add-back excess = -350W,
-      // below the 0.5kW threshold — grace handles, no hard stop.
+      // Vehicle at 5A (1150W). First loop authorizes solar charging, then grid imports 1500W.
+      // Add-back excess = -350W, below the 0.5kW threshold — grace handles, no hard stop.
       ctx = await setupController(
         { isCharging: true, chargeAmps: 5, chargePowerKw: 1.15 },
         "auto",
-        { ...BASE_ENERGY, solarProductionW: 3000, gridPowerW: 1500 },
+        { ...BASE_ENERGY, solarProductionW: 3000, gridPowerW: -1000 },
         { min_excess_solar_kw: "0.5" },
       );
+      await ctx.runOneLoop();
+      ctx.adapter.state = {
+        ...ctx.adapter.state,
+        isCharging: true,
+        chargeAmps: 5,
+        chargePowerKw: 1.15,
+      };
+      ctx.poller.snapshot!.realtime = {
+        ...BASE_ENERGY,
+        solarProductionW: 3000,
+        gridPowerW: 1500,
+      };
       await ctx.runOneLoop();
 
       const log = await ctx.getLastLogParsed();

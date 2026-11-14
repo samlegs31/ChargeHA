@@ -1,10 +1,18 @@
+import { timezoneMidnight, timezoneModifier } from "./statsTimezone.ts";
 import { sql } from "drizzle-orm";
 
 /**
  * Build a safe SQLite datetime modifier string for timezone offsets.
  * Validates the input is a finite number to prevent injection via sql.raw().
  */
-export function sqliteTimezoneOffset(tzOffsetHours: number) {
+export function sqliteTimezoneOffset(
+  tzOffsetHours: number | string,
+  year?: number,
+) {
+  if (typeof tzOffsetHours === "string") {
+    if (year === undefined) throw new Error("A statistics year is required");
+    return timezoneModifier(tzOffsetHours, year);
+  }
   if (!Number.isFinite(tzOffsetHours)) {
     throw new Error(`Invalid timezone offset: ${tzOffsetHours}`);
   }
@@ -36,9 +44,24 @@ export function toSqliteDatetime(input: string): string {
  * Convert a local calendar day and its UTC offset to index-friendly UTC bounds.
  * The returned strings match SQLite's stored `YYYY-MM-DD HH:MM:SS` format.
  */
-export function localDayUtcBounds(date: string, tzOffsetHours: number) {
+export function localDayUtcBounds(
+  date: string,
+  tzOffsetHours: number | string,
+) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new Error(`Invalid local date: ${date}`);
+  }
+  if (typeof tzOffsetHours === "string") {
+    const nextDate = new Date(Date.parse(`${date}T00:00:00Z`) + 86400000)
+      .toISOString().slice(0, 10);
+    return {
+      start: toSqliteDatetime(
+        new Date(timezoneMidnight(date, tzOffsetHours)).toISOString(),
+      ),
+      end: toSqliteDatetime(
+        new Date(timezoneMidnight(nextDate, tzOffsetHours)).toISOString(),
+      ),
+    };
   }
   if (!Number.isFinite(tzOffsetHours)) {
     throw new Error(`Invalid timezone offset: ${tzOffsetHours}`);

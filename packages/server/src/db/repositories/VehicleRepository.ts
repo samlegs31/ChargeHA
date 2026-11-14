@@ -240,7 +240,7 @@ export class VehicleRepository {
 
   async getVehicleSocForDay(
     date: string,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
   ): Promise<
     Array<{
       vehicleId: string;
@@ -249,7 +249,10 @@ export class VehicleRepository {
       timestamp: string;
     }>
   > {
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(
+      tzOffsetHours,
+      Number(date.slice(0, 4)),
+    );
 
     const rows = await this.db.all<{
       vehicle_id: string;

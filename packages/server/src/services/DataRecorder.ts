@@ -95,7 +95,15 @@ export class DataRecorder {
     if (!this.latestRealtime) return;
 
     // Resolve tariff rate once per recording tick for both energy and vehicle readings
-    const ratePerKwh = await this.tariffService.resolveCurrentRate();
+    let ratePerKwh: number | null = null;
+    try {
+      ratePerKwh = await this.tariffService.resolveCurrentRate();
+    } catch (error) {
+      this.logger.error(
+        "Failed to resolve tariff; recording without a rate:",
+        error,
+      );
+    }
 
     try {
       await this.db.insertEnergyReading(this.latestRealtime, ratePerKwh);

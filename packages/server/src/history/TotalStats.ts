@@ -80,6 +80,11 @@ async function annualStats(
 function chargingBucket(year: number, stats: StatsResponse): StatsBucket {
   return {
     label: String(year),
+    hasData: stats.buckets.some((bucket) => bucket.hasData !== false),
+    unpricedGridWh: stats.buckets.reduce(
+      (sum, bucket) => sum + (bucket.unpricedGridWh ?? 0),
+      0,
+    ),
     solarWh: stats.totalSolarWh,
     batteryWh: stats.totalBatteryWh,
     gridWh: stats.totalGridWh,
@@ -92,6 +97,7 @@ function chargingBucket(year: number, stats: StatsResponse): StatsBucket {
 function emptyEnergyBucket(label: string): EnergyBucket {
   return {
     label,
+    hasData: false,
     solarProductionWh: 0,
     solarWh: 0,
     batteryChargeWh: 0,

@@ -18,7 +18,7 @@ export class StatsRepository {
   /** Aggregate vehicle charge readings by hour for a given day (YYYY-MM-DD local). */
   async getStatsDay(
     date: string,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
     vehicleId?: string,
   ): Promise<
     Array<{
@@ -29,10 +29,14 @@ export class StatsRepository {
       awayWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh: number;
       solarSavingsCents: number;
     }>
   > {
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(
+      tzOffsetHours,
+      Number(date.slice(0, 4)),
+    );
     const bounds = localDayUtcBounds(date, tzOffsetHours);
     const vehicleCondition = vehicleId
       ? sql` AND vehicle_id = ${vehicleId}`
@@ -46,6 +50,7 @@ export class StatsRepository {
       away_wh: number;
       total_wh: number;
       cost_cents: number;
+      unpriced_grid_wh: number;
       solar_savings_cents: number;
     }>(sql`SELECT
               strftime('%H', timestamp, ${offset}) AS bucket,
@@ -54,6 +59,7 @@ export class StatsRepository {
               SUM(CASE WHEN is_home = 1 THEN grid_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS grid_wh,
               SUM(CASE WHEN is_home = 0 THEN charge_power_w * (60.0 / 3600.0) ELSE 0 END) AS away_wh,
               SUM(charge_power_w * (60.0 / 3600.0)) AS total_wh,
+              SUM(CASE WHEN rate_per_kwh IS NULL AND is_home = 1 THEN grid_contribution_w / 60.0 ELSE 0 END) AS unpriced_grid_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN grid_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN solar_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM vehicle_charge_readings
@@ -69,6 +75,7 @@ export class StatsRepository {
       awayWh: (row.away_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
+      unpricedGridWh: (row.unpriced_grid_wh as number) ?? 0,
       solarSavingsCents: (row.solar_savings_cents as number) ?? 0,
     }));
   }
@@ -76,7 +83,7 @@ export class StatsRepository {
   /** Aggregate vehicle charge readings by 15-min intervals for a given day (YYYY-MM-DD local). */
   async getStatsDayDetailed(
     date: string,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
     vehicleId?: string,
   ): Promise<
     Array<{
@@ -87,10 +94,14 @@ export class StatsRepository {
       awayWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh: number;
       solarSavingsCents: number;
     }>
   > {
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(
+      tzOffsetHours,
+      Number(date.slice(0, 4)),
+    );
     const bounds = localDayUtcBounds(date, tzOffsetHours);
     const vehicleCondition = vehicleId
       ? sql` AND vehicle_id = ${vehicleId}`
@@ -104,6 +115,7 @@ export class StatsRepository {
       away_wh: number;
       total_wh: number;
       cost_cents: number;
+      unpriced_grid_wh: number;
       solar_savings_cents: number;
     }>(sql`SELECT
               CAST(strftime('%H', timestamp, ${offset}) AS INTEGER) * 4
@@ -113,6 +125,7 @@ export class StatsRepository {
               SUM(CASE WHEN is_home = 1 THEN grid_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS grid_wh,
               SUM(CASE WHEN is_home = 0 THEN charge_power_w * (60.0 / 3600.0) ELSE 0 END) AS away_wh,
               SUM(charge_power_w * (60.0 / 3600.0)) AS total_wh,
+              SUM(CASE WHEN rate_per_kwh IS NULL AND is_home = 1 THEN grid_contribution_w / 60.0 ELSE 0 END) AS unpriced_grid_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN grid_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN solar_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM vehicle_charge_readings
@@ -128,6 +141,7 @@ export class StatsRepository {
       awayWh: (row.away_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
+      unpricedGridWh: (row.unpriced_grid_wh as number) ?? 0,
       solarSavingsCents: (row.solar_savings_cents as number) ?? 0,
     }));
   }
@@ -136,7 +150,7 @@ export class StatsRepository {
   async getStatsMonth(
     year: number,
     month: number,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
     vehicleId?: string,
   ): Promise<
     Array<{
@@ -147,11 +161,12 @@ export class StatsRepository {
       awayWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh: number;
       solarSavingsCents: number;
     }>
   > {
     const monthStr = String(month).padStart(2, "0");
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(tzOffsetHours, year);
     const yearMonth = `${year}-${monthStr}`;
     const vehicleCondition = vehicleId
       ? sql` AND vehicle_id = ${vehicleId}`
@@ -165,6 +180,7 @@ export class StatsRepository {
       away_wh: number;
       total_wh: number;
       cost_cents: number;
+      unpriced_grid_wh: number;
       solar_savings_cents: number;
     }>(sql`SELECT
               strftime('%d', timestamp, ${offset}) AS bucket,
@@ -173,6 +189,7 @@ export class StatsRepository {
               SUM(CASE WHEN is_home = 1 THEN grid_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS grid_wh,
               SUM(CASE WHEN is_home = 0 THEN charge_power_w * (60.0 / 3600.0) ELSE 0 END) AS away_wh,
               SUM(charge_power_w * (60.0 / 3600.0)) AS total_wh,
+              SUM(CASE WHEN rate_per_kwh IS NULL AND is_home = 1 THEN grid_contribution_w / 60.0 ELSE 0 END) AS unpriced_grid_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN grid_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN solar_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM vehicle_charge_readings
@@ -187,6 +204,7 @@ export class StatsRepository {
       awayWh: (row.away_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
+      unpricedGridWh: (row.unpriced_grid_wh as number) ?? 0,
       solarSavingsCents: (row.solar_savings_cents as number) ?? 0,
     }));
   }
@@ -194,7 +212,7 @@ export class StatsRepository {
   /** Aggregate vehicle charge readings by month for a given year (local time). */
   async getStatsYear(
     year: number,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
     vehicleId?: string,
   ): Promise<
     Array<{
@@ -205,10 +223,11 @@ export class StatsRepository {
       awayWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh: number;
       solarSavingsCents: number;
     }>
   > {
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(tzOffsetHours, year);
     const yearStr = String(year);
     const vehicleCondition = vehicleId
       ? sql` AND vehicle_id = ${vehicleId}`
@@ -222,6 +241,7 @@ export class StatsRepository {
       away_wh: number;
       total_wh: number;
       cost_cents: number;
+      unpriced_grid_wh: number;
       solar_savings_cents: number;
     }>(sql`SELECT
               strftime('%m', timestamp, ${offset}) AS bucket,
@@ -230,6 +250,7 @@ export class StatsRepository {
               SUM(CASE WHEN is_home = 1 THEN grid_contribution_w * (60.0 / 3600.0) ELSE 0 END) AS grid_wh,
               SUM(CASE WHEN is_home = 0 THEN charge_power_w * (60.0 / 3600.0) ELSE 0 END) AS away_wh,
               SUM(charge_power_w * (60.0 / 3600.0)) AS total_wh,
+              SUM(CASE WHEN rate_per_kwh IS NULL AND is_home = 1 THEN grid_contribution_w / 60.0 ELSE 0 END) AS unpriced_grid_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN grid_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN solar_contribution_w * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM vehicle_charge_readings
@@ -244,6 +265,7 @@ export class StatsRepository {
       awayWh: (row.away_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
+      unpricedGridWh: (row.unpriced_grid_wh as number) ?? 0,
       solarSavingsCents: (row.solar_savings_cents as number) ?? 0,
     }));
   }
@@ -252,25 +274,30 @@ export class StatsRepository {
   async getTariffBreakdown(
     startDate: string,
     endDate: string,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
   ): Promise<
     Array<{
       ratePerKwh: number;
       gridWh: number;
       costCents: number;
+      unpricedGridWh: number;
     }>
   > {
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(
+      tzOffsetHours,
+      Number(startDate.slice(0, 4)),
+    );
     const rows = await this.db.all<{
       rate_per_kwh: number;
       grid_wh: number;
       cost_cents: number;
+      unpriced_grid_wh: number;
     }>(sql`SELECT
               rate_per_kwh,
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0)) AS grid_wh,
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100) AS cost_cents
             FROM energy_readings
-            WHERE rate_per_kwh IS NOT NULL
+            WHERE COALESCE(poll_failed, 0) = 0 AND rate_per_kwh IS NOT NULL
               AND date(timestamp, ${offset}) >= ${startDate}
               AND date(timestamp, ${offset}) <= ${endDate}
             GROUP BY rate_per_kwh
@@ -279,6 +306,7 @@ export class StatsRepository {
       ratePerKwh: (row.rate_per_kwh as number) ?? 0,
       gridWh: (row.grid_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
+      unpricedGridWh: (row.unpriced_grid_wh as number) ?? 0,
     }));
   }
 
@@ -287,7 +315,7 @@ export class StatsRepository {
   /** Aggregate home energy readings by hour for a given day (YYYY-MM-DD local). */
   async getEnergyStatsDay(
     date: string,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
   ): Promise<
     Array<{
       bucket: string;
@@ -300,10 +328,14 @@ export class StatsRepository {
       gridWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh: number;
       solarSavingsCents: number;
     }>
   > {
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(
+      tzOffsetHours,
+      Number(date.slice(0, 4)),
+    );
     const bounds = localDayUtcBounds(date, tzOffsetHours);
     const rows = await this.db.all<{
       bucket: string;
@@ -316,6 +348,7 @@ export class StatsRepository {
       grid_wh: number;
       total_wh: number;
       cost_cents: number;
+      unpriced_grid_wh: number;
       solar_savings_cents: number;
     }>(sql`SELECT
               strftime('%H', timestamp, ${offset}) AS bucket,
@@ -341,10 +374,11 @@ export class StatsRepository {
               ) AS grid_to_battery_wh,
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0)) AS grid_wh,
               SUM(home_consumption_w * (60.0 / 3600.0)) AS total_wh,
+              SUM(CASE WHEN rate_per_kwh IS NULL THEN MAX(grid_power_w, 0) / 60.0 ELSE 0 END) AS unpriced_grid_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MIN(solar_production_w, home_consumption_w) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM energy_readings
-            WHERE timestamp >= ${bounds.start}
+            WHERE COALESCE(poll_failed, 0) = 0 AND timestamp >= ${bounds.start}
               AND timestamp < ${bounds.end}
             GROUP BY bucket
             ORDER BY bucket`);
@@ -359,6 +393,7 @@ export class StatsRepository {
       gridWh: (row.grid_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
+      unpricedGridWh: (row.unpriced_grid_wh as number) ?? 0,
       solarSavingsCents: (row.solar_savings_cents as number) ?? 0,
     }));
   }
@@ -366,7 +401,7 @@ export class StatsRepository {
   /** Aggregate home energy readings by 15-min intervals for a given day (YYYY-MM-DD local). */
   async getEnergyStatsDayDetailed(
     date: string,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
   ): Promise<
     Array<{
       bucket: number;
@@ -379,10 +414,14 @@ export class StatsRepository {
       gridWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh: number;
       solarSavingsCents: number;
     }>
   > {
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(
+      tzOffsetHours,
+      Number(date.slice(0, 4)),
+    );
     const bounds = localDayUtcBounds(date, tzOffsetHours);
     const rows = await this.db.all<{
       bucket: number;
@@ -395,6 +434,7 @@ export class StatsRepository {
       grid_wh: number;
       total_wh: number;
       cost_cents: number;
+      unpriced_grid_wh: number;
       solar_savings_cents: number;
     }>(sql`SELECT
               CAST(strftime('%H', timestamp, ${offset}) AS INTEGER) * 4
@@ -421,10 +461,11 @@ export class StatsRepository {
               ) AS grid_to_battery_wh,
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0)) AS grid_wh,
               SUM(home_consumption_w * (60.0 / 3600.0)) AS total_wh,
+              SUM(CASE WHEN rate_per_kwh IS NULL THEN MAX(grid_power_w, 0) / 60.0 ELSE 0 END) AS unpriced_grid_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MIN(solar_production_w, home_consumption_w) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM energy_readings
-            WHERE timestamp >= ${bounds.start}
+            WHERE COALESCE(poll_failed, 0) = 0 AND timestamp >= ${bounds.start}
               AND timestamp < ${bounds.end}
             GROUP BY bucket
             ORDER BY bucket`);
@@ -439,6 +480,7 @@ export class StatsRepository {
       gridWh: (row.grid_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
+      unpricedGridWh: (row.unpriced_grid_wh as number) ?? 0,
       solarSavingsCents: (row.solar_savings_cents as number) ?? 0,
     }));
   }
@@ -447,7 +489,7 @@ export class StatsRepository {
   async getEnergyStatsMonth(
     year: number,
     month: number,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
   ): Promise<
     Array<{
       bucket: string;
@@ -460,11 +502,12 @@ export class StatsRepository {
       gridWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh: number;
       solarSavingsCents: number;
     }>
   > {
     const monthStr = String(month).padStart(2, "0");
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(tzOffsetHours, year);
     const yearMonth = `${year}-${monthStr}`;
     const rows = await this.db.all<{
       bucket: string;
@@ -477,6 +520,7 @@ export class StatsRepository {
       grid_wh: number;
       total_wh: number;
       cost_cents: number;
+      unpriced_grid_wh: number;
       solar_savings_cents: number;
     }>(sql`SELECT
               strftime('%d', timestamp, ${offset}) AS bucket,
@@ -502,10 +546,11 @@ export class StatsRepository {
               ) AS grid_to_battery_wh,
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0)) AS grid_wh,
               SUM(home_consumption_w * (60.0 / 3600.0)) AS total_wh,
+              SUM(CASE WHEN rate_per_kwh IS NULL THEN MAX(grid_power_w, 0) / 60.0 ELSE 0 END) AS unpriced_grid_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MIN(solar_production_w, home_consumption_w) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM energy_readings
-            WHERE strftime('%Y-%m', timestamp, ${offset}) = ${yearMonth}
+            WHERE COALESCE(poll_failed, 0) = 0 AND strftime('%Y-%m', timestamp, ${offset}) = ${yearMonth}
             GROUP BY bucket
             ORDER BY bucket`);
     return rows.map((row) => ({
@@ -519,6 +564,7 @@ export class StatsRepository {
       gridWh: (row.grid_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
+      unpricedGridWh: (row.unpriced_grid_wh as number) ?? 0,
       solarSavingsCents: (row.solar_savings_cents as number) ?? 0,
     }));
   }
@@ -526,7 +572,7 @@ export class StatsRepository {
   /** Aggregate home energy readings by month for a given year (local time). */
   async getEnergyStatsYear(
     year: number,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
   ): Promise<
     Array<{
       bucket: string;
@@ -539,10 +585,11 @@ export class StatsRepository {
       gridWh: number;
       totalWh: number;
       costCents: number;
+      unpricedGridWh: number;
       solarSavingsCents: number;
     }>
   > {
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(tzOffsetHours, year);
     const yearStr = String(year);
     const rows = await this.db.all<{
       bucket: string;
@@ -555,6 +602,7 @@ export class StatsRepository {
       grid_wh: number;
       total_wh: number;
       cost_cents: number;
+      unpriced_grid_wh: number;
       solar_savings_cents: number;
     }>(sql`SELECT
               strftime('%m', timestamp, ${offset}) AS bucket,
@@ -580,10 +628,11 @@ export class StatsRepository {
               ) AS grid_to_battery_wh,
               SUM(MAX(grid_power_w, 0) * (60.0 / 3600.0)) AS grid_wh,
               SUM(home_consumption_w * (60.0 / 3600.0)) AS total_wh,
+              SUM(CASE WHEN rate_per_kwh IS NULL THEN MAX(grid_power_w, 0) / 60.0 ELSE 0 END) AS unpriced_grid_wh,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MAX(grid_power_w, 0) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS cost_cents,
               SUM(CASE WHEN rate_per_kwh IS NOT NULL THEN MIN(solar_production_w, home_consumption_w) * (60.0 / 3600.0) / 1000.0 * rate_per_kwh * 100 ELSE 0 END) AS solar_savings_cents
             FROM energy_readings
-            WHERE strftime('%Y', timestamp, ${offset}) = ${yearStr}
+            WHERE COALESCE(poll_failed, 0) = 0 AND strftime('%Y', timestamp, ${offset}) = ${yearStr}
             GROUP BY bucket
             ORDER BY bucket`);
     return rows.map((row) => ({
@@ -597,6 +646,7 @@ export class StatsRepository {
       gridWh: (row.grid_wh as number) ?? 0,
       totalWh: (row.total_wh as number) ?? 0,
       costCents: (row.cost_cents as number) ?? 0,
+      unpricedGridWh: (row.unpriced_grid_wh as number) ?? 0,
       solarSavingsCents: (row.solar_savings_cents as number) ?? 0,
     }));
   }
@@ -604,9 +654,12 @@ export class StatsRepository {
   /** Fine-grained solar production for a day in 15-minute buckets (96 points). */
   async getSolarProductionDay(
     date: string,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
   ): Promise<Array<{ bucket: number; solarProductionWh: number }>> {
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(
+      tzOffsetHours,
+      Number(date.slice(0, 4)),
+    );
     const bounds = localDayUtcBounds(date, tzOffsetHours);
     const rows = await this.db.all<{
       bucket: number;
@@ -616,7 +669,7 @@ export class StatsRepository {
                 + CAST(strftime('%M', timestamp, ${offset}) AS INTEGER) / 15 AS bucket,
               SUM(solar_production_w * (60.0 / 3600.0)) AS solar_production_wh
             FROM energy_readings
-            WHERE timestamp >= ${bounds.start}
+            WHERE COALESCE(poll_failed, 0) = 0 AND timestamp >= ${bounds.start}
               AND timestamp < ${bounds.end}
             GROUP BY bucket
             ORDER BY bucket`);
@@ -630,12 +683,12 @@ export class StatsRepository {
   async getSolarProductionMonth(
     year: number,
     month: number,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
   ): Promise<
     Array<{ day: number; quarter: number; solarProductionWh: number }>
   > {
     const monthStr = String(month).padStart(2, "0");
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(tzOffsetHours, year);
     const yearMonth = `${year}-${monthStr}`;
     const rows = await this.db.all<{
       day: number;
@@ -646,7 +699,7 @@ export class StatsRepository {
               CAST(strftime('%H', timestamp, ${offset}) AS INTEGER) / 6 AS quarter,
               SUM(solar_production_w * (60.0 / 3600.0)) AS solar_production_wh
             FROM energy_readings
-            WHERE strftime('%Y-%m', timestamp, ${offset}) = ${yearMonth}
+            WHERE COALESCE(poll_failed, 0) = 0 AND strftime('%Y-%m', timestamp, ${offset}) = ${yearMonth}
             GROUP BY day, quarter
             ORDER BY day, quarter`);
     return rows.map((row) => ({
@@ -659,9 +712,9 @@ export class StatsRepository {
   /** Fine-grained solar production for a year in weekly buckets. */
   async getSolarProductionYear(
     year: number,
-    tzOffsetHours: number,
+    tzOffsetHours: number | string,
   ): Promise<Array<{ week: number; solarProductionWh: number }>> {
-    const offset = sqliteTimezoneOffset(tzOffsetHours);
+    const offset = sqliteTimezoneOffset(tzOffsetHours, year);
     const yearStr = String(year);
     const rows = await this.db.all<{
       week: number;
@@ -670,7 +723,7 @@ export class StatsRepository {
               CAST(strftime('%W', timestamp, ${offset}) AS INTEGER) AS week,
               SUM(solar_production_w * (60.0 / 3600.0)) AS solar_production_wh
             FROM energy_readings
-            WHERE strftime('%Y', timestamp, ${offset}) = ${yearStr}
+            WHERE COALESCE(poll_failed, 0) = 0 AND strftime('%Y', timestamp, ${offset}) = ${yearStr}
             GROUP BY week
             ORDER BY week`);
     return rows.map((row) => ({

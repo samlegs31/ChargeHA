@@ -79,6 +79,10 @@ export class AppDatabase {
     this.logger = logger ?? new Logger("DB", "error");
     this.sqlite.exec("PRAGMA journal_mode = WAL");
     this.sqlite.exec("PRAGMA busy_timeout = 5000");
+    this.sqlite.exec("PRAGMA synchronous = NORMAL");
+    this.sqlite.exec("PRAGMA temp_store = MEMORY");
+    this.sqlite.exec("PRAGMA cache_size = -8000");
+    this.sqlite.exec("PRAGMA wal_autocheckpoint = 1000");
     this.db = drizzle(this.sqlite as unknown as Parameters<typeof drizzle>[0]);
     this.config = new ConfigRepository(this.db);
     this.energy = new EnergyRepository(this.db);

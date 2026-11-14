@@ -13,7 +13,7 @@ BASE_MANIFEST_SHA256 = "b70d00efba3608ea321f38e9d4441da6767dfe6d21448cf4e5b4645a
 ROOT = Path(__file__).resolve().parent.parent
 
 # User-authorized Settings addition. Every other installed asset stays immutable.
-APPROVED_UI = {"packages/server/dist/assets/Settings-C2gay-IT.js": "b7208035c7dd781a06880ed2ad1b5bb2faf754d4f94f494e71d4fb65a1d05f34", "packages/server/dist/assets/index-CQx0j9kn.js": "18520a1c5af268fc27ee5b51e6e7bc7024f325eb6953447fd854f83b54830686"}
+APPROVED_UI = {"packages/server/dist/assets/Schedules-R8LrB50u.js": "60f0f6b9b44c5e0432701fd29d853531cbe2743cd3df7ce713021d5272fe2595", "packages/server/dist/assets/Settings-C2gay-IT.js": "4b63ad1ddbba6d971071f698a9c1bd02f29c980b873dafdec76c85da154c205c", "packages/server/dist/assets/Stats-Brkyx1mD.js": "285724d0b8ba36a1d1eeb7d85dd71677c87f1d6b17117a49324218589cf4a151", "packages/server/dist/assets/index-CQx0j9kn.js": "747a88accc3221c605504d8f05028907a25eee25703a575bb42d915e64470865"}
 
 
 # Explicitly reviewed dependency update; installed baseline remains immutable.

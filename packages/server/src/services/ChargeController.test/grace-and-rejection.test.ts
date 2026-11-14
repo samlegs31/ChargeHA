@@ -24,7 +24,7 @@ describe("ChargeController — grace + command rejection", () => {
       // With the fix, ensureChargingAt updates cached state to 5A:
       //   available = -470 + 5*230 = 680W → 2A (stays in grace, correct)
 
-      // Setup: car at 16A, insufficient solar (3kW solar, 3kW grid import)
+      // Setup: car authorized at 16A, then solar drops (3kW solar, 3kW grid import)
       ctx = await setupController(
         {
           isCharging: true,
@@ -35,14 +35,23 @@ describe("ChargeController — grace + command rejection", () => {
         "auto",
         {
           ...BASE_ENERGY,
-          solarProductionW: 3000,
-          gridPowerW: 3000,
-          homeConsumptionW: 6000,
+          solarProductionW: 5000,
+          gridPowerW: -10,
+          homeConsumptionW: 1300,
         },
         { min_solar_generation_kw: "1" },
       );
+      await ctx.runOneLoop();
+      assertExists(ctx.poller.snapshot);
+      ctx.poller.snapshot.realtime = {
+        ...BASE_ENERGY,
+        solarProductionW: 3000,
+        gridPowerW: 3000,
+        homeConsumptionW: 6000,
+      };
+      ctx.adapter.commands = [];
 
-      // Loop 1: init cycle — processes vehicle, detects insufficient solar,
+      // Loop 1: detects insufficient solar,
       // enters grace period, calls ensureChargingAt(5).
       await ctx.runOneLoop();
 

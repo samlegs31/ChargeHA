@@ -111,4 +111,138 @@ describe("Health tRPC Router", () => {
       ]);
     });
   });
+
+  describe("health.regulation", () => {
+    it("exposes instantaneous effective limit, cause, and command queue depth per vehicle", async () => {
+      db = new AppDatabase(":memory:");
+      await db.init();
+      const nowIso = new Date().toISOString();
+      const caller = createCaller(
+        throwingMock<TrpcContext>("TrpcContext", {
+          db,
+          vehicleManager: throwingMock<TrpcContext["vehicleManager"]>(
+            "VehicleManager",
+            {
+              getAllStates: () =>
+                Promise.resolve(
+                  new Map([
+                    [
+                      "VIN_FRIDAY",
+                      {
+                        vehicleId: "VIN_FRIDAY",
+                        vehicleName: "F.R.I.D.A.Y.",
+                        batteryLevel: 55,
+                        chargeLimit: 80,
+                        isCharging: true,
+                        isPluggedIn: true,
+                        isOnline: true,
+                        chargeAmps: 22,
+                        chargeAmpsActual: 22,
+                        chargeAmpsMax: 32,
+                        chargeAmpsMin: 5,
+                        chargePowerKw: 5.06,
+                        chargerVoltage: 230,
+                        chargerPhases: 1,
+                        energyAddedKwh: 2,
+                        minutesToFull: 60,
+                        chargePortOpen: true,
+                        lastUpdated: nowIso,
+                        latitude: 43.6,
+                        longitude: 1.44,
+                        isHome: true,
+                      },
+                    ],
+                  ]),
+                ),
+              getCommandQueueDepth: (id?: string) => (id ? 1 : 1),
+              isCommandInFlight: () => true,
+            },
+          ),
+          configService: throwingMock<TrpcContext["configService"]>(
+            "ConfigService",
+            {
+              getCharging: () =>
+                Promise.resolve({
+                  chargingEnabled: true,
+                  priorityChargingEnabled: false,
+                  vehicleSolarCurrentLimits: { VIN_FRIDAY: 22 },
+                  vehicleCurrentLimits: {},
+                  maxGridImportKw: null,
+                }),
+              getSolar: () =>
+                Promise.resolve({
+                  solarTrackingEnabled: true,
+                  solarTrackingMode: "solar_only" as const,
+                  solarReference: "excess" as const,
+                  solarMarginKw: 0,
+                  minSolarGenerationKw: 0.2,
+                  minExcessSolarKw: null,
+                  gridVoltage: 230,
+                  threePhaseCharger: false,
+                  consumptionExcludesCharging: false,
+                  gracePeriodMinutes: 6,
+                  cooldownPeriodMinutes: 15,
+                  ampDebounceThreshold: 2,
+                  ampDebounceSettleMinutes: 3,
+                }),
+              getBattery: () =>
+                Promise.resolve({
+                  batteryPriorityEnabled: false,
+                  batteryPriorityLimit: 80,
+                  batteryDischargeToleranceW: 300,
+                  batteryDischargeGraceMinutes: 3,
+                }),
+            },
+          ),
+          poller: throwingMock<TrpcContext["poller"]>("EnergyPoller", {
+            tryGetRealtimeSnapshot: () => ({
+              realtime: {
+                solarProductionW: 6500,
+                gridPowerW: -1000,
+                homeConsumptionW: 5500,
+                batteryPowerW: null,
+                batterySoc: null,
+                gridVoltageV: 230,
+                lastUpdated: nowIso,
+              },
+              cumulative: {
+                solarProducedWh: 0,
+                gridImportedWh: 0,
+                gridExportedWh: 0,
+                dailySolarProducedWh: 0,
+                dailyGridImportWh: 0,
+                dailyGridExportWh: 0,
+              },
+            }),
+            getRealtimeMaxAgeMs: () => 90_000,
+          }),
+          eventEmitter: throwingMock<TrpcContext["eventEmitter"]>(
+            "TypedEventEmitter",
+            {
+              getRetained: () => [
+                {
+                  vehicleId: "VIN_FRIDAY",
+                  action: "none" as const,
+                  reason: "solar_tracking" as const,
+                  detail: "Already charging at 22A",
+                  targetAmps: 22,
+                  checksJson: "[]",
+                  observedAt: nowIso,
+                },
+              ],
+            },
+          ),
+        }),
+      );
+
+      const data = await caller.health.regulation();
+      expect(data.commandQueueDepth).toBe(1);
+      expect(data.vehicles).toHaveLength(1);
+      expect(data.vehicles[0].effectiveLimitAmps).toBe(22);
+      expect(data.vehicles[0].effectiveLimitCause).toBe("solar_ceiling");
+      expect(data.vehicles[0].effectiveLimitLabel).toContain("22 A (5.1 kW)");
+      expect(data.vehicles[0].commandQueueDepth).toBe(1);
+      expect(data.vehicles[0].commandInFlight).toBe(true);
+    });
+  });
 });

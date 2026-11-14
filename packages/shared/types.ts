@@ -370,6 +370,9 @@ export interface EnergySnapshot {
 export type StatsPeriod = "day" | "month" | "year";
 
 export interface StatsBucket {
+  /** Missing buckets retain numeric totals but must not be shown as measured zero. */
+  hasData?: boolean;
+  unpricedGridWh?: number;
   label: string; // "0"-"23" (day), "1"-"31" (month), "Jan"-"Dec" (year)
   solarWh: number; // Solar energy used for home charging in this bucket
   batteryWh: number; // Home-battery energy used for vehicle charging
@@ -380,6 +383,9 @@ export interface StatsBucket {
 }
 
 export interface EnergyBucket {
+  /** Missing buckets retain numeric totals but must not be shown as measured zero. */
+  hasData?: boolean;
+  unpricedGridWh?: number;
   label: string;
   solarProductionWh: number; // Total solar produced in this bucket
   solarWh: number; // Solar used directly by home/EV loads

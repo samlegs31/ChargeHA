@@ -69,6 +69,52 @@ export class VehicleManager {
   private readonly powerGuard: CommandPowerGuard;
   private commandQueue: Promise<unknown> = Promise.resolve();
   private stopGeneration = new Map<string, number>();
+  private queuedCommandsByVehicle = new Map<string, number>();
+  private activeCommandVehicleId: string | null = null;
+
+  getCommandQueueDepth(vehicleId?: string): number {
+    if (vehicleId !== undefined) {
+      return this.queuedCommandsByVehicle.get(vehicleId) ?? 0;
+    }
+    let total = 0;
+    for (const count of this.queuedCommandsByVehicle.values()) {
+      total += count;
+    }
+    return total;
+  }
+
+  isCommandInFlight(vehicleId: string): boolean {
+    return this.activeCommandVehicleId === vehicleId;
+  }
+
+  private enqueueCommand<T>(
+    vehicleId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    this.queuedCommandsByVehicle.set(
+      vehicleId,
+      (this.queuedCommandsByVehicle.get(vehicleId) ?? 0) + 1,
+    );
+    const command = this.commandQueue.then(async () => {
+      this.activeCommandVehicleId = vehicleId;
+      try {
+        return await fn();
+      } finally {
+        if (this.activeCommandVehicleId === vehicleId) {
+          this.activeCommandVehicleId = null;
+        }
+        const remaining = (this.queuedCommandsByVehicle.get(vehicleId) ?? 1) -
+          1;
+        if (remaining > 0) {
+          this.queuedCommandsByVehicle.set(vehicleId, remaining);
+        } else {
+          this.queuedCommandsByVehicle.delete(vehicleId);
+        }
+      }
+    });
+    this.commandQueue = command.catch(() => undefined);
+    return command;
+  }
 
   setPowerEnergyReader(reader: () => GuardEnergy): void {
     this.powerGuard.setEnergyReader(reader);
@@ -320,14 +366,15 @@ export class VehicleManager {
     options: { force?: boolean } = {},
   ): Promise<CommandResult> {
     const generation = this.stopGeneration.get(vehicleId) ?? 0;
-    const command = this.commandQueue.then(() => {
+    return this.enqueueCommand(vehicleId, () => {
       if ((this.stopGeneration.get(vehicleId) ?? 0) !== generation) {
-        return { success: false, error: "Charging request superseded by stop" };
+        return Promise.resolve({
+          success: false,
+          error: "Charging request superseded by stop",
+        });
       }
       return this.startChargingGuarded(vehicleId, amps, ctx, state, options);
     });
-    this.commandQueue = command.catch(() => undefined);
-    return command;
   }
 
   private async startChargingGuarded(
@@ -436,11 +483,10 @@ export class VehicleManager {
       vehicleId,
       (this.stopGeneration.get(vehicleId) ?? 0) + 1,
     );
-    const command = this.commandQueue.then(() =>
-      this.stopChargingGuarded(vehicleId, ctx, state, options)
+    return this.enqueueCommand(
+      vehicleId,
+      () => this.stopChargingGuarded(vehicleId, ctx, state, options),
     );
-    this.commandQueue = command.catch(() => undefined);
-    return command;
   }
 
   private async stopChargingGuarded(

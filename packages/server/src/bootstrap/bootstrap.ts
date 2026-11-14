@@ -54,6 +54,35 @@ import { createAppRouter } from "../trpc/root.ts";
 import type { TrpcContext } from "../trpc/trpc.ts";
 
 const DEFAULT_DB_PATH = `${Deno.cwd()}/data/chargeha.db`;
+const STATIC_ROOT = "./packages/server/dist";
+const assetEtagCache = new Map<
+  string,
+  { size: number; mtimeMs: number; etag: string }
+>();
+
+async function resolveAssetEtag(reqPath: string): Promise<string | null> {
+  if (!reqPath.startsWith("/assets/") || reqPath.includes("..")) return null;
+  const filePath = `${STATIC_ROOT}${reqPath}`;
+  try {
+    const stat = await Deno.stat(filePath);
+    if (!stat.isFile) return null;
+    const mtimeMs = stat.mtime?.getTime() ?? 0;
+    const cached = assetEtagCache.get(filePath);
+    if (cached && cached.size === stat.size && cached.mtimeMs === mtimeMs) {
+      return cached.etag;
+    }
+    const bytes = await Deno.readFile(filePath);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    const hex = Array.from(new Uint8Array(digest).slice(0, 12))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    const etag = `"${hex}"`;
+    assetEtagCache.set(filePath, { size: stat.size, mtimeMs, etag });
+    return etag;
+  } catch {
+    return null;
+  }
+}
 
 function parseLogLevel(raw: string | undefined): LogLevel {
   if (!raw) return "info";
@@ -429,10 +458,34 @@ function buildHttpApp(
   });
 
   app.route("/api/vehicle-appearance", createVehicleAppearanceRoutes(db));
-  app.use("/*", serveStatic({ root: "./packages/server/dist" }));
+  app.use("/vehicles/*", async (c, next) => {
+    await next();
+    if (c.res.status === 200) {
+      c.header("Cache-Control", "public, max-age=604800");
+    }
+  });
+  app.use("/assets/*", async (c, next) => {
+    const etag = await resolveAssetEtag(c.req.path);
+    const ifNoneMatch = c.req.header("If-None-Match");
+    if (etag && ifNoneMatch && ifNoneMatch === etag) {
+      return new Response(null, {
+        status: 304,
+        headers: {
+          "Cache-Control": "no-cache",
+          ETag: etag,
+        },
+      });
+    }
+    await next();
+    if (c.res.status === 200) {
+      c.header("Cache-Control", "no-cache");
+      if (etag) c.header("ETag", etag);
+    }
+  });
+  app.use("/*", serveStatic({ root: STATIC_ROOT }));
   app.use(
     "/*",
-    serveStatic({ root: "./packages/server/dist", path: "index.html" }),
+    serveStatic({ root: STATIC_ROOT, path: "index.html" }),
   );
 
   return app;

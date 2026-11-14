@@ -217,8 +217,15 @@ describe("ChargeController — processSolarTracking", () => {
           chargePowerKw: 1.15,
         },
         "auto",
-        { ...BASE_ENERGY, solarProductionW: 500, gridPowerW: 300 },
+        { ...BASE_ENERGY, solarProductionW: 2500, gridPowerW: -10 },
       );
+      await ctx.runOneLoop();
+      ctx.adapter.commands = [];
+      ctx.poller.snapshot!.realtime = {
+        ...BASE_ENERGY,
+        solarProductionW: 500,
+        gridPowerW: 300,
+      };
       await ctx.runOneLoop();
 
       const log = await ctx.getLastLogParsed();
@@ -238,11 +245,19 @@ describe("ChargeController — processSolarTracking", () => {
           chargePowerKw: 1.15,
         },
         "auto",
-        { ...BASE_ENERGY, solarProductionW: 500, gridPowerW: 300 },
+        { ...BASE_ENERGY, solarProductionW: 2500, gridPowerW: -10 },
         { grace_period_minutes: "1" },
       );
 
       using fakeTime = new FakeTime();
+
+      await ctx.runOneLoop();
+      ctx.adapter.commands = [];
+      ctx.poller.snapshot!.realtime = {
+        ...BASE_ENERGY,
+        solarProductionW: 500,
+        gridPowerW: 300,
+      };
 
       // Loop 1: enters grace period (insufficient excess solar).
       await ctx.runOneLoop();

@@ -1,6 +1,12 @@
-// Read cached backend diagnostics only. No polling and no vehicle commands.
+// Read cached backend diagnostics only. No vehicle commands.
 function EVRegulationDiagnostics() {
-  const query = v.health.regulation.useQuery(undefined, { staleTime: 15000, retry: 1, refetchOnWindowFocus: false });
+  const sectionOpen = g.useContext(EVSectionOpenContext);
+  const query = v.health.regulation.useQuery(undefined, {
+    staleTime: 4000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+    refetchInterval: sectionOpen ? 5000 : false,
+  });
   const data = query.data;
   const age = value => value == null ? "Unknown" : `${Math.round(value / 1000)} s`;
   const amps = value => value == null ? "Unknown" : `${value} A`;
@@ -23,7 +29,8 @@ function EVRegulationDiagnostics() {
       data.vehicles.map(vehicle => t.jsxs("div", { children: [
         t.jsx(c, { as: "p", weight: "bold", children: vehicle.name }),
         t.jsx(c, { as: "p", size: "2", children: vehicle.external ? "Controlled by an external charger" : reasons[vehicle.reason] ?? (vehicle.reason ? vehicle.reason.replaceAll("_", " ") : "No controller decision yet") }),
-        t.jsx(c, { as: "p", size: "2", children: `Requested: ${amps(vehicle.requestedAmps)} · Measured: ${amps(vehicle.actualAmps)}` }),
+        t.jsx(c, { as: "p", size: "2", "data-testid": `effective-limit-${vehicle.id}`, children: `Effective limit: ${vehicle.effectiveLimitLabel ?? (vehicle.effectiveLimitAmps == null ? "Unknown" : amps(vehicle.effectiveLimitAmps))}` }),
+        t.jsx(c, { as: "p", size: "2", children: `Requested: ${amps(vehicle.requestedAmps)} · Measured: ${amps(vehicle.actualAmps)} · Command queue: ${vehicle.commandInFlight ? "In flight" : "Idle"} (${vehicle.commandQueueDepth ?? 0})` }),
         t.jsx(c, { as: "p", size: "1", color: "gray", children: `Vehicle reading: ${age(vehicle.telemetryAgeMs)} old · Decision: ${age(vehicle.decisionAgeMs)} old` }),
         t.jsx(c, { as: "p", size: "1", color: "gray", children: `Configured solar ceiling: ${vehicle.solarLimitAmps == null ? "None" : amps(vehicle.solarLimitAmps)}. Lower electrical limits and available surplus still apply.` }),
       ] }, vehicle.id)),

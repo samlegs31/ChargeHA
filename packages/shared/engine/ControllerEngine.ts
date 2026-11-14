@@ -90,22 +90,25 @@ export class ControllerEngine {
       solarReference: "excess",
     };
     const allocation = SolarAllocator.allocate(
-      vehicles.map((v) => {
-        if (!v.state) return v;
-        const maximum = config.vehicleCurrentLimits?.[v.id] ??
-          v.state.chargeAmpsMax;
-        return {
-          ...v,
-          state: {
-            ...v.state,
-            chargeAmpsMax: Math.min(
-              v.state.chargeAmpsMax,
-              maximum,
-              config.vehicleSolarCurrentLimits?.[v.id] ?? v.state.chargeAmpsMax,
-            ),
-          },
-        };
-      }),
+      vehicles
+        .filter((v) => !runtimeConfigOverrides?.get(v.id)?.oscillationPaused)
+        .map((v) => {
+          if (!v.state) return v;
+          const maximum = config.vehicleCurrentLimits?.[v.id] ??
+            v.state.chargeAmpsMax;
+          return {
+            ...v,
+            state: {
+              ...v.state,
+              chargeAmpsMax: Math.min(
+                v.state.chargeAmpsMax,
+                maximum,
+                config.vehicleSolarCurrentLimits?.[v.id] ??
+                  v.state.chargeAmpsMax,
+              ),
+            },
+          };
+        }),
       solarOnlyConfig,
       energy,
     );
@@ -168,6 +171,28 @@ export class ControllerEngine {
     energyUnavailable: boolean,
     energyUnavailableDetail: string,
   ): VehicleDecision {
+    if (config.oscillationPaused) {
+      const pauseDetail =
+        "Stabilisation pause — automatic recovery after five minutes once STOP is confirmed";
+      const automaticMode = vehicle.mode === "auto" ||
+        vehicle.mode === "vacation";
+      const enforceStop = (vehicle.mode === "stop" || automaticMode) &&
+        vehicle.state?.isCharging === true;
+      const stopReason = vehicle.mode === "stop"
+        ? "mode_stop" as const
+        : "charging_disabled" as const;
+      const stopDetail = vehicle.mode === "stop"
+        ? "Stop — mode set to stop"
+        : `Stop — ${pauseDetail}`;
+      return {
+        action: enforceStop ? "stop" : "none",
+        reason: enforceStop ? stopReason : "charging_disabled",
+        detail: enforceStop ? stopDetail : pauseDetail,
+        targetAmps: null,
+        checks: [],
+      };
+    }
+
     const precondition = this.checkPreconditions(vehicle);
     if (precondition.decision) {
       return { ...precondition.decision, checks: precondition.checks };

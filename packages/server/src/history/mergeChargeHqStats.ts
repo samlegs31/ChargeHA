@@ -42,6 +42,7 @@ export function mergeChargeHqStats(
       return;
     }
     const bucket = buckets[index];
+    bucket.hasData = true;
     bucket.solarWh += row.solarWh;
     bucket.batteryWh += row.batteryWh;
     bucket.gridWh += row.gridWh;

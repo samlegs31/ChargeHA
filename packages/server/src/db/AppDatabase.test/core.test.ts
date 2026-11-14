@@ -22,6 +22,27 @@ describe("AppDatabase", () => {
       const readings = await db.getRecentReadings(1);
       expect(readings).toEqual([]);
     });
+
+    it("configures Raspberry Pi 3B+ SQLite PRAGMAs and uses indexes on hot queries", () => {
+      const sqlite = (db as unknown as {
+        sqlite: {
+          prepare: (sql: string) => {
+            get: () => Record<string, number>;
+            all: () => Array<Record<string, unknown>>;
+          };
+        };
+      }).sqlite;
+      expect(sqlite.prepare("PRAGMA synchronous").get().synchronous).toBe(1);
+      expect(sqlite.prepare("PRAGMA temp_store").get().temp_store).toBe(2);
+      expect(sqlite.prepare("PRAGMA cache_size").get().cache_size).toBe(-8000);
+      expect(
+        sqlite.prepare("PRAGMA wal_autocheckpoint").get().wal_autocheckpoint,
+      ).toBe(1000);
+      const plan = sqlite.prepare(
+        "EXPLAIN QUERY PLAN SELECT * FROM controller_logs WHERE vehicle_id = 'VIN1' ORDER BY timestamp DESC LIMIT 10",
+      ).all();
+      expect(JSON.stringify(plan)).toContain("USING INDEX");
+    });
   });
 
   describe("energy readings", () => {

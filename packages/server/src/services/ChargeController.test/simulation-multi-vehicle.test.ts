@@ -186,14 +186,22 @@ describe("ChargeController — multi-vehicle", () => {
         ],
         {
           ...BASE_ENERGY,
-          solarProductionW: 2500,
-          gridPowerW: 1840,
+          solarProductionW: 5000,
+          gridPowerW: -10,
           homeConsumptionW: 1500,
         },
         { grace_period_minutes: "1" },
       );
 
       using fakeTime = new FakeTime();
+
+      await ctx.runOneLoop();
+      ctx.poller.snapshot!.realtime = {
+        ...BASE_ENERGY,
+        solarProductionW: 2500,
+        gridPowerW: 1840,
+        homeConsumptionW: 1500,
+      };
 
       await ctx.runOneLoop();
       const log1 = await ctx.getLogForVehicle(VIN_B);

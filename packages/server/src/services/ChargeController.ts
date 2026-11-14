@@ -1,6 +1,9 @@
 import { commandMetrics, controllerMetrics } from "../lib/RuntimeMetrics.ts";
 import { externalChargingVehicles } from "./ExternalCharging.ts";
-import { BatteryScheduleMemory } from "./BatteryScheduleMemory.ts";
+import {
+  OSCILLATION_BY_VEHICLE_KEY,
+  parseOscillationByVehicle,
+} from "./Overseer.ts";
 import {
   type ControllerAction,
   createTraceId,
@@ -39,6 +42,9 @@ const DEFAULT_LOOP_MS = 30_000;
 
 // Prune old log entries every N loops
 const PRUNE_EVERY_N_LOOPS = 100;
+
+// Persist identical "none" decisions at most every 5 minutes per vehicle
+const LOG_HEARTBEAT_MS = 5 * 60_000;
 
 /** Structured inputs snapshot captured each decision cycle. */
 export interface DecisionInputs {
@@ -99,9 +105,14 @@ export class ChargeController {
   private readonly configService: ConfigService;
   private readonly eventEmitter: TypedEventEmitter;
   private readonly logger: Logger;
-  private readonly scheduleMemory: BatteryScheduleMemory;
   private readonly engine = new ControllerEngine();
-  private readonly batteryBlockedScheduleKeys = new Set<string>();
+  // Keep enforcing an unapproved start until STOP succeeds or charging is allowed.
+  private readonly unapprovedStarts = new Set<string>();
+  private readonly oscillationPausedVehicleIds = new Set<string>();
+  private readonly lastPersistedLogs = new Map<
+    string,
+    { signature: string; persistedAt: number }
+  >();
   private energyUnavailable = false;
   private energyRecoveryReadings = 0;
   private lastRecoveryReadingAt: string | null = null;
@@ -126,7 +137,6 @@ export class ChargeController {
     this.vehicleManager = vehicleManager;
     this.poller = poller;
     this.db = db;
-    this.scheduleMemory = new BatteryScheduleMemory(db.config);
     this.configService = configService;
     this.eventEmitter = eventEmitter;
     this.logger = logger;
@@ -232,12 +242,6 @@ export class ChargeController {
     const schedules = await this.db.getSchedules();
     const energySnapshot = this.poller.tryGetRealtimeSnapshot();
     const now = new Date(timestamp);
-    await this.scheduleMemory.restore(
-      this.batteryBlockedScheduleKeys,
-      schedules,
-      now,
-      config.timezone,
-    );
     const energy = energySnapshot?.realtime ?? null;
     const energyAvailability = this.evaluateEnergyAvailability(
       energy,
@@ -304,13 +308,6 @@ export class ChargeController {
       engineVehicles,
     );
 
-    await this.scheduleMemory.persist(
-      this.batteryBlockedScheduleKeys,
-      schedules,
-      now,
-      config.timezone,
-    );
-
     const logEntries: ControllerLogInput[] = await vehicles.reduce(
       async (prevPromise, vehicle) => {
         const acc = await prevPromise;
@@ -331,7 +328,7 @@ export class ChargeController {
       Promise.resolve([] as ControllerLogInput[]),
     );
 
-    await this.finishLoop(logEntries);
+    await this.finishLoop(logEntries, timestamp);
     return config;
   }
 
@@ -377,10 +374,16 @@ export class ChargeController {
     );
   }
 
-  private async finishLoop(logEntries: ControllerLogInput[]): Promise<void> {
+  private async finishLoop(
+    logEntries: ControllerLogInput[],
+    timestamp = Date.now(),
+  ): Promise<void> {
+    const entriesToPersist = logEntries.filter((entry) =>
+      this.shouldPersistLogEntry(entry, timestamp)
+    );
     // Batch-insert log entries
-    if (logEntries.length > 0) {
-      await this.db.insertControllerLogEntries(logEntries);
+    if (entriesToPersist.length > 0) {
+      await this.db.insertControllerLogEntries(entriesToPersist);
     }
 
     // Periodic pruning
@@ -389,6 +392,40 @@ export class ChargeController {
       const system = await this.configService.getSystem();
       await this.db.pruneControllerLogs(system.logRetentionDays);
     }
+  }
+
+  private shouldPersistLogEntry(
+    entry: ControllerLogInput,
+    timestamp: number,
+  ): boolean {
+    const signature = JSON.stringify([
+      entry.mode,
+      entry.action,
+      entry.actionDetail,
+      entry.targetAmps,
+      entry.checksJson,
+    ]);
+    if (entry.action !== "none") {
+      this.lastPersistedLogs.set(entry.vehicleId, {
+        signature,
+        persistedAt: timestamp,
+      });
+      return true;
+    }
+    const previous = this.lastPersistedLogs.get(entry.vehicleId);
+    if (
+      !previous ||
+      previous.signature !== signature ||
+      timestamp - previous.persistedAt >= LOG_HEARTBEAT_MS ||
+      timestamp < previous.persistedAt
+    ) {
+      this.lastPersistedLogs.set(entry.vehicleId, {
+        signature,
+        persistedAt: timestamp,
+      });
+      return true;
+    }
+    return false;
   }
 
   /** Apply runtime safety overrides without changing persisted settings. */
@@ -406,55 +443,32 @@ export class ChargeController {
         (vehicle) => vehicle.id,
       ),
     );
-    const batteryProtectionTriggered = this.isHomeBatteryProtectionTriggered(
-      config,
-      energy,
-    );
-    const excessiveBatteryDischarge = this.isExcessiveHomeBatteryDischarge(
-      config,
-      energy,
-    );
-
-    this.releaseInactiveBatteryScheduleBlocks(
-      schedules,
-      now,
-      config.timezone,
-    );
-    const scheduledChargingVehicles = this.scheduledChargingVehicles(
-      vehicles,
-      schedules,
-      excessiveBatteryDischarge,
-      now,
-      config.timezone,
-    );
-    const scheduledChargingVehicleIds = new Set(
-      scheduledChargingVehicles.map((vehicle) => vehicle.id),
-    );
-    scheduledChargingVehicles.forEach((vehicle) =>
-      this.activeChargeSchedulesForVehicle(
-        schedules,
-        vehicle.id,
-        now,
-        config.timezone,
-      ).forEach((schedule) =>
-        this.batteryBlockedScheduleKeys.add(
-          this.scheduleBlockKey(vehicle.id, schedule.id),
-        )
-      )
-    );
-
-    const blockedChargeScheduleIdsByVehicle = this
-      .blockedChargeSchedulesByVehicle(
-        schedules,
-        vehicles,
-        batteryProtectionTriggered,
-        now,
-        config.timezone,
-      );
+    // Scheduled charging intentionally permits grid use. Home-battery SOC
+    // and discharge must not hide its schedule; the engine applies battery
+    // protection again outside the window. Electrical and availability
+    // safeguards remain enforced for every mode.
     const runtimeConfigOverrides = this.runtimeConfigOverridesByVehicle(
       externalAmpChangeVehicleIds,
-      scheduledChargingVehicleIds,
     );
+
+    for (const vehicle of vehicles) {
+      const previous = this.engine.getControlState(vehicle.id).prevState;
+      if (vehicle.state?.isCharging === false) {
+        this.unapprovedStarts.delete(vehicle.id);
+      } else if (
+        vehicle.state?.isCharging === true &&
+        (!previous?.isCharging || !previous.isPluggedIn)
+      ) {
+        this.unapprovedStarts.add(vehicle.id);
+      }
+      if (this.unapprovedStarts.has(vehicle.id)) {
+        runtimeConfigOverrides.set(vehicle.id, {
+          ...runtimeConfigOverrides.get(vehicle.id),
+          gracePeriodMinutes: 0,
+          batteryDischargeGraceMinutes: 0,
+        });
+      }
+    }
 
     if (externalAmpChangeVehicleIds.size > 0) {
       this.logger.debug(
@@ -463,13 +477,7 @@ export class ChargeController {
         }; bypassing amp debounce only for affected vehicles`,
       );
     }
-    if (batteryProtectionTriggered) {
-      this.logger.debug(
-        "Home-battery protection active; applicable charge schedules suppressed per vehicle for this cycle",
-      );
-    }
-
-    return this.engine.decide({
+    const output = this.engine.decide({
       schedules,
       config,
       vehicles,
@@ -479,96 +487,25 @@ export class ChargeController {
       energyUnavailable: energyAvailability.unavailable,
       energyUnavailableDetail: energyAvailability.detail,
       runtimeConfigOverrides,
-      blockedChargeScheduleIdsByVehicle,
     });
-  }
-
-  /** Keep a charge schedule blocked only for the active window in which it
-   *  caused home-battery discharge; a future occurrence starts clean. */
-  private releaseInactiveBatteryScheduleBlocks(
-    schedules: ScheduleRow[],
-    now: Date,
-    timezone: string,
-  ): void {
-    this.batteryBlockedScheduleKeys.forEach((key) => {
-      const { vehicleId, scheduleId } = this.parseScheduleBlockKey(key);
-      const schedule = schedules.find((candidate) =>
-        candidate.id === scheduleId
-      );
-      const stillActive = schedule?.scheduleType === "charge" &&
-        this.isScheduleApplicable(schedule, vehicleId, now, timezone);
-      if (!stillActive) this.batteryBlockedScheduleKeys.delete(key);
-    });
-  }
-
-  private activeChargeSchedulesForVehicle(
-    schedules: ScheduleRow[],
-    vehicleId: string,
-    now: Date,
-    timezone: string,
-  ): ScheduleRow[] {
-    return schedules.filter((schedule) =>
-      schedule.scheduleType === "charge" &&
-      this.isScheduleApplicable(schedule, vehicleId, now, timezone)
-    );
-  }
-
-  private scheduledChargingVehicles(
-    vehicles: EngineVehicleInput[],
-    schedules: ScheduleRow[],
-    excessiveBatteryDischarge: boolean,
-    now: Date,
-    timezone: string,
-  ): EngineVehicleInput[] {
-    if (!excessiveBatteryDischarge) return [];
-    return vehicles.filter((vehicle) =>
-      vehicle.mode === "auto" && vehicle.state?.isCharging === true &&
-      this.activeChargeSchedulesForVehicle(
-          schedules,
-          vehicle.id,
-          now,
-          timezone,
-        ).length > 0
-    );
-  }
-
-  private blockedChargeSchedulesByVehicle(
-    schedules: ScheduleRow[],
-    vehicles: EngineVehicleInput[],
-    suppressActiveSchedules: boolean,
-    now: Date,
-    timezone: string,
-  ): ReadonlyMap<string, ReadonlySet<string>> {
-    const blocked = new Map<string, Set<string>>();
-    const add = (vehicleId: string, scheduleId: string) => {
-      const ids = blocked.get(vehicleId) ?? new Set<string>();
-      ids.add(scheduleId);
-      blocked.set(vehicleId, ids);
-    };
-
-    this.batteryBlockedScheduleKeys.forEach((key) => {
-      const pair = this.parseScheduleBlockKey(key);
-      add(pair.vehicleId, pair.scheduleId);
-    });
-
-    if (suppressActiveSchedules) {
-      vehicles.forEach((vehicle) => {
-        this.activeChargeSchedulesForVehicle(
-          schedules,
-          vehicle.id,
-          now,
-          timezone,
-        ).forEach((schedule) => add(vehicle.id, schedule.id));
-      });
+    for (const [id, decision] of output.decisions) {
+      // A genuine solar allocation or active schedule authorizes the session.
+      // A failed STOP must never earn a grace period on the next iteration.
+      if (
+        decision.targetAmps !== null && decision.action !== "stop" &&
+        ["solar_tracking", "schedule", "charge_now", "vacation"].includes(
+          decision.reason,
+        )
+      ) {
+        this.unapprovedStarts.delete(id);
+      }
     }
-
-    return blocked;
+    return output;
   }
 
   private runtimeConfigOverridesByVehicle(
     externalAmpChangeVehicleIds: ReadonlySet<string>,
-    immediateBatteryStopVehicleIds: ReadonlySet<string>,
-  ): ReadonlyMap<string, Partial<ControllerConfig>> {
+  ): Map<string, Partial<ControllerConfig>> {
     const overrides = new Map<string, Partial<ControllerConfig>>();
     const patch = (vehicleId: string, value: Partial<ControllerConfig>) => {
       overrides.set(vehicleId, { ...overrides.get(vehicleId), ...value });
@@ -576,24 +513,10 @@ export class ChargeController {
     externalAmpChangeVehicleIds.forEach((vehicleId) =>
       patch(vehicleId, { ampDebounceThreshold: 0 })
     );
-    immediateBatteryStopVehicleIds.forEach((vehicleId) =>
-      patch(vehicleId, { batteryDischargeGraceMinutes: 0 })
+    this.oscillationPausedVehicleIds.forEach((vehicleId) =>
+      patch(vehicleId, { oscillationPaused: true })
     );
     return overrides;
-  }
-
-  private scheduleBlockKey(vehicleId: string, scheduleId: string): string {
-    return `${vehicleId}\u0000${scheduleId}`;
-  }
-
-  private parseScheduleBlockKey(
-    key: string,
-  ): { vehicleId: string; scheduleId: string } {
-    const separator = key.indexOf("\u0000");
-    return {
-      vehicleId: key.slice(0, separator),
-      scheduleId: key.slice(separator + 1),
-    };
   }
 
   private evaluateEnergyAvailability(
@@ -671,28 +594,6 @@ export class ChargeController {
     const previous = this.engine.getControlState(vehicle.id).prevState;
     return state?.isCharging === true && previous?.isCharging === true &&
       state.chargeAmps !== previous.chargeAmps;
-  }
-
-  /** True when the enabled home-battery protection currently needs to take
-   *  precedence over EV charging. Positive batteryPowerW means discharge. */
-  private isHomeBatteryProtectionTriggered(
-    config: ControllerConfig,
-    energy: EnergyData | null,
-  ): boolean {
-    if (!config.batteryPriorityEnabled || !energy) return false;
-
-    const belowReserve = energy.batterySoc !== null &&
-      energy.batterySoc < config.batteryPriorityLimit;
-    return belowReserve || this.isExcessiveHomeBatteryDischarge(config, energy);
-  }
-
-  private isExcessiveHomeBatteryDischarge(
-    config: ControllerConfig,
-    energy: EnergyData | null,
-  ): boolean {
-    if (!config.batteryPriorityEnabled || !energy) return false;
-    const dischargeW = Math.max(0, energy.batteryPowerW ?? 0);
-    return dischargeW > config.batteryDischargeToleranceW;
   }
 
   /** Conservative pre-fetch check used only to decide whether waking a
@@ -799,7 +700,9 @@ export class ChargeController {
 
     const inputs = this.buildInputsSnapshot(
       state,
-      config,
+      this.oscillationPausedVehicleIds.has(vehicle.id)
+        ? { ...config, oscillationPaused: true }
+        : config,
       schedules,
       energy,
       now,
@@ -1091,21 +994,49 @@ export class ChargeController {
   }
 
   private async loadConfig(): Promise<ControllerConfig> {
-    const [charging, solar, battery, system, oscillationPaused] = await Promise
-      .all([
-        this.configService.getCharging(),
-        this.configService.getSolar(),
-        this.configService.getBattery(),
-        this.configService.getSystem(),
-        this.db.getConfig("oscillation_paused"),
-      ]);
+    const [
+      charging,
+      solar,
+      battery,
+      system,
+      oscillationPaused,
+      systemAlertRaw,
+      oscillationByVehicleRaw,
+    ] = await Promise.all([
+      this.configService.getCharging(),
+      this.configService.getSolar(),
+      this.configService.getBattery(),
+      this.configService.getSystem(),
+      this.db.getConfig("oscillation_paused"),
+      this.db.getConfig("system_alert"),
+      this.db.getPluginConfig(OSCILLATION_BY_VEHICLE_KEY),
+    ]);
+
+    this.oscillationPausedVehicleIds.clear();
+    if (oscillationPaused === "true") {
+      const byVehicle = parseOscillationByVehicle(oscillationByVehicleRaw);
+      for (const [vehicleId, state] of Object.entries(byVehicle)) {
+        if (state.paused) this.oscillationPausedVehicleIds.add(vehicleId);
+      }
+      if (this.oscillationPausedVehicleIds.size === 0 && systemAlertRaw) {
+        try {
+          const alert = JSON.parse(systemAlertRaw) as { vehicleId?: string };
+          if (alert.vehicleId) {
+            this.oscillationPausedVehicleIds.add(alert.vehicleId);
+          }
+        } catch {
+          // Ignore malformed alert payload
+        }
+      }
+    }
 
     return {
       vehicleSolarCurrentLimits: charging.vehicleSolarCurrentLimits,
       vehicleCurrentLimits: charging.vehicleCurrentLimits,
       maxGridImportKw: charging.maxGridImportKw,
       chargingEnabled: charging.chargingEnabled,
-      oscillationPaused: oscillationPaused === "true",
+      oscillationPaused: oscillationPaused === "true" &&
+        this.oscillationPausedVehicleIds.size === 0,
       controllerLoopSeconds: system.controllerLoopSeconds,
       solarTrackingEnabled: solar.solarTrackingEnabled,
       solarTrackingMode: solar.solarTrackingMode,

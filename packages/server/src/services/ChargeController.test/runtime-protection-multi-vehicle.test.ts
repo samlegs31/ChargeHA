@@ -102,21 +102,11 @@ describe("ChargeController — per-vehicle runtime protection", () => {
     });
 
     await ctx.runOneLoop();
+    const adapterA = ctx.adapters.get(VIN_A);
     const adapterB = ctx.adapters.get(VIN_B);
+    assertExists(adapterA);
     assertExists(adapterB);
-    expect(adapterB.commands).not.toContainEqual({ cmd: "start" });
-
-    adapterB.commands = [];
-    assertExists(ctx.poller.snapshot);
-    ctx.poller.snapshot.realtime = {
-      ...BASE_ENERGY,
-      batterySoc: 90,
-      batteryPowerW: 0,
-      solarProductionW: 5000,
-      gridPowerW: -2000,
-    };
-    await ctx.runOneLoop();
-
+    expect(adapterA.commands).toContainEqual({ cmd: "stop" });
     expect(adapterB.commands).toContainEqual({ cmd: "setAmps", args: 16 });
     expect(adapterB.commands).toContainEqual({ cmd: "start" });
   });

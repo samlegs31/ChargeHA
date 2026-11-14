@@ -10,6 +10,30 @@ const WINDOW_MINUTES = 60;
 const MAX_TRANSITIONS = 3;
 const RECOVERY_DELAY_MS = 5 * 60_000;
 
+export const OSCILLATION_BY_VEHICLE_KEY = "runtime.oscillation_by_vehicle";
+
+export interface VehicleOscillationState {
+  paused: boolean;
+  tripAt: string;
+  vehicleName: string;
+  alertMessage?: string;
+}
+
+export function parseOscillationByVehicle(
+  raw: string | null,
+): Record<string, VehicleOscillationState> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    return parsed as Record<string, VehicleOscillationState>;
+  } catch {
+    return {};
+  }
+}
+
 export class Overseer {
   private readonly db: AppDatabase;
   private readonly eventEmitter: TypedEventEmitter;
@@ -50,19 +74,33 @@ export class Overseer {
     if (this.checking) return;
     this.checking = true;
     try {
-      if (await this.db.getConfig("oscillation_paused") === "true") {
-        await this.recoverPause();
-        return;
+      const globalPaused =
+        (await this.db.getConfig("oscillation_paused")) === "true";
+      const byVehicleState = await this.syncByVehicleState(globalPaused);
+
+      if (globalPaused) {
+        const anyRecovered = await this.recoverPause(byVehicleState);
+        if (anyRecovered) return;
       }
+
       // Ignore transitions that already caused a previous trip.
       // Without this, re-enabling charging would immediately re-trip
       // because the same transitions are still within the window.
-      const tripAt = await this.db.getConfig("oscillation_trip_at");
+      const globalTripAt = await this.db.getConfig("oscillation_trip_at");
       const external = await externalChargingVehicles(this.db);
+      const hasPerVehicleState = Object.keys(byVehicleState).length > 0;
       const rows = (await this.db.getRecentStateChanges(
         WINDOW_MINUTES,
-        tripAt ?? undefined,
-      )).filter((row) => !external.has(row.vehicleId));
+        hasPerVehicleState ? undefined : (globalTripAt ?? undefined),
+      )).filter((row) => {
+        if (external.has(row.vehicleId)) return false;
+        const vehicleEntry = byVehicleState[row.vehicleId];
+        if (vehicleEntry?.paused) return false;
+        const cutoff = vehicleEntry?.tripAt ??
+          (hasPerVehicleState ? undefined : globalTripAt);
+        if (cutoff && row.timestamp <= cutoff) return false;
+        return true;
+      });
       if (rows.length === 0) return;
 
       // Group by vehicle
@@ -89,7 +127,12 @@ export class Overseer {
 
       if (trippable) {
         const vehicleName = trippable.actions[0].vehicleName;
-        await this.trip(trippable.vehicleId, vehicleName, trippable.cycles);
+        await this.trip(
+          trippable.vehicleId,
+          vehicleName,
+          trippable.cycles,
+          byVehicleState,
+        );
       }
     } catch (error) {
       this.logger.error("Check error:", error);
@@ -98,40 +141,153 @@ export class Overseer {
     }
   }
 
+  private async syncByVehicleState(
+    globalPaused: boolean,
+  ): Promise<Record<string, VehicleOscillationState>> {
+    const [rawMap, globalTripAt, alertRaw] = await Promise.all([
+      this.db.getPluginConfig(OSCILLATION_BY_VEHICLE_KEY),
+      this.db.getConfig("oscillation_trip_at"),
+      this.db.getConfig("system_alert"),
+    ]);
+    const map = parseOscillationByVehicle(rawMap);
+    let alert: SystemAlert | null = null;
+    if (alertRaw) {
+      try {
+        alert = JSON.parse(alertRaw) as SystemAlert;
+      } catch {
+        alert = null;
+      }
+    }
+
+    let mutated = false;
+    if (!globalPaused) {
+      for (const [vehicleId, entry] of Object.entries(map)) {
+        const updatedTripAt =
+          (alert?.vehicleId === vehicleId || Object.keys(map).length === 1) &&
+            globalTripAt
+            ? globalTripAt
+            : entry.tripAt;
+        if (entry.paused || entry.tripAt !== updatedTripAt) {
+          map[vehicleId] = {
+            ...entry,
+            paused: false,
+            tripAt: updatedTripAt,
+          };
+          mutated = true;
+        }
+      }
+    } else {
+      const pausedEntries = Object.entries(map).filter(([, e]) => e.paused);
+      if (pausedEntries.length === 0 && alert?.vehicleId) {
+        map[alert.vehicleId] = {
+          paused: true,
+          tripAt: globalTripAt ?? "",
+          vehicleName: alert.vehicleName ?? alert.vehicleId,
+          alertMessage: alert.message,
+        };
+        mutated = true;
+      } else if (
+        alert?.vehicleId &&
+        globalTripAt &&
+        map[alert.vehicleId]?.paused &&
+        map[alert.vehicleId].tripAt !== globalTripAt
+      ) {
+        map[alert.vehicleId] = {
+          ...map[alert.vehicleId],
+          tripAt: globalTripAt,
+        };
+        mutated = true;
+      }
+    }
+
+    if (mutated) {
+      await this.db.setPluginConfig(
+        OSCILLATION_BY_VEHICLE_KEY,
+        JSON.stringify(map),
+      );
+    }
+    return map;
+  }
+
   /** Release only a confirmed stopped vehicle; never enable the user's switch. */
-  private async recoverPause(): Promise<void> {
-    const tripAt = await this.db.getConfig("oscillation_trip_at");
-    const timestamp = tripAt ? Date.parse(tripAt.replace(" ", "T") + "Z") : NaN;
-    if (!Number.isFinite(timestamp)) return;
-    if (Date.now() - timestamp < RECOVERY_DELAY_MS) return;
-    const raw = await this.db.getConfig("system_alert");
-    if (!raw) return;
-    const alert = JSON.parse(raw) as SystemAlert;
-    if (!alert.vehicleId) return;
-    const state = await this.vehicleManager.getState(alert.vehicleId);
-    if (!state || state.isCharging) return;
-    const telemetryAt = Date.parse(state.lastUpdated);
-    const age = Date.now() - telemetryAt;
-    if (
-      !Number.isFinite(age) || age < 0 || age > 90_000 ||
-      telemetryAt < timestamp
-    ) return;
-    // Exclude the safety STOP and all history during the pause from the next window.
-    await this.db.setConfig(
-      "oscillation_trip_at",
-      new Date().toISOString().replace("T", " ").replace(/\.\d+Z$/, ""),
+  private async recoverPause(
+    byVehicleState: Record<string, VehicleOscillationState>,
+  ): Promise<boolean> {
+    const pausedEntries = Object.entries(byVehicleState).filter(
+      ([, entry]) => entry.paused,
     );
-    await this.db.setConfig("oscillation_paused", "false");
-    await this.db.setConfig("system_alert", "");
-    this.logger.info(
-      "Oscillation cooldown completed; normal regulation may resume",
+    if (pausedEntries.length === 0) return false;
+
+    let recoveredCount = 0;
+    let lastReleasedAt = "";
+
+    for (const [vehicleId, entry] of pausedEntries) {
+      const timestamp = entry.tripAt
+        ? Date.parse(entry.tripAt.replace(" ", "T") + "Z")
+        : NaN;
+      if (!Number.isFinite(timestamp)) continue;
+      if (Date.now() - timestamp < RECOVERY_DELAY_MS) continue;
+      const state = await this.vehicleManager.getState(vehicleId);
+      if (!state || state.isCharging) continue;
+      const telemetryAt = Date.parse(state.lastUpdated);
+      const age = Date.now() - telemetryAt;
+      if (
+        !Number.isFinite(age) || age < 0 || age > 90_000 ||
+        telemetryAt < timestamp
+      ) continue;
+
+      const releasedAt = new Date().toISOString().replace("T", " ").replace(
+        /\.\d+Z$/,
+        "",
+      );
+      byVehicleState[vehicleId] = {
+        ...entry,
+        paused: false,
+        tripAt: releasedAt,
+      };
+      lastReleasedAt = releasedAt;
+      recoveredCount++;
+      this.logger.info(
+        "Oscillation cooldown completed; normal regulation may resume",
+      );
+    }
+
+    if (recoveredCount === 0) return false;
+
+    await this.db.setPluginConfig(
+      OSCILLATION_BY_VEHICLE_KEY,
+      JSON.stringify(byVehicleState),
     );
+
+    const remainingPaused = Object.entries(byVehicleState).filter(
+      ([, entry]) => entry.paused,
+    );
+    if (remainingPaused.length === 0) {
+      // Exclude the safety STOP and all history during the pause from the next window.
+      await this.db.setConfig("oscillation_trip_at", lastReleasedAt);
+      await this.db.setConfig("oscillation_paused", "false");
+      await this.db.setConfig("system_alert", "");
+    } else {
+      const [nextVehicleId, nextEntry] = remainingPaused[0];
+      await this.db.setConfig("oscillation_trip_at", nextEntry.tripAt);
+      if (nextEntry.alertMessage) {
+        const alert: SystemAlert = {
+          message: nextEntry.alertMessage,
+          timestamp: new Date().toISOString(),
+          vehicleId: nextVehicleId,
+          vehicleName: nextEntry.vehicleName,
+        };
+        await this.db.setConfig("system_alert", JSON.stringify(alert));
+      }
+    }
+    return true;
   }
 
   private async trip(
     vehicleId: string,
     vehicleName: string,
     cycles: number,
+    byVehicleState: Record<string, VehicleOscillationState>,
   ): Promise<void> {
     this.logger.error(
       `SAFETY TRIP — ${vehicleName} (${vehicleId}) had ${cycles} start/stop cycles in the last ${WINDOW_MINUTES} minutes. Pausing automation without changing the user switch.`,
@@ -148,10 +304,11 @@ export class Overseer {
       : "";
 
     // Use SQLite datetime format to match controller_logs.timestamp
-    await this.db.setConfig(
-      "oscillation_trip_at",
-      new Date().toISOString().replace("T", " ").replace(/\.\d+Z$/, ""),
+    const tripAt = new Date().toISOString().replace("T", " ").replace(
+      /\.\d+Z$/,
+      "",
     );
+    await this.db.setConfig("oscillation_trip_at", tripAt);
     const alert: SystemAlert = {
       message:
         `Safety pause: ${vehicleName} had ${cycles} start/stop cycles in ${WINDOW_MINUTES} minutes, which may indicate oscillation.${stopFailure} Your Automatic charging switch is unchanged. Automatic recovery is checked after five minutes, once the vehicle is confirmed stopped. Charging resumes only if your switch is ON and normal regulation permits it.`,
@@ -160,6 +317,17 @@ export class Overseer {
       vehicleName,
     };
     await this.db.setConfig("system_alert", JSON.stringify(alert));
+
+    byVehicleState[vehicleId] = {
+      paused: true,
+      tripAt,
+      vehicleName,
+      alertMessage: alert.message,
+    };
+    await this.db.setPluginConfig(
+      OSCILLATION_BY_VEHICLE_KEY,
+      JSON.stringify(byVehicleState),
+    );
 
     this.eventEmitter.emit("safety_trip", {
       vehicleId,

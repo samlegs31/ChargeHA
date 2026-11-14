@@ -88,11 +88,16 @@ describe("ChargeController — notifications", () => {
           chargePowerKw: 2.3,
         },
         "auto",
-        { ...BASE_ENERGY, solarProductionW: 500, gridPowerW: 2000 },
+        { ...BASE_ENERGY, solarProductionW: 4000, gridPowerW: -10 },
       );
-      // First loop: init (low_solar suppressed during init path)
+      // First loop: init with authorized solar charging
       await ctx.runOneLoop();
-      // Second loop: grace still active, low_solar fires
+      ctx.poller.snapshot!.realtime = {
+        ...BASE_ENERGY,
+        solarProductionW: 500,
+        gridPowerW: 2000,
+      };
+      // Second loop: grace starts, low_solar fires
       await ctx.runOneLoop();
 
       const lowSolarEvents = ctx.trackingEmitter.controllerEvents().filter(
