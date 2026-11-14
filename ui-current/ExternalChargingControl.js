@@ -1,6 +1,6 @@
 // Integrated into the verified deployed entry bundle using its existing React
 // and tRPC bindings. No historical client source is rebuilt or substituted.
-function EVExternalChargingControl({ vehicleId, lastUpdated }) {
+function EVExternalChargingControl({ vehicleId, lastUpdated, showAge = true }) {
   const query = m.config.externalCharging.get.useQuery({ vehicleId }, {
     staleTime: 15000,
     refetchInterval: 30000,
@@ -9,22 +9,36 @@ function EVExternalChargingControl({ vehicleId, lastUpdated }) {
   const utils = m.useUtils();
   const [editing, setEditing] = h.useState(false);
   const [choice, setChoice] = h.useState("external");
+  const saving = h.useRef(false);
   const mutation = m.config.externalCharging.set.useMutation({
-    onSuccess: async () => {
-      await utils.config.externalCharging.get.invalidate({ vehicleId });
+    networkMode: "always",
+    retry: false,
+    onMutate: () => {
+      if (!navigator.onLine) throw new Error("Offline");
+    },
+    onSuccess: async (ownership, { vehicleId: savedVehicleId }) => {
+      const key = { vehicleId: savedVehicleId };
+      // An older poll must not replace the ownership confirmed by this write.
+      await utils.config.externalCharging.get.cancel(key);
+      utils.config.externalCharging.get.setData(key, ownership);
       setEditing(false);
+    },
+    onSettled: () => {
+      saving.current = false;
     },
   });
   const id = h.useId();
   const buttonStyle = {
     cursor: "pointer",
-    padding: "6px 10px",
-    borderRadius: 8,
+    padding: "10px 14px",
+    minHeight: 44,
+    minWidth: 44,
+    borderRadius: 12,
     border: "1px solid var(--gray-7)",
     background: "var(--gray-3)",
     color: "var(--gray-12)",
     font: "inherit",
-    fontSize: 12,
+    fontSize: 14,
   };
   const external = query.data?.external;
   return s.jsxs("section", {
@@ -39,7 +53,7 @@ function EVExternalChargingControl({ vehicleId, lastUpdated }) {
       color: "var(--gray-12)",
     },
     children: [
-      s.jsx(EVDataAge, { lastUpdated }),
+      showAge && s.jsx(EVDataAge, { lastUpdated }),
       s.jsxs("div", {
         style: {
           display: "flex",
@@ -71,8 +85,8 @@ function EVExternalChargingControl({ vehicleId, lastUpdated }) {
       query.data && s.jsx("p", {
         style: { fontSize: 12, margin: "6px 0 0", lineHeight: 1.5 },
         children: external
-          ? "No automatic Tesla wake-ups or charging commands. Vehicle data may be out of date while the car is asleep."
-          : "E.V. Solar manages charging automatically according to the selected mode.",
+          ? "E.V. Solar does not wake or control this car. Readings may be outdated while it is asleep."
+          : "E.V. Solar controls charging using the mode selected below.",
       }),
       query.isError &&
       s.jsx("button", {
@@ -84,6 +98,8 @@ function EVExternalChargingControl({ vehicleId, lastUpdated }) {
       editing && s.jsxs("form", {
         onSubmit: (event) => {
           event.preventDefault();
+          if (saving.current) return;
+          saving.current = true;
           mutation.mutate({ vehicleId, external: choice === "external" });
         },
         style: { marginTop: 12 },
@@ -98,7 +114,7 @@ function EVExternalChargingControl({ vehicleId, lastUpdated }) {
             value: choice,
             disabled: mutation.isPending,
             onChange: (event) => setChoice(event.target.value),
-            style: { ...buttonStyle, width: "100%", fontSize: 14 },
+            style: { ...buttonStyle, width: "100%", fontSize: 16 },
             children: [
               s.jsx("option", {
                 value: "external",
@@ -111,7 +127,7 @@ function EVExternalChargingControl({ vehicleId, lastUpdated }) {
           s.jsx("p", {
             style: { fontSize: 12, lineHeight: 1.5 },
             children:
-              "Saving will allow E.V. Solar to wake this car and control its charging automatically again.",
+              "Saving allows E.V. Solar to wake the car and control charging.",
           }),
           s.jsxs("div", {
             style: { display: "flex", gap: 8, marginTop: 10 },
@@ -120,9 +136,7 @@ function EVExternalChargingControl({ vehicleId, lastUpdated }) {
                 type: "submit",
                 disabled: mutation.isPending,
                 style: buttonStyle,
-                children: mutation.isPending
-                  ? "Saving…"
-                  : "Save",
+                children: mutation.isPending ? "Saving…" : "Save",
               }),
               s.jsx("button", {
                 type: "button",
@@ -146,22 +160,90 @@ function EVExternalChargingControl({ vehicleId, lastUpdated }) {
   });
 }
 
-function EVDataAge({lastUpdated}) {
+function EVDataAge({ lastUpdated, children }) {
   const [now, setNow] = h.useState(Date.now);
-  h.useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
+  h.useEffect(() => {
+    const refreshAge = () => setNow(Date.now());
+    const refreshVisibleAge = () => {
+      if (document.visibilityState === "visible") refreshAge();
+    };
+    const timer = setInterval(refreshAge, 60000);
+    document.addEventListener("visibilitychange", refreshVisibleAge);
+    window.addEventListener("pageshow", refreshAge);
+    window.addEventListener("focus", refreshAge);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshVisibleAge);
+      window.removeEventListener("pageshow", refreshAge);
+      window.removeEventListener("focus", refreshAge);
+    };
+  }, []);
   const parsed = Date.parse(lastUpdated || "");
   const valid = Number.isFinite(parsed) && parsed <= now + 60000;
-  const minutes = valid ? Math.max(0, Math.floor((now - parsed) / 60000)) : null;
-  const age = minutes === null ? "No vehicle data available" : minutes < 1 ? "Last updated just now" : minutes < 60 ? `Last updated ${minutes} min ago` : minutes < 1440 ? `Last updated ${Math.floor(minutes / 60)} h ago` : `Last updated ${Math.floor(minutes / 1440)} d ago`;
-  return s.jsx("span", {style:{display:"block",fontSize:11,opacity:0.8,marginBottom:4}, title:valid ? new Date(parsed).toLocaleString() : undefined, children:age + (minutes !== null && minutes >= 2 ? " · Data may be out of date" : "")});
+  const minutes = valid
+    ? Math.max(0, Math.floor((now - parsed) / 60000))
+    : null;
+  const age = minutes === null
+    ? "No vehicle readings available"
+    : minutes < 1
+    ? "Last updated just now"
+    : minutes < 60
+    ? `Last updated ${minutes} min ago`
+    : minutes < 1440
+    ? `Last updated ${Math.floor(minutes / 60)} h ago`
+    : `Last updated ${Math.floor(minutes / 1440)} d ago`;
+  const isStale = minutes !== null && minutes >= 2;
+  const message = age + (isStale ? " · Data may be out of date" : "");
+  if (children) {
+    return children({ message, isStale, isValid: valid, timestamp: parsed });
+  }
+  return s.jsx("span", {
+    style: {
+      display: "block",
+      fontSize: 12,
+      color: "var(--gray-11)",
+      lineHeight: 1.5,
+      marginBottom: 6,
+    },
+    title: valid ? new Date(parsed).toLocaleString() : undefined,
+    children: message,
+  });
 }
-function EVChargingMode({vehicleId, mode, compact=false}) {
-  const query = m.config.externalCharging.get.useQuery({vehicleId},{staleTime:15000,refetchInterval:30000,retry:1});
-  if (!query.data) return s.jsx("span",{style:{fontSize:11},children:query.isError ? "Charging control unavailable" : "Loading charging control…"});
-  if (query.data.external) return s.jsx("span", {className:compact ? x.compactMode : undefined,style:{fontSize:11,color:"var(--cyan-11)",whiteSpace:"normal",maxWidth:"100%"},children:"Controlled by an external charger"});
-  return compact ? s.jsx("span",{className:x.compactMode,children:de[mode]}) : s.jsx(qa,{mode});
+function EVChargingMode({ vehicleId, mode, compact = false }) {
+  const query = m.config.externalCharging.get.useQuery({ vehicleId }, {
+    staleTime: 15000,
+    refetchInterval: 30000,
+    retry: 1,
+  });
+  if (!query.data) {
+    return s.jsx("span", {
+      style: { fontSize: 11 },
+      children: query.isError
+        ? "Charging control unavailable"
+        : "Loading charging control…",
+    });
+  }
+  if (query.data.external) {
+    return s.jsx("span", {
+      className: compact ? x.compactMode : undefined,
+      style: {
+        fontSize: 11,
+        color: "var(--cyan-11)",
+        whiteSpace: "normal",
+        maxWidth: "100%",
+      },
+      children: "Controlled by an external charger",
+    });
+  }
+  return compact
+    ? s.jsx("span", { className: x.compactMode, children: de[mode] })
+    : s.jsx(qa, { mode });
 }
-function EVManagedModes({vehicleId, children}) {
-  const query = m.config.externalCharging.get.useQuery({vehicleId},{staleTime:15000,refetchInterval:30000,retry:1});
+function EVManagedModes({ vehicleId, children }) {
+  const query = m.config.externalCharging.get.useQuery({ vehicleId }, {
+    staleTime: 15000,
+    refetchInterval: 30000,
+    retry: 1,
+  });
   return query.data && !query.data.external ? children : null;
 }

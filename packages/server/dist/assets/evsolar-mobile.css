@@ -1,0 +1,198 @@
+.ev-app > .ev-navigation {
+  display: none;
+}
+.ev-app .ev-tab-icon {
+  display: none;
+}
+.ev-app .ev-account-button {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 14px;
+}
+.ev-app [data-page="settings"] .rt-Button,
+.rt-DialogContent .rt-Button {
+  min-height: 44px;
+  min-width: 44px;
+  padding-inline: 14px;
+  touch-action: manipulation;
+}
+.ev-app [data-testid="external-charging-control"] button {
+  touch-action: manipulation;
+}
+.ev-app [data-testid="external-charging-control"] :is(button, select):focus-visible {
+  outline: 3px solid var(--accent-9);
+  outline-offset: 3px;
+}
+.ev-charge-summary {
+  --ev-status-ink: var(--cyan-11);
+  display: grid;
+  gap: 7px;
+  padding: 16px;
+  margin-block: 4px 14px;
+  min-width: 0;
+  border: 1px solid var(--gray-a5);
+  border-radius: 18px;
+  background: var(--gray-a2);
+  color: var(--gray-12);
+  overflow-wrap: anywhere;
+}
+.ev-charge-summary[data-status="charging"] {
+  --ev-status-ink: var(--green-11);
+}
+.ev-charge-summary[data-status="waiting"] {
+  --ev-status-ink: var(--amber-11);
+}
+.ev-charge-summary[data-status="error"] {
+  --ev-status-ink: var(--red-11);
+}
+.ev-charge-summary:is([data-freshness="stale"], [data-freshness="unknown"]) {
+  --ev-status-ink: var(--amber-11);
+  border-color: var(--amber-a6);
+  background: var(--amber-a2);
+}
+.ev-charge-summary-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ev-status-ink);
+  font-size: 1.02rem;
+  line-height: 1.4;
+}
+.ev-charge-summary-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--gray-a3);
+}
+.ev-charge-summary-detail {
+  font-size: .8rem;
+  line-height: 1.5;
+  color: var(--gray-11);
+}
+.ev-charge-summary-age {
+  display: block;
+  border-top: 1px solid var(--gray-a5);
+  margin-top: 3px;
+  padding-top: 10px;
+  font-size: .75rem;
+  line-height: 1.5;
+  color: var(--gray-11);
+}
+.ev-charge-summary:is([data-freshness="stale"], [data-freshness="unknown"]) .ev-charge-summary-age {
+  color: var(--amber-11);
+  border-color: var(--amber-a5);
+}
+@media (max-width: 900px) {
+  html {
+    scroll-padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+  }
+  .ev-app {
+    min-height: 100dvh;
+    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+  }
+  .ev-app .ev-desktop-navigation {
+    display: none;
+  }
+  .ev-app ._header_q8is1_24 {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--color-background);
+    flex-wrap: nowrap;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 8px max(16px, env(safe-area-inset-left, 0px));
+  }
+  .ev-app .ev-account {
+    margin-left: auto;
+  }
+  .ev-app .ev-navigation {
+    position: fixed;
+    z-index: 60;
+    inset: auto max(12px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+    max-width: 580px;
+    margin-inline: auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 6px;
+    border: 1px solid var(--gray-a5);
+    border-radius: 25px;
+    background: var(--color-background);
+    box-shadow: 0 6px 28px #001e3924, inset 0 1px 0 var(--white-a7);
+    isolation: isolate;
+  }
+  .ev-app .ev-navigation button {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    min-height: 58px;
+    padding: 7px 2px;
+    border: 0;
+    border-radius: 19px;
+    font: inherit;
+    font-size: .72rem;
+    font-weight: 550;
+    line-height: 1.2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    color: var(--gray-11);
+    background: transparent;
+    touch-action: manipulation;
+  }
+  .ev-app .ev-navigation button[aria-current="page"] {
+    color: var(--cyan-11);
+    background: var(--cyan-a3);
+    box-shadow: inset 0 1px 0 var(--white-a7);
+    font-weight: 700;
+  }
+  .ev-app .ev-navigation button:focus-visible {
+    outline: 2px solid var(--cyan-9);
+    outline-offset: 1px;
+  }
+  .ev-app .ev-tab-icon {
+    display: block;
+    flex-shrink: 0;
+  }
+  .ev-app ._main_q8is1_86,
+  .ev-app ._footer_q8is1_94 {
+    min-width: 0;
+    padding-left: max(10px, env(safe-area-inset-left, 0px));
+    padding-right: max(10px, env(safe-area-inset-right, 0px));
+  }
+  .ev-app ._modeButton_6rh39_356 {
+    padding-inline: 5px;
+    gap: 4px;
+  }
+  .ev-app ._modeButton_6rh39_356 > span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  @supports ((backdrop-filter: blur(20px)) or (-webkit-backdrop-filter: blur(20px))) {
+    .ev-app .ev-navigation {
+      background: color-mix(in srgb, var(--color-background) 88%, transparent);
+      backdrop-filter: blur(22px) saturate(1.3);
+      -webkit-backdrop-filter: blur(22px) saturate(1.3);
+    }
+  }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .ev-app .ev-navigation {
+      background: var(--color-background);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+  @media (forced-colors: active) {
+    .ev-app .ev-navigation {
+      background: Canvas;
+      border-color: ButtonText;
+    }
+    .ev-app .ev-navigation button[aria-current="page"] {
+      outline: 2px solid Highlight;
+    }
+  }
+}
