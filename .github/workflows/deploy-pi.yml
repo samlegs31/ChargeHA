@@ -1,0 +1,99 @@
+name: Deploy to Raspberry Pi
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force rebuild and redeploy even if container files already match"
+        type: boolean
+        default: false
+
+# Only run on pushes to main and manual dispatches (never on PRs from forks).
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-pi-production
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    name: Detect runtime changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      runtime_changed: ${{ steps.check.outputs.runtime_changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            echo "runtime_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CHANGED=$(git diff --name-only "$BEFORE_SHA" "$CURRENT_SHA" -- packages/ drizzle/ entrypoint.sh deno.json deno.lock)
+          if [ -n "$CHANGED" ]; then
+            echo "runtime_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "runtime_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  validate:
+    name: Type-check & test backend (ARM64)
+    needs: detect
+    if: needs.detect.outputs.runtime_changed == 'true' || inputs.force == true
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.7
+      - name: Build verified SQLite for isolated tests
+        run: |
+          python3 validation/build-sqlite.py --output "$RUNNER_TEMP/libevsolar-sqlite.so"
+          echo "DENO_SQLITE_PATH=$RUNNER_TEMP/libevsolar-sqlite.so" >> "$GITHUB_ENV"
+      - name: Fetch locked dependencies
+        run: |
+          deno ci
+          deno install --frozen --import-map=validation/imports.json --lock=validation/deno.lock
+      - name: Cache native password hashing dependency
+        run: deno eval 'import { hash } from "@ts-rex/argon2"; await hash("isolated-ci-preflight");'
+      - name: Check types & run backend tests
+        run: |
+          deno check --frozen packages/server/src/main.ts
+          deno test --frozen --import-map=validation/imports.json --lock=validation/deno.lock \
+            --allow-env --allow-read --allow-write --allow-ffi \
+            --allow-net=127.0.0.1,localhost,0.0.0.0 --unstable-ffi \
+            --ignore='**/client/**,**/*.test.tsx' packages/server packages/shared packages/plugins
+
+  deploy:
+    name: Deploy to Raspberry Pi
+    needs: [detect, validate]
+    if: always() && !cancelled() && needs.detect.result == 'success' && (needs.validate.result == 'success' || needs.validate.result == 'skipped')
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Deploy ChargeHA container safely
+        env:
+          RUNTIME_CHANGED: ${{ needs.detect.outputs.runtime_changed }}
+          FORCE_DEPLOY: ${{ inputs.force }}
+        run: |
+          if [ "$FORCE_DEPLOY" = "true" ]; then
+            python3 scripts/deploy-pi.py --force
+          elif [ "$RUNTIME_CHANGED" = "true" ]; then
+            python3 scripts/deploy-pi.py
+          else
+            python3 scripts/deploy-pi.py --check-only
+          fi
