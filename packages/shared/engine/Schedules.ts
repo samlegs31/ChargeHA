@@ -30,14 +30,14 @@ function parseTimezone(
     hour: "numeric",
     minute: "numeric",
     weekday: "short",
-    hour12: false,
+    hourCycle: "h23",
   });
   const parts = fmt.formatToParts(now);
   return {
     day: WEEKDAY_TO_DAY[
       parts.find((p) => p.type === "weekday")?.value ?? ""
     ] ?? now.getDay(),
-    hours: Number(parts.find((p) => p.type === "hour")?.value ?? 0),
+    hours: Number(parts.find((p) => p.type === "hour")?.value ?? 0) % 24,
     minutes: Number(parts.find((p) => p.type === "minute")?.value ?? 0),
   };
 }

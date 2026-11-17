@@ -657,6 +657,381 @@ describe("ControllerEngine", () => {
       expect(d?.action).toBe("stop");
       expect(d?.scheduleLimitContext?.scheduleLimitPct).toBe(80);
     });
+
+    it("enforces strict priority: STOP beats schedule, schedule beats oscillation pause, blockout, energy loss, battery protection, and low solar", () => {
+      const engine = new ControllerEngine();
+      const now = new Date("2026-01-01T03:00:00Z");
+      const allDays: DayOfWeek[] = [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun",
+      ];
+      const schedules: EngineSchedule[] = [
+        {
+          id: "b1",
+          vehicleId: null,
+          scheduleType: "blockout",
+          startTime: "02:00",
+          endTime: "06:00",
+          days: allDays,
+          chargeAmps: null,
+          chargeLimitPct: null,
+          enabled: true,
+        },
+        {
+          id: "c1",
+          vehicleId: null,
+          scheduleType: "charge",
+          startTime: "02:00",
+          endTime: "06:00",
+          days: allDays,
+          chargeAmps: 16,
+          chargeLimitPct: 80,
+          enabled: true,
+        },
+      ];
+
+      // Priority 1a: STOP handles missing vehicle state without crashing.
+      const stopNullOut = engine.decide({
+        ...makeInput({
+          vehicle: { mode: "stop", state: null },
+          configOverrides: { timezone: "UTC" },
+        }),
+        now,
+        schedules,
+      });
+      expect(stopNullOut.decisions.get("V1")?.action).toBe("none");
+      expect(stopNullOut.decisions.get("V1")?.reason).toBe("mode_stop");
+
+      // Priority 1b: STOP stops an active charge regardless of preconditions/schedules.
+      const stopUnpluggedOut = engine.decide({
+        ...makeInput({
+          vehicle: {
+            mode: "stop",
+            state: { isCharging: true, isPluggedIn: false, chargeAmps: 16 },
+          },
+          configOverrides: { timezone: "UTC" },
+        }),
+        now,
+        schedules,
+      });
+      expect(stopUnpluggedOut.decisions.get("V1")?.action).toBe("stop");
+      expect(stopUnpluggedOut.decisions.get("V1")?.reason).toBe("mode_stop");
+
+      // Priority 2: active charge schedule bypasses oscillation pause, blockout,
+      // energy outage, battery protection, and solar minimums.
+      const scheduledOut = engine.decide({
+        ...makeInput({
+          configOverrides: {
+            timezone: "UTC",
+            oscillationPaused: true,
+            batteryPriorityEnabled: true,
+            batteryPriorityLimit: 95,
+            batteryDischargeToleranceW: 0,
+            batteryDischargeGraceMinutes: 0,
+            minSolarGenerationKw: 10,
+            minExcessSolarKw: 10,
+          },
+          energy: null,
+        }),
+        now,
+        schedules,
+        energyUnavailable: true,
+        energyUnavailableDetail: "Energy inverter poll failed",
+        runtimeConfigOverrides: new Map([
+          ["V1", {
+            oscillationPaused: true,
+            gracePeriodMinutes: 0,
+            batteryDischargeGraceMinutes: 0,
+          }],
+        ]),
+      });
+
+      const d = scheduledOut.decisions.get("V1");
+      expect(d?.reason).toBe("schedule");
+      expect(d?.action).toBe("start");
+      expect(d?.targetAmps).toBe(16);
+      expect(d?.checks.some((c) => c.check === "battery_priority")).toBe(false);
+      expect(d?.checks.some((c) => c.check === "battery_discharge")).toBe(
+        false,
+      );
+      expect(d?.checks.some((c) => c.check === "blockout_schedule")).toBe(
+        false,
+      );
+      expect(d?.checks.some((c) => c.check === "energy_availability")).toBe(
+        false,
+      );
+      expect(d?.checks.some((c) => c.check === "solar_tracking")).toBe(false);
+    });
+
+    it("resets all runtime timers, debounce, cooldown, and control flags when entering a schedule", () => {
+      const engine = new ControllerEngine();
+      const baseTs = Date.UTC(2026, 0, 1, 1, 50, 0);
+
+      // Build real timer state beforehand (energy outage + battery discharge)
+      // plus remaining fields directly on controlState.
+      engine.decide(makeInput({
+        vehicle: { state: { isCharging: true, chargeAmps: 10 } },
+        configOverrides: {
+          timezone: "UTC",
+          batteryPriorityEnabled: true,
+          batteryPriorityLimit: 20,
+          batteryDischargeToleranceW: 100,
+          batteryDischargeGraceMinutes: 3,
+        },
+        energyOverrides: {
+          batterySoc: 80,
+          batteryPowerW: 900,
+          gridPowerW: -3000,
+        },
+        timestamp: baseTs,
+      }));
+      const cs = engine.getControlState("V1");
+      cs.graceStartedAt = baseTs;
+      cs.graceNotified = true;
+      cs.cooldownUntil = baseTs + 30 * 60_000;
+      cs.blockoutChargeNotified = true;
+      cs.pendingAmps = 12;
+      cs.pendingSince = baseTs;
+      cs.solarSafeStartPending = true;
+      cs.energyUnavailableStartedAt = baseTs;
+      cs.allocatedAmps = 10;
+
+      // Enter active schedule at 02:00Z with simultaneous disturbances.
+      const scheduleNow = new Date(Date.UTC(2026, 0, 1, 2, 0, 0));
+      const out = engine.decide({
+        ...makeInput({
+          vehicle: { state: { isCharging: true, chargeAmps: 10 } },
+          configOverrides: {
+            timezone: "UTC",
+            oscillationPaused: true,
+            batteryPriorityEnabled: true,
+            batteryPriorityLimit: 90,
+            batteryDischargeToleranceW: 0,
+          },
+          energyOverrides: {
+            batterySoc: 10,
+            batteryPowerW: 3000,
+            solarProductionW: 0,
+            gridPowerW: 3000,
+          },
+          timestamp: scheduleNow.getTime(),
+        }),
+        now: scheduleNow,
+        schedules: [{
+          id: "s-reset",
+          vehicleId: null,
+          scheduleType: "charge",
+          startTime: "02:00",
+          endTime: "06:00",
+          days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+          chargeAmps: 16,
+          chargeLimitPct: null,
+          enabled: true,
+        }],
+        energyUnavailable: true,
+      });
+
+      expect(out.decisions.get("V1")?.action).toBe("adjust_amps");
+      expect(out.decisions.get("V1")?.targetAmps).toBe(16);
+      expect(cs.graceStartedAt).toBeNull();
+      expect(cs.graceNotified).toBe(false);
+      expect(cs.cooldownUntil).toBeNull();
+      expect(cs.batteryDischargeStartedAt).toBeNull();
+      expect(cs.blockoutChargeNotified).toBe(false);
+      expect(cs.pendingAmps).toBeNull();
+      expect(cs.pendingSince).toBeNull();
+      expect(cs.solarSafeStartPending).toBe(false);
+      expect(cs.energyUnavailableStartedAt).toBeNull();
+      expect(cs.allocatedAmps).toBeNull();
+    });
+
+    it("maintains scheduled charge over 15+ minutes under disturbances and starts fresh grace after schedule ends", () => {
+      const engine = new ControllerEngine();
+      const allDays: DayOfWeek[] = [
+        "mon",
+        "tue",
+        "wed",
+        "thu",
+        "fri",
+        "sat",
+        "sun",
+      ];
+      const schedules: EngineSchedule[] = [
+        {
+          id: "s-window",
+          vehicleId: null,
+          scheduleType: "charge",
+          startTime: "02:00",
+          endTime: "06:00",
+          days: allDays,
+          chargeAmps: 16,
+          chargeLimitPct: 80,
+          enabled: true,
+        },
+        {
+          id: "b-overlap",
+          vehicleId: null,
+          scheduleType: "blockout",
+          startTime: "02:05",
+          endTime: "02:10",
+          days: allDays,
+          chargeAmps: null,
+          chargeLimitPct: null,
+          enabled: true,
+        },
+      ];
+      const configOverrides = {
+        timezone: "UTC",
+        batteryPriorityEnabled: true,
+        batteryPriorityLimit: 50,
+        batteryDischargeToleranceW: 100,
+        batteryDischargeGraceMinutes: 3,
+        gracePeriodMinutes: 3,
+        cooldownPeriodMinutes: 10,
+      };
+
+      // Pre-schedule: start a battery-discharge grace timer at 01:55 so it would
+      // already be expired (> 3 min) once 02:00 arrives if not reset.
+      const preDate = new Date(Date.UTC(2026, 0, 1, 1, 55, 0));
+      engine.decide({
+        ...makeInput({
+          vehicle: { state: { isCharging: true, chargeAmps: 8 } },
+          configOverrides,
+          energyOverrides: {
+            batterySoc: 80,
+            batteryPowerW: 900,
+            solarProductionW: 3000,
+            gridPowerW: -2000,
+          },
+          timestamp: preDate.getTime(),
+        }),
+        now: preDate,
+        schedules,
+      });
+
+      // Run 20 ticks across 02:00 -> 02:19 with alternating energy losses,
+      // zero solar, low home battery SOC, heavy discharge, blockout & pause.
+      let isCharging = false;
+      let chargeAmps = 0;
+      for (let min = 0; min < 20; min++) {
+        const now = new Date(Date.UTC(2026, 0, 1, 2, min, 0));
+        const out = engine.decide({
+          ...makeInput({
+            vehicle: { state: { isCharging, chargeAmps } },
+            configOverrides: {
+              ...configOverrides,
+              oscillationPaused: min % 2 === 0,
+            },
+            energy: min >= 4 && min <= 10 ? null : makeEnergy({
+              solarProductionW: min % 3 === 0 ? 0 : 1200,
+              gridPowerW: 4000,
+              batterySoc: 15,
+              batteryPowerW: 2500,
+            }),
+            timestamp: now.getTime(),
+          }),
+          now,
+          schedules,
+          energyUnavailable: min >= 4 && min <= 10,
+        });
+        const d = out.decisions.get("V1")!;
+        expect(d.reason).toBe("schedule");
+        expect(d.action).not.toBe("stop");
+        expect(d.targetAmps).toBe(16);
+        if (d.action === "start" || d.action === "adjust_amps") {
+          isCharging = true;
+          chargeAmps = d.targetAmps!;
+        }
+      }
+      expect(isCharging).toBe(true);
+      expect(chargeAmps).toBe(16);
+
+      // Priority 3 after schedule ends (06:00): normal home battery protection
+      // resumes and stops cleanly once battery priority triggers, without stale timers.
+      const postFirst = new Date(Date.UTC(2026, 0, 1, 6, 0, 0));
+      const postOut1 = engine.decide({
+        ...makeInput({
+          vehicle: { state: { isCharging: true, chargeAmps: 16 } },
+          configOverrides,
+          energyOverrides: {
+            batterySoc: 80,
+            batteryPowerW: 900,
+            solarProductionW: 5000,
+            gridPowerW: -2000,
+          },
+          timestamp: postFirst.getTime(),
+        }),
+        now: postFirst,
+        schedules,
+      });
+      // Discharge tolerance is exceeded, but grace is fresh (0s < 3 min), so it does not
+      // immediately stop from the stale pre-schedule 01:55 timer.
+      expect(postOut1.decisions.get("V1")?.action).not.toBe("stop");
+      expect(engine.getControlState("V1").batteryDischargeStartedAt).toBe(
+        postFirst.getTime(),
+      );
+
+      // 3 minutes later outside schedule -> battery protection expires and stops.
+      const postExpired = new Date(Date.UTC(2026, 0, 1, 6, 3, 0));
+      const postOut2 = engine.decide({
+        ...makeInput({
+          vehicle: { state: { isCharging: true, chargeAmps: 16 } },
+          configOverrides,
+          energyOverrides: {
+            batterySoc: 80,
+            batteryPowerW: 900,
+            solarProductionW: 5000,
+            gridPowerW: -2000,
+          },
+          timestamp: postExpired.getTime(),
+        }),
+        now: postExpired,
+        schedules,
+      });
+      expect(postOut2.decisions.get("V1")?.action).toBe("stop");
+      expect(postOut2.decisions.get("V1")?.reason).toBe("battery_priority");
+    });
+
+    it("excludes actively scheduled vehicles from multi-vehicle solar allocation", () => {
+      const engine = new ControllerEngine();
+      const now = new Date("2026-01-01T03:00:00Z");
+      const v1 = makeVehicle({ id: "V1", name: "EV 1", priority: 1 });
+      const v2 = makeVehicle({ id: "V2", name: "EV 2", priority: 2 });
+      const output = engine.decide({
+        config: makeConfig({ timezone: "UTC", priorityChargingEnabled: true }),
+        vehicles: [v1, v2],
+        schedules: [{
+          id: "s-v1",
+          vehicleId: "V1",
+          scheduleType: "charge",
+          startTime: "02:00",
+          endTime: "06:00",
+          days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+          chargeAmps: 16,
+          chargeLimitPct: null,
+          enabled: true,
+        }],
+        energy: makeEnergy({ solarProductionW: 3000, gridPowerW: -2300 }),
+        now,
+        timestamp: now.getTime(),
+      });
+
+      const d1 = output.decisions.get("V1");
+      const d2 = output.decisions.get("V2");
+      expect(d1?.reason).toBe("schedule");
+      expect(d1?.action).toBe("start");
+      expect(d1?.targetAmps).toBe(16);
+      expect(engine.getControlState("V1").allocatedAmps).toBeNull();
+      // Only V2 is eligible in SolarAllocator, so it receives solar allocation directly.
+      expect(d2?.reason).toBe("solar_tracking");
+      expect(d2?.action).toBe("start");
+      expect(d2?.targetAmps).toBe(10);
+    });
   });
 
   describe("home battery protection", () => {

@@ -369,5 +369,90 @@ describe("Overseer", () => {
         db.getRecentStateChanges = original;
       }
     });
+
+    it("does not trip on an auto vehicle during an active charge schedule", async () => {
+      await db.upsertVehicle({
+        id: "VIN1",
+        name: "Car 1",
+        adapterType: "tesla",
+        priority: 1,
+        config: "{}",
+        mode: "auto",
+      });
+      await db.setConfig("timezone", "UTC");
+      await db.createSchedule({
+        id: "sched-overseer",
+        vehicleId: "VIN1",
+        scheduleType: "charge",
+        startTime: "00:00",
+        endTime: "23:59",
+        days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+        chargeAmps: 16,
+        chargeLimitPct: null,
+        enabled: true,
+      });
+      await seedStateChanges("VIN1", "Car 1", [
+        "start",
+        "stop",
+        "start",
+        "stop",
+        "start",
+      ]);
+
+      await testable(overseer).check();
+
+      expect(safetyTrips).toHaveLength(0);
+      expect(stopCalls).toBe(0);
+      expect(await db.getConfig("oscillation_paused")).not.toBe("true");
+    });
+
+    it("still trips on a STOP-mode or unscheduled vehicle even if another vehicle has a schedule", async () => {
+      await db.upsertVehicle({
+        id: "VIN1",
+        name: "Car 1",
+        adapterType: "tesla",
+        priority: 1,
+        config: "{}",
+        mode: "auto",
+      });
+      await db.upsertVehicle({
+        id: "VIN2",
+        name: "Car 2",
+        adapterType: "tesla",
+        priority: 2,
+        config: "{}",
+        mode: "auto",
+      });
+      await db.createSchedule({
+        id: "sched-vin1-only",
+        vehicleId: "VIN1",
+        scheduleType: "charge",
+        startTime: "00:00",
+        endTime: "23:59",
+        days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+        chargeAmps: 16,
+        chargeLimitPct: null,
+        enabled: true,
+      });
+      await seedStateChanges("VIN1", "Car 1", [
+        "start",
+        "stop",
+        "start",
+        "stop",
+        "start",
+      ]);
+      await seedStateChanges("VIN2", "Car 2", [
+        "start",
+        "stop",
+        "start",
+        "stop",
+        "start",
+      ]);
+
+      await testable(overseer).check();
+
+      expect(safetyTrips).toHaveLength(1);
+      expect(safetyTrips[0].vehicleId).toBe("VIN2");
+    });
   });
 });

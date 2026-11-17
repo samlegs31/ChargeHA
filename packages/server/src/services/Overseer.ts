@@ -1,3 +1,4 @@
+import { isScheduleActiveNow } from "@chargeha/shared/engine";
 import { externalChargingVehicles } from "./ExternalCharging.ts";
 import type { AppDatabase } from "../db/AppDatabase.ts";
 import type { SystemAlert } from "../db/types.ts";
@@ -83,6 +84,31 @@ export class Overseer {
         if (anyRecovered) return;
       }
 
+      const chargingEnabled =
+        (await this.db.getConfig("charging_enabled")) !== "false";
+      const scheduledVehicleIds = new Set<string>();
+      if (chargingEnabled) {
+        const [vehicles, schedules, timezone] = await Promise.all([
+          this.db.getVehicles(),
+          this.db.getSchedules(),
+          this.db.getConfig("timezone"),
+        ]);
+        const now = new Date();
+        const tz = timezone ?? "";
+        for (const vehicle of vehicles) {
+          if (vehicle.mode !== "auto") continue;
+          const hasActiveChargeSchedule = schedules.some((s) =>
+            s.scheduleType === "charge" &&
+            s.enabled &&
+            (s.vehicleId === vehicle.id || s.vehicleId === null) &&
+            isScheduleActiveNow(s, now, tz)
+          );
+          if (hasActiveChargeSchedule) {
+            scheduledVehicleIds.add(vehicle.id);
+          }
+        }
+      }
+
       // Ignore transitions that already caused a previous trip.
       // Without this, re-enabling charging would immediately re-trip
       // because the same transitions are still within the window.
@@ -94,6 +120,7 @@ export class Overseer {
         hasPerVehicleState ? undefined : (globalTripAt ?? undefined),
       )).filter((row) => {
         if (external.has(row.vehicleId)) return false;
+        if (scheduledVehicleIds.has(row.vehicleId)) return false;
         const vehicleEntry = byVehicleState[row.vehicleId];
         if (vehicleEntry?.paused) return false;
         const cutoff = vehicleEntry?.tripAt ??

@@ -410,6 +410,10 @@ export class VehicleManager {
       const permitted = await this.powerGuard.limit(
         state,
         Math.max(state.chargeAmpsMin, Math.round(amps)),
+        {
+          allowUnavailableEnergy: ctx.origin === "controller:schedule" ||
+            ctx.origin.startsWith("controller:schedule:"),
+        },
       );
       if (permitted < state.chargeAmpsMin) {
         if (state.isCharging) {

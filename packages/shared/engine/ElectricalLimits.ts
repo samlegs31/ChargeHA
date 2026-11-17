@@ -55,7 +55,11 @@ export function applyElectricalLimits(
   return new Map([...decisions].map(([id, decision]) => {
     const e = entries.find((entry) => entry.id === id);
     if (!e) return [id, decision];
-    const allowed = allocation.get(id) ?? 0;
+    const scheduleBypassMissingEnergy = !energyValid &&
+      decision.reason === "schedule";
+    const allowed = scheduleBypassMissingEnergy
+      ? e.maxAmps
+      : (allocation.get(id) ?? 0);
     if (allowed >= e.desired || e.desired === 0) return [id, decision];
     const canCharge = allowed >= e.state.chargeAmpsMin;
     return [id, {

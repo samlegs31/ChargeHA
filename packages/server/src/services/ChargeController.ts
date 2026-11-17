@@ -26,9 +26,11 @@ import type {
   VehicleDecision,
 } from "@chargeha/shared/engine";
 import type { AppDatabase } from "../db/AppDatabase.ts";
+import { toSqliteDatetime } from "../db/repositories/sqliteHelpers.ts";
 import type {
   ControllerLogInput,
   ScheduleRow,
+  SystemAlert,
   VehicleRow,
 } from "../db/types.ts";
 import type { CommandResult, VehicleManager } from "./VehicleManager.ts";
@@ -265,7 +267,8 @@ export class ChargeController {
         const hasActiveBlockout = applicable.some(
           (s) => s.scheduleType === "blockout",
         );
-        const hasApplicableBlockout = isSolarMode && hasActiveBlockout;
+        const hasApplicableBlockout = isSolarMode &&
+          activeChargeSchedule === undefined && hasActiveBlockout;
         const cachedState = await this.vehicleManager.getState(v.id);
         const hasUsefulSolar = isSolarMode && hasSolar && energy !== null &&
           this.hasEnoughSolarToCharge(cachedState, energy, config);
@@ -307,6 +310,18 @@ export class ChargeController {
       engineOutput,
       engineVehicles,
     );
+    const scheduledVehicleIds = new Set(
+      vehicles
+        .filter((v) =>
+          config.chargingEnabled &&
+          output.decisions.get(v.id)?.reason === "schedule"
+        )
+        .map((v) => v.id),
+    );
+    for (const vehicleId of scheduledVehicleIds) {
+      this.oscillationPausedVehicleIds.delete(vehicleId);
+      this.unapprovedStarts.delete(vehicleId);
+    }
 
     const logEntries: ControllerLogInput[] = await vehicles.reduce(
       async (prevPromise, vehicle) => {
@@ -329,7 +344,150 @@ export class ChargeController {
     );
 
     await this.finishLoop(logEntries, timestamp);
+    await this.clearSafetyTripsForScheduledVehicles(
+      scheduledVehicleIds,
+      vehicles,
+    );
     return config;
+  }
+
+  /** Clear persisted and in-memory safety-trip/oscillation flags and advance
+   *  oscillation log cutoffs for vehicles under an active charge schedule so
+   *  no residual safety lock can interrupt or survive the schedule window. */
+  private async clearSafetyTripsForScheduledVehicles(
+    scheduledIds: ReadonlySet<string>,
+    vehicles: VehicleRow[],
+  ): Promise<void> {
+    if (scheduledIds.size === 0) return;
+
+    const [
+      oscillationPausedRaw,
+      globalTripAt,
+      systemAlertRaw,
+      oscillationByVehicleRaw,
+      recentStateChanges,
+    ] = await Promise.all([
+      this.db.getConfig("oscillation_paused"),
+      this.db.getConfig("oscillation_trip_at"),
+      this.db.getConfig("system_alert"),
+      this.db.getPluginConfig(OSCILLATION_BY_VEHICLE_KEY),
+      this.db.getRecentStateChanges(60),
+    ]);
+
+    const globalPaused = oscillationPausedRaw === "true";
+    let alert: SystemAlert | null = null;
+    if (systemAlertRaw) {
+      try {
+        alert = JSON.parse(systemAlertRaw) as SystemAlert;
+      } catch {
+        alert = null;
+      }
+    }
+
+    const byVehicle = parseOscillationByVehicle(oscillationByVehicleRaw);
+    const nowSqlite = toSqliteDatetime(new Date().toISOString());
+    let byVehicleMutated = false;
+
+    if (
+      globalPaused &&
+      Object.values(byVehicle).every((entry) => !entry.paused) &&
+      alert?.vehicleId &&
+      !scheduledIds.has(alert.vehicleId)
+    ) {
+      byVehicle[alert.vehicleId] = {
+        paused: true,
+        tripAt: globalTripAt ?? nowSqlite,
+        vehicleName: alert.vehicleName ?? alert.vehicleId,
+        alertMessage: alert.message,
+      };
+      byVehicleMutated = true;
+    }
+
+    let maxScheduledCutoff = "";
+    for (const vehicleId of scheduledIds) {
+      const existing = byVehicle[vehicleId];
+      let latestRowTs = "";
+      for (const row of recentStateChanges) {
+        if (row.vehicleId === vehicleId && row.timestamp > latestRowTs) {
+          latestRowTs = row.timestamp;
+        }
+      }
+
+      const isPausedForVehicle = existing?.paused === true ||
+        (globalPaused && (!alert?.vehicleId || alert.vehicleId === vehicleId));
+      const hasUncappedRows = latestRowTs !== "" &&
+        (!existing?.tripAt || latestRowTs > existing.tripAt);
+
+      if (!isPausedForVehicle && !hasUncappedRows) continue;
+
+      const cutoff = [nowSqlite, existing?.tripAt ?? "", latestRowTs].reduce(
+        (max, value) => (value > max ? value : max),
+        "",
+      );
+      const vehicleName = existing?.vehicleName ??
+        vehicles.find((v) => v.id === vehicleId)?.name ?? vehicleId;
+      byVehicle[vehicleId] = {
+        ...(existing ?? {}),
+        paused: false,
+        tripAt: cutoff,
+        vehicleName,
+      };
+      byVehicleMutated = true;
+      if (cutoff > maxScheduledCutoff) {
+        maxScheduledCutoff = cutoff;
+      }
+    }
+
+    if (byVehicleMutated) {
+      await this.db.setPluginConfig(
+        OSCILLATION_BY_VEHICLE_KEY,
+        JSON.stringify(byVehicle),
+      );
+    }
+
+    const remainingPaused = Object.entries(byVehicle).filter(
+      ([, entry]) => entry.paused,
+    );
+
+    if (remainingPaused.length === 0) {
+      if (globalPaused) {
+        const nextGlobalTripAt = [
+          nowSqlite,
+          globalTripAt ?? "",
+          maxScheduledCutoff,
+        ].reduce((max, value) => (value > max ? value : max), "");
+        if (nextGlobalTripAt !== (globalTripAt ?? "")) {
+          await this.db.setConfig("oscillation_trip_at", nextGlobalTripAt);
+        }
+        await this.db.setConfig("oscillation_paused", "false");
+        if (systemAlertRaw) {
+          await this.db.setConfig("system_alert", "");
+        }
+      } else if (
+        maxScheduledCutoff !== "" &&
+        maxScheduledCutoff > (globalTripAt ?? "")
+      ) {
+        // Overseer.syncByVehicleState(false) reconciles a single-entry map
+        // against global oscillation_trip_at, so keep both in lockstep.
+        await this.db.setConfig("oscillation_trip_at", maxScheduledCutoff);
+      }
+    } else if (
+      byVehicleMutated && alert?.vehicleId && scheduledIds.has(alert.vehicleId)
+    ) {
+      const [nextVehicleId, nextEntry] = remainingPaused[0];
+      await this.db.setConfig("oscillation_trip_at", nextEntry.tripAt);
+      if (nextEntry.alertMessage) {
+        const nextAlert: SystemAlert = {
+          message: nextEntry.alertMessage,
+          timestamp: new Date().toISOString(),
+          vehicleId: nextVehicleId,
+          vehicleName: nextEntry.vehicleName,
+        };
+        await this.db.setConfig("system_alert", JSON.stringify(nextAlert));
+      } else if (systemAlertRaw) {
+        await this.db.setConfig("system_alert", "");
+      }
+    }
   }
 
   /** A failed vehicle refresh must not leave an automatic charge running from
@@ -700,7 +858,9 @@ export class ChargeController {
 
     const inputs = this.buildInputsSnapshot(
       state,
-      this.oscillationPausedVehicleIds.has(vehicle.id)
+      decision.reason === "schedule"
+        ? { ...config, oscillationPaused: false }
+        : this.oscillationPausedVehicleIds.has(vehicle.id)
         ? { ...config, oscillationPaused: true }
         : config,
       schedules,

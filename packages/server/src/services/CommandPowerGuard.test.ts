@@ -70,4 +70,24 @@ describe("Command power guard", () => {
     expect(await limiter.limit(makeState({ isHome: true }), 32)).toBe(0);
     expect(await limiter.limit(makeState({ isHome: null }), 32)).toBe(0);
   });
+
+  it("allows scheduled commands on unavailable inverter telemetry while keeping vehicle current caps", async () => {
+    const limiter = guard({
+      max_grid_import_kw: "6",
+      vehicle_current_limits: '{"V1":16}',
+    });
+    limiter.setEnergyReader(() => ({
+      energy: makeEnergy({
+        pollFailed: true,
+        lastUpdated: new Date().toISOString(),
+      }),
+      maxAgeMs: 30000,
+    }));
+    expect(await limiter.limit(makeState({ isHome: true }), 24)).toBe(0);
+    expect(
+      await limiter.limit(makeState({ isHome: true }), 24, {
+        allowUnavailableEnergy: true,
+      }),
+    ).toBe(16);
+  });
 });

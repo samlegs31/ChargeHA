@@ -91,4 +91,38 @@ describe("Electrical limits in every charging mode", () => {
     );
     expect(result.decisions.get("V1")?.action).toBe("none");
   });
+
+  it("does not fail closed on missing energy for an active charge schedule", () => {
+    const now = new Date("2026-01-01T03:00:00Z");
+    const output = new ControllerEngine().decide({
+      vehicles: [
+        makeVehicle({ id: "SCHED", mode: "auto", priority: 1 }),
+        makeVehicle({ id: "NOW", mode: "charge_now", priority: 2 }),
+      ],
+      energy: null,
+      energyUnavailable: true,
+      now,
+      timestamp: now.getTime(),
+      config: makeConfig({
+        timezone: "UTC",
+        maxGridImportKw: 6,
+        vehicleCurrentLimits: { SCHED: 16 },
+      }),
+      schedules: [{
+        id: "night-charge",
+        vehicleId: "SCHED",
+        scheduleType: "charge",
+        startTime: "02:00",
+        endTime: "06:00",
+        days: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+        chargeAmps: 20,
+        chargeLimitPct: null,
+        enabled: true,
+      }],
+    });
+    expect(output.decisions.get("SCHED")?.action).toBe("start");
+    expect(output.decisions.get("SCHED")?.targetAmps).toBe(16);
+    expect(output.decisions.get("NOW")?.action).toBe("none");
+    expect(output.decisions.get("NOW")?.reason).toBe("power_limit");
+  });
 });

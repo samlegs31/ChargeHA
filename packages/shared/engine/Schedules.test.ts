@@ -205,3 +205,118 @@ Deno.test("Paris DST skips nonexistent times and recognizes both repeated hours"
     ),
   ).toBe(false);
 });
+
+Deno.test("Europe/Paris overnight crossing maintains schedule continuity across midnight without micro-interruption", () => {
+  const monOvernight: EngineSchedule = {
+    id: "paris-overnight",
+    vehicleId: "car",
+    scheduleType: "charge",
+    startTime: "22:00",
+    endTime: "06:00",
+    days: ["mon"],
+    chargeAmps: 16,
+    chargeLimitPct: 80,
+    enabled: true,
+  };
+
+  // Winter CET (UTC+1): Monday 2026-01-05 22:00 CET = 21:00 UTC -> Tuesday 06:00 CET = 05:00 UTC
+  expect(
+    isScheduleActiveNow(
+      monOvernight,
+      new Date("2026-01-05T20:59:59Z"),
+      "Europe/Paris",
+    ),
+  ).toBe(false);
+  for (
+    const instant of [
+      "2026-01-05T21:00:00Z", // Mon 22:00 CET
+      "2026-01-05T22:59:59Z", // Mon 23:59:59 CET
+      "2026-01-05T23:00:00Z", // Tue 00:00:00 CET
+      "2026-01-05T23:01:00Z", // Tue 00:01:00 CET
+      "2026-01-05T23:30:00Z", // Tue 00:30:00 CET
+      "2026-01-05T23:59:59Z", // Tue 00:59:59 CET
+      "2026-01-06T02:00:00Z", // Tue 03:00:00 CET
+      "2026-01-06T04:59:59Z", // Tue 05:59:59 CET
+    ]
+  ) {
+    expect(
+      isScheduleActiveNow(monOvernight, new Date(instant), "Europe/Paris"),
+    ).toBe(true);
+  }
+  expect(
+    isScheduleActiveNow(
+      monOvernight,
+      new Date("2026-01-06T05:00:00Z"),
+      "Europe/Paris",
+    ),
+  ).toBe(false);
+
+  // Midnight-start window (00:00-06:00) on Tuesday in Europe/Paris must be active at 00:00-00:59
+  const tueMidnightStart: EngineSchedule = {
+    ...monOvernight,
+    id: "paris-midnight-start",
+    startTime: "00:00",
+    endTime: "06:00",
+    days: ["tue"],
+  };
+  for (
+    const instant of [
+      "2026-01-05T22:59:59Z", // Mon 23:59:59 CET
+    ]
+  ) {
+    expect(
+      isScheduleActiveNow(tueMidnightStart, new Date(instant), "Europe/Paris"),
+    ).toBe(false);
+  }
+  for (
+    const instant of [
+      "2026-01-05T23:00:00Z", // Tue 00:00:00 CET
+      "2026-01-05T23:03:00Z", // Tue 00:03:00 CET
+      "2026-01-05T23:59:00Z", // Tue 00:59:00 CET
+    ]
+  ) {
+    expect(
+      isScheduleActiveNow(tueMidnightStart, new Date(instant), "Europe/Paris"),
+    ).toBe(true);
+  }
+
+  // Summer CEST (UTC+2) + DST spring-forward and fall-back overnight windows (Saturday-only 22:00-06:00)
+  const satOvernight: EngineSchedule = {
+    ...monOvernight,
+    id: "paris-sat-dst",
+    days: ["sat"],
+  };
+  // Spring-forward: Sat 2026-03-28 22:00 CET (21:00Z) -> Sun 2026-03-29 06:00 CEST (04:00Z)
+  for (
+    let ms = Date.parse("2026-03-28T21:00:00Z");
+    ms < Date.parse("2026-03-29T04:00:00Z");
+    ms += 60_000
+  ) {
+    expect(isScheduleActiveNow(satOvernight, new Date(ms), "Europe/Paris"))
+      .toBe(true);
+  }
+  expect(
+    isScheduleActiveNow(
+      satOvernight,
+      new Date("2026-03-29T04:00:00Z"),
+      "Europe/Paris",
+    ),
+  ).toBe(false);
+
+  // Fall-back: Sat 2026-10-24 22:00 CEST (20:00Z) -> Sun 2026-10-25 06:00 CET (05:00Z)
+  for (
+    let ms = Date.parse("2026-10-24T20:00:00Z");
+    ms < Date.parse("2026-10-25T05:00:00Z");
+    ms += 60_000
+  ) {
+    expect(isScheduleActiveNow(satOvernight, new Date(ms), "Europe/Paris"))
+      .toBe(true);
+  }
+  expect(
+    isScheduleActiveNow(
+      satOvernight,
+      new Date("2026-10-25T05:00:00Z"),
+      "Europe/Paris",
+    ),
+  ).toBe(false);
+});

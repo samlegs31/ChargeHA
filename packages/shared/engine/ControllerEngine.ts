@@ -46,12 +46,13 @@ export class ControllerEngine {
       runtimeConfigOverrides,
       blockedChargeScheduleIdsByVehicle,
     } = input;
-    if (!config.chargingEnabled || config.oscillationPaused) {
-      const pauseDetail = config.oscillationPaused
-        ? "Stabilisation pause — automatic recovery after five minutes once STOP is confirmed"
-        : "Charging disabled";
+    if (!config.chargingEnabled) {
+      const pauseDetail = "Charging disabled";
       const decisions = new Map(
         vehicles.map((vehicle): [string, VehicleDecision] => {
+          const cs = this.getControlState(vehicle.id);
+          this.resetControlTimers(cs);
+          cs.allocatedAmps = null;
           // The global switch disables automation, but it must never weaken an
           // explicit STOP or leave an automatic solar charge running.
           const automaticMode = vehicle.mode === "auto" ||
@@ -63,8 +64,6 @@ export class ControllerEngine {
             : "charging_disabled" as const;
           const stopDetail = vehicle.mode === "stop"
             ? "Stop — mode set to stop"
-            : config.oscillationPaused
-            ? `Stop — ${pauseDetail}`
             : "Stop — automatic charging disabled";
           return [vehicle.id, {
             action: enforceStop ? "stop" : "none",
@@ -89,26 +88,44 @@ export class ControllerEngine {
       solarTrackingMode: "solar_only",
       solarReference: "excess",
     };
-    const allocation = SolarAllocator.allocate(
-      vehicles
-        .filter((v) => !runtimeConfigOverrides?.get(v.id)?.oscillationPaused)
-        .map((v) => {
-          if (!v.state) return v;
-          const maximum = config.vehicleCurrentLimits?.[v.id] ??
-            v.state.chargeAmpsMax;
-          return {
-            ...v,
-            state: {
-              ...v.state,
-              chargeAmpsMax: Math.min(
+    const eligibleForSolarAllocation = vehicles
+      .filter((v) => {
+        const vehicleConfig = {
+          ...config,
+          ...runtimeConfigOverrides?.get(v.id),
+        };
+        if (vehicleConfig.oscillationPaused) return false;
+        const blockedIds = blockedChargeScheduleIdsByVehicle?.get(v.id);
+        const vehicleSchedules = this.filterBlockedChargeSchedules(
+          schedules,
+          blockedIds,
+        );
+        return !this.hasActiveChargeSchedule(
+          v,
+          vehicleConfig,
+          vehicleSchedules,
+          now,
+        );
+      })
+      .map((v) => {
+        if (!v.state) return v;
+        const maximum = config.vehicleCurrentLimits?.[v.id] ??
+          v.state.chargeAmpsMax;
+        return {
+          ...v,
+          state: {
+            ...v.state,
+            chargeAmpsMax: Math.min(
+              v.state.chargeAmpsMax,
+              maximum,
+              config.vehicleSolarCurrentLimits?.[v.id] ??
                 v.state.chargeAmpsMax,
-                maximum,
-                config.vehicleSolarCurrentLimits?.[v.id] ??
-                  v.state.chargeAmpsMax,
-              ),
-            },
-          };
-        }),
+            ),
+          },
+        };
+      });
+    const allocation = SolarAllocator.allocate(
+      eligibleForSolarAllocation,
       solarOnlyConfig,
       energy,
     );
@@ -171,29 +188,65 @@ export class ControllerEngine {
     energyUnavailable: boolean,
     energyUnavailableDetail: string,
   ): VehicleDecision {
+    const controlState = this.getControlState(vehicle.id);
+
+    // Priority 1: Mode STOP is the only priority above an active schedule.
+    if (vehicle.mode === "stop") {
+      this.resetControlTimers(controlState);
+      controlState.allocatedAmps = null;
+      return {
+        ...this.decideStopMode(vehicle.state),
+        checks: [DecisionChecks.mode("stop")],
+      };
+    }
+
+    const precondition = this.checkPreconditions(vehicle);
+
+    // Priority 2: Active charge schedule (when mode permits schedules and now is
+    // within an enabled window). Early return BEFORE any safety, oscillation,
+    // blockout, inverter-telemetry, battery-protection, or solar evaluation, and
+    // reset all runtime timers/counters so no residual block remains.
+    if (!precondition.decision && vehicle.mode === "auto" && vehicle.state) {
+      const schedule = this.evaluateSchedule(
+        vehicle,
+        vehicle.state,
+        config,
+        schedules,
+        now,
+      );
+      if (schedule.decision) {
+        this.resetControlTimers(controlState);
+        controlState.allocatedAmps = null;
+        return {
+          ...schedule.decision,
+          checks: [
+            ...precondition.checks,
+            DecisionChecks.mode(vehicle.mode),
+            ...schedule.checks,
+          ],
+          scheduleLimitContext: schedule.scheduleLimitContext,
+        };
+      }
+    }
+
     if (config.oscillationPaused) {
+      this.resetControlTimers(controlState);
+      controlState.allocatedAmps = null;
       const pauseDetail =
         "Stabilisation pause — automatic recovery after five minutes once STOP is confirmed";
       const automaticMode = vehicle.mode === "auto" ||
         vehicle.mode === "vacation";
-      const enforceStop = (vehicle.mode === "stop" || automaticMode) &&
+      const enforceStop = automaticMode &&
         vehicle.state?.isCharging === true;
-      const stopReason = vehicle.mode === "stop"
-        ? "mode_stop" as const
-        : "charging_disabled" as const;
-      const stopDetail = vehicle.mode === "stop"
-        ? "Stop — mode set to stop"
-        : `Stop — ${pauseDetail}`;
       return {
         action: enforceStop ? "stop" : "none",
-        reason: enforceStop ? stopReason : "charging_disabled",
-        detail: enforceStop ? stopDetail : pauseDetail,
+        reason: "charging_disabled",
+        detail: enforceStop ? `Stop — ${pauseDetail}` : pauseDetail,
         targetAmps: null,
         checks: [],
       };
     }
 
-    const precondition = this.checkPreconditions(vehicle);
     if (precondition.decision) {
       return { ...precondition.decision, checks: precondition.checks };
     }
@@ -208,19 +261,16 @@ export class ControllerEngine {
 
     checks.push(DecisionChecks.mode(vehicle.mode));
 
-    // Explicit modes are authoritative. STOP is an absolute stop and
-    // CHARGE NOW is immediate; neither charge nor blockout schedules may
-    // replace those user decisions.
-    if (vehicle.mode === "stop") {
-      this.getControlState(vehicle.id).batteryDischargeStartedAt = null;
-      return { ...this.decideStopMode(state), checks };
-    }
+    // Explicit CHARGE NOW is immediate; neither charge nor blockout schedules
+    // may replace that user decision.
     if (vehicle.mode === "charge_now") {
-      this.getControlState(vehicle.id).batteryDischargeStartedAt = null;
+      this.resetControlTimers(controlState);
+      controlState.allocatedAmps = null;
       return { ...this.decideChargeNowMode(state), checks };
     }
 
-    // Blockouts remain a safety restriction for the two solar modes.
+    // Blockouts remain a safety restriction for solar regulation outside an
+    // active charge schedule.
     const blockout = this.evaluateBlockout(
       state,
       config,
@@ -229,13 +279,13 @@ export class ControllerEngine {
     );
     checks.push(...blockout.checks);
     if (blockout.decision) {
-      const cs = this.getControlState(vehicle.id);
-      if (blockout.stateUpdates) Object.assign(cs, blockout.stateUpdates);
-      cs.batteryDischargeStartedAt = null;
+      if (blockout.stateUpdates) {
+        Object.assign(controlState, blockout.stateUpdates);
+      }
+      controlState.batteryDischargeStartedAt = null;
       return { ...blockout.decision, checks };
     }
 
-    const controlState = this.getControlState(vehicle.id);
     if (energyUnavailable) {
       return this.decideEnergyUnavailable(
         state,
@@ -261,26 +311,8 @@ export class ControllerEngine {
       );
     }
 
-    // Charge schedules apply only to SOLAR + CLOCK (stored as "auto").
-    // They intentionally bypass home-battery protection: off-peak charging
-    // runs at the programmed current regardless of battery discharge.
-    const schedule = this.evaluateSchedule(
-      vehicle,
-      state,
-      config,
-      schedules,
-      now,
-    );
-    checks.push(...schedule.checks);
-    if (schedule.decision) {
-      this.getControlState(vehicle.id).batteryDischargeStartedAt = null;
-      return {
-        ...schedule.decision,
-        checks,
-        scheduleLimitContext: schedule.scheduleLimitContext,
-      };
-    }
-
+    // Priority 3: SOLAR + CLOCK outside any active charge schedule.
+    checks.push(DecisionChecks.chargeScheduleNone());
     return this.decideSolarOnlyMode(
       state,
       config,
@@ -289,6 +321,40 @@ export class ControllerEngine {
       checks,
       vehicle.id,
       null,
+    );
+  }
+
+  private resetControlTimers(cs: VehicleControlState): void {
+    cs.graceStartedAt = null;
+    cs.graceNotified = false;
+    cs.cooldownUntil = null;
+    cs.batteryDischargeStartedAt = null;
+    cs.blockoutChargeNotified = false;
+    cs.pendingAmps = null;
+    cs.pendingSince = null;
+    cs.solarSafeStartPending = false;
+    cs.energyUnavailableStartedAt = null;
+  }
+
+  private hasActiveChargeSchedule(
+    vehicle: EngineVehicleInput,
+    config: ControllerConfig,
+    schedules: EngineSchedule[],
+    now: Date,
+  ): boolean {
+    if (vehicle.mode !== "auto" || !vehicle.state) return false;
+    if (!vehicle.state.isPluggedIn || vehicle.state.isHome !== true) {
+      return false;
+    }
+    const atLimit = vehicle.state.batteryLevel >= vehicle.state.chargeLimit;
+    const nearLimitAndDone = !vehicle.state.isCharging &&
+      vehicle.state.chargeLimit === 100 && vehicle.state.batteryLevel >= 99;
+    if (atLimit || nearLimitAndDone) return false;
+    return schedules.some((s) =>
+      s.scheduleType === "charge" &&
+      s.enabled &&
+      (s.vehicleId === vehicle.id || s.vehicleId === null) &&
+      isScheduleActiveNow(s, now, config.timezone)
     );
   }
 
@@ -463,11 +529,13 @@ export class ControllerEngine {
 
   // ---- Mode handlers ----
 
-  private decideStopMode(state: VehicleChargeState): PipelineDecision {
+  private decideStopMode(state: VehicleChargeState | null): PipelineDecision {
     return {
-      action: state.isCharging ? "stop" : "none",
+      action: state?.isCharging === true ? "stop" : "none",
       reason: "mode_stop",
-      detail: state.isCharging ? "Stop — mode set to stop" : "Already stopped",
+      detail: state?.isCharging === true
+        ? "Stop — mode set to stop"
+        : "Already stopped",
       targetAmps: null,
     };
   }

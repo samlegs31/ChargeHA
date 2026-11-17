@@ -29,7 +29,11 @@ export class CommandPowerGuard {
     this.energyReader = reader;
   }
 
-  async limit(state: VehicleChargeState, requested: number): Promise<number> {
+  async limit(
+    state: VehicleChargeState,
+    requested: number,
+    options?: { allowUnavailableEnergy?: boolean },
+  ): Promise<number> {
     const raw = await this.db.getConfig("vehicle_current_limits");
     const rawGrid = await this.db.getConfig("max_grid_import_kw");
     const config = deserializeSection(chargingConfigDef, {
@@ -46,13 +50,19 @@ export class CommandPowerGuard {
       return capped;
     }
     if (state.isHome !== true) return 0;
-    return this.gridLimit(state, capped, config.maxGridImportKw);
+    return this.gridLimit(
+      state,
+      capped,
+      config.maxGridImportKw,
+      options?.allowUnavailableEnergy === true,
+    );
   }
 
   private async gridLimit(
     state: VehicleChargeState,
     requested: number,
     limitKw: number,
+    allowUnavailableEnergy = false,
   ): Promise<number> {
     const snapshot = this.energyReader?.();
     const energy = snapshot?.energy;
@@ -60,7 +70,7 @@ export class CommandPowerGuard {
     if (
       !energy || energy.pollFailed || !Number.isFinite(age) || age < -5000 ||
       age > (snapshot?.maxAgeMs ?? 0) || !Number.isFinite(energy.gridPowerW)
-    ) return 0;
+    ) return allowUnavailableEnergy ? requested : 0;
     if (this.sampleId !== energy.lastUpdated) {
       this.sampleId = energy.lastUpdated;
       this.reservations.clear();
