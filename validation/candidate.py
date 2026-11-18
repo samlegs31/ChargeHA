@@ -13,7 +13,20 @@ BASE_MANIFEST_SHA256 = "b70d00efba3608ea321f38e9d4441da6767dfe6d21448cf4e5b4645a
 ROOT = Path(__file__).resolve().parent.parent
 
 # User-authorized Settings addition. Every other installed asset stays immutable.
-APPROVED_UI = {"packages/server/dist/assets/Schedules-R8LrB50u.js": "60f0f6b9b44c5e0432701fd29d853531cbe2743cd3df7ce713021d5272fe2595", "packages/server/dist/assets/Settings-C2gay-IT.js": "4b63ad1ddbba6d971071f698a9c1bd02f29c980b873dafdec76c85da154c205c", "packages/server/dist/assets/Stats-Brkyx1mD.js": "285724d0b8ba36a1d1eeb7d85dd71677c87f1d6b17117a49324218589cf4a151", "packages/server/dist/assets/evsolar-mobile.css": "8dab438b601f1f47b5d1ade4da45f929b6b6d9695b8cd78a815f06b68c815676", "packages/server/dist/assets/index-CQx0j9kn.js": "1e0d59b84f45c5a4c15c38a6ee023cbec89d8fa2482de3155544047a938069b0", "packages/server/dist/index.html": "3c50cb3941e9494a34c3c56f4582e95c907321539e33d14905219e83d8ba889b"}
+APPROVED_UI = {
+    "packages/server/dist/assets/Schedules-R8LrB50u.js": "d9f305f25aff86ac19127ceaf74c38896487ed2188e13af899730975e7634057",
+    "packages/server/dist/assets/Settings-C2gay-IT.js": "f7fa421e5bb9c70e7bfa5b5f7e73c9b482b5b19ddb7f02a3e873a6c0a11dbcbe",
+    "packages/server/dist/assets/Stats-Brkyx1mD.js": "6f9a1bf3af1ea341e463033ef9c2f1d83282a79243ab687eb83ac7a624361220",
+    "packages/server/dist/assets/TeslaVehicleVisualDev-C6RS3WTw.js": "539cb1a703702deb96800ace189623ac67947af52854ee9f27fe0912816312c8",
+    "packages/server/dist/assets/WizardRouter-BG7hMVUZ.js": "04c58099734977b5498bc7848376796d0e45b748830da218c6d7983119f68a6f",
+    "packages/server/dist/assets/WizardShell-lO30GDsB.js": "c47fe1e81e1ad859ce05e0c409177736e538f39cbc81802d39faed58b51869ad",
+    "packages/server/dist/assets/componentRegistry-bNm8U2v7.js": "2fafb0dc5e547a10fe5344198e0deddf705e2c2a7b7ddfb6ec0be33afc7b340c",
+    "packages/server/dist/assets/evsolar-mobile.css": "378409d8952187c0fcba23b53265eb3f67212267699538804dd0051047988780",
+    "packages/server/dist/assets/index-CQx0j9kn.js": "f8a735c276dec971f3c3cfd93c3f26931e49bf7251ce20fb71eacae8ce85f79b",
+    "packages/server/dist/assets/timezones-BqtDy1tG.js": "bb521992c52d5f1ca7a3703763fe9e4ed8c4458974b1a0b8df025387f89f2810",
+    "packages/server/dist/assets/vehicleColor-BKShnRyA.js": "29da4f3897b3f1ac3bd2927f53762b1777fb624fddc0d6ec09c56d4d1358d94b",
+    "packages/server/dist/index.html": "b01ed6104b92bb12fda3fcd5ac4de86587e5b2a75025a8832435c43658d665da",
+}
 
 
 # Explicitly reviewed dependency update; installed baseline remains immutable.

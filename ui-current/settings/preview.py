@@ -20,7 +20,11 @@ let stored=JSON.parse(sessionStorage.getItem('settings-fixture')||'{"vehicleSola
 window.saved=[];window.failNext=false;window.queryFailure=new URL(location.href).searchParams.has("fail");const listeners=new Set();
 const broadcast=()=>listeners.forEach(fn=>fn({...stored}));
 function he(){const [data,setData]=g.useState(window.queryFailure?undefined:{...stored});const [failure,setFailure]=g.useState(window.queryFailure);g.useEffect(()=>{listeners.add(setData);return()=>listeners.delete(setData)},[]);return{data,isError:failure,refetch:async()=>{setFailure(false);setData({...stored})}}}
-function ge(){const [saveStatus,status]=g.useState({state:'idle',tick:0});return{saveStatus,mutate:async changes=>{status(s=>({...s,state:'saving'}));await new Promise(r=>setTimeout(r,150));if(window.failNext){window.failNext=false;status(s=>({...s,state:'error',message:'Save failed. Please retry.'}));return}window.saved.push(changes);stored={...stored,...changes};sessionStorage.setItem('settings-fixture',JSON.stringify(stored));broadcast();status(s=>({state:'saved',tick:s.tick+1}))}}}
+function ge(){const [saveStatus,status]=g.useState({state:'idle',tick:0});const mutateAsync=async changes=>{status(s=>({...s,state:'saving'}));await new Promise(r=>setTimeout(r,150));if(window.failNext){window.failNext=false;const err=new Error('Save failed. Please retry.');status(s=>({...s,state:'error',message:err.message}));throw err;}window.saved.push(changes);stored={...stored,...changes};sessionStorage.setItem('settings-fixture',JSON.stringify(stored));broadcast();status(s=>({state:'saved',tick:s.tick+1}));return stored;};return{saveStatus,mutateAsync,mutate:changes=>{mutateAsync(changes).catch(()=>{})}}}
+const evPreviewLang=new URL(location.href).searchParams.get('lang')==='en'?'en':'fr';
+function evUseLang(){return evPreviewLang;}
+function evTrBackend(s){return s??'';}
+function EVSettingsLangToggle(){return t.jsx('div',{'data-testid':'language-toggle',children:evPreviewLang.toUpperCase()});}
 '''+card+form+'const '+fields+'''function x({label,help,children}){return t.jsxs('div',{className:EVSH.row,children:[t.jsxs('div',{className:EVSH.copy,children:[t.jsx(c,{weight:'medium',className:EVSH.label,children:label}),t.jsx(c,{color:'gray',className:EVSH.help,children:help})]}),t.jsx('div',{className:EVSH.control,children})]})}
 '''+fn(registry,'wi').replace('function wi(', 'function I(').replace('h.use','g.use').replace('e.jsx','t.jsx').replace('H.','EVSH.').replace('e.jsxs','t.jsxs').replace('jsx(l,','jsx(c,')+settings[settings.index('function Ds('):settings.index('function _s(')]+'''
 const vehicles=[{id:'friday',name:'F.R.I.D.A.Y.'},{id:'edith',name:'E.D.I.T.H.'}];
@@ -34,7 +38,7 @@ path=ROOT/'validation/results/settings-preview.html';path.parent.mkdir(exist_ok=
 
 # Exercise the real page compositions with stub card contents. This tests grouping
 # and state retention, independently of unavailable authenticated API adapters.
-layout = fn(settings, 'ci') + fn(settings, 'li')
+layout = fn(settings, 'oi') + fn(settings, 'ci') + fn(settings, 'li')
 stubs = """
 function G({title,description}){return t.jsxs('header',{children:[t.jsx('h2',{children:title}),t.jsx('p',{children:description})]})}
 function FixtureCard({name}){g.useEffect(()=>{window.mounts ??={};window.mounts[name]=(window.mounts[name]??0)+1},[]);const [value,setValue]=g.useState('');return t.jsx(F,{title:name,children:t.jsx('input',{'aria-label':name,value,onChange:e=>setValue(e.target.value)})})}
@@ -50,7 +54,7 @@ function Ia(){return t.jsx(FixtureCard,{name:'Wattpilot import'})}
 css_match = re.search(r'C=\{([^}]+)\}', settings)
 css_values = dict(re.findall(r'([\w$]+)="(_[^\"]+)"', settings))
 css_map = {key:css_values[value] for key,value in (pair.split(':') for pair in css_match.group(1).split(','))}
-layout = layout.replace('C.settingsPage','layoutClasses.settingsPage')
+layout = layout.replace('C.','layoutClasses.')
 extra = 'const layoutClasses='+json.dumps(css_map)+';'+stubs+layout
 layout_html = html.replace('const vehicles=',extra+'\nconst vehicles=').replace('children:t.jsx(Ds,{vehicles})','children:t.jsxs(g.Fragment,{children:[t.jsx(ci,{}),t.jsx(li,{})]})')
 (ROOT/'validation/results/settings-layout-preview.html').write_text(layout_html)
@@ -59,9 +63,10 @@ root_code = fn(settings, 'wi').split('export{')[0].replace('C.', 'layoutClasses.
 root_mocks = '''
 window.mounts={};window.diagnosticReads=0;
 function ti({page,onChange}){return t.jsx('nav',{children:['cars','advanced'].map(name=>t.jsx(w,{onClick:()=>onChange(name),children:name},name))})}
-function di({page}){return page==='cars'?t.jsxs(g.Fragment,{children:[t.jsx(Ds,{vehicles}),t.jsx(EVSettingsSection,{title:'Why is charging limited?',children:t.jsx(EVRegulationDiagnostics,{})})]}):t.jsx(ci,{})}
+function di({page}){return page==='cars'?t.jsxs(g.Fragment,{children:[t.jsx(Ds,{vehicles}),t.jsx(EVSettingsSection,{sectionId:'diagnostics',title:'Why is charging limited?',children:t.jsx(EVRegulationDiagnostics,{})})]}):t.jsx(ci,{})}
 function Xa(){return null}function Za(){return null}
 const v={health:{encryption:{useQuery:()=>({data:{configured:true}})},regulation:{useQuery:()=>{g.useEffect(()=>{window.diagnosticReads++},[]);return {data:{chargingEnabled:true,energyAgeMs:65000,energyStale:true,gridPowerW:400,controller:{p95Ms:25},commands:{failures:1,count:3},vehicles:[{id:'friday',name:'F.R.I.D.A.Y.',reason:'grace_period',requestedAmps:22,actualAmps:null,telemetryAgeMs:120000,decisionAgeMs:5000,solarLimitAmps:22}]},refetch:()=>{window.diagnosticReads++}}}}}};
 '''
 root_html = layout_html.replace('const vehicles=',root_mocks+root_code+'\nconst vehicles=').replace("children:t.jsxs(g.Fragment,{children:[t.jsx(ci,{}),t.jsx(li,{})]})", "children:t.jsx(wi,{})")
 (ROOT/'validation/results/settings-root-preview.html').write_text(root_html)
+
