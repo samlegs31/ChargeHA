@@ -261,8 +261,10 @@ export class NotificationListener {
   private async onEnergyUpdate(
     data: EventMap["energy_update"],
   ): Promise<void> {
-    const enabled = await this.db.getConfig("battery_priority_enabled");
-    const limitRaw = await this.db.getConfig("battery_priority_limit");
+    const [enabled, limitRaw] = await Promise.all([
+      this.db.getConfig("battery_priority_enabled"),
+      this.db.getConfig("battery_priority_limit"),
+    ]);
     const limit = Number(limitRaw ?? "80");
     const soc = data.batterySoc;
 

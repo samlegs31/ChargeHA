@@ -124,6 +124,11 @@ export const solarConfigDef = defineSection({
     schema: z.number().int().min(1).max(10),
     default: 3,
   },
+  ampDebounceSettleSeconds: {
+    key: "amp_debounce_settle_seconds",
+    schema: z.number().int().min(0).max(600),
+    default: 15,
+  },
 });
 export type SolarConfig = SectionType<typeof solarConfigDef>;
 

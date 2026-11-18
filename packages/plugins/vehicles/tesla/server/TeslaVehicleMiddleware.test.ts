@@ -426,6 +426,82 @@ describe("TeslaVehicleMiddleware", () => {
       expect(adapter.setChargeLimitCalls).toEqual([90]);
       expect(middleware.getCachedState()?.chargeLimit).toBe(90);
     });
+
+    it("skips online probe for commands within 30s confirmation", async () => {
+      await middleware.requestState(ctx());
+      adapter.isVehicleOnlineCalls = 0;
+
+      const solarCtx = cc("controller:solar_tracking");
+      time.tick(10_000);
+      expect(await middleware.setChargeAmps(12, solarCtx)).toBe(true);
+      time.tick(5_000);
+      expect(await middleware.startCharging(solarCtx)).toBe(true);
+      time.tick(5_000);
+      expect(await middleware.stopCharging(solarCtx)).toBe(true);
+
+      expect(adapter.isVehicleOnlineCalls).toBe(0);
+      expect(adapter.setChargeAmpsCalls).toBe(1);
+      expect(adapter.startChargingCalls).toBe(1);
+      expect(adapter.stopChargingCalls).toBe(1);
+    });
+
+    it("re-checks online status once 30s window expires", async () => {
+      await middleware.requestState(ctx());
+      adapter.isVehicleOnlineCalls = 0;
+
+      time.tick(30_000);
+      await middleware.setChargeAmps(16, cc("controller:solar_tracking"));
+
+      expect(adapter.isVehicleOnlineCalls).toBe(1);
+      expect(adapter.setChargeAmpsCalls).toBe(1);
+    });
+
+    it("wakes and retries once if fast-path command throws", async () => {
+      await middleware.requestState(ctx());
+      adapter.isVehicleOnlineCalls = 0;
+
+      time.tick(5_000);
+      adapter.isOnline = false;
+      adapter.wakeResult = true;
+
+      let attempt = 0;
+      adapter.setChargeAmps = () => {
+        adapter.setChargeAmpsCalls++;
+        attempt++;
+        if (attempt === 1) {
+          return Promise.reject(new Error("408 vehicle_unavailable"));
+        }
+        return Promise.resolve(true);
+      };
+
+      const ok = await middleware.setChargeAmps(
+        14,
+        cc("controller:solar_tracking"),
+      );
+
+      expect(ok).toBe(true);
+      expect(adapter.isVehicleOnlineCalls).toBe(1);
+      expect(adapter.wakeVehicleCalls).toBe(1);
+      expect(adapter.setChargeAmpsCalls).toBe(2);
+    });
+
+    it("does not retry fast-path when command returns false", async () => {
+      await middleware.requestState(ctx());
+      adapter.isVehicleOnlineCalls = 0;
+      adapter.getChargeStateCalls = 0;
+      adapter.setChargeAmpsResult = false;
+
+      time.tick(5_000);
+      const ok = await middleware.setChargeAmps(
+        14,
+        cc("controller:solar_tracking"),
+      );
+
+      expect(ok).toBe(false);
+      expect(adapter.isVehicleOnlineCalls).toBe(0);
+      expect(adapter.setChargeAmpsCalls).toBe(1);
+      expect(adapter.getChargeStateCalls).toBe(1);
+    });
   });
 
   describe("online", () => {

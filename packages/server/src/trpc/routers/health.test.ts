@@ -199,6 +199,7 @@ describe("Health tRPC Router", () => {
                   cooldownPeriodMinutes: 15,
                   ampDebounceThreshold: 2,
                   ampDebounceSettleMinutes: 3,
+                  ampDebounceSettleSeconds: 15,
                 }),
               getBattery: () =>
                 Promise.resolve({

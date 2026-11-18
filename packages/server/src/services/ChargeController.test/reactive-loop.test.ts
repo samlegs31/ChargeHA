@@ -24,7 +24,7 @@ Deno.test("reactive control coalesces bursts and stop removes pending work", asy
     await time.tickAsync(1);
     assertEquals(cycles, 1);
     for (let i = 0; i < 100; i++) controller.requestEarlyCycle();
-    await time.tickAsync(4998);
+    await time.tickAsync(1998);
     assertEquals(cycles, 1);
     await time.tickAsync(1);
     assertEquals(cycles, 2);

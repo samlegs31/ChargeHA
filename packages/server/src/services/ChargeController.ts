@@ -193,8 +193,8 @@ export class ChargeController {
     }
     this.scheduleNext(
       Math.min(
-        5_000,
-        Math.max(0, 5_000 - (Date.now() - this.lastLoopStartedAt)),
+        2_000,
+        Math.max(0, 2_000 - (Date.now() - this.lastLoopStartedAt)),
       ),
       true,
     );
@@ -236,12 +236,13 @@ export class ChargeController {
   private async runCycle(): Promise<ControllerConfig> {
     const traceId = createTraceId();
     const timestamp = Date.now();
-    const config = await this.loadConfig();
-    const external = await externalChargingVehicles(this.db);
-    const vehicles = (await this.db.getVehicles()).filter((v) =>
-      !external.has(v.id)
-    );
-    const schedules = await this.db.getSchedules();
+    const [config, external, allVehicles, schedules] = await Promise.all([
+      this.loadConfig(),
+      externalChargingVehicles(this.db),
+      this.db.getVehicles(),
+      this.db.getSchedules(),
+    ]);
+    const vehicles = allVehicles.filter((v) => !external.has(v.id));
     const energySnapshot = this.poller.tryGetRealtimeSnapshot();
     const now = new Date(timestamp);
     const energy = energySnapshot?.realtime ?? null;
@@ -254,6 +255,9 @@ export class ChargeController {
     // Compute context for middleware requests
     const hasSolar = !energyAvailability.unavailable && energy !== null &&
       energy.solarProductionW >= config.minSolarGenerationKw * 1000;
+    const cachedStates = vehicles.length > 0
+      ? await this.vehicleManager.getAllStates()
+      : new Map<string, VehicleChargeState>();
     // Request fresh state for each vehicle via middleware
     const engineVehicles: EngineVehicleInput[] = await Promise.all(
       vehicles.map(async (v) => {
@@ -269,10 +273,10 @@ export class ChargeController {
         );
         const hasApplicableBlockout = isSolarMode &&
           activeChargeSchedule === undefined && hasActiveBlockout;
-        const cachedState = await this.vehicleManager.getState(v.id);
+        const cachedState = cachedStates.get(v.id) ?? null;
         const hasUsefulSolar = isSolarMode && hasSolar && energy !== null &&
           this.hasEnoughSolarToCharge(cachedState, energy, config);
-        await this.vehicleManager.requestState(v.id, {
+        const refreshedState = await this.vehicleManager.requestState(v.id, {
           origin: "controller",
           traceId,
           // Production alone is not a charging opportunity. Passing the broad
@@ -286,7 +290,8 @@ export class ChargeController {
           isHome: cachedState?.isHome ?? null,
           scheduleChargeLimitPct: activeChargeSchedule?.chargeLimitPct ?? null,
         });
-        const state = await this.vehicleManager.getState(v.id);
+        const state = refreshedState ??
+          await this.vehicleManager.getState(v.id);
         return {
           id: v.id,
           name: v.name,
@@ -323,6 +328,9 @@ export class ChargeController {
       this.unapprovedStarts.delete(vehicleId);
     }
 
+    const stateByVehicleId = new Map(
+      engineVehicles.map((v) => [v.id, v.state]),
+    );
     const logEntries: ControllerLogInput[] = await vehicles.reduce(
       async (prevPromise, vehicle) => {
         const acc = await prevPromise;
@@ -331,6 +339,7 @@ export class ChargeController {
         const logInput = await this.processVehicleDecision(
           vehicle,
           decision,
+          stateByVehicleId.get(vehicle.id) ?? null,
           output,
           config,
           schedules,
@@ -823,6 +832,7 @@ export class ChargeController {
   private async processVehicleDecision(
     vehicle: VehicleRow,
     decision: VehicleDecision,
+    preState: VehicleChargeState | null,
     output: EngineOutput,
     config: ControllerConfig,
     schedules: ScheduleRow[],
@@ -830,8 +840,7 @@ export class ChargeController {
     now: Date,
     traceId: string,
   ): Promise<ControllerLogInput> {
-    const state = await this.vehicleManager.getState(vehicle.id);
-    const preState = state;
+    const state = preState;
 
     const commandStarted = performance.now();
     let commandResult: CommandResult | null = null;
@@ -900,8 +909,11 @@ export class ChargeController {
 
     this.emitControllerStatus(vehicle.id, entry);
 
-    // Post-command state (may differ from preState after commands)
-    const postState = await this.vehicleManager.getState(vehicle.id);
+    // Post-command state (reuses publishCommandState; skips no-op lookup)
+    const postState = commandResult?.state ??
+      (decision.action === "none"
+        ? state
+        : await this.vehicleManager.getState(vehicle.id));
 
     if (!cs.initialized) {
       cs.initialized = true;
@@ -1211,6 +1223,7 @@ export class ChargeController {
       cooldownPeriodMinutes: solar.cooldownPeriodMinutes,
       ampDebounceThreshold: solar.ampDebounceThreshold,
       ampDebounceSettleMinutes: solar.ampDebounceSettleMinutes,
+      ampDebounceSettleSeconds: solar.ampDebounceSettleSeconds,
       batteryPriorityEnabled: battery.batteryPriorityEnabled,
       batteryPriorityLimit: battery.batteryPriorityLimit,
       batteryDischargeToleranceW: battery.batteryDischargeToleranceW,

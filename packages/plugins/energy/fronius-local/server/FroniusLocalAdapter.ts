@@ -39,15 +39,21 @@ function extractBatterySoc(inverters: unknown): number | null {
   return inverter.SOC;
 }
 
+const METER_VOLTAGE_CACHE_MS = 60_000;
+const LOCAL_REQUEST_TIMEOUT_MS = 4_000;
+const LOCAL_RETRY_DELAY_MS = 300;
+
 export class FroniusLocalAdapter implements EnergySourceAdapter {
   pollIntervalSeconds(): number {
-    return 10;
+    return 4;
   }
 
   private host: string;
   private meterDeviceId: number;
   private baseUrl: string;
   private logger: Logger;
+  private lastMeterFetchAtMs: number | null = null;
+  private cachedGridVoltageV: number | null = null;
 
   constructor(host: string, meterDeviceId = 0, logger: Logger) {
     this.host = host;
@@ -81,15 +87,14 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
   }
 
   async disconnect(): Promise<void> {
-    // No persistent connection to clean up
+    this.lastMeterFetchAtMs = null;
+    this.cachedGridVoltageV = null;
   }
 
   async getRealtimeData(): Promise<EnergyData> {
-    const [powerFlowRes, meterRes] = await Promise.all([
+    const [powerFlowRes, gridVoltageV] = await Promise.all([
       this.fetch("/solar_api/v1/GetPowerFlowRealtimeData.fcgi"),
-      this.fetch(
-        `/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=${this.meterDeviceId}`,
-      ),
+      this.getGridVoltage(),
     ]);
 
     const json = await powerFlowRes.json();
@@ -104,6 +109,19 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
       );
     }
 
+    return this.buildEnergyData(site, inverters, gridVoltageV);
+  }
+
+  private buildEnergyData(
+    site: {
+      P_PV?: number | null;
+      P_Grid?: number | null;
+      P_Load?: number | null;
+      P_Akku?: number | null;
+    },
+    inverters: unknown,
+    gridVoltageV: number | null,
+  ): EnergyData {
     /*
      * Fronius exposes the battery SOC inside the inverter data:
      *
@@ -115,10 +133,6 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
      */
     const batterySoc = extractBatterySoc(inverters);
 
-    const meterJson = await meterRes.json();
-    const meterData = meterJson?.Body?.Data;
-    const gridVoltageV = meterData?.Voltage_AC_Phase_1 ?? null;
-
     return {
       solarProductionW: site.P_PV ?? 0,
       gridPowerW: site.P_Grid ?? 0,
@@ -128,6 +142,42 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
       gridVoltageV,
       lastUpdated: new Date().toISOString(),
     };
+  }
+
+  private async getGridVoltage(): Promise<number | null> {
+    const now = Date.now();
+    const cacheValid = this.lastMeterFetchAtMs !== null &&
+      now - this.lastMeterFetchAtMs < METER_VOLTAGE_CACHE_MS;
+    if (cacheValid) {
+      return this.cachedGridVoltageV;
+    }
+
+    try {
+      const meterRes = await this.fetch(
+        `/solar_api/v1/GetMeterRealtimeData.cgi?Scope=Device&DeviceId=${this.meterDeviceId}`,
+      );
+      const meterJson = await meterRes.json();
+      const rawVoltage = meterJson?.Body?.Data?.Voltage_AC_Phase_1;
+      const isValidVoltage = typeof rawVoltage === "number" &&
+        Number.isFinite(rawVoltage);
+      const voltage = isValidVoltage ? rawVoltage : null;
+      this.cachedGridVoltageV = voltage;
+      this.lastMeterFetchAtMs = Date.now();
+      return voltage;
+    } catch (error) {
+      // Back off after an established baseline so a transient meter glitch
+      // does not stall the 4s PowerFlow poll loop.
+      if (this.lastMeterFetchAtMs !== null) {
+        this.lastMeterFetchAtMs = Date.now();
+      }
+      this.logger.debug(
+        `Meter voltage refresh failed, using cached voltage (${
+          this.cachedGridVoltageV ?? "null"
+        }V)`,
+        error,
+      );
+      return this.cachedGridVoltageV;
+    }
   }
 
   async getDeviceInfo(): Promise<DeviceInfo> {
@@ -168,7 +218,7 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
   ): Promise<Response> {
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(LOCAL_REQUEST_TIMEOUT_MS),
       });
 
       if (!response.ok) {
@@ -187,7 +237,9 @@ export class FroniusLocalAdapter implements EnergySourceAdapter {
       }
 
       if (attempt < attempts) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) =>
+          setTimeout(resolve, LOCAL_RETRY_DELAY_MS)
+        );
         return await this.fetchAttempt(path, attempt + 1, attempts);
       }
 

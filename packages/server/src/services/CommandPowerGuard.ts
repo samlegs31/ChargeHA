@@ -34,8 +34,10 @@ export class CommandPowerGuard {
     requested: number,
     options?: { allowUnavailableEnergy?: boolean },
   ): Promise<number> {
-    const raw = await this.db.getConfig("vehicle_current_limits");
-    const rawGrid = await this.db.getConfig("max_grid_import_kw");
+    const [raw, rawGrid] = await Promise.all([
+      this.db.getConfig("vehicle_current_limits"),
+      this.db.getConfig("max_grid_import_kw"),
+    ]);
     const config = deserializeSection(chargingConfigDef, {
       vehicle_current_limits: raw,
       max_grid_import_kw: rawGrid,
@@ -75,9 +77,20 @@ export class CommandPowerGuard {
       this.sampleId = energy.lastUpdated;
       this.reservations.clear();
     }
+    const [
+      gridVoltage,
+      threePhaseCharger,
+      batteryPriorityEnabled,
+      batteryPriorityLimit,
+    ] = await Promise.all([
+      this.db.getConfig("grid_voltage"),
+      this.db.getConfig("three_phase_charger"),
+      this.db.getConfig("battery_priority_enabled"),
+      this.db.getConfig("battery_priority_limit"),
+    ]);
     const solar = deserializeSection(solarConfigDef, {
-      grid_voltage: await this.db.getConfig("grid_voltage"),
-      three_phase_charger: await this.db.getConfig("three_phase_charger"),
+      grid_voltage: gridVoltage,
+      three_phase_charger: threePhaseCharger,
     });
     const electrical = solar as ControllerConfig;
     const wattsPerAmp =
@@ -98,10 +111,8 @@ export class CommandPowerGuard {
       0,
     );
     const battery = deserializeSection(batteryConfigDef, {
-      battery_priority_enabled: await this.db.getConfig(
-        "battery_priority_enabled",
-      ),
-      battery_priority_limit: await this.db.getConfig("battery_priority_limit"),
+      battery_priority_enabled: batteryPriorityEnabled,
+      battery_priority_limit: batteryPriorityLimit,
     });
     const reclaimW = SolarAllocator.reclaimableBatteryChargeW(battery, energy);
     const availableW = Math.max(

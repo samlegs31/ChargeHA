@@ -54,6 +54,7 @@ describe("ConfigService", () => {
       expect(result.consumptionExcludesCharging).toBe(false);
       expect(result.gracePeriodMinutes).toBe(6);
       expect(result.cooldownPeriodMinutes).toBe(15);
+      expect(result.ampDebounceSettleSeconds).toBe(15);
     });
   });
 
@@ -143,10 +144,12 @@ describe("ConfigService", () => {
       await service.setSolar({
         solarTrackingEnabled: false,
         solarMarginKw: 1.5,
+        ampDebounceSettleSeconds: 45,
       });
       const result = await service.getSolar();
       expect(result.solarTrackingEnabled).toBe(false);
       expect(result.solarMarginKw).toBe(1.5);
+      expect(result.ampDebounceSettleSeconds).toBe(45);
     });
   });
 

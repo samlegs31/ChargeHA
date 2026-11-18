@@ -566,6 +566,7 @@ export class SolarForecastService {
       cooldownPeriodMinutes: solar.cooldownPeriodMinutes,
       ampDebounceThreshold: solar.ampDebounceThreshold,
       ampDebounceSettleMinutes: solar.ampDebounceSettleMinutes,
+      ampDebounceSettleSeconds: solar.ampDebounceSettleSeconds,
       batteryPriorityEnabled: battery.batteryPriorityEnabled,
       batteryPriorityLimit: battery.batteryPriorityLimit,
       batteryDischargeToleranceW: battery.batteryDischargeToleranceW,

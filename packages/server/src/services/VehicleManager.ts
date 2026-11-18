@@ -325,10 +325,11 @@ export class VehicleManager {
   }
 
   async getAllStates(): Promise<Map<string, VehicleChargeState>> {
-    const home = parseHomeCoords(
-      await this.db.getConfig("home_latitude"),
-      await this.db.getConfig("home_longitude"),
-    );
+    const [lat, lon] = await Promise.all([
+      this.db.getConfig("home_latitude"),
+      this.db.getConfig("home_longitude"),
+    ]);
+    const home = parseHomeCoords(lat, lon);
     return new Map(
       [...this.vehicles].flatMap(([id, entry]) => {
         const raw = entry.middleware.getCachedState();
@@ -342,10 +343,11 @@ export class VehicleManager {
   private async wrapWithIsHome(
     raw: AdapterVehicleChargeState,
   ): Promise<VehicleChargeState> {
-    const home = parseHomeCoords(
-      await this.db.getConfig("home_latitude"),
-      await this.db.getConfig("home_longitude"),
-    );
+    const [lat, lon] = await Promise.all([
+      this.db.getConfig("home_latitude"),
+      this.db.getConfig("home_longitude"),
+    ]);
+    const home = parseHomeCoords(lat, lon);
     return { ...raw, isHome: isHome(home, raw) };
   }
 

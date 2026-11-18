@@ -1368,7 +1368,9 @@ export class ControllerEngine {
 
     // The target has stayed on the same side of the current setting — check
     // whether that demand has lasted long enough.
-    const settleMs = config.ampDebounceSettleMinutes * 60_000;
+    const settleSeconds = config.ampDebounceSettleSeconds ??
+      config.ampDebounceSettleMinutes * 60;
+    const settleMs = settleSeconds * 1000;
     const elapsed = timestamp - pendingSince;
     if (elapsed >= settleMs) {
       return { amps: targetAmps, pendingAmps: null, pendingSince: null };

@@ -21,6 +21,12 @@ import { TeslaApiStrategy } from "./TeslaApiStrategy.ts";
 // Bypassed for forceRefresh (user-initiated) and command paths.
 const ONLINE_CHECK_DEBOUNCE_MS = 60_000;
 
+// Active command fast path: if we directly confirmed the car online within this
+// window (via a live probe, fetch, wake, or accepted command), send active
+// solar commands without a redundant /vehicles probe and fall back to
+// ensureOnline() + one retry if the command errors.
+const COMMAND_ONLINE_FAST_PATH_MS = 30_000;
+
 type TeslaCachedState = Omit<AdapterVehicleChargeState, "isOnline"> & {
   /** Sensed Tesla AC input current. chargeAmps remains the control target. */
   chargeAmpsActual?: number;
@@ -44,6 +50,7 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
   private lastFetchAtMs = 0;
   private lastWakeAtMs = 0;
   private lastOnlineCheckAtMs = 0;
+  private lastConfirmedOnlineAtMs: number | null = null;
 
   private appearance: TeslaAppearance;
 
@@ -174,35 +181,42 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
 
   async startCharging(ctx: CallContext): Promise<boolean> {
     this.logger.debug(`startCharging origin=${ctx.origin}`);
-    await this.ensureOnline(withSuffix(ctx, "pre"));
-
-    // VehicleManager can legitimately skip setChargeAmps when the cached
-    // requested current already equals the engine target. Solar mode must
-    // still never reuse that remembered current on a fresh start, so enforce
-    // the hardware minimum again immediately before charge_start.
-    if (this.shouldArmSolarStart(ctx) && this.cachedState) {
-      const safeAmps = this.cachedState.chargeAmpsMin;
-      this.logger.info(
-        `Solar start — pre-arming ${safeAmps}A before charge_start`,
-      );
-      const armed = await this.adapter.setChargeAmps(
-        safeAmps,
-        withSuffix(ctx, "safe-start"),
-      );
-      if (!armed) {
-        await this.refreshCacheAfterRejection(
-          withSuffix(ctx, "safe-start-reject"),
+    let safeStartRejected = false;
+    const ok = await this.executeWithOnline(ctx, async () => {
+      // VehicleManager can legitimately skip setChargeAmps when the cached
+      // requested current already equals the engine target. Solar mode must
+      // still never reuse that remembered current on a fresh start, so enforce
+      // the hardware minimum again immediately before charge_start.
+      if (this.shouldArmSolarStart(ctx) && this.cachedState) {
+        const safeAmps = this.cachedState.chargeAmpsMin;
+        this.logger.info(
+          `Solar start — pre-arming ${safeAmps}A before charge_start`,
         );
-        return false;
+        const armed = await this.adapter.setChargeAmps(
+          safeAmps,
+          withSuffix(ctx, "safe-start"),
+        );
+        if (!armed) {
+          safeStartRejected = true;
+          return false;
+        }
+        this.cachedState = {
+          ...this.cachedState,
+          chargeAmps: safeAmps,
+        };
+        this.lastFetchAtMs = 0;
       }
-      this.cachedState = {
-        ...this.cachedState,
-        chargeAmps: safeAmps,
-      };
-      this.lastFetchAtMs = 0;
+
+      return await this.adapter.startCharging(ctx);
+    });
+
+    if (safeStartRejected) {
+      await this.refreshCacheAfterRejection(
+        withSuffix(ctx, "safe-start-reject"),
+      );
+      return false;
     }
 
-    const ok = await this.adapter.startCharging(ctx);
     if (ok && this.cachedState) {
       // Keep the UI responsive, but do not pretend this is fresh telemetry.
       // Invalidating lastFetchAtMs forces the next controller pass to read
@@ -221,8 +235,10 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
 
   async stopCharging(ctx: CallContext): Promise<boolean> {
     this.logger.debug(`stopCharging origin=${ctx.origin}`);
-    await this.ensureOnline(withSuffix(ctx, "pre"));
-    const ok = await this.adapter.stopCharging(ctx);
+    const ok = await this.executeWithOnline(
+      ctx,
+      () => this.adapter.stopCharging(ctx),
+    );
     if (ok && this.cachedState) {
       this.cachedState = {
         ...this.cachedState,
@@ -267,8 +283,10 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     this.logger.debug(
       `setChargeAmps amps=${effectiveAmps} origin=${ctx.origin}`,
     );
-    await this.ensureOnline(withSuffix(ctx, "pre"));
-    const ok = await this.adapter.setChargeAmps(effectiveAmps, ctx);
+    const ok = await this.executeWithOnline(
+      ctx,
+      () => this.adapter.setChargeAmps(effectiveAmps, ctx),
+    );
     if (ok && this.cachedState) {
       // chargeAmps is intentionally the controller target: the pure solar
       // engine and its debounce logic already use it that way. Do not alter
@@ -349,6 +367,53 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     }
   }
 
+  private markOnlineConfirmed(now = Date.now()): void {
+    this.lastKnownOnline = true;
+    this.lastOnlineCheckAtMs = now;
+    this.lastConfirmedOnlineAtMs = now;
+  }
+
+  private clearOnlineConfirmation(): void {
+    this.lastKnownOnline = false;
+    this.lastConfirmedOnlineAtMs = null;
+  }
+
+  private hasRecentOnlineConfirmation(now = Date.now()): boolean {
+    return (
+      this.lastKnownOnline &&
+      this.lastConfirmedOnlineAtMs !== null &&
+      now - this.lastConfirmedOnlineAtMs < COMMAND_ONLINE_FAST_PATH_MS
+    );
+  }
+
+  private async executeWithOnline(
+    ctx: CallContext,
+    operation: () => Promise<boolean>,
+  ): Promise<boolean> {
+    if (!this.hasRecentOnlineConfirmation()) {
+      await this.ensureOnline(withSuffix(ctx, "pre"));
+      const ok = await operation();
+      if (ok) this.markOnlineConfirmed();
+      return ok;
+    }
+
+    try {
+      const ok = await operation();
+      if (ok) this.markOnlineConfirmed();
+      return ok;
+    } catch (error) {
+      this.logger.debug(
+        "Fast-path command failed; verifying online status and retrying once",
+        error,
+      );
+      this.clearOnlineConfirmation();
+      await this.ensureOnline(withSuffix(ctx, "pre-retry"));
+      const retriedOk = await operation();
+      if (retriedOk) this.markOnlineConfirmed();
+      return retriedOk;
+    }
+  }
+
   /** Ensure the vehicle is online before sending a command. Always does a
    *  cheap online check (free) — `lastKnownOnline` can be minutes stale for
    *  dashboard-initiated commands, so we can't trust it. If the check says
@@ -359,16 +424,17 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
   private async ensureOnline(ctx: CallContext): Promise<void> {
     const isOnline = await this.adapter.isVehicleOnline(ctx);
     if (isOnline) {
-      this.lastKnownOnline = true;
+      this.markOnlineConfirmed();
       return;
     }
+    this.clearOnlineConfirmation();
     this.logger.info("Waking vehicle before command");
     this.lastWakeAtMs = Date.now();
     const woke = await this.adapter.wakeVehicle(withSuffix(ctx, "wake"));
     if (!woke) {
       throw new Error("wakeVehicle rejected by vehicle");
     }
-    this.lastKnownOnline = true;
+    this.markOnlineConfirmed();
   }
 
   // ── Private: I/O ──────────────────────────────────────────────────────
@@ -389,8 +455,13 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
       return this.lastKnownOnline;
     }
     const isOnline = await this.adapter.isVehicleOnline(ctx);
-    this.lastKnownOnline = isOnline;
-    this.lastOnlineCheckAtMs = Date.now();
+    const now = Date.now();
+    this.lastOnlineCheckAtMs = now;
+    if (isOnline) {
+      this.markOnlineConfirmed(now);
+    } else {
+      this.clearOnlineConfirmation();
+    }
     return isOnline;
   }
 
@@ -401,8 +472,13 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
     const state = await this.adapter.getChargeState(ctx);
     state.lastUpdated = new Date().toISOString();
 
-    this.lastKnownOnline = state.isOnline;
-    this.lastFetchAtMs = Date.now();
+    const now = Date.now();
+    this.lastFetchAtMs = now;
+    if (state.isOnline) {
+      this.markOnlineConfirmed(now);
+    } else {
+      this.clearOnlineConfirmation();
+    }
     const { isOnline: _isOnline, ...rest } = state;
     this.cachedState = rest;
     const appearance = { ...this.appearance, ...readAppearance(state) };
@@ -431,7 +507,7 @@ export class TeslaVehicleMiddleware implements VehicleMiddleware {
       return null;
     }
 
-    this.lastKnownOnline = true;
+    this.markOnlineConfirmed();
     return this.fetchAndCache(withSuffix(ctx, "request_vehicle_data"));
   }
 }

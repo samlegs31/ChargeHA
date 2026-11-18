@@ -153,6 +153,7 @@ describe("Config tRPC Router", () => {
       expect(data.consumptionExcludesCharging).toBe(false);
       expect(data.gracePeriodMinutes).toBe(6);
       expect(data.cooldownPeriodMinutes).toBe(15);
+      expect(data.ampDebounceSettleSeconds).toBe(15);
     });
 
     it("set persists partial updates", async () => {
@@ -160,13 +161,28 @@ describe("Config tRPC Router", () => {
         solarTrackingMode: "solar_grid",
         solarMarginKw: 1.5,
         minExcessSolarKw: 2.0,
+        ampDebounceSettleSeconds: 45,
       });
       const data = await caller.config.solar.get();
       expect(data.solarTrackingMode).toBe("solar_grid");
       expect(data.solarMarginKw).toBe(1.5);
       expect(data.minExcessSolarKw).toBe(2.0);
+      expect(data.ampDebounceSettleSeconds).toBe(45);
       // Untouched fields keep defaults
       expect(data.solarTrackingEnabled).toBe(true);
+    });
+
+    it("persists 0s settle delay and rejects out-of-bounds", async () => {
+      await caller.config.solar.set({ ampDebounceSettleSeconds: 0 });
+      const updated = await caller.config.solar.get();
+      expect(updated.ampDebounceSettleSeconds).toBe(0);
+      expect(await db.getConfig("amp_debounce_settle_seconds")).toBe("0");
+
+      for (const bad of [-1, 601, 1.5]) {
+        await expect(
+          caller.config.solar.set({ ampDebounceSettleSeconds: bad }),
+        ).rejects.toThrow();
+      }
     });
 
     it("set nullable to null serializes as empty string", async () => {

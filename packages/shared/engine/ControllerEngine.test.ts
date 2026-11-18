@@ -389,6 +389,55 @@ describe("ControllerEngine", () => {
       const d = output.decisions.get("V1");
       expect(d?.action).toBe("none");
     });
+
+    it("honours ampDebounceSettleSeconds and prefers it over minutes", () => {
+      const engine = new ControllerEngine();
+      const baseTimestamp = Date.now();
+      const cfg = {
+        ampDebounceSettleSeconds: 15,
+        ampDebounceSettleMinutes: 10,
+      };
+
+      // Tick 1: 10A charging, +1A upward demand -> pending started
+      engine.decide(makeInput({
+        vehicle: { state: { isCharging: true, chargeAmps: 10 } },
+        energyOverrides: { gridPowerW: -300 },
+        configOverrides: cfg,
+        timestamp: baseTimestamp,
+      }));
+
+      // At 10s (< 15s) still held
+      const held = engine.decide(makeInput({
+        vehicle: { state: { isCharging: true, chargeAmps: 10 } },
+        energyOverrides: { gridPowerW: -300 },
+        configOverrides: cfg,
+        timestamp: baseTimestamp + 10_000,
+      }));
+      expect(held.decisions.get("V1")?.action).toBe("none");
+
+      // At 15s -> applied without waiting 10 minutes
+      const applied = engine.decide(makeInput({
+        vehicle: { state: { isCharging: true, chargeAmps: 10 } },
+        energyOverrides: { gridPowerW: -300 },
+        configOverrides: cfg,
+        timestamp: baseTimestamp + 15_000,
+      }));
+      expect(applied.decisions.get("V1")?.action).toBe("adjust_amps");
+      expect(applied.decisions.get("V1")?.targetAmps).toBe(11);
+    });
+
+    it("applies small rises immediately when settle seconds is 0", () => {
+      const engine = new ControllerEngine();
+      const output = engine.decide(makeInput({
+        vehicle: { state: { isCharging: true, chargeAmps: 10 } },
+        energyOverrides: { gridPowerW: -300 },
+        configOverrides: { ampDebounceSettleSeconds: 0 },
+        timestamp: Date.now(),
+      }));
+      const d = output.decisions.get("V1");
+      expect(d?.action).toBe("adjust_amps");
+      expect(d?.targetAmps).toBe(11);
+    });
   });
 
   describe("schedules", () => {

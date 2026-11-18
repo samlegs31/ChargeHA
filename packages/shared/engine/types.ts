@@ -43,6 +43,7 @@ export interface ControllerConfig {
   timezone: string;
   ampDebounceThreshold: number;
   ampDebounceSettleMinutes: number;
+  ampDebounceSettleSeconds?: number;
 }
 
 /** Vehicle identity + config fields the engine needs. Flattened from the
