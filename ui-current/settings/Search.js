@@ -7,7 +7,7 @@ function EVSettingsSearch({ onSelect }) {
     ["cars", "Mes voitures — Plafond de courant solaire", "My cars — Solar current limit", "solar solaire 22 22a a amp amps limit plafond voiture friday edith maximum kw", null, "solar-current"],
     ["cars", "Mes voitures — Limites électriques & compteur", "My cars — Electrical & grid limits", "electrical circuit grid import max kw disjoncteur compteur linky 12kva 12 kva 32a securite", null, "electrical-limits"],
     ["cars", "Mes voitures — Priorité & historique véhicule", "My cars — Vehicle priority & history source", "car voitures priorite priority 1 2 ordre chargehq wattpilot solarweb historique", null, "my-cars-list"],
-    ["cars", "Mes voitures — Pourquoi la charge est-elle limitée ?", "My cars — Why is charging limited?", "why limited diagnostic diagnostics reason cause queue age p95 pourquoi limite", "diagnostics", "diagnostics"],
+    ["cars", "Mes voitures — Diagnostic & télécharger les logs", "My cars — Diagnostics & download logs", "why limited diagnostic diagnostics reason cause queue age p95 pourquoi limite logs log journal journaux telecharger charger exporter export google drive fichier txt support", "diagnostics", "diagnostics"],
     ["home", "Solaire & maison — Onduleur & compteur", "Solar & home — Energy equipment & inverter", "energy energie inverter onduleur fronius sigenergy compteur meter", null, "energy-equipment"],
     ["home", "Solaire & maison — Adresse & localisation GPS", "Solar & home — Home location & GPS", "location adresse gps domicile maison home latitude longitude", null, "home-location"],
     ["home", "Solaire & maison — Batterie maison & réserve", "Solar & home — Home battery & reserve", "battery batterie reserve priorite priority 90 90% maison", null, "home-battery-basic"],
@@ -30,7 +30,7 @@ function EVSettingsSearch({ onSelect }) {
     t.jsx(P, {
       type: "search",
       "aria-label": fr ? "Rechercher un réglage" : "Search settings",
-      placeholder: fr ? "Rechercher un réglage (ex. 22A, disjoncteur, Linky, batterie, quota…)" : "Search settings (e.g. 22A, breaker, battery, tariff, quota…)",
+      placeholder: fr ? "Rechercher un réglage (ex. 22A, disjoncteur, Linky, batterie, logs…)" : "Search settings (e.g. 22A, breaker, battery, tariff, logs…)",
       value: query,
       onChange: event => setQuery(event.target.value),
     }),

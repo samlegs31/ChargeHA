@@ -1,4 +1,5 @@
 import { createVehicleAppearanceRoutes } from "../routes/vehicleAppearance.ts";
+import { createLogsExportRoutes } from "../routes/logsExport.ts";
 import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { serveStatic } from "hono/deno";
@@ -458,6 +459,7 @@ function buildHttpApp(
   });
 
   app.route("/api/vehicle-appearance", createVehicleAppearanceRoutes(db));
+  app.route("/api/logs", createLogsExportRoutes(db));
   app.use("/vehicles/*", async (c, next) => {
     await next();
     if (c.res.status === 200) {

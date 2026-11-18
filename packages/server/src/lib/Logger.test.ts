@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
 import { type Spy, spy } from "@std/testing/mock";
-import { createLogger, Logger } from "./Logger.ts";
+import {
+  clearRecentLogs,
+  createLogger,
+  getRecentLogs,
+  Logger,
+  redactSensitiveText,
+} from "./Logger.ts";
 
 describe("Logger", () => {
   let logSpy: Spy<unknown, unknown[], void>;
@@ -10,6 +16,7 @@ describe("Logger", () => {
   beforeEach(() => {
     logSpy = spy<unknown, unknown[], void>();
     console.log = logSpy;
+    clearRecentLogs();
   });
 
   afterEach(() => {
@@ -148,6 +155,67 @@ describe("Logger", () => {
       expect(logSpy.calls.length).toBe(0);
       logger.info("visible");
       expect(logSpy.calls.length).toBe(1);
+    });
+  });
+
+  describe("recent log ring buffer and redaction", () => {
+    it("records non-filtered logs chronologically with secrets redacted", () => {
+      const logger = new Logger("Controller", "info");
+      logger.debug("ignored-debug");
+      logger.info("line-1", "Bearer super-secret-jwt");
+      logger.warn("line-2\nnext", {
+        access_token: "tok-123",
+        latitude: 48.8566,
+      });
+
+      const lines = getRecentLogs(10);
+      expect(lines.length).toBe(2);
+      expect(lines[0]).toContain("[INFO ] [Controller] line-1 Bearer [REDACTED]");
+      expect(lines[0]).not.toContain("super-secret-jwt");
+      expect(lines[1]).toContain("[WARN ] [Controller] line-2 next");
+      expect(lines[1]).not.toContain("\n");
+      expect(lines[1]).not.toContain("tok-123");
+      expect(lines[1]).not.toContain("48.8566");
+    });
+
+    it("wraps around cleanly when exceeding ring capacity", () => {
+      const logger = new Logger("Wrap", "info");
+      for (let i = 0; i < 1505; i++) {
+        logger.info(`entry-${i}`);
+      }
+      const tail = getRecentLogs(5);
+      expect(tail.length).toBe(5);
+      expect(tail[0]).toContain("entry-1500");
+      expect(tail[4]).toContain("entry-1504");
+      const all = getRecentLogs(1500);
+      expect(all.length).toBe(1500);
+      expect(all[0]).toContain("entry-5");
+    });
+
+    it("handles circular objects and errors safely", () => {
+      const logger = new Logger("Err", "info");
+      const circular: Record<string, unknown> = { ok: true };
+      circular.self = circular;
+      logger.error("boom", new Error("failed"), circular);
+      const lines = getRecentLogs(5);
+      expect(lines.length).toBe(1);
+      expect(lines[0]).toContain("Error: failed");
+      expect(lines[0]).toContain("[unserializable]");
+    });
+
+    it("redacts telegram tokens, JWTs, query secrets, and cookies", () => {
+      const raw =
+        "https://api.telegram.org/bot123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ123/send?access_token=abc&code=xyz " +
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature_part session_id=cookie123";
+      const redacted = redactSensitiveText(raw);
+      expect(redacted).not.toContain("123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ123");
+      expect(redacted).not.toContain("=abc");
+      expect(redacted).not.toContain("=xyz");
+      expect(redacted).not.toContain("signature_part");
+      expect(redacted).not.toContain("cookie123");
+      expect(redacted).toContain("[REDACTED_BOT_TOKEN]");
+      expect(redacted).toContain("[REDACTED_JWT]");
+      expect(redacted).toContain("session_id=[REDACTED]");
     });
   });
 });

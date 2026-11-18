@@ -15,7 +15,7 @@ fields='EVSH='+json.dumps({key:class_names[value] for key,value in (pair.split('
 html='''<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'''+''.join('<link rel="stylesheet" href="/'+str(p.relative_to(ROOT))+'">' for p in (ROOT/'packages/server/dist/assets').glob('*.css'))+'''<style>body{margin:0;background:#111113;color:#eee}.preview{max-width:900px;margin:auto;padding:20px;display:flex;flex-direction:column;gap:24px}.preview>div{width:100%;box-sizing:border-box}.radix-themes{--default-font-family:Arial}p{margin:0}</style></head><body><div class="radix-themes dark" id="preview-root"></div><script type="module">
 import {j as t,r as g,m as dom} from '/packages/server/dist/assets/vendor-react-BYv-AQ32.js';
 import {b as M,p as c,h as D,o as w,u as C,u as P,R as Theme} from '/packages/server/dist/assets/vendor-radix-B-Qd10_a.js';
-import {W as Ft,Y as _e,_ as Mt,D as Dt} from '/packages/server/dist/assets/vendor-icons-DHujlvtW.js';
+import {W as Ft,Y as _e,_ as Mt,D as Dt,a5 as Ke} from '/packages/server/dist/assets/vendor-icons-DHujlvtW.js';
 let stored=JSON.parse(sessionStorage.getItem('settings-fixture')||'{"vehicleSolarCurrentLimits":{"friday":22,"edith":16},"vehicleCurrentLimits":{"friday":32},"maxGridImportKw":null,"chargingEnabled":true}');
 window.saved=[];window.failNext=false;window.queryFailure=new URL(location.href).searchParams.has("fail");const listeners=new Set();
 const broadcast=()=>listeners.forEach(fn=>fn({...stored}));

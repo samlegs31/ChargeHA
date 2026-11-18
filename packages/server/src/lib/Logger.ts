@@ -26,6 +26,106 @@ function formatTimestamp(): string {
   return `${Y}-${M}-${D} ${h}:${m}:${s}`;
 }
 
+const MAX_RECENT_LOG_LINES = 1500;
+const MAX_LOG_LINE_LENGTH = 600;
+const recentLogRing: string[] = new Array<string>(MAX_RECENT_LOG_LINES);
+let ringWriteIndex = 0;
+let ringLength = 0;
+
+/** Redact common credentials, tokens, cookies, and GPS coordinates from log text. */
+export function redactSensitiveText(input: string): string {
+  if (!input) return "";
+  return input
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9\-._~+/]+=*/gi, "$1 [REDACTED]")
+    .replace(
+      /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g,
+      "[REDACTED_JWT]",
+    )
+    .replace(
+      /\b(?:bot)?\d{6,}:[A-Za-z0-9_-]{20,}\b/g,
+      "[REDACTED_BOT_TOKEN]",
+    )
+    .replace(
+      /([?&](?:access_token|refresh_token|id_token|client_secret|code|token|password|secret|api_key|apikey|encryption_key|session_id)=)[^&\s"'`}]+/gi,
+      "$1[REDACTED]",
+    )
+    .replace(/\bsession_id=[^;\s"'`]+/gi, "session_id=[REDACTED]")
+    .replace(
+      /("(?:access_token|refresh_token|id_token|client_secret|password|passwordHash|encryptionKey|botToken|notification_telegram_bot_token|session_id|token|secret|apiKey|api_key|privateKey|authorization|cookie|set-cookie)"\s*:\s*)"(?:[^"\\]|\\.)*"/gi,
+      '$1"[REDACTED]"',
+    )
+    .replace(
+      /\b(password|passwd|client_secret|bot_token|api_key|encryption_key|access_token|refresh_token|id_token)\s*=\s*([^\s,;'"`]+)/gi,
+      "$1=[REDACTED]",
+    )
+    .replace(
+      /("(?:home_)?(?:latitude|longitude)"\s*:\s*)-?\d+(?:\.\d+)?/gi,
+      '$1"[REDACTED_GEO]"',
+    );
+}
+
+function formatLogArg(arg: unknown): string {
+  if (arg === null) return "null";
+  if (arg === undefined) return "undefined";
+  if (typeof arg === "string") return arg;
+  if (
+    typeof arg === "number" ||
+    typeof arg === "boolean" ||
+    typeof arg === "bigint" ||
+    typeof arg === "symbol"
+  ) {
+    return String(arg);
+  }
+  if (arg instanceof Error) {
+    return `${arg.name}: ${arg.message}`;
+  }
+  try {
+    const json = JSON.stringify(arg);
+    return json ?? Object.prototype.toString.call(arg);
+  } catch {
+    return "[unserializable]";
+  }
+}
+
+function recordRecentLogLine(line: string): void {
+  const sanitized = redactSensitiveText(line).replace(/[\r\n]+/g, " ");
+  const truncated = sanitized.length > MAX_LOG_LINE_LENGTH
+    ? `${sanitized.slice(0, MAX_LOG_LINE_LENGTH)}...`
+    : sanitized;
+  recentLogRing[ringWriteIndex] = truncated;
+  ringWriteIndex = (ringWriteIndex + 1) % MAX_RECENT_LOG_LINES;
+  if (ringLength < MAX_RECENT_LOG_LINES) {
+    ringLength++;
+  }
+}
+
+/** Return recent in-memory log lines in chronological order (oldest first). */
+export function getRecentLogs(limit = 1000): string[] {
+  const clampedLimit = Number.isFinite(limit)
+    ? Math.max(0, Math.min(Math.floor(limit), MAX_RECENT_LOG_LINES))
+    : MAX_RECENT_LOG_LINES;
+  const count = Math.min(ringLength, clampedLimit);
+  if (count === 0) return [];
+  const startOffset = ringLength === MAX_RECENT_LOG_LINES
+    ? ringWriteIndex
+    : 0;
+  const skip = ringLength - count;
+  const result: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const idx = (startOffset + skip + i) % MAX_RECENT_LOG_LINES;
+    const entry = recentLogRing[idx];
+    if (entry !== undefined) result.push(entry);
+  }
+  return result;
+}
+
+/** Clear the in-memory log ring buffer (intended for unit tests). */
+export function clearRecentLogs(): void {
+  recentLogRing.fill("");
+  ringWriteIndex = 0;
+  ringLength = 0;
+}
+
 function parseLogLevel(value: string | undefined): LogLevel {
   if (!value) return "info";
   const lower = value.toLowerCase();
@@ -70,8 +170,12 @@ export class Logger {
     } [${this.context}]`;
     if (args.length > 0) {
       console.log(prefix, message, ...args);
+      recordRecentLogLine(
+        `${prefix} ${message} ${args.map(formatLogArg).join(" ")}`,
+      );
     } else {
       console.log(prefix, message);
+      recordRecentLogLine(`${prefix} ${message}`);
     }
   }
 }

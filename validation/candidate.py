@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # User-authorized Settings addition. Every other installed asset stays immutable.
 APPROVED_UI = {
     "packages/server/dist/assets/Schedules-R8LrB50u.js": "d9f305f25aff86ac19127ceaf74c38896487ed2188e13af899730975e7634057",
-    "packages/server/dist/assets/Settings-C2gay-IT.js": "d44f395c5f6a66a4a32415179645ffe2e36c98c8a390c914fae6b5f265a7c7be",
+    "packages/server/dist/assets/Settings-C2gay-IT.js": "fbd209c3004f854fb6055611717e888b5b0051de7dacc3df3104918962833233",
     "packages/server/dist/assets/Stats-Brkyx1mD.js": "6f9a1bf3af1ea341e463033ef9c2f1d83282a79243ab687eb83ac7a624361220",
     "packages/server/dist/assets/TeslaVehicleVisualDev-C6RS3WTw.js": "539cb1a703702deb96800ace189623ac67947af52854ee9f27fe0912816312c8",
     "packages/server/dist/assets/WizardRouter-BG7hMVUZ.js": "04c58099734977b5498bc7848376796d0e45b748830da218c6d7983119f68a6f",
