@@ -421,7 +421,7 @@
     "packages/server/src/trpc/routers/energy.test.ts": "92bb51a9ff0064911501557d45f51358a00d2eb58552c5ec014ef2588558b6f0",
     "packages/server/src/trpc/routers/energy.ts": "263b6a592189f2759090222fb1e0cf2294ef19109a91530075e387ccb5378296",
     "packages/server/src/trpc/routers/forecast.ts": "c3e217e12ba05a0b288e736c7bf79d6bbac82c40f629a192fb7a2b1579181bae",
-    "packages/server/src/trpc/routers/health.test.ts": "b1b7c0150084c8cb4942c320eb0a94107dc692c2c2eaea02a8636828024382dc",
+    "packages/server/src/trpc/routers/health.test.ts": "a7debc6bb80255a2085ce7b964714ce349580a26ef56f891cbbf8e0121d8df79",
     "packages/server/src/trpc/routers/health.ts": "47d90e47d53ab86e56f7cc0445facab1262a8f14d5a232bb14cdbe747208e0bd",
     "packages/server/src/trpc/routers/history.ts": "991f3b57c5c1319c4ba415ee1a326b0e4f6edc3e54321a8a2f43cab2eaa3cbfb",
     "packages/server/src/trpc/routers/logs.test.ts": "89ae6540ddcb140ac353c305bbdc3c6a24d344705d66259a5b929dd57393fd06",

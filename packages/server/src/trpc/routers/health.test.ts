@@ -4,6 +4,7 @@ import { AppDatabase } from "../../db/AppDatabase.ts";
 import { VehiclePluginRegistry } from "@chargeha/server/bootstrap/VehiclePluginRegistry";
 import { EnergyPluginRegistry } from "@chargeha/server/bootstrap/EnergyPluginRegistry";
 import { HealthService } from "../../services/HealthService.ts";
+import { TypedEventEmitter } from "../../services/TypedEventEmitter.ts";
 import { appRouter } from "../root.ts";
 import { createCallerFactory } from "../trpc.ts";
 import type { TrpcContext } from "../trpc.ts";
@@ -117,6 +118,20 @@ describe("Health tRPC Router", () => {
       db = new AppDatabase(":memory:");
       await db.init();
       const nowIso = new Date().toISOString();
+      const eventEmitter = new TypedEventEmitter();
+      eventEmitter.emit(
+        "controller_status",
+        {
+          vehicleId: "VIN_FRIDAY",
+          action: "none",
+          reason: "solar_tracking",
+          detail: "Already charging at 22A",
+          targetAmps: 22,
+          checksJson: "[]",
+          observedAt: nowIso,
+        },
+        "VIN_FRIDAY",
+      );
       const caller = createCaller(
         throwingMock<TrpcContext>("TrpcContext", {
           db,
@@ -196,6 +211,7 @@ describe("Health tRPC Router", () => {
           ),
           poller: throwingMock<TrpcContext["poller"]>("EnergyPoller", {
             tryGetRealtimeSnapshot: () => ({
+              timestamp: nowIso,
               realtime: {
                 solarProductionW: 6500,
                 gridPowerW: -1000,
@@ -216,22 +232,7 @@ describe("Health tRPC Router", () => {
             }),
             getRealtimeMaxAgeMs: () => 90_000,
           }),
-          eventEmitter: throwingMock<TrpcContext["eventEmitter"]>(
-            "TypedEventEmitter",
-            {
-              getRetained: () => [
-                {
-                  vehicleId: "VIN_FRIDAY",
-                  action: "none" as const,
-                  reason: "solar_tracking" as const,
-                  detail: "Already charging at 22A",
-                  targetAmps: 22,
-                  checksJson: "[]",
-                  observedAt: nowIso,
-                },
-              ],
-            },
-          ),
+          eventEmitter,
         }),
       );
 
