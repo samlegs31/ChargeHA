@@ -17,7 +17,7 @@ function EVRegulationDiagnostics() {
     solar_tracking: fr ? "Suit le surplus solaire disponible" : "Following available solar",
     schedule: fr ? "Charge programmée active" : "Scheduled charging is active",
     blockout: fr ? "En pause : plage d'interdiction active" : "Paused during a no-charge period",
-    charge_now: fr ? "Mode Charge immédiate actif" : "Charge Now is active",
+    charge_now: fr ? "Charge manuelle active" : "Manual charging is active",
     vacation: fr ? "Mode Solaire pur actif" : "Solar Only mode is active",
     mode_stop: fr ? "Arrêt : mode réglé sur Arrêt" : "Stopped — mode set to Stop",
     battery_priority: fr ? "La batterie maison est prioritaire" : "Home battery has priority",

@@ -61,8 +61,8 @@ function EVSolarCurrentSettings({ vehicles }) {
         ? "1–80 A. Si la production disponible passe sous le minimum accepté par la voiture, la charge solaire se met en pause."
         : "1–80 A. Below the car’s minimum, solar charging pauses. Available solar and lower electrical limits still apply." }),
       t.jsx(c, { as: "p", size: "1", color: "gray", children: fr
-        ? "Les modes Charge immédiate, Programmes et les commandes manuelles ne sont pas bridés ici. Les chargeurs externes gardent la main."
-        : "Charge Now, scheduled charging and manual commands are not capped here. External chargers retain control." }),
+        ? "Les charges programmées (Programmes) et les commandes manuelles ne sont pas bridées ici. Les chargeurs externes gardent la main."
+        : "Scheduled charging and manual commands are not capped here. External chargers retain control." }),
     ] }),
   });
 }
